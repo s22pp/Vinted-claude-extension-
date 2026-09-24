@@ -733,6 +733,7 @@ export const fr = {
     atPrice: 'à ce prix d’achat',
     buyPrice: 'Si vous l’achetez',
     observedFrom: 'Lu depuis la page ouverte',
+    noShipping: 'port non inclus',
   },
   charts: {
     table: 'Voir les données',

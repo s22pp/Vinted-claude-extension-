@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect } from 'react';
 import { repo } from '@/data/repo';
 import { Onboarding } from './screens/Onboarding';
@@ -20,10 +21,11 @@ function Router() {
     void repo.track('extension_installed');
     void repo.track('dashboard_opened');
   }, []);
+  const onboardingDone = useLiveQuery(() => repo.getSetting('onboardingDone', false), []);
   useEffect(() => {
-    // First run: nothing imported yet → onboarding. Never shows fake data by default.
-    if (era.ready && era.mode === 'empty' && route.name === 'today' && !location.hash.includes('today')) go('onboarding');
-  }, [era.ready, era.mode, route.name]);
+    // First run: nothing imported and onboarding never finished → onboarding. Never shows fake data by default.
+    if (era.ready && era.mode === 'empty' && onboardingDone === false && route.name !== 'onboarding' && route.name !== 'settings') go('onboarding');
+  }, [era.ready, era.mode, route.name, onboardingDone]);
 
   if (route.name === 'onboarding') return <Onboarding />;
   if (!era.ready) return <div className="era-backdrop" aria-hidden="true" />;

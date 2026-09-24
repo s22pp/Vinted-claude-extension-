@@ -10,6 +10,7 @@ html,
 body {
   margin: 0;
   padding: 0;
+  overflow-x: clip;
 }
 
 body {
@@ -1545,11 +1546,11 @@ a {
   display: inline-flex;
 }
 .tip__bubble {
+  display: none;
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translate(-50%, 4px);
-  opacity: 0;
+  transform: translate(-50%, 0);
   pointer-events: none;
   z-index: var(--z-tooltip);
   width: max-content;
@@ -1572,8 +1573,22 @@ a {
 }
 .tip:hover .tip__bubble,
 .tip:focus-within .tip__bubble {
-  opacity: 1;
-  transform: translate(-50%, 0);
+  display: block;
+  animation: tip-in var(--t-fast) var(--ease) both;
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+/* Tooltips near the right edge open leftwards. */
+.topbar .tip__bubble,
+.card__actions .tip__bubble {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation-name: fade;
 }
 
 /* ── Progress / stages ───────────────────────────────── */
