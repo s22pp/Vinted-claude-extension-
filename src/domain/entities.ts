@@ -32,7 +32,8 @@ export type Gender = z.infer<typeof GenderSchema>;
 
 const FieldMetaSchema = z.object({ p: z.enum(PROVENANCES), at: ts, q: z.number().min(0).max(1).optional() });
 
-export const ItemStatusSchema = z.enum(['DRAFT', 'LISTED', 'SOLD', 'ARCHIVED']);
+/** DRAFT = not posted · LISTED = posted · RESERVED = buyer reserved · HIDDEN = posted but hidden · SOLD · ARCHIVED. */
+export const ItemStatusSchema = z.enum(['DRAFT', 'LISTED', 'RESERVED', 'HIDDEN', 'SOLD', 'ARCHIVED']);
 export type ItemStatus = z.infer<typeof ItemStatusSchema>;
 
 /** A physical article the seller owns (or owned). One item can have many successive listings. */
@@ -62,7 +63,7 @@ export const InventoryItemSchema = z.object({
 });
 export type InventoryItem = z.infer<typeof InventoryItemSchema>;
 
-export const ListingStatusSchema = z.enum(['ACTIVE', 'REMOVED', 'SOLD']);
+export const ListingStatusSchema = z.enum(['ACTIVE', 'RESERVED', 'HIDDEN', 'REMOVED', 'SOLD']);
 export type ListingStatus = z.infer<typeof ListingStatusSchema>;
 
 /** A marketplace listing. A republish is a NEW listing for the SAME item. */
@@ -123,6 +124,7 @@ export const DomainEventTypeSchema = z.enum([
   'LISTING_REMOVED',
   'LISTING_REPUBLISHED',
   'ITEM_SOLD',
+  'STATUS_CHANGED',
   'SALE_REFUNDED',
   'MARKET_ANALYZED',
   'PREDICTION_MADE',

@@ -1,5 +1,6 @@
 import type { InventoryItem, Listing, ListingObservation, Sale } from '@/domain/entities';
 import { type Cents, type MaybeCents, type MoneyMetric, subKnown, sumMetric } from '@/domain/money';
+import { isInStock, isLiveListing } from '@/domain/status';
 import { DAY, addMonths, daysBetween, monthKey, startOfMonth } from '@/domain/time';
 import { median } from './stats';
 
@@ -42,12 +43,12 @@ export function buildItemViews(
   }
   return items.map((item) => {
     const ls = (byItem.get(item.id) ?? []).sort((a, b) => a.listedAt - b.listedAt);
-    const current = [...ls].reverse().find((l) => l.status === 'ACTIVE') ?? null;
+    const current = [...ls].reverse().find((l) => isLiveListing(l.status)) ?? null;
     const firstListedAt = ls[0]?.listedAt ?? null;
     const heldFrom = item.purchaseDate ?? firstListedAt;
     const sale = saleByItem.get(item.id) ?? null;
     const end = sale?.soldAt ?? now;
-    const inStock = item.status === 'LISTED' || item.status === 'DRAFT';
+    const inStock = isInStock(item.status);
     const askPrice = current?.priceCents ?? null;
     return {
       item,

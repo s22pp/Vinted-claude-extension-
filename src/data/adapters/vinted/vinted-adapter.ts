@@ -1,6 +1,6 @@
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
-import { currentUserId, firstArray, isDraft, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
+import { currentUserId, firstArray, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
 import type { ApiResult, BudgetStatus, EraMessage, PageResult } from './protocol';
 
 export async function findVintedTab(): Promise<number | null> {
@@ -82,6 +82,8 @@ export async function readPageContext(tabId: number): Promise<PageResult | null>
 export class VintedTabAdapter implements MarketplaceAdapter {
   readonly id = 'vinted' as const;
   readonly isDemo = false;
+  /** Field names actually returned by the wardrobe endpoint — checked, never assumed. */
+  readonly wardrobeKeys = new Set<string>();
 
   private async api(path: string): Promise<unknown> {
     // One click: if no vinted.fr tab is open, ERA opens one in the background.
@@ -108,8 +110,9 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     for (let page = 1; page <= 2; page++) {
       const raw = firstArray(await this.api(`/api/v2/wardrobe/${uid}/items?page=${page}&per_page=96`), ['items']);
       for (const it of raw) {
+        for (const k of Object.keys(it)) this.wardrobeKeys.add(k);
         const p = parseWardrobeItem(it);
-        if (p) out.push(isDraft(it) ? { ...p, status: 'REMOVED' } : p);
+        if (p) out.push(p);
       }
       if (raw.length < 96) break;
     }

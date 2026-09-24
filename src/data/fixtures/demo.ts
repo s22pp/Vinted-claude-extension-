@@ -125,7 +125,7 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
       purchasePriceCents: costKnown ? euro(buy) : null,
       purchaseDate: costKnown || r() > 0.5 ? purchaseDate : null,
       purchaseSource: costKnown ? pick(r, SOURCES) : null,
-      status: sold ? 'SOLD' : r() > 0.07 ? 'LISTED' : 'DRAFT',
+      status: sold ? 'SOLD' : ((x) => (x < 0.05 ? 'DRAFT' : x < 0.12 ? 'RESERVED' : x < 0.16 ? 'HIDDEN' : 'LISTED'))(r()),
       createdAt: purchaseDate,
       updatedAt: now - Math.floor(r() * 3 * DAY),
       meta: costKnown ? { purchasePriceCents: { p: 'USER_PROVIDED', at: purchaseDate } } : {},
@@ -192,7 +192,7 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
         listedAt: segStart,
         removedAt: isLast ? null : segEnd,
         soldAt: isLast && sold ? endAt : null,
-        status: isLast ? (sold ? 'SOLD' : 'ACTIVE') : 'REMOVED',
+        status: isLast ? (sold ? 'SOLD' : item.status === 'RESERVED' ? 'RESERVED' : item.status === 'HIDDEN' ? 'HIDDEN' : 'ACTIVE') : 'REMOVED',
         lastObservedAt: segEnd,
         isDemo: true,
       };

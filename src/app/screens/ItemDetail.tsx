@@ -8,7 +8,8 @@ import { DistributionStrip, LineChart } from '@/ui/charts/charts';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
-import { RecommendationCard, StagnationBadge, StrategyCards, Timeline } from '../components/domain';
+import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
+import { repo } from '@/data/repo';
 import { CostEditor, SaleModal } from '../components/forms';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { analyzeItem } from '../market-run';
@@ -69,7 +70,7 @@ export function ItemDetail({ id }: { id: string }) {
         <Thumb photoUrl={item.photoUrl} category={item.category} alt={item.title} size="lg" />
         <div className="stack-3" style={{ minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 8 }}>
-            <Badge tone={item.status === 'SOLD' ? 'emerald' : item.status === 'LISTED' ? 'cobalt' : 'neutral'}>{t(`status.${item.status}`)}</Badge>
+            <StatusBadge status={item.status} />
             {st && <StagnationBadge d={st} />}
             {item.isDemo && <DemoBadge />}
           </div>
@@ -97,9 +98,25 @@ export function ItemDetail({ id }: { id: string }) {
         <Button icon="edit" onClick={() => setEditCost((x) => !x)} aria-expanded={editCost}>
           {t('item.editCost')}
         </Button>
+        {(item.status === 'LISTED' || item.status === 'RESERVED') && (
+          <Button
+            icon={item.status === 'RESERVED' ? 'x' : 'clock'}
+            onClick={async () => {
+              await repo.setReserved(id, item.status !== 'RESERVED');
+              toast('success', t('item.reservedSaved'), t(`status.${item.status === 'RESERVED' ? 'LISTED' : 'RESERVED'}`));
+            }}
+          >
+            {item.status === 'RESERVED' ? t('item.unmarkReserved') : t('item.markReserved')}
+          </Button>
+        )}
         {v.inStock && (
           <Button icon="check" onClick={() => setSaleOpen(true)}>
             {t('item.recordSale')}
+          </Button>
+        )}
+        {item.status === 'SOLD' && (
+          <Button variant={v.sale ? 'default' : 'primary'} icon={v.sale ? 'edit' : 'sales'} onClick={() => setSaleOpen(true)}>
+            {v.sale ? t('item.editSale') : t('item.completeSale')}
           </Button>
         )}
         {stage && <Stages stages={['COLLECTING', 'COMPARING', 'READY'] as Stage[]} current={stage} labelKey={(s) => t(`market.stage${s}`)} />}
@@ -202,7 +219,9 @@ export function ItemDetail({ id }: { id: string }) {
                         {date(l.listedAt)} → {l.soldAt ? date(l.soldAt) : l.removedAt ? date(l.removedAt) : t('common.today')} · {t('item.viewsFavs', { views: l.views ?? '—', favorites: l.favorites ?? '—' })}
                       </span>
                     </span>
-                    <Badge tone={l.status === 'ACTIVE' ? 'emerald' : l.status === 'SOLD' ? 'violet' : 'neutral'}>{t(`item.${l.status === 'ACTIVE' ? 'active' : l.status === 'SOLD' ? 'sold' : 'removed'}`)}</Badge>
+                    <Badge tone={l.status === 'ACTIVE' ? 'emerald' : l.status === 'SOLD' ? 'violet' : l.status === 'RESERVED' ? 'amber' : 'neutral'}>
+                      {t(`item.${{ ACTIVE: 'active', SOLD: 'sold', RESERVED: 'reserved', HIDDEN: 'hidden', REMOVED: 'removed' }[l.status]}`)}
+                    </Badge>
                     <Money cents={l.priceCents} />
                   </div>
                 ))}
@@ -292,7 +311,13 @@ export function ItemDetail({ id }: { id: string }) {
           </Card>
         </div>
       </div>
-      <SaleModal open={saleOpen} onClose={() => setSaleOpen(false)} itemId={id} suggested={v.askPrice} />
+      <SaleModal
+        open={saleOpen}
+        onClose={() => setSaleOpen(false)}
+        itemId={id}
+        suggested={v.sale?.salePriceCents ?? v.askPrice ?? v.listings[v.listings.length - 1]?.priceCents ?? null}
+        date={v.sale?.soldAt ?? v.listings[v.listings.length - 1]?.soldAt ?? null}
+      />
     </>
   );
 }

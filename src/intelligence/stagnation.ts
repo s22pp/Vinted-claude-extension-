@@ -44,7 +44,8 @@ export function diagnoseStagnation(
   now: number,
 ): StagnationDiagnosis | null {
   const l = view.current;
-  if (!l || !view.inStock) return null;
+  // Reserved: a buyer is committed. Hidden: not visible. Neither can "stagnate".
+  if (!l || !view.inStock || view.item.status === 'RESERVED' || view.item.status === 'HIDDEN') return null;
   // Age counts from the first listing: a republish does not reset how long capital has been waiting.
   const age = view.firstListedAt === null ? 0 : daysBetween(view.firstListedAt, now);
   const currentAge = Math.max(1, view.daysListed ?? 1);

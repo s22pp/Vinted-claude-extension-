@@ -13,6 +13,8 @@ import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
 
 const PRIO: Record<TodayPriority['code'], { icon: IconName; tone: TileTone; href: string }> = {
+  RESERVED: { icon: 'check', tone: 'emerald', href: 'stock?filter=reserved' },
+  MISSING_SALE: { icon: 'sales', tone: 'amber', href: 'sales' },
   STAGNANT: { icon: 'hourglass', tone: 'coral', href: 'stock?filter=attention' },
   OVERPRICED: { icon: 'price', tone: 'amber', href: 'stock?filter=attention' },
   TRAPS: { icon: 'trap', tone: 'amber', href: 'insights#capital' },
@@ -135,7 +137,7 @@ export function Today() {
             <Metric label={t('kpi.monthProfit')} icon="price" tone="violet" value={<MetricValue metric={cur.profit} sign />} foot={<MetricFootPartial metric={cur.profit} />} small />
           </div>
           <div className="kpi">
-            <Metric label={t('kpi.stockTotal')} icon="layers" tone="cyan" value={<span className="num">{inStock.length}</span>} foot={t('kpi.listed', { n: listed })} small />
+            <Metric label={t('kpi.stockTotal')} icon="layers" tone="cyan" value={<span className="num">{inStock.length}</span>} foot={t('kpi.listedReserved', { n: listed, r: inStock.filter((v) => v.item.status === 'RESERVED').length })} small />
           </div>
         </section>
 

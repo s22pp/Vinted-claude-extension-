@@ -171,6 +171,25 @@ const STAG_TONE: Record<StagnationDiagnosis['state'], BadgeTone> = {
   INSUFFICIENT_DATA: 'neutral',
 };
 
+const STATUS_TONE: Record<InventoryItem['status'], BadgeTone> = {
+  DRAFT: 'neutral',
+  LISTED: 'cobalt',
+  RESERVED: 'amber',
+  HIDDEN: 'neutral',
+  SOLD: 'emerald',
+  ARCHIVED: 'neutral',
+};
+
+/** Article status (posted / reserved / sold…) — text + dot, never colour alone. */
+export function StatusBadge({ status }: { status: InventoryItem['status'] }) {
+  const { t } = useI18n();
+  return (
+    <Badge tone={STATUS_TONE[status]} dot title={t(`statusHint.${status}`)}>
+      {t(`status.${status}`)}
+    </Badge>
+  );
+}
+
 export function StagnationBadge({ d }: { d: StagnationDiagnosis }) {
   const { t } = useI18n();
   return (
@@ -223,6 +242,7 @@ const EV_ICON: Record<DomainEvent['type'], { icon: IconName; tone: TileTone }> =
   LISTING_REMOVED: { icon: 'x', tone: 'neutral' },
   LISTING_REPUBLISHED: { icon: 'repost', tone: 'cobalt' },
   ITEM_SOLD: { icon: 'check', tone: 'emerald' },
+  STATUS_CHANGED: { icon: 'dot', tone: 'amber' },
   SALE_REFUNDED: { icon: 'alert', tone: 'coral' },
   MARKET_ANALYZED: { icon: 'market', tone: 'cobalt' },
   PREDICTION_MADE: { icon: 'target', tone: 'pink' },
@@ -267,6 +287,9 @@ export function Timeline({ itemId }: { itemId: string }) {
             break;
           case 'PREDICTION_MADE':
             detail = t('timeline.predictionDetail', { min: num(d.min), max: num(d.max) });
+            break;
+          case 'STATUS_CHANGED':
+            detail = t('timeline.statusDetail', { a: t(`status.${String(d.from)}`), b: t(`status.${String(d.to)}`) });
             break;
           case 'PREDICTION_RESOLVED':
             detail = t('timeline.errorDetail', { pct: pct(num(d.error), { sign: true }) });

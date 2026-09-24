@@ -13,7 +13,7 @@ import { Icon, IconTile } from '@/ui/components/icons';
 import { LogoMark } from '@/ui/components/Logo';
 import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
-import { RecoChip, RecommendationCard } from '../components/domain';
+import { RecoChip, RecommendationCard, StatusBadge } from '../components/domain';
 import { OfferCalculator } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
@@ -190,7 +190,10 @@ function OwnItem({ itemId, mode }: { itemId: string; mode: 'popup' | 'panel' }) 
   return (
     <div className="stack-3">
       <div className="row-between">
-        <Badge tone="violet">{t('popup.inStock')}</Badge>
+        <span className="row" style={{ gap: 6 }}>
+          <Badge tone="violet">{t('popup.inStock')}</Badge>
+          <StatusBadge status={intel.view.item.status} />
+        </span>
         <RecoChip r={intel.recommendation} />
       </div>
       {mode === 'panel' && intel.recommendation && <RecommendationCard r={intel.recommendation} compact />}

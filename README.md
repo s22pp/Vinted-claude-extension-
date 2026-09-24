@@ -10,6 +10,23 @@ Extension Chrome MV3 · WXT · React · TypeScript strict · Dexie (IndexedDB) �
 3. **Charger l'extension non empaquetée** → choisir le dossier **`extension/`** (celui qui contient `manifest.json`),
    pas la racine du dépôt.
 
+## Mettre à jour sans retélécharger
+
+Installer **une seule fois** avec git, dans un dossier fixe :
+
+```bash
+git clone -b claude/adoring-keller-jahd0y https://github.com/s22pp/Vinted-claude-extension-.git ~/ERA
+```
+puis charger `~/ERA/extension` dans `chrome://extensions`.
+
+Ensuite, à chaque nouvelle version :
+
+```bash
+~/ERA/scripts/update.sh      # = git pull
+```
+puis **Réglages → Recharger ERA** (ou ↻ dans `chrome://extensions`). L'identifiant de l'extension est fixé
+(clé publique dans le manifest) : vos données locales sont conservées d'une version à l'autre.
+
 Pour développer : `npm install && npm run build` (sortie `.output/chrome-mv3`) ; `npm run release` régénère `extension/` et le ZIP.
 
 Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connecté, lecture seule, ≤ 5 requêtes), CSV, saisie, ou démo clairement étiquetée.

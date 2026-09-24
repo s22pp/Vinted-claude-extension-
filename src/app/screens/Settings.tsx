@@ -20,6 +20,7 @@ export function Settings() {
   const theme = useLiveQuery(() => repo.getSetting<ThemeSetting>('theme', 'dark'), []) ?? 'dark';
   const locale = useLiveQuery(() => repo.getSetting<Locale>('locale', 'fr'), []) ?? 'fr';
   const lastImport = useLiveQuery(() => repo.getSetting<number | null>('lastVintedImport', null), []);
+  const wardrobeKeys = useLiveQuery(() => repo.getSetting<string[] | null>('vintedWardrobeKeys', null), []);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [budget, setBudget] = useState<BudgetStatus | null>(null);
@@ -67,6 +68,17 @@ export function Settings() {
               ]}
             />
           </Card>
+          <Card title={t('settings.update')} icon="repost" tone="cobalt">
+            <p className="t-small t-muted" style={{ marginBottom: 12 }}>
+              {t('settings.updateHint')}
+            </p>
+            <code className="listing-box" style={{ marginBottom: 12 }}>
+              cd ~/ERA && git pull
+            </code>
+            <Button icon="repost" onClick={() => browser.runtime.reload()}>
+              {t('settings.reload')}
+            </Button>
+          </Card>
           <Card title={t('settings.about')} icon="info" tone="neutral">
             <div className="row" style={{ gap: 14 }}>
               <LogoMark size={44} />
@@ -75,7 +87,7 @@ export function Settings() {
                 <p className="t-small t-muted">
                   {t('app.tagline')} <span className="t-serif">{t('app.taglineItalic')}</span>
                 </p>
-                <p className="t-small t-faint">v0.1.0</p>
+                <p className="t-small t-faint">v{browser.runtime.getManifest().version}</p>
               </div>
             </div>
           </Card>
@@ -93,6 +105,17 @@ export function Settings() {
                 </p>
               )}
               {lastImport ? <p className="t-small t-faint">{t('vinted.lastImport', { when: i.relative(lastImport, era.now) })}</p> : null}
+              {wardrobeKeys && wardrobeKeys.length > 0 && (
+                <details className="t-small">
+                  <summary className="t-muted" style={{ cursor: 'pointer' }}>
+                    {t('vinted.diagnostic')}
+                  </summary>
+                  <p style={{ marginTop: 6 }}>{t('vinted.reservedFlag', { state: wardrobeKeys.includes('is_reserved') ? t('vinted.reservedYes') : t('vinted.reservedNo') })}</p>
+                  <p className="t-faint" style={{ marginTop: 4, wordBreak: 'break-word' }}>
+                    {t('vinted.keysSeen', { keys: wardrobeKeys.join(', ') })}
+                  </p>
+                </details>
+              )}
               <div>
                 <VintedImportButton variant="primary" onDone={() => void budgetStatus().then(setBudget)} />
               </div>

@@ -80,7 +80,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       intel,
       intelById: new Map(intel.map((i) => [i.view.item.id, i])),
       analyses: analysisMap,
-      priorities: todayPriorities(intel, capital, model),
+      priorities: todayPriorities(intel, capital, model, views),
       predictions: predictions ?? [],
       activation: new Set((activation ?? []).map((a) => a.name)),
       decisions: decisions ?? [],

@@ -6,12 +6,14 @@ import {
   type Gender,
   type InventoryItem,
   InventoryItemSchema,
+  type ItemStatus,
   type Listing,
   type PricePrediction,
   type Sale,
 } from '@/domain/entities';
 import type { Cents } from '@/domain/money';
 import { DAY } from '@/domain/time';
+import { isLiveListing, listingStatusOf } from '@/domain/status';
 import { type ComparableAnalysis, type ComparableSubject, analyzeComparables, buildQueries } from '@/intelligence/comparables';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
@@ -69,7 +71,7 @@ export class EraRepository {
     });
     // Most demo items come with a (demo) market analysis of varying age, like a seller who has used ERA for a while.
     const adapter = new DemoMarketplaceAdapter();
-    const listed = ds.listings.filter((l) => l.status === 'ACTIVE');
+    const listed = ds.listings.filter((l) => l.status === 'ACTIVE' || l.status === 'RESERVED');
     const byItem = new Map(ds.items.map((i) => [i.id, i]));
     for (const [k, l] of listed.entries()) {
       if (k % 4 === 3) continue;
@@ -113,8 +115,10 @@ export class EraRepository {
     views: number | null;
     favorites: number | null;
     url: string | null;
+    status?: ItemStatus | null;
   }, now = Date.now()): Promise<string> {
     const id = uid('item');
+    const status: ItemStatus = input.status ?? (input.priceCents !== null ? 'LISTED' : 'DRAFT');
     const item: InventoryItem = InventoryItemSchema.parse({
       id,
       title: input.title,
@@ -130,7 +134,7 @@ export class EraRepository {
       purchasePriceCents: input.purchasePriceCents,
       purchaseDate: input.purchaseDate,
       purchaseSource: input.purchaseSource,
-      status: input.priceCents !== null ? 'LISTED' : 'DRAFT',
+      status,
       createdAt: now,
       updatedAt: now,
       meta: input.purchasePriceCents !== null ? { purchasePriceCents: { p: 'USER_PROVIDED', at: now } } : {},
@@ -154,8 +158,8 @@ export class EraRepository {
           favorites: input.favorites,
           listedAt: input.listedAt ?? now,
           removedAt: null,
-          soldAt: null,
-          status: 'ACTIVE',
+          soldAt: status === 'SOLD' ? now : null,
+          status: status === 'DRAFT' ? 'ACTIVE' : listingStatusOf(status),
           lastObservedAt: input.views !== null ? now : null,
           isDemo: false,
         };
@@ -188,7 +192,7 @@ export class EraRepository {
   }
 
   async updatePrice(itemId: string, cents: Cents, now = Date.now()): Promise<void> {
-    const listing = (await this.db.listings.where('inventoryItemId').equals(itemId).toArray()).find((l) => l.status === 'ACTIVE');
+    const listing = (await this.db.listings.where('inventoryItemId').equals(itemId).toArray()).find((l) => isLiveListing(l.status));
     if (!listing) throw new Error('No active listing');
     await this.db.listings.put({ ...listing, priceCents: cents });
     await this.db.events.put(
@@ -196,11 +200,23 @@ export class EraRepository {
     );
   }
 
-  async recordSale(itemId: string, salePriceCents: Cents, soldAt = Date.now(), extraCostsCents: Cents | null = 0): Promise<void> {
+  /**
+   * Record — or correct — the sale of an item. Works for items still in stock and for items Vinted already
+   * shows as sold without a known price. One completed sale per item: a second call updates it.
+   */
+  async recordSale(itemId: string, salePriceCents: Cents, soldAt?: number, extraCostsCents: Cents | null = 0): Promise<void> {
     const item = await this.db.items.get(itemId);
     if (!item) throw new Error(`Unknown item ${itemId}`);
-    const listings = await this.db.listings.where('inventoryItemId').equals(itemId).toArray();
-    const active = listings.find((l) => l.status === 'ACTIVE') ?? null;
+    const listings = (await this.db.listings.where('inventoryItemId').equals(itemId).toArray()).sort((a, b) => a.listedAt - b.listedAt);
+    const active = listings.find((l) => isLiveListing(l.status)) ?? [...listings].reverse().find((l) => l.status === 'SOLD') ?? listings[listings.length - 1] ?? null;
+    const existing = (await this.db.sales.where('inventoryItemId').equals(itemId).toArray()).find((s) => s.status !== 'REFUNDED');
+    soldAt ??= existing?.soldAt ?? active?.soldAt ?? Date.now();
+    if (existing) {
+      await this.db.sales.put({ ...existing, salePriceCents, soldAt, extraCostsCents });
+      await this.db.events.put(this.event({ type: 'ITEM_SOLD', at: soldAt, inventoryItemId: itemId, listingId: existing.listingId, data: { price: salePriceCents }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }));
+      await this.db.events.where('inventoryItemId').equals(itemId).filter((e) => e.type === 'ITEM_SOLD' && e.data.price !== salePriceCents).delete();
+      return;
+    }
     const sale: Sale = {
       id: uid('sale'),
       inventoryItemId: itemId,
@@ -261,6 +277,22 @@ export class EraRepository {
     await this.track('first_market_analysis');
     onStage?.('READY');
     return analysis;
+  }
+
+  /** Manual reservation (Vinted's API does not expose it reliably). Kept across re-imports. */
+  async setReserved(itemId: string, reserved: boolean, now = Date.now()): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item) throw new Error(`Unknown item ${itemId}`);
+    const to = reserved ? 'RESERVED' : 'LISTED';
+    if (item.status === to) return;
+    const listing = (await this.db.listings.where('inventoryItemId').equals(itemId).toArray()).find((l) => isLiveListing(l.status));
+    await this.db.transaction('rw', [this.db.items, this.db.listings, this.db.events], async () => {
+      await this.db.items.put({ ...item, status: to, updatedAt: now, meta: { ...item.meta, status: { p: 'USER_PROVIDED', at: now } } });
+      if (listing) await this.db.listings.put({ ...listing, status: listingStatusOf(to) });
+      await this.db.events.put(
+        this.event({ type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: listing?.id ?? null, data: { from: item.status, to }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }),
+      );
+    });
   }
 
   async storePrediction(p: Omit<PricePrediction, 'id' | 'resolved'>): Promise<void> {

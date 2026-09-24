@@ -1,4 +1,4 @@
-import { CATEGORIES, CONDITIONS, type Category, type Condition } from '@/domain/entities';
+import { CATEGORIES, CONDITIONS, type Category, type Condition, type ItemStatus } from '@/domain/entities';
 import { parseMoneyInput } from '@/domain/money';
 import { categoriesInTitle, normalizeText } from '@/intelligence/normalize';
 
@@ -49,6 +49,7 @@ const HEADERS: Record<string, string[]> = {
   views: ['vues', 'views'],
   favorites: ['favoris', 'favorites', 'likes'],
   listedAt: ['date publication', 'date_publication', 'publie le', 'listed at'],
+  status: ['statut', 'status', 'etat annonce'],
   url: ['url', 'lien', 'link'],
 };
 
@@ -77,6 +78,14 @@ function parseIntOrNull(raw: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+const STATUS_WORDS: [RegExp, ItemStatus][] = [
+  [/vendu|sold/, 'SOLD'],
+  [/reserv/, 'RESERVED'],
+  [/masqu|hidden/, 'HIDDEN'],
+  [/brouillon|draft|non poste/, 'DRAFT'],
+  [/en ligne|poste|actif|active|listed/, 'LISTED'],
+];
+
 export interface CsvItem {
   title: string;
   brand: string;
@@ -93,6 +102,7 @@ export interface CsvItem {
   views: number | null;
   favorites: number | null;
   url: string | null;
+  status: ItemStatus | null;
 }
 
 export function mapCsv(rows: string[][]): { items: CsvItem[]; skipped: number } {
@@ -141,6 +151,7 @@ export function mapCsv(rows: string[][]): { items: CsvItem[]; skipped: number } 
       views: parseIntOrNull(get(r, 'views')),
       favorites: parseIntOrNull(get(r, 'favorites')),
       url: get(r, 'url') || null,
+      status: STATUS_WORDS.find(([re]) => re.test(normalizeText(get(r, 'status'))))?.[1] ?? null,
     });
   }
   return { items, skipped };

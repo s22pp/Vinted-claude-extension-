@@ -7,7 +7,7 @@ import { IllustrationStock } from '@/ui/components/illustrations';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
-import { RecoChip } from '../components/domain';
+import { RecoChip, StatusBadge } from '../components/domain';
 import { VintedImportButton } from '../components/vinted-import';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
 import { analyzeItem } from '../market-run';
@@ -15,7 +15,7 @@ import { errorCode } from '@/data/adapters/marketplace';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 
-type Filter = 'all' | 'listed' | 'draft' | 'sold' | 'attention' | 'nocost';
+type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost';
 type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
 type SortKey = 'title' | ColKey;
 
@@ -25,7 +25,8 @@ interface Row {
 }
 
 const ALL_COLS: ColKey[] = ['brand', 'size', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
-const DEFAULT_COLS: ColKey[] = ['brand', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'reco'];
+const STATUS_ORDER = ['RESERVED', 'LISTED', 'HIDDEN', 'DRAFT', 'SOLD', 'ARCHIVED'];
+const DEFAULT_COLS: ColKey[] = ['status', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'reco'];
 const NUMERIC = new Set<ColKey>(['cost', 'price', 'margin', 'views', 'favorites', 'age', 'listings']);
 
 function sortValue(r: Row, k: SortKey): number | string | null {
@@ -52,7 +53,7 @@ function sortValue(r: Row, k: SortKey): number | string | null {
     case 'listings':
       return v.listings.length;
     case 'status':
-      return v.item.status;
+      return STATUS_ORDER.indexOf(v.item.status);
     case 'reco':
       return r.intel?.recommendation?.priority ?? null;
   }
@@ -82,7 +83,7 @@ export function Stock({ route }: { route: Route }) {
   const [filter, setFilter] = useState<Filter>((route.query.get('filter') as Filter) ?? 'all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
   const [density, setDensity] = useState<'compact' | 'comfortable'>(() => loadPref('era.stock.density', 'compact'));
-  const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v2', DEFAULT_COLS));
+  const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v3', DEFAULT_COLS));
   const [showCols, setShowCols] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -91,7 +92,7 @@ export function Stock({ route }: { route: Route }) {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => savePref('era.stock.density', density), [density]);
-  useEffect(() => savePref('era.stock.cols.v2', cols), [cols]);
+  useEffect(() => savePref('era.stock.cols.v3', cols), [cols]);
   useEffect(() => {
     const f = route.query.get('filter') as Filter | null;
     if (f) setFilter(f);
@@ -112,6 +113,8 @@ export function Stock({ route }: { route: Route }) {
     () => ({
       all: rows.length,
       listed: rows.filter((r) => r.v.item.status === 'LISTED').length,
+      reserved: rows.filter((r) => r.v.item.status === 'RESERVED').length,
+      hidden: rows.filter((r) => r.v.item.status === 'HIDDEN').length,
       draft: rows.filter((r) => r.v.item.status === 'DRAFT').length,
       sold: rows.filter((r) => r.v.item.status === 'SOLD').length,
       attention: rows.filter((r) => r.intel?.recommendation && r.intel.recommendation.tone !== 'info').length,
@@ -125,6 +128,8 @@ export function Stock({ route }: { route: Route }) {
     const out = rows.filter((r) => {
       const s = r.v.item.status;
       if (filter === 'listed' && s !== 'LISTED') return false;
+      if (filter === 'reserved' && s !== 'RESERVED') return false;
+      if (filter === 'hidden' && s !== 'HIDDEN') return false;
       if (filter === 'draft' && s !== 'DRAFT') return false;
       if (filter === 'sold' && s !== 'SOLD') return false;
       if (filter === 'attention' && !(r.intel?.recommendation && r.intel.recommendation.tone !== 'info')) return false;
@@ -205,8 +210,6 @@ export function Stock({ route }: { route: Route }) {
     );
   };
 
-  const statusTone = { DRAFT: 'neutral', LISTED: 'cobalt', SOLD: 'emerald', ARCHIVED: 'neutral' } as const;
-
   const cell = (r: Row, c: ColKey) => {
     const v = r.v;
     switch (c) {
@@ -255,7 +258,7 @@ export function Stock({ route }: { route: Route }) {
       case 'status':
         return (
           <td key={c}>
-            <Badge tone={statusTone[v.item.status]}>{t(`status.${v.item.status}`)}</Badge>
+            <StatusBadge status={v.item.status} />
           </td>
         );
       case 'reco':
@@ -266,10 +269,12 @@ export function Stock({ route }: { route: Route }) {
   const filters: { value: Filter; label: string }[] = [
     { value: 'all', label: t('stock.filterAll') },
     { value: 'listed', label: t('stock.filterListed') },
+    { value: 'reserved', label: t('stock.filterReserved') },
+    { value: 'sold', label: t('stock.filterSold') },
+    { value: 'draft', label: t('stock.filterDraft') },
+    ...(counts.hidden > 0 || filter === 'hidden' ? [{ value: 'hidden' as Filter, label: t('stock.filterHidden') }] : []),
     { value: 'attention', label: t('stock.filterAttention') },
     { value: 'nocost', label: t('stock.filterNoCost') },
-    { value: 'draft', label: t('stock.filterDraft') },
-    { value: 'sold', label: t('stock.filterSold') },
   ];
 
   const inStock = rows.filter((r) => r.v.inStock).length;
@@ -278,7 +283,7 @@ export function Stock({ route }: { route: Route }) {
     <>
       <PageHead
         title={t('stock.title')}
-        sub={t('stock.subtitle', { n: inStock, listed: counts.listed })}
+        sub={t('stock.subtitle', { n: inStock, listed: counts.listed, reserved: counts.reserved, sold: counts.sold })}
         actions={
           <>
             <VintedImportButton />

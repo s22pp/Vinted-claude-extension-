@@ -61,8 +61,11 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
   const price = priceCents(it.price);
   if (!id || !title || price === null) return null;
   const photo = firstPhoto(it);
+  // Verified flags: is_closed (sold), is_draft, is_hidden. `is_reserved` is not in the verified map:
+  // read only when present, otherwise the reservation state stays unknown.
   const closed = it.is_closed === true;
   const hidden = it.is_hidden === true;
+  const reservedKnown = typeof it.is_reserved === 'boolean';
   return {
     platformListingId: id,
     url: str(it.url) ?? `https://www.vinted.fr/items/${id}`,
@@ -75,7 +78,8 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
     favorites: int(it.favourite_count),
     photoUrl: photo.url,
     listedAt: photo.ts,
-    status: closed ? 'SOLD' : hidden || it.is_draft === true ? 'REMOVED' : 'ACTIVE',
+    status: closed ? 'SOLD' : it.is_draft === true ? 'DRAFT' : it.is_reserved === true ? 'RESERVED' : hidden ? 'HIDDEN' : 'ACTIVE',
+    reservedKnown,
   };
 }
 

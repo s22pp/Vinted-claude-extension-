@@ -1,4 +1,5 @@
 import type { Category, Condition, Gender, MarketCandidate } from '@/domain/entities';
+import type { SnapshotStatus } from '@/domain/status';
 
 export interface ComparableQuery {
   /** Free text sent to the marketplace. Brand + model/type — never a colour (colours don't narrow a market). */
@@ -30,7 +31,9 @@ export interface InventorySnapshotItem {
   favorites: number | null;
   photoUrl: string | null;
   listedAt: number | null;
-  status: 'ACTIVE' | 'SOLD' | 'REMOVED';
+  status: SnapshotStatus;
+  /** false when the marketplace response carried no reservation flag: "not reserved" is then unknown. */
+  reservedKnown: boolean;
 }
 
 export interface ListingObservationSnapshot {

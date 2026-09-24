@@ -3,6 +3,7 @@ import { brandKey, categoriesInTitle, normalizeText } from '@/intelligence/norma
 import { MarketplaceError } from './adapters/marketplace';
 import type { ImportStage } from './adapters/vinted/protocol';
 import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
+import { listingStatusOf, resolveImportedStatus } from '@/domain/status';
 import { db, uid } from './db';
 import { repo } from './repo';
 
@@ -47,6 +48,8 @@ export async function importFromVinted(
       const prev = byPlatformId.get(s.platformListingId);
       const brandGuess = s.brand ?? inferBrand(s.title);
       let itemId = prev?.inventoryItemId;
+      const prevItem = itemId ? await db.items.get(itemId) : undefined;
+      const resolved = resolveImportedStatus(prevItem ?? null, s.status, s.reservedKnown);
       if (!itemId) {
         itemId = uid('item');
         const item: InventoryItem = {
@@ -64,10 +67,11 @@ export async function importFromVinted(
           purchasePriceCents: null,
           purchaseDate: null,
           purchaseSource: null,
-          status: s.status === 'SOLD' ? 'SOLD' : s.status === 'ACTIVE' ? 'LISTED' : 'DRAFT',
+          status: resolved.status,
           createdAt: now,
           updatedAt: now,
           meta: {
+            status: { p: resolved.p, at: now },
             brand: { p: s.brand ? 'OBSERVED' : brandGuess ? 'INFERRED' : 'UNKNOWN', at: now },
             category: { p: 'INFERRED', at: now },
           },
@@ -75,10 +79,11 @@ export async function importFromVinted(
         };
         await db.items.put(item);
         created++;
-      } else {
+      } else if (prevItem) {
         updated++;
-        const item = await db.items.get(itemId);
-        if (item) await db.items.put({ ...item, status: s.status === 'SOLD' ? 'SOLD' : item.status === 'DRAFT' && s.status === 'ACTIVE' ? 'LISTED' : item.status, updatedAt: now });
+        await db.items.put({ ...prevItem, status: resolved.status, updatedAt: now, meta: { ...prevItem.meta, status: { p: resolved.p, at: now } } });
+        if (prevItem.status !== resolved.status)
+          await db.events.put({ id: uid('ev'), type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: prev?.id ?? null, data: { from: prevItem.status, to: resolved.status }, provenance: resolved.p, isDemo: false });
       }
       const listingId = prev?.id ?? uid('listing');
       const listedAt = s.listedAt ?? prev?.listedAt ?? now;
@@ -93,9 +98,9 @@ export async function importFromVinted(
         views: s.views,
         favorites: s.favorites,
         listedAt,
-        removedAt: s.status === 'REMOVED' ? (prev?.removedAt ?? now) : null,
-        soldAt: s.status === 'SOLD' ? (prev?.soldAt ?? now) : null,
-        status: s.status,
+        removedAt: resolved.status === 'ARCHIVED' || resolved.status === 'DRAFT' ? (prev?.removedAt ?? now) : null,
+        soldAt: resolved.status === 'SOLD' ? (prev?.soldAt ?? now) : null,
+        status: listingStatusOf(resolved.status),
         lastObservedAt: now,
         isDemo: false,
       };
@@ -116,33 +121,75 @@ export async function importFromVinted(
     const existingSales = await db.sales.toArray();
     const sold = new Set(existingSales.map((x) => x.inventoryItemId));
     for (const o of orders) {
-      const match = closed.find((l) => normalizeText(l.title) === normalizeText(o.title) && !sold.has(l.inventoryItemId));
-      if (!match) continue;
       // Orders carry a calendar date: compare as UTC dates, never as instants.
       const soldAt = o.date ?? now;
-      const sale: Sale = {
-        id: uid('sale'),
-        inventoryItemId: match.inventoryItemId,
-        listingId: match.id,
-        soldAt: Math.max(soldAt, match.listedAt),
-        salePriceCents: o.priceCents,
-        // Private sellers pay no commission on Vinted: extra costs are known to be zero.
-        extraCostsCents: 0,
-        status: o.status && /rembours|refund|annul|cancel/i.test(o.status) ? 'REFUNDED' : 'COMPLETED',
+      const refunded = !!o.status && /rembours|refund|annul|cancel/i.test(o.status);
+      const match = closed.find((l) => normalizeText(l.title) === normalizeText(o.title) && !sold.has(l.inventoryItemId));
+      if (match) {
+        const sale: Sale = {
+          id: uid('sale'),
+          inventoryItemId: match.inventoryItemId,
+          listingId: match.id,
+          soldAt: Math.max(soldAt, match.listedAt),
+          salePriceCents: o.priceCents,
+          // Private sellers pay no commission on Vinted: extra costs are known to be zero.
+          extraCostsCents: 0,
+          status: refunded ? 'REFUNDED' : 'COMPLETED',
+          isDemo: false,
+        };
+        await db.sales.put(sale);
+        await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: sale.soldAt, inventoryItemId: match.inventoryItemId, listingId: match.id, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
+        sold.add(match.inventoryItemId);
+        salesCount++;
+        continue;
+      }
+      // No listing left in the wardrobe for this order (older sales drop out of it): keep the sale anyway,
+      // as a sold item built from the order. Deterministic id → re-importing never duplicates it.
+      const saleId = `sale_vo_${orderKey(o.title, o.date, o.priceCents)}`;
+      if (await db.sales.get(saleId)) continue;
+      const itemId = `item_vo_${orderKey(o.title, o.date, o.priceCents)}`;
+      const brandGuess = inferBrand(o.title);
+      await db.items.put({
+        id: itemId,
+        title: o.title,
+        brand: brandGuess ?? 'Inconnue',
+        model: null,
+        category: categoriesInTitle(normalizeText(o.title))[0] ?? 'OTHER',
+        gender: null,
+        size: null,
+        condition: null,
+        material: null,
+        era: null,
+        photoUrl: null,
+        purchasePriceCents: null,
+        purchaseDate: null,
+        purchaseSource: null,
+        status: 'SOLD',
+        createdAt: now,
+        updatedAt: now,
+        meta: { status: { p: 'OBSERVED', at: now }, brand: { p: brandGuess ? 'INFERRED' : 'UNKNOWN', at: now } },
         isDemo: false,
-      };
-      await db.sales.put(sale);
-      await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: sale.soldAt, inventoryItemId: match.inventoryItemId, listingId: match.id, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
-      sold.add(match.inventoryItemId);
+      });
+      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', isDemo: false });
+      await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: soldAt, inventoryItemId: itemId, listingId: null, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
       salesCount++;
     }
     await repo.setSetting('dataMode', 'real');
     await repo.setSetting('lastVintedImport', now);
+    // Diagnostic: which fields Vinted actually returned (e.g. whether a reservation flag exists).
+    await repo.setSetting('vintedWardrobeKeys', [...adapter.wardrobeKeys].sort());
   });
   await repo.track('inventory_imported');
   if (salesCount > 0) await repo.track('first_sale_tracked');
   onStage('COMPLETE');
   return { items: created, updated, sales: salesCount };
+}
+
+function orderKey(title: string, date: number | null, price: number): string {
+  const raw = `${normalizeText(title)}|${date ?? ''}|${price}`;
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) h = Math.imul(h ^ raw.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
 }
 
 function inferBrand(title: string): string | null {

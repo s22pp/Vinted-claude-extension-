@@ -164,11 +164,11 @@ export function CostEditor({ itemId, initial, onDone }: { itemId: string; initia
   );
 }
 
-export function SaleModal({ open, onClose, itemId, suggested }: { open: boolean; onClose: () => void; itemId: string; suggested: number | null }) {
+export function SaleModal({ open, onClose, itemId, suggested, date: initialDate = null }: { open: boolean; onClose: () => void; itemId: string; suggested: number | null; date?: number | null }) {
   const { t } = useI18n();
   const toast = useToast();
   const price = useMoneyField(suggested);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => new Date(initialDate ?? Date.now()).toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

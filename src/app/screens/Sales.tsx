@@ -6,6 +6,11 @@ import { Legend, LineChart, ScatterChart } from '@/ui/charts/charts';
 import { IllustrationNoSales } from '@/ui/components/illustrations';
 import { Badge, Button, Card, EmptyState, Metric, MetricFootPartial, MetricValue, Money, QualityTag, Segmented } from '@/ui/components/primitives';
 import { ItemCell } from '../components/domain';
+import { useMoneyField } from '../components/forms';
+import { repo } from '@/data/repo';
+import { useToast } from '@/ui/components/overlays';
+import { Input } from '@/ui/components/primitives';
+import type { ItemView } from '@/intelligence/portfolio';
 import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
 
@@ -26,7 +31,9 @@ export function Sales() {
     .map((x) => ({ x: x.daysToSale!, y: x.profit!, label: x.item.title, color: x.profit! >= 0 ? 'var(--chart-1)' : 'var(--coral)' }));
   const unknownProfit = done.filter((x) => x.profit === null).length;
 
-  if (era.ready && era.sales.length === 0) {
+  const toComplete = era.views.filter((v) => v.item.status === 'SOLD' && !v.sale);
+
+  if (era.ready && era.sales.length === 0 && toComplete.length === 0) {
     return (
       <>
         <PageHead title={t('sales.title')} sub={t('sales.subtitle')} />
@@ -52,6 +59,7 @@ export function Sales() {
         }
       />
       <div className="stack-4">
+        {toComplete.length > 0 && <ToComplete views={toComplete} />}
         <section className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, minmax(0,1fr))' }} aria-label={t('sales.title')}>
           <div className="kpi">
             <Metric small label={t('kpi.revenue')} icon="sales" tone="emerald" value={<span className="num">{money(s.period.revenue)}</span>} foot={`${s.period.count} ventes`} />
@@ -158,5 +166,45 @@ export function Sales() {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Sold on Vinted without a known price: fill each one inline, Enter to save. */
+function ToComplete({ views }: { views: ItemView[] }) {
+  const { t } = useI18n();
+  return (
+    <Card title={t('sales.toComplete')} hint={t('sales.toCompleteHint', { n: views.length })} icon="sales" tone="amber">
+      <div className="list">
+        {views.slice(0, 50).map((v) => (
+          <ToCompleteRow key={v.item.id} v={v} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ToCompleteRow({ v }: { v: ItemView }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const last = v.listings[v.listings.length - 1] ?? null;
+  const price = useMoneyField(last?.priceCents ?? null);
+  const [date, setDate] = useState(() => new Date(last?.soldAt ?? v.item.updatedAt).toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (price.cents === null || price.invalid) return;
+    setBusy(true);
+    await repo.recordSale(v.item.id, price.cents, new Date(date).getTime() + 12 * 3600_000);
+    toast('success', t('sales.saleSaved'), v.item.title);
+  };
+  return (
+    <form className="list__row" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto auto', cursor: 'default' }} onSubmit={save}>
+      <ItemCell item={v.item} sub={last ? t('sales.lastAsk', { price: last.priceCents }) : v.item.brand} />
+      <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label={t('sales.col.date')} style={{ width: 150 }} />
+      <Input money value={price.raw} onChange={(e) => price.setRaw(e.target.value)} aria-label={`${t('sales.received')} — ${v.item.title}`} placeholder={t('sales.received')} style={{ width: 110 }} aria-invalid={price.invalid} />
+      <Button type="submit" size="sm" variant="primary" icon="check" loading={busy} disabled={price.cents === null || price.invalid}>
+        {t('sales.saveSale')}
+      </Button>
+    </form>
   );
 }

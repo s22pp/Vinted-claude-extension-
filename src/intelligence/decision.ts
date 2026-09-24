@@ -109,6 +109,7 @@ function evidenceOf(p: PricingResult | null): Recommendation['evidence'] {
 export function recommendFor(intel: ItemIntel): Recommendation | null {
   const { view, pricing, stagnation: st, trap, analysis } = intel;
   const id = view.item.id;
+  const settled = view.item.status === 'RESERVED';
   const price = view.askPrice;
   const kept = analysis?.keptCount ?? 0;
   const capitalWeight = Math.min(15, (view.cost ?? 2000) / 400);
@@ -122,7 +123,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
   const d = analysis?.distribution;
   const below = d && price !== null ? analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length : 0;
 
-  if (st?.stagnant && price !== null) {
+  if (!settled && st?.stagnant && price !== null) {
     const over = Math.max(0, st.daysListed - st.thresholdDays);
     const common: Coded[] = [{ code: 'why.stagnant', params: { days: st.daysListed, views: st.views ?? 0, favorites: st.favorites ?? 0 } }];
     switch (st.action) {
@@ -212,7 +213,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     }
   }
 
-  if (trap && price !== null) {
+  if (!settled && trap && price !== null) {
     const fast = option(pricing, 'FAST');
     if (fast && fast.range.max < price) {
       return base({
@@ -228,7 +229,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     }
   }
 
-  if (pricing?.status === 'OK' && price !== null && pricing.recommended) {
+  if (!settled && pricing?.status === 'OK' && price !== null && pricing.recommended) {
     const rec = pricing.options.find((o) => o.strategy === pricing.recommended)!;
     if (pricing.currentVsRecommended === 'ABOVE' && price > rec.range.max * 1.1 && analysis!.quality !== 'LOW') {
       return base({
@@ -275,7 +276,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     };
   }
 
-  if (view.inStock && view.current && (!analysis || intel.analysisStale)) {
+  if (!settled && view.item.status !== 'HIDDEN' && view.inStock && view.current && (!analysis || intel.analysisStale)) {
     return analyzeReco(id, analysis ? 'why.analysisStale' : 'why.noAnalysis', 25, []);
   }
   return null;
@@ -298,7 +299,7 @@ function analyzeReco(id: string, code: string, priority: number, extra: Coded[])
 }
 
 export interface TodayPriority {
-  code: 'STAGNANT' | 'OVERPRICED' | 'MISSING_COST' | 'CAPITAL_AGED' | 'TRAPS' | 'NICHE' | 'NO_ANALYSIS';
+  code: 'MISSING_SALE' | 'RESERVED' | 'STAGNANT' | 'OVERPRICED' | 'MISSING_COST' | 'CAPITAL_AGED' | 'TRAPS' | 'NICHE' | 'NO_ANALYSIS';
   tone: Recommendation['tone'];
   count: number;
   amount: MoneyMetric | null;
@@ -306,8 +307,11 @@ export interface TodayPriority {
   itemIds: string[];
 }
 
-export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSummary, model: SellerModel): TodayPriority[] {
+export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSummary, model: SellerModel, views: readonly ItemView[] = []): TodayPriority[] {
   const out: TodayPriority[] = [];
+  // Sold on Vinted, but no sale price known: revenue and profit are incomplete until it is entered.
+  const missingSale = views.filter((v) => v.item.status === 'SOLD' && !v.sale).map((v) => v.item.id);
+  if (missingSale.length) out.push({ code: 'MISSING_SALE', tone: 'warning', count: missingSale.length, amount: null, label: null, itemIds: missingSale });
   const ids = (f: (i: ItemIntel) => boolean) => intel.filter(f).map((i) => i.view.item.id);
   const stagnant = ids((i) => !!i.stagnation?.stagnant && i.recommendation?.action !== 'HOLD');
   if (stagnant.length) out.push({ code: 'STAGNANT', tone: 'risk', count: stagnant.length, amount: null, label: null, itemIds: stagnant });
@@ -322,6 +326,8 @@ export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSum
   }
   const missing = ids((i) => i.view.inStock && i.view.cost === null);
   if (missing.length) out.push({ code: 'MISSING_COST', tone: 'info', count: missing.length, amount: null, label: null, itemIds: missing });
+  const reserved = ids((i) => i.view.item.status === 'RESERVED');
+  if (reserved.length) out.push({ code: 'RESERVED', tone: 'positive', count: reserved.length, amount: null, label: null, itemIds: reserved });
   const noAnalysis = ids((i) => i.view.inStock && !!i.view.current && (!i.analysis || i.analysisStale));
   if (noAnalysis.length) out.push({ code: 'NO_ANALYSIS', tone: 'info', count: noAnalysis.length, amount: null, label: null, itemIds: noAnalysis });
   const niches = rankNiches(model);
