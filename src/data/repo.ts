@@ -279,6 +279,34 @@ export class EraRepository {
     return analysis;
   }
 
+  /** Link a Vinted purchase to a stock item: its real buying price becomes the item's cost. */
+  async linkPurchase(purchaseId: string, itemId: string, withProtection: boolean, now = Date.now()): Promise<void> {
+    const p = await this.db.purchases.get(purchaseId);
+    const item = await this.db.items.get(itemId);
+    if (!p || !item) throw new Error('Unknown purchase or item');
+    const cost = withProtection ? p.priceCents + 70 + Math.round(p.priceCents * 0.05) : p.priceCents;
+    await this.db.transaction('rw', [this.db.items, this.db.purchases, this.db.events], async () => {
+      await this.db.purchases.put({ ...p, linkedItemId: itemId });
+      await this.db.items.put({
+        ...item,
+        purchasePriceCents: cost,
+        purchaseDate: p.date ?? item.purchaseDate,
+        purchaseSource: 'Vinted',
+        updatedAt: now,
+        meta: { ...item.meta, purchasePriceCents: { p: withProtection ? 'DERIVED' : 'OBSERVED', at: now } },
+      });
+      await this.db.events.put(
+        this.event({ type: 'COST_ENTERED', at: now, inventoryItemId: itemId, listingId: null, data: { cost, source: 'vinted_purchase' }, provenance: withProtection ? 'DERIVED' : 'OBSERVED', isDemo: item.isDemo }),
+      );
+    });
+    await this.track('first_cost_entered');
+  }
+
+  async dismissPurchase(purchaseId: string): Promise<void> {
+    const p = await this.db.purchases.get(purchaseId);
+    if (p) await this.db.purchases.put({ ...p, dismissed: true });
+  }
+
   /** Manual reservation (Vinted's API does not expose it reliably). Kept across re-imports. */
   async setReserved(itemId: string, reserved: boolean, now = Date.now()): Promise<void> {
     const item = await this.db.items.get(itemId);

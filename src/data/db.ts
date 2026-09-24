@@ -19,6 +19,19 @@ export interface StoredAnalysis {
   isDemo: boolean;
 }
 
+/** An order the seller PAID for on Vinted (from "Mes commandes → Achats"): a real purchase price. */
+export interface PurchaseRow {
+  id: string;
+  title: string;
+  priceCents: number;
+  date: number | null;
+  status: string | null;
+  /** The stock item this purchase was matched to (its cost comes from here). */
+  linkedItemId: string | null;
+  dismissed: boolean;
+  importedAt: number;
+}
+
 export interface SettingRow {
   key: string;
   value: unknown;
@@ -35,6 +48,7 @@ export class EraDatabase extends Dexie {
   decisions!: EntityTable<Decision, 'id'>;
   activation!: EntityTable<ActivationEvent, 'name'>;
   settings!: EntityTable<SettingRow, 'key'>;
+  purchases!: EntityTable<PurchaseRow, 'id'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -50,6 +64,7 @@ export class EraDatabase extends Dexie {
       activation: 'name',
       settings: 'key',
     });
+    this.version(2).stores({ purchases: 'id, date, linkedItemId' });
   }
 }
 

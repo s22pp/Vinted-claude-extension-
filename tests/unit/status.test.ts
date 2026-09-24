@@ -118,3 +118,53 @@ describe('search endpoint learned from the page', () => {
     expect(isAllowedApi('/api/v2/items/123/delete')).toBe(false);
   });
 });
+
+import { ordersTemplateFromObserved } from '@/data/adapters/vinted/orders';
+import { suggestMatches, withBuyerProtection } from '@/intelligence/purchase-match';
+
+describe('Vinted purchases', () => {
+  it('learns the purchases list from what the page called, never the sold list', () => {
+    expect(ordersTemplateFromObserved(['/api/v2/users/current', '/api/v2/my_orders?type=sold&page=1', '/api/v2/my_orders?type=purchased&page=1&per_page=20'])).toBe(
+      '/api/v2/my_orders?type=purchased&page={page}&per_page=20',
+    );
+    expect(ordersTemplateFromObserved(['/api/v2/users/current'])).toBeNull();
+  });
+
+  it('suggests the stock item a purchase became, and says when it is sure', () => {
+    const mk = (id: string, title: string, brand: string, category: InventoryItem['category']) => ({ ...item(id, 'LISTED'), title, brand, category, createdAt: NOW, purchasePriceCents: null });
+    const items = [mk('a', 'Veste Harrington Ralph Lauren M', 'Ralph Lauren', 'JACKET'), mk('b', 'Chemise Oxford Ralph Lauren L', 'Ralph Lauren', 'SHIRT'), mk('c', "Jean Levi's 501", "Levi's", 'JEANS')];
+    const r = suggestMatches({ id: 'p', title: 'Veste Harrington Ralph Lauren taille M', date: NOW - 10 * DAY }, items);
+    expect(r.best?.itemId).toBe('a');
+    expect(r.sure).toBe(true);
+    const vague = suggestMatches({ id: 'q', title: 'Ralph Lauren', date: null }, items);
+    expect(vague.sure).toBe(false);
+  });
+
+  it('adds the verified buyer protection', () => {
+    expect(withBuyerProtection(1800)).toBe(1960);
+  });
+});
+
+import { analyzePhoto } from '@/intelligence/photo';
+
+describe('photo check (scores real photos, generates nothing)', () => {
+  const img = (w: number, h: number, f: (x: number, y: number) => [number, number, number]) => {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const [r, g, b] = f(x, y);
+        data.set([r, g, b, 255], (y * w + x) * 4);
+      }
+    return { width: w, height: h, data };
+  };
+  it('a sharp, well-lit, textured photo passes', () => {
+    const rep = analyzePhoto(img(120, 160, (x, y) => ((x + y) % 4 < 2 ? [200, 190, 185] : [70, 60, 55])), 1600);
+    expect(rep.issues).not.toContain('BLURRY');
+    expect(rep.issues).not.toContain('TOO_DARK');
+  });
+  it('a flat dark low-res image is to retake', () => {
+    const rep = analyzePhoto(img(60, 80, () => [30, 30, 30]), 480);
+    expect(rep.issues).toEqual(expect.arrayContaining(['BLURRY', 'TOO_DARK', 'LOW_RES']));
+    expect(rep.verdict).toBe('RETAKE');
+  });
+});

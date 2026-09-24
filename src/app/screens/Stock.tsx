@@ -9,6 +9,7 @@ import { Badge, Button, Card, EmptyState, Money, SearchInput, Segmented } from '
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, StatusBadge } from '../components/domain';
 import { VintedImportButton } from '../components/vinted-import';
+import { PurchasesBanner } from '../components/purchases';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
 import { analyzeItem } from '../market-run';
 import { errorCode } from '@/data/adapters/marketplace';
@@ -303,6 +304,7 @@ export function Stock({ route }: { route: Route }) {
         </Card>
       ) : (
         <>
+          <PurchasesBanner />
           <div className="toolbar">
             <div style={{ width: 300, maxWidth: '100%' }}>
               <SearchInput value={q} onChange={setQ} placeholder={t('stock.search')} inputRef={searchRef} />

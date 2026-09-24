@@ -4,9 +4,10 @@ import { type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { Modal } from '@/ui/components/overlays';
 import { Button, Field, Select } from '@/ui/components/primitives';
 import { ListingAssistant, OfferCalculator, ShieldChecker, useBulkAnalyze } from '../components/tools';
+import { PhotoCheck } from '../components/photo-check';
 import { go, useEra } from '../state';
 
-type ToolKey = 'today' | 'bulk' | 'offer' | 'listing' | 'shield' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
+type ToolKey = 'today' | 'bulk' | 'offer' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
 const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] = [
   { key: 'today', icon: 'today', tone: 'violet', href: 'today' },
@@ -14,6 +15,7 @@ const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] =
   { key: 'offer', icon: 'scale', tone: 'amber' },
   { key: 'listing', icon: 'edit', tone: 'pink' },
   { key: 'shield', icon: 'alert', tone: 'coral' },
+  { key: 'photo', icon: 'eye', tone: 'cyan' },
   { key: 'buy', icon: 'buy', tone: 'violet', href: 'buy' },
   { key: 'market', icon: 'target', tone: 'cyan', href: 'market' },
   { key: 'capital', icon: 'trap', tone: 'amber', href: 'insights#capital' },
@@ -94,6 +96,9 @@ export function Tools() {
       <Modal open={open === 'listing'} onClose={() => setOpen(null)} title={t('listing.title')}>
         {picker}
         {intel && <ListingAssistant intel={intel} />}
+      </Modal>
+      <Modal open={open === 'photo'} onClose={() => setOpen(null)} title={t('tools.t.photo.0')}>
+        <PhotoCheck />
       </Modal>
       <Modal open={open === 'shield'} onClose={() => setOpen(null)} title={t('tools.t.shield.0')}>
         <ShieldChecker />

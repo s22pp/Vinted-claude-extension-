@@ -2,7 +2,7 @@ import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
 import type { EraMessage, ImportResult, PriceEditResult } from '@/data/adapters/vinted/protocol';
-import { importFromVinted } from '@/data/vinted-import';
+import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -18,7 +18,11 @@ function runImport(): Promise<ImportResult> {
     reached = stage;
     void browser.runtime.sendMessage({ type: 'era:import:stage', stage } satisfies EraMessage).catch(() => undefined);
   })
-    .then((r): ImportResult => ({ ok: true, ...r }))
+    .then((r): ImportResult => {
+      // Purchases follow in the background; the stock is already usable.
+      void importPurchasesFromVinted();
+      return { ok: true, ...r };
+    })
     .catch((e): ImportResult => {
       const { code, detail } = errorInfo(e);
       const r: ImportResult = { ok: false, code, detail: `étape ${reached} · ${detail ?? (e instanceof Error ? e.message : String(e))}` };

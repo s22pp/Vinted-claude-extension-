@@ -222,8 +222,10 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       groups.set(l, [...(groups.get(l) ?? []), r]);
     }
     for (const [label, seg] of groups) {
-      if (seg.length < 5) continue;
-      const rate = seg.filter((r) => r.refunded).length / seg.length;
+      // One refund is an incident, not a pattern: ≥ 8 sales and ≥ 2 refunds.
+      const refunds = seg.filter((r) => r.refunded).length;
+      if (seg.length < 8 || refunds < 2) continue;
+      const rate = refunds / seg.length;
       const adj = (rate * seg.length + allRefundRate * K) / (seg.length + K);
       if (adj >= allRefundRate * 1.6 && rate >= 0.15) {
         out.push({

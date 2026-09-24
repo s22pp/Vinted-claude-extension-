@@ -32,6 +32,11 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       clicked.push(url.searchParams.get('b')!);
       return route.fulfill({ status: 204 });
     }
+    if (url.pathname === '/my_orders' && url.searchParams.get('order_type') === 'purchased')
+      // Test fixture only: the purchases page calls an orders endpoint ERA learns by observation.
+      return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20')</script></body></html>` });
+    if (url.pathname === '/api/v2/my_orders' && url.searchParams.get('era_test') === 'purchased')
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
     if (url.pathname === '/catalog' && opts.searchMoved)
       // Test fixture only: the search page calls an endpoint ERA does not know yet.
       return route.fulfill({
@@ -219,4 +224,22 @@ test('Vinted refuses the price: ERA says so instead of claiming success', async 
   await page.getByRole('button', { name: 'Appliquer sur Vinted', exact: true }).click();
   await expect(page.getByText('Vinted n’a pas pris le nouveau prix')).toBeVisible({ timeout: 40_000 });
   expect(fake.prices['101']).toBe('59.0');
+});
+
+test('purchases: real buying prices imported and linked to stock in one click', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/stock`);
+  await expect(page.getByText('1 achat Vinted à rattacher')).toBeVisible({ timeout: 45_000 });
+  await page.getByRole('button', { name: 'Rattacher' }).first().click();
+  await expect(page.getByText('correspondance sûre', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Valider la correspondance sûre' }).click();
+  await expect(page.getByText('1 achat Vinted à rattacher')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Harrington' }).click();
+  // 18 € + 0,70 € + 5 % buyer protection = 19,60 €
+  await expect(page.locator('header').getByText('19,60 €')).toBeVisible();
 });

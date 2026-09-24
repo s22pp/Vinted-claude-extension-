@@ -22,6 +22,7 @@ export function Settings() {
   const locale = useLiveQuery(() => repo.getSetting<Locale>('locale', 'fr'), []) ?? 'fr';
   const lastImport = useLiveQuery(() => repo.getSetting<number | null>('lastVintedImport', null), []);
   const wardrobeKeys = useLiveQuery(() => repo.getSetting<string[] | null>('vintedWardrobeKeys', null), []);
+  const purchasesError = useLiveQuery(() => repo.getSetting<string | null>('purchasesError', null), []);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [budget, setBudget] = useState<BudgetStatus | null>(null);
@@ -106,6 +107,7 @@ export function Settings() {
                 </p>
               )}
               {lastImport ? <p className="t-small t-faint">{t('vinted.lastImport', { when: i.relative(lastImport, era.now) })}</p> : null}
+              {purchasesError && <p className="t-small" style={{ color: 'var(--amber)', wordBreak: 'break-word' }}>{t('purchases.error', { detail: purchasesError })}</p>}
               {wardrobeKeys && wardrobeKeys.length > 0 && (
                 <details className="t-small">
                   <summary className="t-muted" style={{ cursor: 'pointer' }}>

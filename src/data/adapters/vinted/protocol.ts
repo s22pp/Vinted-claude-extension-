@@ -6,7 +6,12 @@ export const ALLOWED_API = ['/api/v2/users/current', '/api/v2/wardrobe/', '/api/
 
 /** A search endpoint observed on Vinted's own search page is allowed too: GET, /api/, with a search_text param. */
 export function isAllowedApi(path: string): boolean {
-  return ALLOWED_API.some((p) => path.startsWith(p)) || (path.startsWith('/api/') && /[?&]search_text=/.test(path));
+  return (
+    ALLOWED_API.some((p) => path.startsWith(p)) ||
+    (path.startsWith('/api/') && /[?&]search_text=/.test(path)) ||
+    // an orders list observed on Vinted's own "Mes commandes" page (read-only GET)
+    (path.startsWith('/api/v2/') && /order/i.test(path.split('?')[0]!))
+  );
 }
 
 export type EraMessage =

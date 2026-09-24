@@ -4,6 +4,7 @@ import { MarketplaceError } from './adapters/marketplace';
 import type { ImportStage } from './adapters/vinted/protocol';
 import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
 import { listingStatusOf, resolveImportedStatus } from '@/domain/status';
+import { fetchPurchases } from './adapters/vinted/orders';
 import { db, uid } from './db';
 import { repo } from './repo';
 
@@ -183,6 +184,27 @@ export async function importFromVinted(
   if (salesCount > 0) await repo.track('first_sale_tracked');
   onStage('COMPLETE');
   return { items: created, updated, sales: salesCount };
+}
+
+/**
+ * Purchases (real buying prices), run AFTER the stock import so it never slows it down or makes it fail.
+ * The first run learns the purchases endpoint from Vinted's own page; later runs reuse it.
+ */
+export async function importPurchasesFromVinted(now = Date.now()): Promise<number> {
+  try {
+    await ensureVintedTab();
+    const purchases = await fetchPurchases(new VintedTabAdapter());
+    for (const p of purchases) {
+      const id = `pur_${orderKey(p.title, p.date, p.priceCents)}`;
+      const prev = await db.purchases.get(id);
+      await db.purchases.put({ id, title: p.title, priceCents: p.priceCents, date: p.date, status: p.status, linkedItemId: prev?.linkedItemId ?? null, dismissed: prev?.dismissed ?? false, importedAt: now });
+    }
+    await repo.setSetting('purchasesError', null);
+    return purchases.length;
+  } catch (e) {
+    await repo.setSetting('purchasesError', e instanceof Error ? e.message : String(e));
+    return 0;
+  }
 }
 
 function orderKey(title: string, date: number | null, price: number): string {
