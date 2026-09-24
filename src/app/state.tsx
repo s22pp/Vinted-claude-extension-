@@ -10,6 +10,7 @@ import { type ItemIntel, type TodayPriority, computeItemIntel, todayPriorities }
 import { type LearningSummary, summarizeLearning } from '@/intelligence/learning';
 import { type ItemView, type SaleView, buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model';
+import { buildSensitivityIndex } from '@/intelligence/sensitivity';
 
 export interface EraData {
   ready: boolean;
@@ -53,6 +54,8 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
   const predictions = useLiveQuery(() => db.predictions.toArray(), []);
   const activation = useLiveQuery(() => db.activation.toArray(), []);
   const decisions = useLiveQuery(() => db.decisions.toArray(), []);
+  const observations = useLiveQuery(() => db.observations.toArray(), []);
+  const priceEvents = useLiveQuery(() => db.events.where('type').equals('PRICE_CHANGED').toArray(), []);
   const mode = useLiveQuery(() => repo.getSetting<DataMode>('dataMode', 'empty'), []);
 
   const value = useMemo<EraData>(() => {
@@ -63,7 +66,10 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const learning = summarizeLearning(predictions ?? []);
     const capital = capitalSummary(views, saleViews, now);
     const analysisMap = new Map((analyses ?? []).filter((a) => a.inventoryItemId).map((a) => [a.inventoryItemId!, a.analysis]));
-    const intel = views.filter((v) => v.inStock).map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now));
+    const sensitivity = buildSensitivityIndex(views, observations ?? [], priceEvents ?? []);
+    const intel = views
+      .filter((v) => v.inStock)
+      .map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now, sensitivity.get(v.item.id)));
     // Dismissed / snoozed recommendations stay hidden until they change or the snooze ends.
     const hidden = new Set((decisions ?? []).filter((d) => d.outcome === 'DISMISSED' || (d.outcome === 'SNOOZED' && (d.until ?? 0) > now)).map((d) => d.recommendationKey));
     for (const i of intel) if (i.recommendation && hidden.has(i.recommendation.key)) i.recommendation = null;
@@ -85,7 +91,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       activation: new Set((activation ?? []).map((a) => a.name)),
       decisions: decisions ?? [],
     };
-  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t]);
+  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

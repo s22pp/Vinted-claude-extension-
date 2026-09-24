@@ -4,7 +4,7 @@ import type { ItemIntel } from '@/intelligence/decision';
 import type { ItemView } from '@/intelligence/portfolio';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
-import { useToast } from '@/ui/components/overlays';
+import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, StatusBadge } from '../components/domain';
@@ -79,6 +79,7 @@ export function Stock({ route }: { route: Route }) {
   const { t } = useI18n();
   const era = useEra();
   const toast = useToast();
+  const errorToast = useErrorToast();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>((route.query.get('filter') as Filter) ?? 'all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
@@ -191,7 +192,7 @@ export function Stock({ route }: { route: Route }) {
       toast('success', t('bulk.done', { n }));
     } catch (e) {
       const code = errorCode(e);
-      toast('error', t(`errors.${code}`), t(`errors.hint.${code}`));
+      errorToast(e);
     } finally {
       setBulkBusy(false);
       setSelected(new Set());

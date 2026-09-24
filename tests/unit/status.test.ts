@@ -98,3 +98,23 @@ describe('recording a sale', () => {
     expect((await db.items.get('a'))!.status).toBe('LISTED');
   });
 });
+
+import { fillTemplate, templateFromObserved } from '@/data/adapters/vinted/vinted-adapter';
+import { isAllowedApi } from '@/data/adapters/vinted/protocol';
+
+describe('search endpoint learned from the page', () => {
+  it('keeps the observed path and params, swaps in our text, drops paging', () => {
+    const t = templateFromObserved('/api/v9/some/search?search_text=nike&page=3&per_page=24&order=newest_first')!;
+    expect(t).toBe('/api/v9/some/search?search_text={q}&per_page=24&order=newest_first');
+    expect(fillTemplate(t, 'veste ralph lauren')).toBe('/api/v9/some/search?search_text=veste%20ralph%20lauren&per_page=24&order=newest_first');
+  });
+  it('ignores non-search calls', () => {
+    expect(templateFromObserved('/api/v2/users/current')).toBeNull();
+    expect(templateFromObserved('/web/api/whatever?search_text=x')).toBeNull();
+  });
+  it('the content script only allows read paths it knows or observed searches', () => {
+    expect(isAllowedApi('/api/v2/catalog/items?search_text=a')).toBe(true);
+    expect(isAllowedApi('/api/v9/other/search?search_text=a')).toBe(true);
+    expect(isAllowedApi('/api/v2/items/123/delete')).toBe(false);
+  });
+});

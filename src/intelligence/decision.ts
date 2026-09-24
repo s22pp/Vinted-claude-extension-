@@ -7,6 +7,7 @@ import type { LearningSummary } from './learning';
 import type { ItemView } from './portfolio';
 import { type PricingResult, priceStrategies } from './pricing';
 import { type SegmentStats, type SellerModel, personalEvidence, rankNiches, velocityScore } from './seller-model';
+import type { Sensitivity } from './sensitivity';
 import { type StagnationDiagnosis, diagnoseStagnation } from './stagnation';
 
 export type ActionCode =
@@ -49,6 +50,8 @@ export interface ItemIntel {
   stagnation: StagnationDiagnosis | null;
   personal: SegmentStats | null;
   trap: CapitalTrap | null;
+  /** Measured effect of price on views for this niche (never assumed). */
+  sensitivity: Sensitivity;
   recommendation: Recommendation | null;
 }
 
@@ -61,6 +64,7 @@ export function computeItemIntel(
   learning: LearningSummary | null,
   capital: CapitalSummary | null,
   now: number,
+  sensitivity: Sensitivity = { status: 'UNKNOWN', basis: 'NONE', n: 0, effect: null, scope: null },
 ): ItemIntel {
   const personal = model ? personalEvidence(model, view.item) : null;
   const pricing = analysis
@@ -88,6 +92,7 @@ export function computeItemIntel(
     stagnation,
     personal,
     trap,
+    sensitivity,
     recommendation: null,
   };
   intel.recommendation = recommendFor(intel);
@@ -105,9 +110,15 @@ function evidenceOf(p: PricingResult | null): Recommendation['evidence'] {
   return p.personalSample >= 3 ? 'BOTH' : 'MARKET';
 }
 
-/** Chooses the single most useful action for an item. Pure. */
+/**
+ * Chooses the single most useful action for an item. Pure.
+ * Rule: NO price decrease without solid evidence — a fresh market analysis (≥ 8 reliable comparables),
+ * a price actually above the market (> P75), and no measurement showing that price does not move views
+ * for this niche. Otherwise ERA says "analyse first" or "keep", with the numbers that justify it.
+ */
 export function recommendFor(intel: ItemIntel): Recommendation | null {
-  const { view, pricing, stagnation: st, trap, analysis } = intel;
+  const { view, pricing, stagnation: st, trap, analysis, personal } = intel;
+  const sens = intel.sensitivity;
   const id = view.item.id;
   const settled = view.item.status === 'RESERVED';
   const price = view.askPrice;
@@ -119,33 +130,61 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     evidence: r.evidence ?? evidenceOf(pricing),
     ...r,
   });
-  const conf: Confidence = pricing?.status === 'OK' ? pricing.confidence : 'LOW';
-  const d = analysis?.distribution;
-  const below = d && price !== null ? analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length : 0;
+  const d = analysis?.distribution ?? null;
+  const marketSolid =
+    !!analysis && !!d && !intel.analysisStale && (analysis.quality === 'HIGH' || analysis.quality === 'MEDIUM') && (analysis.source === 'VINTED' || view.item.isDemo);
+  const insensitive = sens.status === 'INSENSITIVE';
+  // Price-lowering confidence is capped while the price effect is unmeasured for this niche.
+  const baseConf: Confidence = pricing?.status === 'OK' ? pricing.confidence : 'LOW';
+  const conf: Confidence = sens.status === 'SENSITIVE' ? baseConf : baseConf === 'HIGH' ? 'MEDIUM' : baseConf;
+  const floor = view.cost ?? 0; // never propose selling below what was paid
+
+  const evidence: Coded[] = [];
+  if (marketSolid) evidence.push({ code: 'why.marketEvidence', params: { n: kept, p25: d!.p25, p50: d!.p50, p75: d!.p75 } });
+  if (personal && personal.sold >= 3 && personal.medianSaleCents !== null)
+    evidence.push({ code: 'why.personalRealized', params: { n: personal.sold, realized: personal.medianSaleCents } });
+  const sensLine: Coded =
+    sens.basis === 'DROPS'
+      ? { code: 'why.sensDrops', params: { n: sens.n, pct: `${(sens.effect ?? 0) >= 0 ? '+' : '−'}${Math.abs(Math.round((sens.effect ?? 0) * 100))} %` } }
+      : sens.basis === 'CROSS'
+        ? { code: sens.status === 'SENSITIVE' ? 'why.sensCrossYes' : sens.status === 'INSENSITIVE' ? 'why.sensCrossNo' : 'why.sensCrossUnclear', params: { n: sens.n } }
+        : { code: 'why.sensUnknown', params: {} };
+
+  const hold = (why: Coded[], alt: Coded | null, priority = 38): Recommendation =>
+    base({ action: 'HOLD', actionParams: {}, why, confidence: marketSolid ? baseConf : 'LOW', impact: { code: 'impact.keepMargin', params: {} }, alternative: alt, tone: 'info', priority });
 
   if (!settled && st?.stagnant && price !== null) {
     const over = Math.max(0, st.daysListed - st.thresholdDays);
-    const common: Coded[] = [{ code: 'why.stagnant', params: { days: st.daysListed, views: st.views ?? 0, favorites: st.favorites ?? 0 } }];
+    const common: Coded = { code: 'why.stagnant', params: { days: st.daysListed, views: st.views ?? 0, favorites: st.favorites ?? 0 } };
+    const wantsLower = st.action === 'SMALL_DROP' || st.action === 'REPRICE';
+    if (wantsLower && !marketSolid) return analyzeReco(id, 'why.stagnantNeedsData', 60 + capitalWeight, [common]);
+    if (wantsLower && insensitive) return hold([common, sensLine, { code: 'why.priceNotLever', params: {} }, ...evidence], { code: 'alt.titleReference', params: {} }, 45);
+
     switch (st.action) {
       case 'SMALL_DROP': {
-        const target = euro(Math.max(price * 0.92, option(pricing, 'FAST')?.range.min ?? 0));
+        if (price < d!.p50) return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence], null);
+        const target = euro(Math.max(price * 0.92, d!.p50, floor));
+        if (target >= price) break;
         return base({
           action: 'SMALL_DROP',
           actionParams: { price: target, from: price },
-          why: [...common, { code: 'why.favoritesWaiting', params: { favorites: st.favorites ?? 0 } }],
-          confidence: 'MEDIUM',
+          why: [common, { code: 'why.favoritesWaiting', params: { favorites: st.favorites ?? 0 } }, ...evidence, sensLine],
+          confidence: conf,
           impact: { code: 'impact.notifyFavorites', params: { favorites: st.favorites ?? 0 } },
           alternative: { code: 'alt.noRepostFavorites', params: {} },
           tone: 'warning',
           priority: 66 + capitalWeight + Math.min(10, over / 3),
-          evidence: 'PERSONAL',
+          evidence: 'BOTH',
         });
       }
       case 'REPRICE': {
         const bal = option(pricing, 'BALANCED');
-        if (!bal) return analyzeReco(id, 'why.stagnantNoComps', 60 + capitalWeight, common);
-        const target = st.state === 'LOW_DEMAND' ? option(pricing, 'FAST')!.range.max : bal.range.max;
+        if (!bal) return analyzeReco(id, 'why.stagnantNeedsData', 60 + capitalWeight, [common]);
+        if (price <= d!.p75)
+          return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence, sensLine], { code: 'alt.titleReference', params: {} });
+        const target = euro(Math.max(st.state === 'LOW_DEMAND' ? option(pricing, 'FAST')!.range.max : bal.range.max, floor));
         if (target >= price) break;
+        const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
         return base({
           action: 'SET_PRICE',
           actionParams: { price: target, from: price },
@@ -154,8 +193,10 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
               ? { code: 'why.highVisLowInterest', params: { views: st.views ?? 0, favorites: st.favorites ?? 0 } }
               : st.state === 'LOW_VISIBILITY'
                 ? { code: 'why.lowVisibility', params: { views: st.views ?? 0, days: view.daysListed ?? 0 } }
-                : common[0]!,
+                : common,
             { code: 'why.compsBelow', params: { n: below, total: kept, pct: Math.round((st.priceDeltaPct ?? 0) * 100) } },
+            ...evidence,
+            sensLine,
           ],
           confidence: conf,
           impact: { code: 'impact.fasterLowerMargin', params: { delta: price - target } },
@@ -174,9 +215,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
           ],
           confidence: 'LOW',
           impact: { code: 'impact.visibilityReset', params: {} },
-          alternative: option(pricing, 'BALANCED')
-            ? { code: 'alt.repriceInstead', params: { price: option(pricing, 'BALANCED')!.range.min } }
-            : { code: 'alt.wait', params: { days: 7 } },
+          alternative: { code: 'alt.titleReference', params: {} },
           tone: 'warning',
           priority: 55 + capitalWeight,
           evidence: 'PERSONAL',
@@ -185,41 +224,28 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
         return base({
           action: 'REVIEW_LISTING',
           actionParams: {},
-          why: [
-            { code: 'why.highVisLowInterest', params: { views: st.views ?? 0, favorites: st.favorites ?? 0 } },
-            { code: 'why.priceAligned', params: {} },
-          ],
+          why: [{ code: 'why.highVisLowInterest', params: { views: st.views ?? 0, favorites: st.favorites ?? 0 } }, { code: 'why.priceAligned', params: {} }, ...evidence],
           confidence: 'LOW',
           impact: { code: 'impact.conversion', params: {} },
-          alternative: { code: 'alt.smallDrop', params: { price: euro(price * 0.92) } },
+          alternative: { code: 'alt.titleReference', params: {} },
           tone: 'warning',
           priority: 52 + capitalWeight,
         });
       case 'HOLD':
-        return base({
-          action: 'HOLD',
-          actionParams: {},
-          why: [...common, { code: 'why.priceCompetitive', params: {} }],
-          confidence: conf,
-          impact: { code: 'impact.none', params: {} },
-          alternative: option(pricing, 'FAST')
-            ? { code: 'alt.fastExit', params: { price: option(pricing, 'FAST')!.range.max } }
-            : null,
-          tone: 'info',
-          priority: 20,
-        });
+        return hold([common, { code: 'why.priceCompetitive', params: {} }, ...evidence], null, 20);
       default:
         break;
     }
   }
 
-  if (!settled && trap && price !== null) {
+  if (!settled && trap && price !== null && marketSolid && !insensitive) {
     const fast = option(pricing, 'FAST');
-    if (fast && fast.range.max < price) {
+    const target = fast ? euro(Math.max(fast.range.max, floor)) : null;
+    if (target !== null && target < price) {
       return base({
         action: 'FREE_CAPITAL',
-        actionParams: { price: fast.range.max, from: price },
-        why: [{ code: 'why.capitalTrap', params: { cost: trap.costCents, days: trap.daysHeld, profit: trap.potentialProfitCents ?? 0 } }],
+        actionParams: { price: target, from: price },
+        why: [{ code: 'why.capitalTrap', params: { cost: trap.costCents, days: trap.daysHeld, profit: trap.potentialProfitCents ?? 0 } }, ...evidence, sensLine],
         confidence: conf,
         impact: { code: 'impact.unlockCapital', params: { amount: trap.costCents } },
         alternative: { code: 'alt.keepForMargin', params: { price } },
@@ -229,19 +255,22 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     }
   }
 
-  if (!settled && pricing?.status === 'OK' && price !== null && pricing.recommended) {
+  if (!settled && marketSolid && pricing?.status === 'OK' && price !== null && pricing.recommended) {
     const rec = pricing.options.find((o) => o.strategy === pricing.recommended)!;
-    if (pricing.currentVsRecommended === 'ABOVE' && price > rec.range.max * 1.1 && analysis!.quality !== 'LOW') {
-      return base({
-        action: 'SET_PRICE',
-        actionParams: { price: rec.range.max, from: price },
-        why: [{ code: 'why.compsBelow', params: { n: below, total: kept, pct: Math.round((analysis!.position?.deltaPct ?? 0) * 100) } }],
-        confidence: conf,
-        impact: { code: 'impact.fasterLowerMargin', params: { delta: price - rec.range.max } },
-        alternative: { code: 'alt.keepForMargin', params: { price } },
-        tone: 'warning',
-        priority: 48 + capitalWeight,
-      });
+    if (!insensitive && pricing.currentVsRecommended === 'ABOVE' && price > d!.p75 * 1.05 && price > rec.range.max * 1.1) {
+      const target = euro(Math.max(rec.range.max, floor));
+      const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
+      if (target < price)
+        return base({
+          action: 'SET_PRICE',
+          actionParams: { price: target, from: price },
+          why: [{ code: 'why.compsBelow', params: { n: below, total: kept, pct: Math.round((analysis!.position?.deltaPct ?? 0) * 100) } }, ...evidence, sensLine],
+          confidence: conf,
+          impact: { code: 'impact.fasterLowerMargin', params: { delta: price - target } },
+          alternative: { code: 'alt.keepForMargin', params: { price } },
+          tone: 'warning',
+          priority: 48 + capitalWeight,
+        });
     }
     if (pricing.currentVsRecommended === 'BELOW' && price < rec.range.min * 0.9 && pricing.basis === 'DEMAND_PROVEN') {
       return base({
@@ -250,8 +279,9 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
         why: [
           { code: 'why.demandProven', params: { views: view.current?.views ?? 0, favorites: view.current?.favorites ?? 0 } },
           { code: 'why.underMarket', params: { pct: Math.round((analysis!.position?.deltaPct ?? 0) * 100) } },
+          ...evidence,
         ],
-        confidence: conf,
+        confidence: baseConf,
         impact: { code: 'impact.moreMargin', params: { delta: rec.range.min - price } },
         alternative: { code: 'alt.keepFast', params: { price } },
         tone: 'positive',

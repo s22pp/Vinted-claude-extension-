@@ -2,11 +2,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
 import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
+import { type DiagStep, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
 import { type DataMode, repo } from '@/data/repo';
 import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
-import { Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
+import { Badge, Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
@@ -121,6 +122,7 @@ export function Settings() {
               </div>
             </div>
           </Card>
+          <DiagnosticCard />
           <Card title={t('settings.data')} icon="stock" tone="amber">
             <p className="t-small t-muted" style={{ marginBottom: 14 }}>
               {t('settings.dataLocal')}
@@ -167,3 +169,72 @@ export function Settings() {
 }
 
 export type { DataMode };
+
+function DiagnosticCard() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [steps, setSteps] = useState<DiagStep[]>([]);
+  const [running, setRunning] = useState(false);
+  const [lastError, setLastError] = useState<{ code: string; detail?: string; at: number } | null>(null);
+  useEffect(() => {
+    void browser.storage.local.get('eraLastImportError').then((r) => setLastError((r.eraLastImportError as typeof lastError) ?? null));
+  }, [running]);
+  const report = () =>
+    [
+      `ERA v${browser.runtime.getManifest().version} · ${navigator.userAgent}`,
+      ...steps.map((s) => `${s.ok ? '✓' : '✗'} ${t(`vinted.diagStep.${s.key}`)} — ${s.info}`),
+      lastError ? `Dernière erreur d’import (${new Date(lastError.at).toLocaleString()}) : ${lastError.code} · ${lastError.detail ?? ''}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  return (
+    <Card title={t('vinted.diagTitle')} icon="target" tone="cyan" id="diagnostic">
+      <p className="t-small t-muted" style={{ marginBottom: 12 }}>
+        {t('vinted.diagHint')}
+      </p>
+      <div className="row wrap" style={{ marginBottom: steps.length ? 12 : 0 }}>
+        <Button
+          variant="primary"
+          icon="target"
+          loading={running}
+          onClick={async () => {
+            setRunning(true);
+            setSteps([]);
+            await runVintedDiagnostic((s) => setSteps((xs) => [...xs, s]));
+            setRunning(false);
+          }}
+        >
+          {t('vinted.diagRun')}
+        </Button>
+        {(steps.length > 0 || lastError) && (
+          <Button
+            icon="layers"
+            onClick={async () => {
+              await navigator.clipboard.writeText(report()).catch(() => undefined);
+              toast('success', t('vinted.diagCopied'));
+            }}
+          >
+            {t('vinted.diagCopy')}
+          </Button>
+        )}
+      </div>
+      {steps.length > 0 && (
+        <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0 }} aria-live="polite">
+          {steps.map((s) => (
+            <li key={s.key} className="row t-small" style={{ alignItems: 'flex-start', gap: 8 }}>
+              <Badge tone={s.ok ? 'emerald' : 'coral'}>{s.ok ? '✓' : '✗'}</Badge>
+              <span>
+                <b>{t(`vinted.diagStep.${s.key}`)}</b> <span className="t-muted" style={{ wordBreak: 'break-word' }}>— {s.info}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {lastError && (
+        <p className="t-small t-faint" style={{ marginTop: 10, wordBreak: 'break-word' }}>
+          {t('vinted.lastError')} : {lastError.code} · {lastError.detail}
+        </p>
+      )}
+    </Card>
+  );
+}

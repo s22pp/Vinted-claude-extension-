@@ -81,7 +81,7 @@ function market(prices: number[]): ComparableAnalysis {
         fetchedAt: 0,
       },
     ],
-    { queries: [], source: 'DEMO', now: NOW },
+    { queries: [], source: 'VINTED', now: NOW },
   );
 }
 
@@ -339,5 +339,103 @@ describe('listing assistant & shield', () => {
     expect(shieldCheck('Paiement PayPal possible', 'Nike').some((i) => i.code === 'OFF_PLATFORM')).toBe(true);
     expect(shieldCheck('Contact 06 12 34 56 78', 'Nike').some((i) => i.code === 'CONTACT')).toBe(true);
     expect(shieldCheck('Sweat Polo Ralph Lauren M', 'Ralph Lauren')).toEqual([]);
+  });
+});
+
+import { minePatterns } from '@/intelligence/patterns';
+
+describe('sales patterns', () => {
+  function history() {
+    const items: InventoryItem[] = [];
+    const listings: Listing[] = [];
+    const sales: Sale[] = [];
+    // 10 fast, profitable Ralph Lauren shirts vs 10 slow Burberry coats
+    for (let i = 0; i < 20; i++) {
+      const fast = i < 10;
+      const id = `p${i}`;
+      items.push(item(id, { brand: fast ? 'Ralph Lauren' : 'Burberry', model: null, category: fast ? 'SHIRT' : 'COAT', status: 'SOLD', purchasePriceCents: fast ? 800 : 6000 }));
+      listings.push(listing(`l${i}`, id, { status: 'SOLD', listedAt: NOW - (fast ? 30 : 90) * DAY, priceCents: fast ? 3000 : 9000 }));
+      sales.push({ id: `s${i}`, inventoryItemId: id, listingId: `l${i}`, soldAt: NOW - (fast ? 26 : 30) * DAY, salePriceCents: fast ? 2800 : 7500, extraCostsCents: 0, status: 'COMPLETED', isDemo: false });
+    }
+    const views = buildItemViews(items, listings, sales, NOW);
+    return { views, sales: buildSaleViews(views, sales) };
+  }
+
+  it('finds the fast, profitable segment and explains it with its sample size', () => {
+    const { views, sales } = history();
+    const ps = minePatterns(sales, views, { category: (c) => c });
+    const speed = ps.find((p) => p.kind === 'SPEED' && p.params.label === 'Ralph Lauren');
+    expect(speed?.tone).toBe('positive');
+    expect(speed?.sample).toBe(10);
+    expect(speed?.params.days).toBe(4);
+    const slow = ps.find((p) => p.kind === 'SPEED' && p.params.label === 'Burberry');
+    expect(slow?.tone).toBe('warning');
+    expect(ps.every((p) => p.sample >= 4)).toBe(true);
+  });
+
+  it('stays silent on too little history', () => {
+    const { views, sales } = history();
+    expect(minePatterns(sales.slice(0, 6), views, { category: (c) => c })).toEqual([]);
+  });
+});
+
+import { buildSensitivityIndex, dropEffect } from '@/intelligence/sensitivity';
+
+describe('no price decrease without solid evidence', () => {
+  const stale = (p: Partial<Listing>) => buildItemViews([item('a')], [listing('l', 'a', { listedAt: NOW - 60 * DAY, ...p })], [], NOW)[0]!;
+
+  it('stagnant but no market analysis → analyse first, never a price', () => {
+    const r = computeItemIntel(stale({ views: 1204, favorites: 2, priceCents: 7000 }), null, null, null, null, NOW).recommendation!;
+    expect(r.action).toBe('ANALYZE');
+    expect(r.why.map((w) => w.code)).toContain('why.stagnantNeedsData');
+  });
+
+  it('stagnant but already priced inside the market → no decrease, with the numbers', () => {
+    for (const priceCents of [5000, 5400]) {
+      const r = computeItemIntel(stale({ views: 1204, favorites: 2, priceCents }), MKT, null, null, null, NOW).recommendation!;
+      expect(['HOLD', 'REVIEW_LISTING']).toContain(r.action);
+      expect(r.why.map((w) => w.code)).toContain('why.marketEvidence');
+    }
+  });
+
+  it('a niche where price does not move views → no decrease, even above the market', () => {
+    const insensitive = { status: 'INSENSITIVE' as const, basis: 'DROPS' as const, n: 4, effect: 0.02, scope: 'x' };
+    const r = computeItemIntel(stale({ views: 1204, favorites: 2, priceCents: 7000 }), MKT, null, null, null, NOW, insensitive).recommendation!;
+    expect(r.action).toBe('HOLD');
+    expect(r.why.map((w) => w.code)).toEqual(expect.arrayContaining(['why.priceNotLever', 'why.sensDrops']));
+    expect(r.alternative?.code).toBe('alt.titleReference');
+  });
+
+  it('a stale (old) analysis is not solid evidence', () => {
+    const old = { ...MKT, at: NOW - 30 * DAY };
+    const r = computeItemIntel(stale({ views: 1204, favorites: 2, priceCents: 7000 }), old, null, null, null, NOW).recommendation!;
+    expect(r.action).toBe('ANALYZE');
+  });
+
+  it('a decrease is never proposed below the purchase cost', () => {
+    const v = buildItemViews([item('a', { purchasePriceCents: 6600 })], [listing('l', 'a', { listedAt: NOW - 60 * DAY, views: 1204, favorites: 2, priceCents: 7000 })], [], NOW)[0]!;
+    const r = computeItemIntel(v, MKT, null, null, null, NOW).recommendation!;
+    if (r.action === 'SET_PRICE') expect(r.actionParams.price as number).toBeGreaterThanOrEqual(6600);
+  });
+});
+
+describe('price sensitivity is measured', () => {
+  const obs = (listingId: string, pts: [number, number][]) =>
+    pts.map(([d, v], i) => ({ id: `${listingId}${i}`, listingId, inventoryItemId: listingId, at: NOW - d * DAY, priceCents: 1, views: v, favorites: 0, provenance: 'OBSERVED' as const }));
+
+  it('measures views/day before vs after a drop', () => {
+    // 7 views/week before, 21/week after → +200 %
+    expect(dropEffect(obs('l', [[14, 10], [7, 17], [0, 38]]), NOW - 7 * DAY)).toBeCloseTo(2, 5);
+  });
+
+  it('flags a niche whose past drops changed nothing as insensitive', () => {
+    const items = ['a', 'b', 'c'].map((id) => item(id));
+    const views = buildItemViews(items, items.map((i) => listing(`l${i.id}`, i.id)), [], NOW);
+    const o = items.flatMap((i) => obs(`l${i.id}`, [[14, 10], [7, 17], [0, 24]]));
+    const events = items.map((i, k) => ({ id: `e${k}`, type: 'PRICE_CHANGED' as const, at: NOW - 7 * DAY, inventoryItemId: i.id, listingId: `l${i.id}`, data: { from: 6000, to: 5200 }, provenance: 'OBSERVED' as const, isDemo: false }));
+    const s = buildSensitivityIndex(views, o, events).get('a')!;
+    expect(s.basis).toBe('DROPS');
+    expect(s.n).toBe(3);
+    expect(s.status).toBe('INSENSITIVE');
   });
 });

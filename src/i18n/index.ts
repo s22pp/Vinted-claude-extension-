@@ -6,7 +6,7 @@ export type Locale = 'fr' | 'en';
 type Params = Record<string, string | number | null | undefined>;
 
 /** Params whose values are integer cents and must be rendered as money. */
-const MONEY_KEYS = new Set(['price', 'from', 'to', 'delta', 'cost', 'profit', 'amount', 'min', 'max']);
+const MONEY_KEYS = new Set(['price', 'from', 'to', 'delta', 'cost', 'profit', 'amount', 'min', 'max', 'p25', 'p50', 'p75', 'realized']);
 
 function lookup(dict: unknown, path: string): string | undefined {
   let cur: unknown = dict;

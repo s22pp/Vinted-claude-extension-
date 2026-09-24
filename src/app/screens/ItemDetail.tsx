@@ -5,13 +5,14 @@ import { db } from '@/data/db';
 import { qualityOf } from '@/domain/provenance';
 import { useI18n } from '@/i18n';
 import { DistributionStrip, LineChart } from '@/ui/charts/charts';
-import { useToast } from '@/ui/components/overlays';
+import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
 import { CostEditor, SaleModal } from '../components/forms';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
+import { PriceOnVintedButton } from '../components/vinted-price';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
 import { useEra } from '../state';
@@ -23,6 +24,7 @@ export function ItemDetail({ id }: { id: string }) {
   const { t, money, date, pct } = i;
   const era = useEra();
   const toast = useToast();
+  const errorToast = useErrorToast();
   const v = era.viewById.get(id);
   const intel = era.intelById.get(id) ?? null;
   const obs = useLiveQuery(() => db.observations.where('inventoryItemId').equals(id).sortBy('at'), [id]);
@@ -53,7 +55,7 @@ export function ItemDetail({ id }: { id: string }) {
       setStage(null);
       const code = errorCode(e);
       setError(e);
-      toast('error', t(`errors.${code}`));
+      errorToast(e);
     }
   };
 
@@ -95,6 +97,7 @@ export function ItemDetail({ id }: { id: string }) {
             {analysis ? t('item.reanalyze') : t('item.analyze')}
           </Button>
         )}
+        {v.inStock && v.current && <PriceOnVintedButton v={v} suggested={intel?.recommendation?.actionParams.price as number | undefined ?? v.askPrice} />}
         <Button icon="edit" onClick={() => setEditCost((x) => !x)} aria-expanded={editCost}>
           {t('item.editCost')}
         </Button>

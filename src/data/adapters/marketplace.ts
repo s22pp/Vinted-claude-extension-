@@ -43,7 +43,17 @@ export interface ListingObservationSnapshot {
   favorites: number | null;
 }
 
-export type MarketplaceErrorCode = 'NETWORK_403' | 'RATE_LIMITED' | 'BUDGET_EXHAUSTED' | 'UNAVAILABLE' | 'NOT_IMPLEMENTED' | 'NOT_LOGGED_IN' | 'NO_VINTED_TAB';
+export type MarketplaceErrorCode =
+  | 'NETWORK_403'
+  | 'RATE_LIMITED'
+  | 'BUDGET_EXHAUSTED'
+  | 'UNAVAILABLE'
+  | 'NOT_IMPLEMENTED'
+  | 'NOT_LOGGED_IN'
+  | 'NO_VINTED_TAB'
+  | 'EDIT_FORM'
+  | 'NOT_APPLIED'
+  | 'WRITE_COOLDOWN';
 
 export class MarketplaceError extends Error {
   constructor(

@@ -191,12 +191,12 @@ export class EraRepository {
     }
   }
 
-  async updatePrice(itemId: string, cents: Cents, now = Date.now()): Promise<void> {
+  async updatePrice(itemId: string, cents: Cents, now = Date.now(), provenance: DomainEvent['provenance'] = 'USER_PROVIDED'): Promise<void> {
     const listing = (await this.db.listings.where('inventoryItemId').equals(itemId).toArray()).find((l) => isLiveListing(l.status));
     if (!listing) throw new Error('No active listing');
     await this.db.listings.put({ ...listing, priceCents: cents });
     await this.db.events.put(
-      this.event({ type: 'PRICE_CHANGED', at: now, inventoryItemId: itemId, listingId: listing.id, data: { from: listing.priceCents, to: cents }, provenance: 'USER_PROVIDED', isDemo: listing.isDemo }),
+      this.event({ type: 'PRICE_CHANGED', at: now, inventoryItemId: itemId, listingId: listing.id, data: { from: listing.priceCents, to: cents }, provenance, isDemo: listing.isDemo }),
     );
   }
 

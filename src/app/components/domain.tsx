@@ -12,7 +12,8 @@ import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/ic
 import { useToast } from '@/ui/components/overlays';
 import { Badge, type BadgeTone, Button, ConfidenceMeter, Tooltip } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
-import { go } from '../state';
+import { go, useEra } from '../state';
+import { ApplyPriceModal, vintedIdOf } from './vinted-price';
 
 export function ItemCell({ item, sub }: { item: InventoryItem; sub?: React.ReactNode }) {
   return (
@@ -72,6 +73,10 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const priceAction = ['SET_PRICE', 'SMALL_DROP', 'RAISE_PRICE', 'FREE_CAPITAL'].includes(r.action);
+  const era = useEra();
+  const view = r.itemId ? era.viewById.get(r.itemId) : undefined;
+  const onVinted = priceAction && !!vintedIdOf(view) && typeof r.actionParams.price === 'number';
+  const [applyOpen, setApplyOpen] = useState(false);
 
   const accept = async () => {
     setBusy(true);
@@ -132,7 +137,12 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
         )}
       </dl>
       <div className="reco__foot">
-        <Button size="sm" variant="primary" icon={r.action === 'ADD_COST' ? 'edit' : r.action === 'ANALYZE' ? 'market' : 'check'} loading={busy} onClick={accept}>
+        {onVinted && (
+          <Button size="sm" variant="primary" icon="price" onClick={() => setApplyOpen(true)}>
+            {t('vintedPrice.applyReco', { price: r.actionParams.price as number })}
+          </Button>
+        )}
+        <Button size="sm" variant={onVinted ? 'ghost' : 'primary'} icon={r.action === 'ADD_COST' ? 'edit' : r.action === 'ANALYZE' ? 'market' : 'check'} loading={busy} onClick={accept}>
           {r.action === 'ADD_COST' ? t('item.editCost') : r.action === 'ANALYZE' ? t('item.analyze') : t('reco.accept')}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => dismiss('SNOOZED')}>
@@ -142,6 +152,16 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
           {t('reco.dismiss')}
         </Button>
       </div>
+      {onVinted && view && (
+        <ApplyPriceModal
+          v={view}
+          cents={r.actionParams.price as number}
+          open={applyOpen}
+          onClose={() => {
+            setApplyOpen(false);
+          }}
+        />
+      )}
     </article>
   );
 }

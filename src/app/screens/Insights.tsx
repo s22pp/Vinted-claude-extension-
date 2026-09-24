@@ -5,6 +5,7 @@ import { IconTile } from '@/ui/components/icons';
 import { Badge, Card, EmptyState, Metric, Money, Sample } from '@/ui/components/primitives';
 import { IllustrationDone } from '@/ui/components/illustrations';
 import { ItemCell } from '../components/domain';
+import { PatternsCard } from '../components/patterns';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 
@@ -44,6 +45,7 @@ export function Insights() {
         {t('insights.marketVsPersonal')}
       </p>
       <div className="stack-4">
+        <PatternsCard />
         <div className="grid-12">
           <Card className="span-7" title={t('insights.predictionReality')} hint={`${t('insights.predictionHint')} · ${t('insights.resolved', { n: L.resolved, open: L.open })}`} icon="scale" tone="pink">
             {L.resolved === 0 ? (

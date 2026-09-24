@@ -6,7 +6,7 @@ import { buildDescription, buildTitle, type ShieldIssue, shieldCheck, skuOf, tit
 import { evaluateOffer, offerLadder } from '@/intelligence/offer';
 import { stagnationThreshold } from '@/intelligence/stagnation';
 import { Icon } from '@/ui/components/icons';
-import { useToast } from '@/ui/components/overlays';
+import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Field, Input, Money } from '@/ui/components/primitives';
 import { analyzeItem } from '../market-run';
 import { useEra } from '../state';
@@ -177,6 +177,7 @@ export function useBulkAnalyze() {
   const { t } = useI18n();
   const era = useEra();
   const toast = useToast();
+  const errorToast = useErrorToast();
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const pending = era.intel.filter((i) => i.view.current && (!i.analysis || i.analysisStale));
   const run = async (ids?: string[]) => {
@@ -192,7 +193,7 @@ export function useBulkAnalyze() {
       toast('success', t('bulk.done', { n }));
     } catch (e) {
       const code = errorCode(e);
-      toast('error', t(`errors.${code}`), t(`errors.hint.${code}`));
+      errorToast(e);
     } finally {
       setBusy(null);
     }

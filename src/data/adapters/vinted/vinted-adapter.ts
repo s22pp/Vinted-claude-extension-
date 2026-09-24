@@ -1,14 +1,15 @@
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
 import { currentUserId, firstArray, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
-import type { ApiResult, BudgetStatus, EraMessage, PageResult } from './protocol';
+import type { ApiResult, BudgetStatus, EraMessage, PageResult, ReserveResult } from './protocol';
+import { db } from '../../db';
 
 export async function findVintedTab(): Promise<number | null> {
   const tabs = await browser.tabs.query({ url: 'https://www.vinted.fr/*' });
   return tabs.find((t) => t.active)?.id ?? tabs[0]?.id ?? null;
 }
 
-async function ping(tabId: number): Promise<boolean> {
+export async function ping(tabId: number): Promise<boolean> {
   try {
     await browser.tabs.sendMessage(tabId, { type: 'era:ping' } satisfies EraMessage);
     return true;
@@ -17,7 +18,7 @@ async function ping(tabId: number): Promise<boolean> {
   }
 }
 
-function waitForLoad(tabId: number, timeoutMs = 25_000): Promise<void> {
+export function waitForLoad(tabId: number, timeoutMs = 25_000): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {
       clearTimeout(timer);
@@ -40,8 +41,9 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
   if (existing !== null && (await ping(existing))) return { tabId: existing, created: false };
   // A vinted.fr tab opened before ERA was installed has no content script: reload it. Otherwise open one.
   const tabId = existing ?? (await browser.tabs.create({ url: 'https://www.vinted.fr/', active: false })).id!;
-  const pingLoop = async () => {
-    for (let i = 0; i < 20; i++) {
+  // Vinted pages are heavy: give a slow connection up to ~15 s before retrying once.
+  const pingLoop = async (tries = 60) => {
+    for (let i = 0; i < tries; i++) {
       if (await ping(tabId)) return true;
       await new Promise((r) => setTimeout(r, 250));
     }
@@ -56,6 +58,62 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
   if (await pingLoop()) return { tabId, created: existing === null };
   if (existing === null) await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
   throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+}
+
+export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
+/** From the verified API map. Replaced by the observed endpoint if Vinted answers 404. */
+export const DEFAULT_SEARCH_TEMPLATE = '/api/v2/catalog/items?search_text={q}&per_page=60&order=newest_first';
+
+export function fillTemplate(template: string, q: string): string {
+  return template.replace('{q}', encodeURIComponent(q));
+}
+
+/** Turn an observed search URL into a reusable template: same path and params, our text in search_text. */
+export function templateFromObserved(url: string): string | null {
+  const [path, qs = ''] = url.split('?');
+  if (!path?.startsWith('/api/')) return null;
+  const params = new URLSearchParams(qs);
+  if (!params.has('search_text')) return null;
+  params.set('search_text', '__Q__');
+  // Keep the page's own paging and filters, but never ask for more than 2 pages' worth.
+  params.delete('page');
+  return `${path}?${params.toString().replace('__Q__', '{q}')}`;
+}
+
+/**
+ * Open Vinted's public search page in a background tab (normal browsing), then read which API URL the page
+ * itself called for its results. Nothing is injected into the page; the tab is closed afterwards.
+ */
+export async function discoverSearchTemplate(q: string): Promise<{ template: string | null; observed: string[] }> {
+  const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
+  if (!r.ok) throw new MarketplaceError(r.code);
+  const url = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(q)}&order=newest_first`;
+  const tab = await browser.tabs.create({ url, active: false });
+  const tabId = tab.id!;
+  try {
+    await waitForLoad(tabId, 15_000);
+    // First load failed (network hiccup, interstitial)? Navigate once more.
+    if (!(await ping(tabId))) {
+      await browser.tabs.update(tabId, { url });
+      await waitForLoad(tabId, 15_000);
+    }
+    let observed: string[] = [];
+    // Results are fetched by the page after load: poll the resource list for up to ~12 s.
+    for (let i = 0; i < 24; i++) {
+      await new Promise((res) => setTimeout(res, 500));
+      try {
+        const o = (await browser.tabs.sendMessage(tabId, { type: 'era:observe' } satisfies EraMessage)) as { urls: string[] };
+        observed = o.urls;
+        const hit = observed.map(templateFromObserved).find((x): x is string => x !== null);
+        if (hit) return { template: hit, observed: observed.map((u) => u.split('?')[0]!) };
+      } catch {
+        /* content script not ready yet */
+      }
+    }
+    return { template: null, observed: [...new Set(observed.map((u) => u.split('?')[0]!))] };
+  } finally {
+    await browser.tabs.remove(tabId).catch(() => undefined);
+  }
 }
 
 export async function budgetStatus(): Promise<BudgetStatus | null> {
@@ -96,6 +154,11 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     }
     if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
     return res.json;
+  }
+
+  /** Whitelisted GET through the Vinted tab (used by the diagnostic). */
+  rawGet(path: string): Promise<unknown> {
+    return this.api(path);
   }
 
   async userId(): Promise<string> {
@@ -140,7 +203,21 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   }
 
   async searchComparables(query: ComparableQuery): Promise<SearchResult> {
-    const json = await this.api(`/api/v2/catalog/items?search_text=${encodeURIComponent(query.text)}&per_page=60&order=newest_first`);
+    const stored = (await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined;
+    const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
+    let json: unknown;
+    try {
+      json = await this.api(fillTemplate(template, query.text));
+    } catch (e) {
+      // 404: Vinted moved its search. Learn the endpoint its own search page uses, then retry once.
+      if (!(e instanceof MarketplaceError) || !/HTTP 404/.test(e.message)) throw e;
+      const learned = await discoverSearchTemplate(query.text);
+      if (!learned.template || learned.template === template) {
+        throw new MarketplaceError('UNAVAILABLE', `recherche Vinted introuvable (HTTP 404 sur ${template.split('?')[0]}) · appels observés sur la page de recherche : ${learned.observed.join(' | ') || 'aucun'}`);
+      }
+      await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: learned.template });
+      json = await this.api(fillTemplate(learned.template, query.text));
+    }
     const { total, capped } = parseTotalEntries(json);
     return {
       candidates: firstArray(json, ['items']).map(parseCatalogItem).filter((c) => c !== null),
@@ -149,4 +226,5 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       fetchedAt: Date.now(),
     };
   }
+
 }

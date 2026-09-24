@@ -1,4 +1,5 @@
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
+import { errorInfo } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import { Icon, type IconName } from './icons';
 
@@ -89,6 +90,16 @@ interface ToastItem {
 
 const ToastCtx = createContext<(kind: ToastKind, title: string, body?: string) => void>(() => undefined);
 export const useToast = () => useContext(ToastCtx);
+
+/** Error toast that always carries the technical cause, so it can be reported and fixed. */
+export function useErrorToast() {
+  const toast = useContext(ToastCtx);
+  const { t } = useI18n();
+  return (e: unknown) => {
+    const { code, detail } = errorInfo(e);
+    toast('error', t(`errors.${code}`), `${t(`errors.hint.${code}`)} — ${detail ?? t('errors.noDetail')}`);
+  };
+}
 
 const TOAST_ICON: Record<ToastKind, IconName> = { success: 'check', info: 'info', warning: 'alert', error: 'alert' };
 

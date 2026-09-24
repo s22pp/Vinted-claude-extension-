@@ -5,7 +5,7 @@ import type { ComparableAnalysis } from '@/intelligence/comparables';
 import type { PricingResult } from '@/intelligence/pricing';
 import { DistributionStrip, Legend } from '@/ui/charts/charts';
 import { IllustrationAnalysis, IllustrationNoComparables } from '@/ui/components/illustrations';
-import { useToast } from '@/ui/components/overlays';
+import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Select, Stages, Tabs } from '@/ui/components/primitives';
 import { StrategyCards } from '../components/domain';
 import { analyzeItem } from '../market-run';
@@ -20,6 +20,7 @@ export function Market({ route }: { route: Route }) {
   const { t } = useI18n();
   const era = useEra();
   const toast = useToast();
+  const errorToast = useErrorToast();
   const candidates = era.intel.filter((x) => x.view.current).sort((a, b) => (b.recommendation?.priority ?? 0) - (a.recommendation?.priority ?? 0));
   const itemId = route.query.get('item') ?? candidates.find((c) => c.analysis)?.view.item.id ?? candidates[0]?.view.item.id ?? null;
   const intel = itemId ? (era.intelById.get(itemId) ?? null) : null;
@@ -37,7 +38,7 @@ export function Market({ route }: { route: Route }) {
       setStage(null);
       const code = errorCode(e);
       setError(e);
-      toast('error', t(`errors.${code}`));
+      errorToast(e);
     }
   };
 
@@ -142,7 +143,7 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
           <Card
             className="span-7"
             title={t('market.suggested')}
-            hint={t('market.never')}
+            hint={`${t('market.never')} ${t('market.asking')}`}
             icon="target"
             tone="violet"
             actions={pricing?.status === 'OK' ? <ConfidenceMeter level={pricing.confidence} /> : null}
@@ -187,6 +188,8 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
               <dd style={{ margin: 0 }} className="num">
                 {analysis.totalEntries === null ? '—' : analysis.totalCapped ? t('market.supplyCapped', { n: 960 }) : t('market.supplyExact', { n: analysis.totalEntries })}
               </dd>
+              <dt className="reco__k">{t('market.priceNature')}</dt>
+              <dd style={{ margin: 0 }}>{t('market.askingShort')}</dd>
               <dt className="reco__k">{t('market.source')}</dt>
               <dd style={{ margin: 0 }}>{t(`market.source${analysis.source}`)}</dd>
               <dt className="reco__k">{t('market.reason')}</dt>
