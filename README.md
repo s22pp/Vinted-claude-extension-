@@ -3,13 +3,14 @@
 Cockpit de décision pour revendeurs Vinted. **Redrip exécute, ERA décide.**
 Extension Chrome MV3 · WXT · React · TypeScript strict · Dexie (IndexedDB) · local-first, aucune télémétrie.
 
-## Installer (Chrome)
+## Installer (Chrome) — sans rien compiler
 
-```bash
-npm install
-npm run build          # → .output/chrome-mv3
-```
-`chrome://extensions` → Mode développeur → **Charger l'extension non empaquetée** → `.output/chrome-mv3`.
+1. Télécharger le dépôt (ZIP) et le décompresser.
+2. Ouvrir `chrome://extensions` → activer **Mode développeur** (en haut à droite).
+3. **Charger l'extension non empaquetée** → choisir le dossier **`extension/`** (celui qui contient `manifest.json`),
+   pas la racine du dépôt.
+
+Pour développer : `npm install && npm run build` (sortie `.output/chrome-mv3`) ; `npm run release` régénère `extension/` et le ZIP.
 
 Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connecté, lecture seule, ≤ 5 requêtes), CSV, saisie, ou démo clairement étiquetée.
 
