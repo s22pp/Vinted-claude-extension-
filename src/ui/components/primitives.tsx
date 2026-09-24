@@ -12,6 +12,7 @@ import {
 import type { Confidence } from '@/domain/entities';
 import type { MoneyMetric } from '@/domain/money';
 import type { DataQuality } from '@/domain/provenance';
+import { errorInfo } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import { Icon, type IconName, IconTile, type TileTone } from './icons';
 
@@ -315,18 +316,18 @@ export function EmptyState({ art, title, why, action, compact }: { art?: ReactNo
   );
 }
 
-export function ErrorState({ code, onRetry }: { code: string; onRetry?: () => void }) {
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useI18n();
-  const known = ['NETWORK_403', 'RATE_LIMITED', 'BUDGET_EXHAUSTED', 'UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(code);
+  const { code, detail } = errorInfo(error);
   return (
     <div className="error-box" role="alert">
       <IconTile name="alert" tone="coral" />
       <div className="grow">
-        <div className="t-h3">{known ? t(`errors.${code}`) : t('errors.generic')}</div>
-        <p className="t-small t-muted">{t('errors.keepLocal')}</p>
+        <div className="t-h3">{t(`errors.${code}`)}</div>
+        <p className="t-small t-muted">{t(`errors.hint.${code}`)}</p>
         <details>
           <summary>{t('common.details')}</summary>
-          <code>{code}</code>
+          <code>{detail ? `${code} · ${detail}` : code}</code>
         </details>
       </div>
       {onRetry && (

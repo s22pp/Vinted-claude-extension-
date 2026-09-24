@@ -1,16 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
 import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
 import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
 import { type DataMode, repo } from '@/data/repo';
-import { importFromVinted } from '@/data/vinted-import';
 import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
 import { Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
+import { VintedImportButton } from '../components/vinted-import';
 import { go, useEra } from '../state';
 
 export function Settings() {
@@ -95,23 +94,7 @@ export function Settings() {
               )}
               {lastImport ? <p className="t-small t-faint">{t('vinted.lastImport', { when: i.relative(lastImport, era.now) })}</p> : null}
               <div>
-                <Button
-                  icon="repost"
-                  loading={busy === 'vinted'}
-                  onClick={() =>
-                    run('vinted', async () => {
-                      try {
-                        const r = await importFromVinted();
-                        toast('success', t('vinted.imported', { n: r.items, sales: r.sales }));
-                      } catch (e) {
-                        const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
-                        toast('error', t(`errors.${code}`), t('errors.keepLocal'));
-                      }
-                    })
-                  }
-                >
-                  {lastImport ? t('vinted.refresh') : t('vinted.import')}
-                </Button>
+                <VintedImportButton variant="primary" onDone={() => void budgetStatus().then(setBudget)} />
               </div>
             </div>
           </Card>

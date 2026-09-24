@@ -7,6 +7,7 @@ import { LogoMark, Wordmark } from '@/ui/components/Logo';
 import { useToast } from '@/ui/components/overlays';
 import { Button, DemoBadge, IconButton } from '@/ui/components/primitives';
 import { type ThemeSetting, setTheme } from './providers';
+import { VintedImportButton } from './components/vinted-import';
 import { type RouteName, go, useEra } from './state';
 
 const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
@@ -113,6 +114,7 @@ function Topbar() {
         {era.mode === 'empty' ? t('data.stateEmpty') : t('data.stateLocal', { n: inStock })}
       </span>
       <span className="topbar__spacer" />
+      <VintedImportButton size="sm" variant={era.mode === 'real' ? 'default' : 'primary'} label="short" />
       <Button size="sm" icon="buy" onClick={() => go('buy')}>
         {t('buy.title')}
       </Button>

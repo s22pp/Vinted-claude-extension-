@@ -1,6 +1,8 @@
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
 import { brandKey, categoriesInTitle, normalizeText } from '@/intelligence/normalize';
-import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
+import { MarketplaceError } from './adapters/marketplace';
+import type { ImportStage } from './adapters/vinted/protocol';
+import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
 import { db, uid } from './db';
 import { repo } from './repo';
 
@@ -11,15 +13,33 @@ import { repo } from './repo';
  * - Sold orders only carry a title: they are matched by exact normalized title, unmatched ones are skipped.
  * - Purchase cost is never guessed: it stays UNKNOWN until the seller enters it.
  */
-export async function importFromVinted(now = Date.now()): Promise<{ items: number; sales: number }> {
+export async function importFromVinted(
+  onStage: (s: ImportStage) => void = () => undefined,
+  now = Date.now(),
+): Promise<{ items: number; updated: number; sales: number }> {
+  onStage('CONNECTING');
+  const { tabId, created: openedTab } = await ensureVintedTab();
   const adapter = new VintedTabAdapter();
-  const snapshot = await adapter.getInventory();
-  const orders = await adapter.getSoldOrders().catch(() => []);
+  let snapshot;
+  let orders;
+  try {
+    onStage('READING');
+    snapshot = await adapter.getInventory();
+    orders = await adapter.getSoldOrders().catch(() => []);
+  } catch (e) {
+    // Not logged in: bring the Vinted tab forward so the seller can log in, then click again.
+    if (e instanceof MarketplaceError && e.code === 'NOT_LOGGED_IN') await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+    else if (openedTab) await browser.tabs.remove(tabId).catch(() => undefined);
+    throw e;
+  }
+  if (openedTab) await browser.tabs.remove(tabId).catch(() => undefined);
+  onStage('MATCHING');
   // Real data is never silently mixed with demo fixtures.
   if ((await repo.getSetting('dataMode', 'empty')) === 'demo') await repo.clearDemo();
   const existing = await db.listings.filter((l) => l.platform === 'vinted' && !l.isDemo).toArray();
   const byPlatformId = new Map(existing.filter((l) => l.platformListingId).map((l) => [l.platformListingId!, l]));
   let created = 0;
+  let updated = 0;
   let salesCount = 0;
 
   await db.transaction('rw', [db.items, db.listings, db.observations, db.events, db.sales, db.settings], async () => {
@@ -56,6 +76,7 @@ export async function importFromVinted(now = Date.now()): Promise<{ items: numbe
         await db.items.put(item);
         created++;
       } else {
+        updated++;
         const item = await db.items.get(itemId);
         if (item) await db.items.put({ ...item, status: s.status === 'SOLD' ? 'SOLD' : item.status === 'DRAFT' && s.status === 'ACTIVE' ? 'LISTED' : item.status, updatedAt: now });
       }
@@ -120,7 +141,8 @@ export async function importFromVinted(now = Date.now()): Promise<{ items: numbe
   });
   await repo.track('inventory_imported');
   if (salesCount > 0) await repo.track('first_sale_tracked');
-  return { items: created, sales: salesCount };
+  onStage('COMPLETE');
+  return { items: created, updated, sales: salesCount };
 }
 
 function inferBrand(title: string): string | null {

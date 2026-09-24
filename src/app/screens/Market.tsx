@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import type { ComparableAnalysis } from '@/intelligence/comparables';
 import type { PricingResult } from '@/intelligence/pricing';
@@ -24,7 +24,7 @@ export function Market({ route }: { route: Route }) {
   const itemId = route.query.get('item') ?? candidates.find((c) => c.analysis)?.view.item.id ?? candidates[0]?.view.item.id ?? null;
   const intel = itemId ? (era.intelById.get(itemId) ?? null) : null;
   const [stage, setStage] = useState<Stage | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const bulk = useBulkAnalyze();
 
   const run = async () => {
@@ -35,8 +35,8 @@ export function Market({ route }: { route: Route }) {
       setTimeout(() => setStage(null), 900);
     } catch (e) {
       setStage(null);
-      const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
-      setError(code);
+      const code = errorCode(e);
+      setError(e);
       toast('error', t(`errors.${code}`));
     }
   };
@@ -76,9 +76,9 @@ export function Market({ route }: { route: Route }) {
           {stage && <Stages stages={['COLLECTING', 'COMPARING', 'READY'] as Stage[]} current={stage} labelKey={(s) => t(`market.stage${s}`)} />}
         </div>
       </Card>
-      {error && (
+      {error != null && (
         <div style={{ marginBottom: 16 }}>
-          <ErrorState code={error} onRetry={run} />
+          <ErrorState error={error} onRetry={run} />
         </div>
       )}
       {!intel?.analysis ? (

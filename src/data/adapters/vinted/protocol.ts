@@ -10,9 +10,14 @@ export type EraMessage =
   | { type: 'era:api'; path: string }
   | { type: 'era:budget:reserve' }
   | { type: 'era:budget:report'; status: number }
-  | { type: 'era:budget:status' };
+  | { type: 'era:budget:status' }
+  | { type: 'era:import' }
+  | { type: 'era:import:stage'; stage: ImportStage };
 
-export type ApiResult = { ok: true; json: unknown } | { ok: false; code: MarketplaceErrorCode; status?: number };
+export type ImportStage = 'CONNECTING' | 'READING' | 'MATCHING' | 'COMPLETE';
+export type ImportResult = { ok: true; items: number; updated: number; sales: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+
+export type ApiResult = { ok: true; json: unknown } | { ok: false; code: MarketplaceErrorCode; status?: number; detail?: string };
 export type ReserveResult = { ok: true; wait: number } | { ok: false; code: MarketplaceErrorCode };
 export interface BudgetStatus {
   remaining: number;

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import { db } from '@/data/db';
 import { qualityOf } from '@/domain/provenance';
 import { useI18n } from '@/i18n';
@@ -26,7 +26,7 @@ export function ItemDetail({ id }: { id: string }) {
   const intel = era.intelById.get(id) ?? null;
   const obs = useLiveQuery(() => db.observations.where('inventoryItemId').equals(id).sortBy('at'), [id]);
   const [stage, setStage] = useState<Stage | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [editCost, setEditCost] = useState(false);
   const [saleOpen, setSaleOpen] = useState(false);
 
@@ -50,8 +50,8 @@ export function ItemDetail({ id }: { id: string }) {
       setTimeout(() => setStage(null), 900);
     } catch (e) {
       setStage(null);
-      const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
-      setError(code);
+      const code = errorCode(e);
+      setError(e);
       toast('error', t(`errors.${code}`));
     }
   };
@@ -109,9 +109,9 @@ export function ItemDetail({ id }: { id: string }) {
           <CostEditor itemId={id} initial={v.cost} onDone={() => setEditCost(false)} />
         </Card>
       )}
-      {error && (
+      {error != null && (
         <div style={{ marginBottom: 16 }}>
-          <ErrorState code={error} onRetry={runAnalysis} />
+          <ErrorState error={error} onRetry={runAnalysis} />
         </div>
       )}
 

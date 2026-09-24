@@ -8,9 +8,10 @@ import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip } from '../components/domain';
+import { VintedImportButton } from '../components/vinted-import';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
 import { analyzeItem } from '../market-run';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 
@@ -184,7 +185,8 @@ export function Stock({ route }: { route: Route }) {
       }
       toast('success', t('bulk.done', { n }));
     } catch (e) {
-      toast('error', t(`errors.${e instanceof MarketplaceError ? e.code : 'generic'}`), t('errors.keepLocal'));
+      const code = errorCode(e);
+      toast('error', t(`errors.${code}`), t(`errors.hint.${code}`));
     } finally {
       setBulkBusy(false);
       setSelected(new Set());
@@ -279,6 +281,7 @@ export function Stock({ route }: { route: Route }) {
         sub={t('stock.subtitle', { n: inStock, listed: counts.listed })}
         actions={
           <>
+            <VintedImportButton />
             <Button icon="upload" onClick={() => setImportOpen(true)}>
               {t('stock.import')}
             </Button>
@@ -290,7 +293,7 @@ export function Stock({ route }: { route: Route }) {
       />
       {rows.length === 0 && era.ready ? (
         <Card>
-          <EmptyState art={<IllustrationStock />} title={t('stock.empty')} why={t('stock.emptyWhy')} action={<Button variant="primary" onClick={() => go('onboarding')}>{t('stock.emptyCta')}</Button>} />
+          <EmptyState art={<IllustrationStock />} title={t('stock.empty')} why={t('stock.emptyWhy')} action={<VintedImportButton variant="primary" size="lg" />} />
         </Card>
       ) : (
         <>

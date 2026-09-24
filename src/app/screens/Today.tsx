@@ -8,6 +8,7 @@ import { IllustrationStock } from '@/ui/components/illustrations';
 import { Button, Card, Delta, EmptyState, Metric, MetricFootPartial, MetricValue, Money } from '@/ui/components/primitives';
 import { ActivationProgress, ACTIVATION_STEPS, ItemCell, RecoChip, RecommendationCard } from '../components/domain';
 import { useBulkAnalyze } from '../components/tools';
+import { VintedImportButton } from '../components/vinted-import';
 import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
 
@@ -30,7 +31,7 @@ export function Today() {
   if (era.ready && era.mode === 'empty') {
     return (
       <Card>
-        <EmptyState art={<IllustrationStock />} title={t('stock.empty')} why={t('stock.emptyWhy')} action={<Button variant="primary" onClick={() => go('onboarding')}>{t('stock.emptyCta')}</Button>} />
+        <EmptyState art={<IllustrationStock />} title={t('stock.empty')} why={t('stock.emptyWhy')} action={<VintedImportButton variant="primary" size="lg" />} />
       </Card>
     );
   }

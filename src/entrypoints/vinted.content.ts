@@ -50,11 +50,18 @@ async function callApi(path: string): Promise<ApiResult> {
   try {
     const res = await fetch(path, { credentials: 'same-origin', headers: { accept: 'application/json' } });
     await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
-    if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403 };
-    if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429 };
-    if (!res.ok) return { ok: false, code: 'UNAVAILABLE', status: res.status };
-    return { ok: true, json: await res.json() };
-  } catch {
-    return { ok: false, code: 'UNAVAILABLE' };
+    const where = `HTTP ${res.status} · ${path.split('?')[0]}`;
+    if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
+    if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
+    if (res.status === 401) return { ok: false, code: 'NOT_LOGGED_IN', status: 401, detail: where };
+    if (!res.ok) return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: where };
+    try {
+      return { ok: true, json: await res.json() };
+    } catch {
+      // HTML instead of JSON: usually a login page or an anti-bot interstitial.
+      return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: `${where} · réponse non JSON` };
+    }
+  } catch (e) {
+    return { ok: false, code: 'UNAVAILABLE', detail: `fetch ${path.split('?')[0]} · ${e instanceof Error ? e.message : 'network'}` };
   }
 }

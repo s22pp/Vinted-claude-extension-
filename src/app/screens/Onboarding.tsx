@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
-import { importFromVinted } from '@/data/vinted-import';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { Icon, IconTile } from '@/ui/components/icons';
@@ -9,6 +7,7 @@ import { LogoMark } from '@/ui/components/Logo';
 import { useToast } from '@/ui/components/overlays';
 import { Button, DemoBadge } from '@/ui/components/primitives';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
+import { useVintedImport } from '../components/vinted-import';
 import { go } from '../state';
 
 const ART = [IllustrationWelcome, IllustrationStock, IllustrationAnalysis, IllustrationBuy, IllustrationDone];
@@ -25,7 +24,7 @@ export function Onboarding() {
   });
   const [csv, setCsv] = useState(false);
   const [add, setAdd] = useState(false);
-  const [busy, setBusy] = useState<'demo' | 'vinted' | null>(null);
+  const [busy, setBusy] = useState<'demo' | null>(null);
   const total = 5;
   const setS = (n: number) => {
     setStep(n);
@@ -50,19 +49,7 @@ export function Onboarding() {
     toast('success', t('onboarding.loaded'), t('app.demoBanner'));
     setS(2);
   };
-  const fromVinted = async () => {
-    setBusy('vinted');
-    try {
-      const r = await importFromVinted();
-      toast('success', t('vinted.imported', { n: r.items, sales: r.sales }));
-      setS(2);
-    } catch (e) {
-      const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
-      toast('error', t(`errors.${code}`), t('errors.keepLocal'));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const vinted = useVintedImport(() => setS(2));
 
   return (
     <div className="onb">
@@ -104,7 +91,7 @@ export function Onboarding() {
             </p>
             {step === 1 && (
               <div className="onb__choices">
-                <button type="button" className="choice" onClick={fromVinted} disabled={busy !== null}>
+                <button type="button" className="choice" onClick={vinted.run} disabled={busy !== null || vinted.busy} style={{ borderColor: 'color-mix(in srgb, var(--violet) 50%, transparent)' }}>
                   <IconTile name="repost" tone="cobalt" />
                   <span className="grow">
                     <b>{t('vinted.import')}</b>
@@ -112,7 +99,13 @@ export function Onboarding() {
                       {t('vinted.importHint')}
                     </span>
                   </span>
-                  {busy === 'vinted' ? <span className="btn__spinner" /> : <Icon name="chevronRight" size={16} />}
+                  {vinted.busy ? (
+                    <span className="row t-small t-muted" style={{ gap: 8 }}>
+                      {vinted.stage && t(`vinted.stage${vinted.stage}`)} <span className="btn__spinner" />
+                    </span>
+                  ) : (
+                    <Icon name="chevronRight" size={16} />
+                  )}
                 </button>
                 <button type="button" className="choice" onClick={() => setCsv(true)}>
                   <IconTile name="upload" tone="violet" />

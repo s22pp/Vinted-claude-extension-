@@ -40,7 +40,7 @@ export interface ListingObservationSnapshot {
   favorites: number | null;
 }
 
-export type MarketplaceErrorCode = 'NETWORK_403' | 'RATE_LIMITED' | 'BUDGET_EXHAUSTED' | 'UNAVAILABLE' | 'NOT_IMPLEMENTED';
+export type MarketplaceErrorCode = 'NETWORK_403' | 'RATE_LIMITED' | 'BUDGET_EXHAUSTED' | 'UNAVAILABLE' | 'NOT_IMPLEMENTED' | 'NOT_LOGGED_IN' | 'NO_VINTED_TAB';
 
 export class MarketplaceError extends Error {
   constructor(
@@ -50,6 +50,20 @@ export class MarketplaceError extends Error {
     super(message);
     this.name = 'MarketplaceError';
   }
+}
+
+export function errorCode(e: unknown): MarketplaceErrorCode {
+  return e instanceof MarketplaceError ? e.code : 'UNAVAILABLE';
+}
+
+/** Code for the UI + the technical cause (HTTP status, path) for the "details" disclosure. */
+export function errorInfo(e: unknown): { code: MarketplaceErrorCode; detail: string | null } {
+  if (e instanceof MarketplaceError) return { code: e.code, detail: e.message !== e.code ? e.message : null };
+  if (typeof e === 'object' && e !== null && 'code' in e) {
+    const x = e as { code: MarketplaceErrorCode; detail?: string };
+    return { code: x.code, detail: x.detail ?? null };
+  }
+  return { code: 'UNAVAILABLE', detail: e instanceof Error ? e.message : typeof e === 'string' ? e : null };
 }
 
 /**

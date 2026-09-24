@@ -1,5 +1,20 @@
 import { HALT_COOLDOWN_MS, RequestBudget } from '@/data/adapters/marketplace';
-import type { BudgetStatus, EraMessage, ReserveResult } from '@/data/adapters/vinted/protocol';
+import { errorInfo } from '@/data/adapters/marketplace';
+import type { BudgetStatus, EraMessage, ImportResult, ReserveResult } from '@/data/adapters/vinted/protocol';
+import { importFromVinted } from '@/data/vinted-import';
+
+let importing: Promise<ImportResult> | null = null;
+
+/** The import runs here, not in the popup: closing the popup never interrupts it. One import at a time. */
+function runImport(): Promise<ImportResult> {
+  importing ??= importFromVinted((stage) => void browser.runtime.sendMessage({ type: 'era:import:stage', stage } satisfies EraMessage).catch(() => undefined))
+    .then((r): ImportResult => ({ ok: true, ...r }))
+    .catch((e): ImportResult => ({ ok: false, ...errorInfo(e), detail: errorInfo(e).detail ?? undefined }))
+    .finally(() => {
+      importing = null;
+    });
+  return importing;
+}
 
 type Stored = ReturnType<RequestBudget['toJSON']>;
 
@@ -45,6 +60,10 @@ export default defineBackground(() => {
           await browser.storage.local.set({ eraHalt: { code: budget.halted, until: Date.now() + HALT_COOLDOWN_MS } });
         }
       })().then(() => sendResponse({ ok: true }));
+      return true;
+    }
+    if (msg.type === 'era:import') {
+      void runImport().then(sendResponse);
       return true;
     }
     if (msg.type === 'era:budget:status') {

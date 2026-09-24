@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Category, Condition } from '@/domain/entities';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type BuyAnalysis, analyzeBuy, buySubject } from '@/intelligence/buy';
@@ -39,7 +39,7 @@ export function Buy({ route }: { route: Route }) {
   const [onVinted, setOnVinted] = useState(route.query.get('vinted') === '1');
   const [stage, setStage] = useState<Stage | null>(null);
   const [result, setResult] = useState<BuyAnalysis | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -62,8 +62,8 @@ export function Buy({ route }: { route: Route }) {
       await repo.track('first_buy_analysis');
     } catch (err) {
       setStage(null);
-      const code = err instanceof MarketplaceError ? (err.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : err.code) : 'UNAVAILABLE';
-      setError(code);
+      const code = errorCode(err);
+      setError(err);
     }
   };
 
@@ -131,7 +131,7 @@ export function Buy({ route }: { route: Route }) {
         </Card>
 
         <div className="span-8 stack-4">
-          {error && <ErrorState code={error} />}
+          {error != null && <ErrorState error={error} />}
           {!result ? (
             <Card>
               <EmptyState art={<IllustrationBuy />} title={t('buy.empty')} why={t('buy.emptyWhy')} />

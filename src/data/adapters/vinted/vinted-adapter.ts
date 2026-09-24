@@ -8,6 +8,56 @@ export async function findVintedTab(): Promise<number | null> {
   return tabs.find((t) => t.active)?.id ?? tabs[0]?.id ?? null;
 }
 
+async function ping(tabId: number): Promise<boolean> {
+  try {
+    await browser.tabs.sendMessage(tabId, { type: 'era:ping' } satisfies EraMessage);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function waitForLoad(tabId: number, timeoutMs = 25_000): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      browser.tabs.onUpdated.removeListener(on);
+      resolve();
+    };
+    const on = (id: number, info: { status?: string }) => id === tabId && info.status === 'complete' && done();
+    const timer = setTimeout(done, timeoutMs);
+    browser.tabs.onUpdated.addListener(on);
+    void browser.tabs.get(tabId).then((t) => t.status === 'complete' && done());
+  });
+}
+
+/**
+ * One-click: reuse an open vinted.fr tab, or open one in the background (a normal page visit, not an API call)
+ * and wait until ERA's content script answers there.
+ */
+export async function ensureVintedTab(): Promise<{ tabId: number; created: boolean }> {
+  const existing = await findVintedTab();
+  if (existing !== null && (await ping(existing))) return { tabId: existing, created: false };
+  // A vinted.fr tab opened before ERA was installed has no content script: reload it. Otherwise open one.
+  const tabId = existing ?? (await browser.tabs.create({ url: 'https://www.vinted.fr/', active: false })).id!;
+  const pingLoop = async () => {
+    for (let i = 0; i < 20; i++) {
+      if (await ping(tabId)) return true;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return false;
+  };
+  if (existing !== null) await browser.tabs.reload(tabId);
+  await waitForLoad(tabId);
+  if (await pingLoop()) return { tabId, created: existing === null };
+  // One retry covers a first load that failed (network hiccup, interstitial).
+  await browser.tabs.update(tabId, { url: 'https://www.vinted.fr/' });
+  await waitForLoad(tabId);
+  if (await pingLoop()) return { tabId, created: existing === null };
+  if (existing === null) await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+  throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+}
+
 export async function budgetStatus(): Promise<BudgetStatus | null> {
   try {
     return (await browser.runtime.sendMessage({ type: 'era:budget:status' } satisfies EraMessage)) as BudgetStatus;
@@ -34,21 +84,21 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   readonly isDemo = false;
 
   private async api(path: string): Promise<unknown> {
-    const tab = await findVintedTab();
-    if (tab === null) throw new MarketplaceError('UNAVAILABLE', 'NO_VINTED_TAB');
+    // One click: if no vinted.fr tab is open, ERA opens one in the background.
+    const { tabId: tab } = await ensureVintedTab();
     let res: ApiResult;
     try {
       res = (await browser.tabs.sendMessage(tab, { type: 'era:api', path } satisfies EraMessage)) as ApiResult;
     } catch {
-      throw new MarketplaceError('UNAVAILABLE', 'CONTENT_SCRIPT_UNREACHABLE');
+      throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
     }
-    if (!res.ok) throw new MarketplaceError(res.code, res.status ? `HTTP_${res.status}` : res.code);
+    if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
     return res.json;
   }
 
   async userId(): Promise<string> {
     const id = currentUserId(await this.api('/api/v2/users/current'));
-    if (!id) throw new MarketplaceError('UNAVAILABLE', 'NO_USER');
+    if (!id) throw new MarketplaceError('NOT_LOGGED_IN');
     return id;
   }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import type { PageItem } from '@/data/adapters/vinted/parse';
 import { readPageContext } from '@/data/adapters/vinted/vinted-adapter';
 import { db } from '@/data/db';
@@ -15,6 +15,7 @@ import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages } from '@/u
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, RecommendationCard } from '../components/domain';
 import { OfferCalculator } from '../components/tools';
+import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
 import { vintedLandedCost } from '../screens/Buy';
 import { useEra } from '../state';
@@ -91,11 +92,21 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
         </span>
         <span className="row" style={{ gap: 6 }}>
           {era.mode === 'demo' && <DemoBadge />}
+          {era.mode === 'real' && <VintedImportButton size="sm" label="short" />}
           <button type="button" className="icon-btn" aria-label={t('app.openEra')} onClick={() => openDashboard()}>
             <Icon name="external" size={16} />
           </button>
         </span>
       </header>
+
+      {era.mode !== 'real' && (
+        <section className="card" style={{ padding: 14 }}>
+          <p className="t-small t-muted" style={{ marginBottom: 10 }}>
+            {era.mode === 'demo' ? t('vinted.replaceDemo') : t('vinted.importHint')}
+          </p>
+          <VintedImportButton variant="primary" block />
+        </section>
+      )}
 
       <section className="card" style={{ padding: 14 }} aria-label={t('popup.context')}>
         <div className="t-caption" style={{ marginBottom: 8 }}>
@@ -127,7 +138,7 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
         )}
       </section>
 
-      {!own && (
+      {!own && era.mode !== 'empty' && (
         <section className="card" style={{ padding: 14 }}>
           <div className="row-between" style={{ marginBottom: 8 }}>
             <span className="t-caption">{t('today.priorities')}</span>
@@ -198,7 +209,7 @@ function BuyQuick({ item, mode }: { item: PageItem; mode: 'popup' | 'panel' }) {
   const era = useEra();
   const [stage, setStage] = useState<Stage | null>(null);
   const [res, setRes] = useState<BuyAnalysis | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const brand = item.brand ?? '';
   const category = categoriesInTitle(normalizeText(item.title))[0] ?? 'OTHER';
   // Buying on Vinted: the listed price plus buyer protection is the real cost (shipping not included).
@@ -215,7 +226,7 @@ function BuyQuick({ item, mode }: { item: PageItem; mode: 'popup' | 'panel' }) {
       await repo.track('first_buy_analysis');
     } catch (e) {
       setStage(null);
-      setErr(e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE');
+      setErr(e);
     }
   };
 
@@ -238,7 +249,7 @@ function BuyQuick({ item, mode }: { item: PageItem; mode: 'popup' | 'panel' }) {
           </Button>
         </div>
         {stage && <Stages stages={['COLLECTING', 'COMPARING', 'READY'] as Stage[]} current={stage} labelKey={(s) => t(`buy.stage${s}`)} />}
-        {err && <ErrorState code={err} />}
+        {err != null && <ErrorState error={err} />}
       </div>
     );
   }

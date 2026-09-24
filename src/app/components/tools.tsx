@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MarketplaceError } from '@/data/adapters/marketplace';
+import { errorCode } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import type { ItemIntel } from '@/intelligence/decision';
 import { buildDescription, buildTitle, type ShieldIssue, shieldCheck, skuOf, titleIssues } from '@/intelligence/listing';
@@ -191,8 +191,8 @@ export function useBulkAnalyze() {
       }
       toast('success', t('bulk.done', { n }));
     } catch (e) {
-      const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
-      toast('error', t(`errors.${code}`), t('errors.keepLocal'));
+      const code = errorCode(e);
+      toast('error', t(`errors.${code}`), t(`errors.hint.${code}`));
     } finally {
       setBusy(null);
     }
