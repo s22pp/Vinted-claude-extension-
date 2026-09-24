@@ -109,7 +109,7 @@ export function analyzeBuy(
   const profit = { min: fast.range.min - cost, max: bal.range.max - cost };
   const roi = cost > 0 ? { min: profit.min / cost, max: profit.max / cost } : null;
   const balMid = (bal.range.min + bal.range.max) / 2;
-  const expProfit = balMid * priceCorrection - cost;
+  const expProfit = roundToEuro(balMid * priceCorrection - cost);
 
   const dims: DealDimension[] = [];
   const push = (key: DealDimensionKey, ratio: number, evidence: Evidence, reason: string, params: Record<string, string | number> = {}) =>

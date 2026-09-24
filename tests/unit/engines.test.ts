@@ -285,3 +285,59 @@ describe('seller model', () => {
     expect(m.refundRate).toBe(0.5);
   });
 });
+
+import { evaluateOffer, offerLadder } from '@/intelligence/offer';
+import { buildDescription, buildTitle, shieldCheck, skuOf } from '@/intelligence/listing';
+
+describe('offer calculator', () => {
+  const pricing = priceStrategies(MKT, { priceCents: 5500, views: 20, favorites: 0, daysListed: 10, condition: 'VERY_GOOD' }, null);
+  const ctx = { ask: 5500, cost: 1800, pricing, daysListed: 10, favorites: 0, thresholdDays: 21 };
+
+  it('never sets a floor below cost + minimum profit', () => {
+    const l = offerLadder(ctx);
+    expect(l.floor).toBeGreaterThanOrEqual(1800 + 500);
+    expect(l.acceptFrom).toBeGreaterThanOrEqual(l.floor);
+    expect(l.acceptFrom).toBeLessThanOrEqual(5500);
+  });
+
+  it('accepts near ask, counters in between, declines far below', () => {
+    expect(evaluateOffer(5300, ctx).verdict).toBe('ACCEPT');
+    const mid = evaluateOffer(4400, ctx);
+    expect(mid.verdict).toBe('COUNTER');
+    expect(mid.counter!).toBeGreaterThan(4400);
+    expect(mid.counter!).toBeLessThanOrEqual(5500);
+    expect(evaluateOffer(1000, ctx).verdict).toBe('DECLINE');
+  });
+
+  it('unknown cost → profit unknown, floor from the market', () => {
+    const d = evaluateOffer(4000, { ...ctx, cost: null });
+    expect(d.profit).toBeNull();
+    expect(d.ladder.floorBasis).toBe('MARKET');
+  });
+
+  it('demand (favourites) leaves less room than an aged listing', () => {
+    const hot = offerLadder({ ...ctx, favorites: 8 });
+    const aged = offerLadder({ ...ctx, daysListed: 60 });
+    expect(hot.acceptFrom).toBeGreaterThan(aged.acceptFrom);
+  });
+});
+
+describe('listing assistant & shield', () => {
+  const it0 = item('abc');
+  it('builds a clean title with a stable SKU', () => {
+    const title = buildTitle(it0);
+    expect(title).toContain('Veste Ralph Lauren Harrington');
+    expect(title).toContain(skuOf('abc'));
+    expect(skuOf('abc')).toBe(skuOf('abc'));
+  });
+  it('never invents unknown facts in the description', () => {
+    const d = buildDescription({ ...it0, material: null });
+    expect(d).toContain('Composition : __');
+  });
+  it('flags counterfeit wording, other brands and off-platform contact', () => {
+    expect(shieldCheck('Veste type Carhartt', 'Marlboro').map((i) => i.code)).toEqual(expect.arrayContaining(['COUNTERFEIT_TERM', 'OTHER_BRAND']));
+    expect(shieldCheck('Paiement PayPal possible', 'Nike').some((i) => i.code === 'OFF_PLATFORM')).toBe(true);
+    expect(shieldCheck('Contact 06 12 34 56 78', 'Nike').some((i) => i.code === 'CONTACT')).toBe(true);
+    expect(shieldCheck('Sweat Polo Ralph Lauren M', 'Ralph Lauren')).toEqual([]);
+  });
+});

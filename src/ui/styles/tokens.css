@@ -1,0 +1,169 @@
+/* ERA design tokens — the only place raw colour / type / motion values live. */
+:root {
+  color-scheme: dark;
+  /* surfaces */
+  --bg: #080b1f;
+  --bg-elev: #0e1330;
+  --surface: rgba(21, 26, 56, 0.78);
+  --surface-solid: #151a38;
+  --surface-hover: #1a2043;
+  --surface-sunken: #0b0f28;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --highlight: rgba(255, 255, 255, 0.06);
+  --grid-dot: rgba(160, 170, 255, 0.07);
+  --glow-a: rgba(112, 96, 255, 0.2);
+  --glow-b: rgba(61, 107, 255, 0.12);
+  --glow-c: rgba(72, 60, 190, 0.28);
+  /* solid icon tiles (white glyph on a saturated gradient) */
+  --g-violet: linear-gradient(150deg, #9277ff 0%, #6341f4 100%);
+  --g-cobalt: linear-gradient(150deg, #5b86ff 0%, #2a55e8 100%);
+  --g-emerald: linear-gradient(150deg, #3ad896 0%, #0f9e67 100%);
+  --g-amber: linear-gradient(150deg, #fcc545 0%, #e0870b 100%);
+  --g-coral: linear-gradient(150deg, #ff7a8e 0%, #e0364f 100%);
+  --g-cyan: linear-gradient(150deg, #3fd6f2 0%, #0a8fc6 100%);
+  --g-pink: linear-gradient(150deg, #f97fc6 0%, #d23a91 100%);
+  /* text */
+  --text: #f8f9ff;
+  --text-2: #a4abc9;
+  --text-3: #7f87a8;
+  --text-inverse: #0b0f2a;
+  /* brand */
+  --violet: #7c5cff;
+  --violet-soft: rgba(124, 92, 255, 0.16);
+  --cobalt: #3d6bff;
+  --cobalt-soft: rgba(61, 107, 255, 0.16);
+  --brand-grad: linear-gradient(135deg, #8a6bff 0%, #5a5cff 45%, #2f6bff 100%);
+  /* functional */
+  --emerald: #34d399;
+  --emerald-soft: rgba(52, 211, 153, 0.14);
+  --cyan: #38d6f0;
+  --cyan-soft: rgba(56, 214, 240, 0.13);
+  --amber: #f5b53d;
+  --amber-soft: rgba(245, 181, 61, 0.14);
+  --coral: #ff6b7f;
+  --coral-soft: rgba(255, 107, 127, 0.14);
+  --pink: #f472b6;
+  --pink-soft: rgba(244, 114, 182, 0.14);
+  /* charts */
+  --chart-1: #8b72ff;
+  --chart-2: #38d6f0;
+  --chart-3: #f5b53d;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-axis: #7f87a8;
+  --focus: #9d86ff;
+
+  /* type */
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --fs-display: 44px;
+  --fs-h1: 28px;
+  --fs-h2: 18px;
+  --fs-h3: 14.5px;
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --fs-caption: 11px;
+  --fs-num-xl: 30px;
+  --fs-num-l: 22px;
+
+  /* space (4px base) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* radius */
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* depth */
+  --shadow-1: 0 1px 0 var(--highlight) inset, 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 1px 0 var(--highlight) inset, 0 8px 24px -8px rgba(2, 4, 20, 0.6);
+  --shadow-3: 0 24px 64px -16px rgba(2, 4, 20, 0.75), 0 0 0 1px var(--border);
+
+  /* motion */
+  --t-fast: 120ms;
+  --t-normal: 200ms;
+  --t-slow: 360ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* layers */
+  --z-sticky: 10;
+  --z-sidebar: 20;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f5fb;
+  --bg-elev: #ffffff;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-solid: #ffffff;
+  --surface-hover: #f1f2f9;
+  --surface-sunken: #eceef7;
+  --border: rgba(14, 18, 52, 0.1);
+  --border-strong: rgba(14, 18, 52, 0.18);
+  --highlight: rgba(255, 255, 255, 0.9);
+  --grid-dot: rgba(40, 50, 140, 0.07);
+  --glow-a: rgba(124, 92, 255, 0.1);
+  --glow-b: rgba(61, 107, 255, 0.07);
+  --glow-c: rgba(124, 92, 255, 0.06);
+  --text: #0b0f2a;
+  --text-2: #464d70;
+  --text-3: #636a8c;
+  --text-inverse: #ffffff;
+  --violet: #5b3df5;
+  --violet-soft: rgba(91, 61, 245, 0.1);
+  --cobalt: #2553e0;
+  --cobalt-soft: rgba(37, 83, 224, 0.1);
+  --emerald: #07845a;
+  --emerald-soft: rgba(7, 132, 90, 0.1);
+  --cyan: #0a7ea4;
+  --cyan-soft: rgba(10, 126, 164, 0.1);
+  --amber: #a65c00;
+  --amber-soft: rgba(196, 116, 0, 0.12);
+  --coral: #d61f45;
+  --coral-soft: rgba(214, 31, 69, 0.09);
+  --pink: #c0267a;
+  --pink-soft: rgba(192, 38, 122, 0.09);
+  --chart-1: #5b3df5;
+  --chart-2: #0891b2;
+  --chart-3: #c47400;
+  --chart-grid: rgba(14, 18, 52, 0.07);
+  --chart-axis: #636a8c;
+  --focus: #5b3df5;
+  --shadow-1: 0 1px 2px rgba(14, 18, 52, 0.06);
+  --shadow-2: 0 1px 2px rgba(14, 18, 52, 0.05), 0 8px 24px -12px rgba(14, 18, 52, 0.16);
+  --shadow-3: 0 24px 64px -16px rgba(14, 18, 52, 0.28), 0 0 0 1px var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-normal: 0ms;
+    --t-slow: 0ms;
+  }
+}
+:root[data-motion='reduced'] {
+  --t-fast: 0ms;
+  --t-normal: 0ms;
+  --t-slow: 0ms;
+}

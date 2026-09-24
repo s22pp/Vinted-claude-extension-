@@ -37,7 +37,11 @@ export interface SellerModel {
   byPriceBand: SegmentStats[];
   /** Sales count per calendar month (0 = January), for seasonality. */
   seasonality: number[];
+  /** Sales count per weekday (0 = Monday). */
+  weekdays: number[];
 }
+
+const euro = (c: number) => Math.round(c / 100) * 100;
 
 export function sampleConfidence(n: number): Confidence {
   if (n >= 10) return 'HIGH';
@@ -86,9 +90,9 @@ function segment(
     sold: done.length,
     refunded: sales.length - done.length,
     inStock: stock.length,
-    avgBuyCents: costs.length ? Math.round(mean(costs)) : null,
-    avgSaleCents: done.length ? Math.round(mean(done.map((s) => s.sale.salePriceCents))) : null,
-    avgProfitCents: withProfit.length ? Math.round(profitSum / withProfit.length) : null,
+    avgBuyCents: costs.length ? euro(mean(costs)) : null,
+    avgSaleCents: done.length ? euro(mean(done.map((s) => s.sale.salePriceCents))) : null,
+    avgProfitCents: withProfit.length ? euro(profitSum / withProfit.length) : null,
     profitSample: withProfit.length,
     medianDays: days.length ? median(days) : null,
     roi: costSum > 0 ? profitSum / costSum : null,
@@ -139,6 +143,8 @@ export function buildSellerModel(
 
   const seasonality = Array.from({ length: 12 }, () => 0);
   for (const s of done) seasonality[new Date(s.sale.soldAt).getMonth()]!++;
+  const weekdays = Array.from({ length: 7 }, () => 0);
+  for (const s of done) weekdays[(new Date(s.sale.soldAt).getDay() + 6) % 7]!++;
 
   const bandSales = groupBy(done, (s) => priceBandOf(s.sale.salePriceCents));
   const bandStock = groupBy(
@@ -170,6 +176,7 @@ export function buildSellerModel(
       segment(label, label, null, null, bandSales.get(label) ?? [], bandStock.get(label) ?? []),
     ),
     seasonality,
+    weekdays,
   };
 }
 

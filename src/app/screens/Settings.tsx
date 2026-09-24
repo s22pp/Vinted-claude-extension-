@@ -1,0 +1,163 @@
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect, useState } from 'react';
+import { MarketplaceError } from '@/data/adapters/marketplace';
+import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
+import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
+import { type DataMode, repo } from '@/data/repo';
+import { importFromVinted } from '@/data/vinted-import';
+import { type Locale, useI18n } from '@/i18n';
+import { LogoMark } from '@/ui/components/Logo';
+import { Modal, useToast } from '@/ui/components/overlays';
+import { Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
+import { type ThemeSetting, setTheme } from '../providers';
+import { PageHead } from '../Shell';
+import { go, useEra } from '../state';
+
+export function Settings() {
+  const i = useI18n();
+  const { t } = i;
+  const era = useEra();
+  const toast = useToast();
+  const theme = useLiveQuery(() => repo.getSetting<ThemeSetting>('theme', 'dark'), []) ?? 'dark';
+  const locale = useLiveQuery(() => repo.getSetting<Locale>('locale', 'fr'), []) ?? 'fr';
+  const lastImport = useLiveQuery(() => repo.getSetting<number | null>('lastVintedImport', null), []);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
+  useEffect(() => {
+    void budgetStatus().then(setBudget);
+  }, [busy]);
+
+  const run = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      <PageHead title={t('settings.title')} />
+      <div className="grid-12">
+        <div className="span-6 stack-4">
+          <Card title={t('settings.theme')} icon="sun" tone="violet">
+            <Segmented
+              label={t('settings.theme')}
+              value={theme}
+              onChange={(v) => void setTheme(v)}
+              options={[
+                { value: 'dark', label: t('settings.themeDark') },
+                { value: 'light', label: t('settings.themeLight') },
+                { value: 'system', label: t('settings.themeSystem') },
+              ]}
+            />
+            <p className="t-small t-faint" style={{ marginTop: 12 }}>
+              {t('settings.motionHint')}
+            </p>
+          </Card>
+          <Card title={t('settings.language')} icon="book" tone="cyan">
+            <Segmented
+              label={t('settings.language')}
+              value={locale}
+              onChange={(v) => void repo.setSetting('locale', v)}
+              options={[
+                { value: 'fr', label: 'Français' },
+                { value: 'en', label: 'English' },
+              ]}
+            />
+          </Card>
+          <Card title={t('settings.about')} icon="info" tone="neutral">
+            <div className="row" style={{ gap: 14 }}>
+              <LogoMark size={44} />
+              <div>
+                <div className="t-h3">{t('app.fullName')}</div>
+                <p className="t-small t-muted">
+                  {t('app.tagline')} <span className="t-serif">{t('app.taglineItalic')}</span>
+                </p>
+                <p className="t-small t-faint">v0.1.0</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+        <div className="span-6 stack-4">
+          <Card title={t('settings.marketplace')} icon="repost" tone="cobalt">
+            <div className="stack-3">
+              <p className="t-small t-muted">{t('vinted.importHint')}</p>
+              <p className="t-small t-faint">{t('settings.budget')}</p>
+              {budget && (
+                <p className="t-small">
+                  {budget.halted && budget.haltedUntil
+                    ? t('vinted.halted', { time: new Date(budget.haltedUntil).toLocaleTimeString(i.locale) })
+                    : t('vinted.budget', { n: budget.remaining })}
+                </p>
+              )}
+              {lastImport ? <p className="t-small t-faint">{t('vinted.lastImport', { when: i.relative(lastImport, era.now) })}</p> : null}
+              <div>
+                <Button
+                  icon="repost"
+                  loading={busy === 'vinted'}
+                  onClick={() =>
+                    run('vinted', async () => {
+                      try {
+                        const r = await importFromVinted();
+                        toast('success', t('vinted.imported', { n: r.items, sales: r.sales }));
+                      } catch (e) {
+                        const code = e instanceof MarketplaceError ? (e.message === 'NO_VINTED_TAB' ? 'NO_VINTED_TAB' : e.code) : 'UNAVAILABLE';
+                        toast('error', t(`errors.${code}`), t('errors.keepLocal'));
+                      }
+                    })
+                  }
+                >
+                  {lastImport ? t('vinted.refresh') : t('vinted.import')}
+                </Button>
+              </div>
+            </div>
+          </Card>
+          <Card title={t('settings.data')} icon="stock" tone="amber">
+            <p className="t-small t-muted" style={{ marginBottom: 14 }}>
+              {t('settings.dataLocal')}
+            </p>
+            <div className="row wrap">
+              {era.mode !== 'demo' ? (
+                <Button icon="layers" loading={busy === 'demo'} disabled={era.mode === 'real'} onClick={() => run('demo', async () => { await repo.loadDemo(); toast('success', t('onboarding.loaded')); })}>
+                  {t('settings.loadDemo')} <DemoBadge />
+                </Button>
+              ) : (
+                <Button icon="x" loading={busy === 'clear'} onClick={() => run('clear', async () => { await repo.clearDemo(); toast('info', t('settings.clearDemo')); })}>
+                  {t('settings.clearDemo')}
+                </Button>
+              )}
+              <Button variant="danger" icon="alert" onClick={() => setConfirm(true)}>
+                {t('settings.reset')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+      <Modal open={confirm} onClose={() => setConfirm(false)} title={t('settings.reset')}>
+        <p className="t-muted">{t('settings.resetConfirm')}</p>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setConfirm(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={async () => {
+              await repo.resetAll();
+              setConfirm(false);
+              toast('info', t('settings.resetDone'));
+              go('onboarding');
+              location.reload();
+            }}
+          >
+            {t('common.confirm')}
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+export type { DataMode };

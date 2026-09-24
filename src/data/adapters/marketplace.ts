@@ -45,7 +45,7 @@ export type MarketplaceErrorCode = 'NETWORK_403' | 'RATE_LIMITED' | 'BUDGET_EXHA
 export class MarketplaceError extends Error {
   constructor(
     readonly code: MarketplaceErrorCode,
-    message = code,
+    message: string = code,
   ) {
     super(message);
     this.name = 'MarketplaceError';
@@ -111,4 +111,25 @@ export class RequestBudget {
     if (status === 403) this.haltedCode = 'NETWORK_403';
     else if (status === 429) this.haltedCode = 'RATE_LIMITED';
   }
+
+  /** Serialisable state, so the budget survives a service-worker restart. */
+  toJSON(): { calls: number[]; total: number; halted: MarketplaceErrorCode | null } {
+    return { calls: this.calls, total: this.total, halted: this.haltedCode };
+  }
+
+  static fromJSON(
+    s: { calls: number[]; total: number; halted: MarketplaceErrorCode | null } | undefined,
+    now: () => number = Date.now,
+  ): RequestBudget {
+    const b = new RequestBudget(undefined, now);
+    if (s) {
+      b.calls = s.calls;
+      b.total = s.total;
+      b.haltedCode = s.halted;
+    }
+    return b;
+  }
 }
+
+/** After a block, stay silent for hours: "it works again" does not mean the flag is lifted. */
+export const HALT_COOLDOWN_MS = 6 * 3600_000;

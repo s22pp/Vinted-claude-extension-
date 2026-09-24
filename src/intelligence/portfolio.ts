@@ -172,7 +172,7 @@ export function salesSummary(views: readonly ItemView[], sv: readonly SaleView[]
     averageMargin: revenueWithProfit > 0 ? profitSum / revenueWithProfit : null,
     roi: costWithProfit > 0 ? profitSum / costWithProfit : null,
     medianDaysToSale: days.length ? median(days) : null,
-    averageSalePrice: done.length ? Math.round(period.revenue / done.length) : null,
+    averageSalePrice: done.length ? Math.round(period.revenue / done.length / 100) * 100 : null,
     sellThrough: done.length + listedNow > 0 ? done.length / (done.length + listedNow) : null,
     refundRate: all.length ? (all.length - done.length) / all.length : null,
     capitalReturned: period.cost,

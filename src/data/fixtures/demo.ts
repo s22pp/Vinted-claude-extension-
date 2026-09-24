@@ -107,7 +107,9 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
     const ageDays = sold ? 10 + Math.floor(r() * 250) : Math.floor(Math.pow(r(), 1.6) * 140) + 1;
     const purchaseDate = now - ageDays * DAY - Math.floor(r() * DAY);
     const costKnown = r() > (sold ? 0.1 : 0.16);
-    const buy = Math.max(3, spec.buy * (0.6 + r() * 0.8));
+    // A few aged pieces were overpaid: the capital traps a real stock always contains.
+    const overpaid = !sold && ageDays > 50 && r() < 0.3;
+    const buy = overpaid ? spec.market * (0.72 + r() * 0.12) : Math.max(3, spec.buy * (0.6 + r() * 0.8));
     const item: InventoryItem = {
       id,
       title: `${title} ${size}`,
@@ -143,8 +145,9 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
     const segments = republish ? 2 : 1;
     let lastListing: Listing | null = null;
     // Some aged items are mispriced on purpose so the engines have something real to say.
-    const stubborn = !sold && ageDays > 45 && r() < 0.55;
+    const stubborn = !sold && !overpaid && ageDays > 45 && r() < 0.55;
     if (stubborn) price = euro(spec.market * (1.3 + r() * 0.4));
+    if (overpaid) price = euro(spec.market * (0.95 + r() * 0.15));
     let totalViews = 0;
     let totalFavs = 0;
     for (let seg = 0; seg < segments; seg++) {
@@ -153,7 +156,7 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
       const lid = `demo_listing_${ds.listings.length}`;
       const days = Math.max(1, (segEnd - segStart) / DAY);
       const vpd = (sold ? 6 : 2.2) * (euro(spec.market) / price) * (0.4 + r() * 1.4) * (stubborn ? 0.9 : 1);
-      const favRate = stubborn ? 0.004 + r() * 0.01 : 0.02 + r() * 0.06;
+      const favRate = stubborn ? 0.003 + r() * 0.008 : sold ? 0.02 + r() * 0.05 : 0.006 + r() * 0.03;
       if (seg > 0) {
         ev({ type: 'LISTING_REPUBLISHED', at: segStart, inventoryItemId: id, listingId: lid, data: { price } });
       } else {

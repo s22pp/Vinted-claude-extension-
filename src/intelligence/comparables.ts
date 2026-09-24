@@ -270,7 +270,8 @@ export function analyzeComparables(
 
   let distribution: Distribution | null = null;
   if (kept.length >= 3) {
-    const q = (x: number) => Math.round(weightedQuantile(points, x));
+    // Market estimates are whole euros: cents would be false precision.
+    const q = (x: number) => Math.round(weightedQuantile(points, x) / 100) * 100;
     const p10 = q(0.1);
     const p90 = q(0.9);
     distribution = {
