@@ -1,0 +1,114 @@
+import type { Category, Condition, Gender, MarketCandidate } from '@/domain/entities';
+
+export interface ComparableQuery {
+  /** Free text sent to the marketplace. Brand + model/type — never a colour (colours don't narrow a market). */
+  text: string;
+  brand: string;
+  category: Category | null;
+  gender: Gender | null;
+  size: string | null;
+  condition: Condition | null;
+}
+
+export interface SearchResult {
+  candidates: MarketCandidate[];
+  /** Total announced by the marketplace. Vinted caps it (40 pages × 24 = 960): a capped value reads "≥ 960". */
+  totalEntries: number | null;
+  totalCapped: boolean;
+  fetchedAt: number;
+}
+
+export interface InventorySnapshotItem {
+  platformListingId: string;
+  url: string | null;
+  title: string;
+  brand: string | null;
+  size: string | null;
+  condition: Condition | null;
+  priceCents: number;
+  views: number | null;
+  favorites: number | null;
+  photoUrl: string | null;
+  listedAt: number | null;
+  status: 'ACTIVE' | 'SOLD' | 'REMOVED';
+}
+
+export interface ListingObservationSnapshot {
+  at: number;
+  priceCents: number;
+  views: number | null;
+  favorites: number | null;
+}
+
+export type MarketplaceErrorCode = 'NETWORK_403' | 'RATE_LIMITED' | 'BUDGET_EXHAUSTED' | 'UNAVAILABLE' | 'NOT_IMPLEMENTED';
+
+export class MarketplaceError extends Error {
+  constructor(
+    readonly code: MarketplaceErrorCode,
+    message = code,
+  ) {
+    super(message);
+    this.name = 'MarketplaceError';
+  }
+}
+
+/**
+ * Boundary between ERA and a marketplace. ERA's engines only ever see normalized data.
+ * Implementations must be read-only: ERA decides, it never posts, reposts or messages.
+ */
+export interface MarketplaceAdapter {
+  readonly id: 'demo' | 'vinted';
+  /** Demo adapters produce fixtures that must be labelled as such in the UI. */
+  readonly isDemo: boolean;
+  getInventory(): Promise<InventorySnapshotItem[]>;
+  getListing(platformListingId: string): Promise<InventorySnapshotItem | null>;
+  getListingObservations(platformListingId: string): Promise<ListingObservationSnapshot[]>;
+  searchComparables(query: ComparableQuery): Promise<SearchResult>;
+}
+
+/**
+ * Request budget that any network adapter MUST go through.
+ * Numbers come from real account blocks: 60 calls / session, 12 / minute, ≥1.2 s spacing.
+ * A 403 or 429 halts everything for the session — no retry, no workaround.
+ */
+export class RequestBudget {
+  private calls: number[] = [];
+  private total = 0;
+  private haltedCode: MarketplaceErrorCode | null = null;
+
+  constructor(
+    private readonly limits = { perSession: 60, perMinute: 12, minSpacingMs: 1200 },
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  get halted(): MarketplaceErrorCode | null {
+    return this.haltedCode;
+  }
+
+  get remaining(): number {
+    return Math.max(0, this.limits.perSession - this.total);
+  }
+
+  /** Returns ms to wait before the next call is allowed, or throws if the budget is exhausted / halted. */
+  reserve(): number {
+    if (this.haltedCode) throw new MarketplaceError(this.haltedCode);
+    if (this.total >= this.limits.perSession) throw new MarketplaceError('BUDGET_EXHAUSTED');
+    const t = this.now();
+    this.calls = this.calls.filter((c) => t - c < 60_000);
+    let wait = 0;
+    const last = this.calls[this.calls.length - 1];
+    if (last !== undefined) wait = Math.max(wait, last + this.limits.minSpacingMs - t);
+    if (this.calls.length >= this.limits.perMinute) {
+      const oldest = this.calls[this.calls.length - this.limits.perMinute]!;
+      wait = Math.max(wait, oldest + 60_000 - t);
+    }
+    this.calls.push(t + wait);
+    this.total++;
+    return wait;
+  }
+
+  report(status: number): void {
+    if (status === 403) this.haltedCode = 'NETWORK_403';
+    else if (status === 429) this.haltedCode = 'RATE_LIMITED';
+  }
+}
