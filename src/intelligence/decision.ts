@@ -311,7 +311,8 @@ export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSum
   const ids = (f: (i: ItemIntel) => boolean) => intel.filter(f).map((i) => i.view.item.id);
   const stagnant = ids((i) => !!i.stagnation?.stagnant && i.recommendation?.action !== 'HOLD');
   if (stagnant.length) out.push({ code: 'STAGNANT', tone: 'risk', count: stagnant.length, amount: null, label: null, itemIds: stagnant });
-  const over = ids((i) => i.recommendation?.action === 'SET_PRICE');
+  // Not double-counted with stagnant items: those are already in the first priority.
+  const over = ids((i) => i.recommendation?.action === 'SET_PRICE' && !i.stagnation?.stagnant);
   if (over.length) out.push({ code: 'OVERPRICED', tone: 'warning', count: over.length, amount: null, label: null, itemIds: over });
   if (capital.traps.length)
     out.push({ code: 'TRAPS', tone: 'warning', count: capital.traps.length, amount: null, label: null, itemIds: capital.traps.map((t) => t.itemId) });

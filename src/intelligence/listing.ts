@@ -34,7 +34,7 @@ const CONDITION_TEXT: Record<Condition, string> = {
 
 /** Title: type + brand + model + era + size + SKU. Deterministic, no colour stuffing, no other brand. */
 export function buildTitle(item: Pick<InventoryItem, 'id' | 'brand' | 'model' | 'category' | 'size' | 'era'>, withSku = true): string {
-  const parts = [TITLE_WORD[item.category], item.brand, item.model, item.era === 'vintage' ? 'vintage' : null, item.size ? `T.${item.size}` : null];
+  const parts = [TITLE_WORD[item.category], item.brand, item.model, item.era === 'vintage' ? 'vintage' : null, item.size ? `taille ${item.size}` : null];
   const base = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   return withSku ? `${base} · ${skuOf(item.id)}` : base;
 }

@@ -1,16 +1,37 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect } from 'react';
 import { repo } from '@/data/repo';
-import { Onboarding } from './screens/Onboarding';
-import { Buy } from './screens/Buy';
-import { Insights } from './screens/Insights';
-import { ItemDetail } from './screens/ItemDetail';
-import { Market } from './screens/Market';
-import { Sales } from './screens/Sales';
-import { Settings } from './screens/Settings';
-import { Stock } from './screens/Stock';
+import { Suspense, lazy } from 'react';
+import { Skeleton } from '@/ui/components/primitives';
 import { Today } from './screens/Today';
-import { Tools } from './screens/Tools';
+
+// Today is the landing screen and ships in the main chunk; the rest loads on first visit.
+const Onboarding = lazy(() => import('./screens/Onboarding').then((m) => ({ default: m.Onboarding })));
+const Buy = lazy(() => import('./screens/Buy').then((m) => ({ default: m.Buy })));
+const Insights = lazy(() => import('./screens/Insights').then((m) => ({ default: m.Insights })));
+const ItemDetail = lazy(() => import('./screens/ItemDetail').then((m) => ({ default: m.ItemDetail })));
+const Market = lazy(() => import('./screens/Market').then((m) => ({ default: m.Market })));
+const Sales = lazy(() => import('./screens/Sales').then((m) => ({ default: m.Sales })));
+const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })));
+const Stock = lazy(() => import('./screens/Stock').then((m) => ({ default: m.Stock })));
+const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
+
+function PageSkeleton() {
+  return (
+    <div className="stack-4" aria-busy="true">
+      <Skeleton w={280} h={30} />
+      <Skeleton h={120} r={14} />
+      <div className="grid-12">
+        <div className="span-8">
+          <Skeleton h={260} r={14} />
+        </div>
+        <div className="span-4">
+          <Skeleton h={260} r={14} />
+        </div>
+      </div>
+    </div>
+  );
+}
 import { Shell } from './Shell';
 import { EraDataProvider, go, useEra, useRoute } from './state';
 
@@ -27,7 +48,12 @@ function Router() {
     if (era.ready && era.mode === 'empty' && onboardingDone === false && route.name !== 'onboarding' && route.name !== 'settings') go('onboarding');
   }, [era.ready, era.mode, route.name, onboardingDone]);
 
-  if (route.name === 'onboarding') return <Onboarding />;
+  if (route.name === 'onboarding')
+    return (
+      <Suspense fallback={<div className="era-backdrop" aria-hidden="true" />}>
+        <Onboarding />
+      </Suspense>
+    );
   if (!era.ready) return <div className="era-backdrop" aria-hidden="true" />;
   let screen: React.ReactNode;
   switch (route.name) {
@@ -61,7 +87,9 @@ function Router() {
   return (
     <>
       <div className="era-backdrop" aria-hidden="true" />
-      <Shell route={route.name}>{screen}</Shell>
+      <Shell route={route.name}>
+        <Suspense fallback={<PageSkeleton />}>{screen}</Suspense>
+      </Shell>
     </>
   );
 }

@@ -44,7 +44,7 @@ export function Today() {
   const listed = inStock.filter((v) => v.current).length;
   const series = monthlySeries(era.sales, era.now, 12);
   const recos = era.intel
-    .filter((x) => x.recommendation && x.recommendation.action !== 'ADD_COST' && x.recommendation.action !== 'ANALYZE' && x.recommendation.action !== 'HOLD')
+    .filter((x) => x.recommendation && x.recommendation.action !== 'ADD_COST' && x.recommendation.action !== 'HOLD' && (x.recommendation.action !== 'ANALYZE' || x.recommendation.priority >= 50))
     .sort((a, b) => b.recommendation!.priority - a.recommendation!.priority);
   const top = recos[0];
   const activationDone = ACTIVATION_STEPS.every((s) => era.activation.has(s.name));

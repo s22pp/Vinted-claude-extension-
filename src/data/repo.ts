@@ -17,6 +17,7 @@ import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
 import { type EraDatabase, db as defaultDb, uid } from './db';
 import { generateDemoDataset } from './fixtures/demo';
+import { DemoMarketplaceAdapter } from './adapters/demo-adapter';
 
 export type DataMode = 'empty' | 'demo' | 'real';
 
@@ -66,6 +67,21 @@ export class EraRepository {
         }),
       );
     });
+    // Most demo items come with a (demo) market analysis of varying age, like a seller who has used ERA for a while.
+    const adapter = new DemoMarketplaceAdapter();
+    const listed = ds.listings.filter((l) => l.status === 'ACTIVE');
+    const byItem = new Map(ds.items.map((i) => [i.id, i]));
+    for (const [k, l] of listed.entries()) {
+      if (k % 4 === 3) continue;
+      const it = byItem.get(l.inventoryItemId)!;
+      const subject = { title: it.title, brand: it.brand, model: it.model, category: it.category, gender: it.gender, size: it.size, condition: it.condition, material: it.material, era: it.era, priceCents: l.priceCents };
+      const queries = buildQueries(subject);
+      const results: SearchResult[] = [];
+      for (const q of queries) results.push(await adapter.searchComparables(q));
+      const at = now - ((k * 7) % 20) * DAY;
+      const analysis = analyzeComparables(subject, results, { queries: queries.map((q) => q.text), source: 'DEMO', now: at });
+      await this.db.analyses.put({ id: `analysis_${it.id}`, inventoryItemId: it.id, at, analysis, isDemo: true });
+    }
     await this.setSetting('dataMode', 'demo');
   }
 

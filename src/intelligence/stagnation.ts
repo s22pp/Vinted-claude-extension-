@@ -76,7 +76,8 @@ export function diagnoseStagnation(
     if (currentAge >= 5 && views === 0) return out('LOW_VISIBILITY', 'REPRICE');
     return out('TOO_EARLY', 'WAIT', false);
   }
-  if ((favorites ?? 0) >= 3) return out('FAVORITES_NO_CONVERSION', 'SMALL_DROP');
+  // Favourites only signal "waiting for a drop" when they are dense (≥ 3 and ≥ 4 % of views), not 3 over months.
+  if ((favorites ?? 0) >= 3 && (favRate ?? 0) >= 0.04) return out('FAVORITES_NO_CONVERSION', 'SMALL_DROP');
   if (views >= 80 && (favRate ?? 0) < 0.02) {
     return out('HIGH_VISIBILITY_LOW_INTEREST', priceDeltaPct !== null && priceDeltaPct <= 0.05 ? 'REVIEW_LISTING' : 'REPRICE');
   }

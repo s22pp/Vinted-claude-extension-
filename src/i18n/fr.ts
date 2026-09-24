@@ -676,7 +676,7 @@ export const fr = {
       BELOW_FLOOR: 'Sous votre plancher : proposez un prix qui protège votre marge.',
       FAR_BELOW: 'Trop loin du marché et de votre coût.',
     },
-    basis: { COST: 'plancher = coût + marge minimale (max 5 €, 25 %)', MARKET: 'coût inconnu : plancher = bas de la fourchette « vente rapide »', ASK: 'sans coût ni marché : plancher = 80 % du prix' },
+    basis: { COST: 'plancher = coût + marge minimale (max 5 €, 25 %) · seuil de rentabilité si l’article dépasse votre délai habituel', MARKET: 'coût inconnu : plancher = bas de la fourchette « vente rapide »', ASK: 'sans coût ni marché : plancher = 80 % du prix' },
     profitAt: 'Profit à ce prix',
     pick: 'Article',
   },

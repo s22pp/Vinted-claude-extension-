@@ -49,7 +49,8 @@ export function offerLadder(c: OfferContext): OfferLadder {
   let floor: Cents;
   let floorBasis: OfferLadder['floorBasis'];
   if (c.cost !== null) {
-    floor = c.cost + minProfit(c.cost);
+    // Aged stock: recovering capital beats margin, the floor drops to break-even (never below cost).
+    floor = aged ? Math.max(c.cost, fast ? Math.round(fast.range.min * 0.9) : 0) : c.cost + minProfit(c.cost);
     floorBasis = 'COST';
     if (fast && !aged) floor = Math.max(floor, Math.round(fast.range.min * 0.95));
   } else if (fast) {
