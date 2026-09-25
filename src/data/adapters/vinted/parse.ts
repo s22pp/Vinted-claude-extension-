@@ -22,6 +22,16 @@ export function priceCents(x: unknown): number | null {
   return null;
 }
 
+/**
+ * The brand of an item, whichever shape Vinted used: `brand_title` (verified), else a `brand_dto` / `brand`
+ * object's title, else a `brand` text. A bare id is not a name; "Sans marque" is not a brand.
+ */
+export function brandOf(it: Json): string | null {
+  const text = (x: unknown) => (typeof x === 'string' && /[a-z]/i.test(x) ? x.trim() : null);
+  const b = text(it.brand_title) ?? (isObj(it.brand_dto) ? text(it.brand_dto.title) : null) ?? (isObj(it.brand) ? text(it.brand.title) : text(it.brand));
+  return b && !/^(sans marque|autre|other)$/i.test(b) ? b : null;
+}
+
 /** Status ids from GET /api/v2/statuses (verified): 6, 1, 2, 3, 4. Labels as displayed in French. */
 const STATUS_ID: Record<number, Condition> = { 6: 'NEW_WITH_TAGS', 1: 'NEW_WITHOUT_TAGS', 2: 'VERY_GOOD', 3: 'GOOD', 4: 'SATISFACTORY' };
 export function conditionOf(label: unknown, id?: unknown): Condition | null {
@@ -71,7 +81,7 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
     platformListingId: id,
     url: str(it.url) ?? `https://www.vinted.fr/items/${id}`,
     title,
-    brand: str(it.brand_title),
+    brand: brandOf(it),
     size: str(it.size_title),
     condition: conditionOf(it.status, it.status_id),
     priceCents: price,
@@ -97,7 +107,7 @@ export function parseCatalogItem(it: Json): MarketCandidate | null {
   return {
     id,
     title,
-    brand: str(it.brand_title),
+    brand: brandOf(it),
     priceCents: price,
     size: str(it.size_title),
     condition: conditionOf(it.status, it.status_id),

@@ -4,6 +4,7 @@ import { VintedTabAdapter } from '@/data/adapters/vinted/vinted-adapter';
 import type { DataMode } from '@/data/repo';
 import { repo } from '@/data/repo';
 import type { ComparableAnalysis, ComparableSubject } from '@/intelligence/comparables';
+import { isUnknownBrand } from '@/intelligence/normalize';
 import type { LearningSummary } from '@/intelligence/learning';
 import type { ItemView } from '@/intelligence/portfolio';
 import { priceStrategies } from '@/intelligence/pricing';
@@ -43,7 +44,17 @@ export async function analyzeItem(
   quick = false,
 ): Promise<ComparableAnalysis> {
   const adapter = marketAdapter(mode, v.item.isDemo, quick);
-  const analysis = await repo.analyzeMarket(adapter, itemSubject(v), v.item.id, onStage);
+  const subject = itemSubject(v);
+  // Brand unknown on a real listing: read the listing itself on Vinted (one verified GET) before searching.
+  const vintedId = v.current?.platformListingId;
+  if (isUnknownBrand(subject.brand) && adapter instanceof VintedTabAdapter && vintedId && /^\d+$/.test(vintedId)) {
+    const brand = await adapter.listingBrand(vintedId).catch(() => null);
+    if (brand) {
+      subject.brand = brand;
+      await repo.setBrand(v.item.id, brand, 'OBSERVED');
+    }
+  }
+  const analysis = await repo.analyzeMarket(adapter, subject, v.item.id, onStage);
   // Store what ERA predicted now, so it can be confronted with the real sale later.
   const personal = model ? personalEvidence(model, v.item) : null;
   const pricing = priceStrategies(

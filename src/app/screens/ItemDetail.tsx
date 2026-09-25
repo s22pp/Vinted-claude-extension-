@@ -88,7 +88,7 @@ export function ItemDetail({ id }: { id: string }) {
           <h1 className="t-h1" style={{ overflowWrap: 'anywhere' }}>
             {item.title}
           </h1>
-          <p className="t-muted">
+          <p className="t-muted" data-testid="item-facts">
             {[item.brand, item.model, item.size, item.condition ? t(`condition.${item.condition}`) : null].filter(Boolean).join(' · ')}
           </p>
           <div className="item-kpis">

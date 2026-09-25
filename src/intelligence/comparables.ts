@@ -12,7 +12,9 @@ import {
   modelTokens,
   normalizeText,
   sizeAffinity,
+  isUnknownBrand,
   titleHasBrand,
+  titleKeywords,
 } from './normalize';
 import { clamp, effectiveSampleSize, percentileRank, weightedQuantile } from './stats';
 
@@ -132,6 +134,13 @@ export function buildQueries(subject: ComparableSubject): ComparableQuery[] {
     condition: subject.condition,
   };
   const texts = new Set<string>();
+  if (isUnknownBrand(subject.brand)) {
+    // No brand known: search with what the title says about the article — never "inconnue chemise".
+    const words = titleKeywords(subject.title);
+    const cat = CATEGORY_QUERY_WORD[subject.category];
+    texts.add(words ? (cat && !` ${words} `.includes(` ${normalizeText(cat)} `) ? `${cat} ${words}` : words) : cat);
+    return [...texts].filter(Boolean).map((text) => ({ ...base, brand: '', text }));
+  }
   if (subject.model) texts.add(`${subject.brand} ${subject.model}`);
   texts.add(`${subject.brand} ${CATEGORY_QUERY_WORD[subject.category]}`.trim());
   return [...texts].map((text) => ({ ...base, text }));
@@ -199,7 +208,7 @@ export function analyzeComparables(
   results: SearchResult[],
   opts: { queries: string[]; source: 'DEMO' | 'VINTED'; now: number },
 ): ComparableAnalysis {
-  const subjBrand = brandKey(subject.brand);
+  const subjBrand = isUnknownBrand(subject.brand) ? null : brandKey(subject.brand);
   const subjTokens = modelTokens(normalizeText(`${subject.model ?? ''} ${subject.title}`));
   const seenIds = new Set<string>();
   const seenKeys = new Set<string>();
@@ -220,7 +229,8 @@ export function analyzeComparables(
     seenKeys.add(key);
 
     const nt = normalizeText(c.title);
-    const brandOk = (c.brand && brandKey(c.brand) === subjBrand) || titleHasBrand(c.title, subjBrand);
+    // Unknown brand: no brand filter (it would reject everything); similarity on the title does the sorting.
+    const brandOk = subjBrand === null || (c.brand && brandKey(c.brand) === subjBrand) || titleHasBrand(c.title, subjBrand);
     if (!brandOk) {
       reject('BRAND_MISMATCH');
       continue;
@@ -341,4 +351,22 @@ export function gradeQuality(kept: number, nEff: number, meanSim: number, d: Dis
   if (kept >= 15 && nEff >= 12 && d.spread <= 3 && meanSim >= 0.7) return 'HIGH';
   if (nEff >= 6.5 && d.spread <= 5) return 'MEDIUM';
   return 'LOW';
+}
+
+/**
+ * The brand of an article whose brand ERA does not know, learned from the market: a brand the search results
+ * are sold under that is written in the article's own title. The most frequent wins; none → null.
+ */
+export function brandFromResults(title: string, results: readonly SearchResult[]): string | null {
+  const counts = new Map<string, { n: number; name: string }>();
+  for (const c of results.flatMap((r) => r.candidates)) {
+    if (!c.brand || isUnknownBrand(c.brand)) continue;
+    const key = brandKey(c.brand);
+    if (!titleHasBrand(title, key) && !` ${normalizeText(title)} `.includes(` ${normalizeText(c.brand)} `)) continue;
+    const prev = counts.get(key);
+    counts.set(key, { n: (prev?.n ?? 0) + 1, name: prev?.name ?? c.brand });
+  }
+  let best: { n: number; name: string } | null = null;
+  for (const v of counts.values()) if (!best || v.n > best.n) best = v;
+  return best?.name ?? null;
 }

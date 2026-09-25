@@ -80,6 +80,9 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
     if (url.pathname === '/api/v2/catalog/items' && (opts.searchMoved || opts.searchDead)) return json({ code: 404 }, 404);
     if (url.pathname === '/api/v2/catalog/items' && opts.sortRefused && url.searchParams.has('order')) return json({ code: 404 }, 404);
+    // Test fixture only: a search for a brand ERA does not know yet returns listings sold under it.
+    if (url.pathname === '/api/v2/catalog/items' && /bonobo/i.test(url.searchParams.get('search_text') ?? ''))
+      return json({ items: [{ id: 31, title: 'Chemise Bonobo lin', price: '18.0', brand_title: 'Bonobo', size_title: 'L' }, { id: 32, title: 'Chemise en lin Bonobo', price: '22.0', brand_title: 'Bonobo', size_title: 'L' }], pagination: { total_entries: 40 } });
     if (url.pathname === '/api/v2/catalog/items')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 960 } });
     if (url.pathname === '/api/v2/my_orders')
@@ -378,4 +381,26 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
   const counter = writes().slice(2);
   expect(counter.map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/transactions/7100/offers']);
   expect(JSON.parse(counter[0]!.body!)).toEqual({ offer: { price: '55.00', currency: 'EUR' } });
+});
+
+test('price analysis without a brand on Vinted: searches the title’s words, never "inconnue", and learns the brand', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 106, title: 'Chemise Bonobo lin L', price: '20.0', view_count: 12, favourite_count: 0, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The Levi's has no brand field either: the title gives it.
+  await page.goto(`${base}#/stock?filter=all`);
+  await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Jean Levi' }).click();
+  await expect(page.getByTestId('item-facts')).toHaveText(/^Levi’s/);
+  await page.goto(`${base}#/stock?filter=all`);
+  await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Chemise Bonobo' }).click();
+  await expect(page.getByTestId('item-facts')).not.toContainText('Bonobo');
+  await page.getByRole('button', { name: /analyse/i }).first().click();
+  await expect(page.getByTestId('item-facts')).toHaveText(/^Bonobo/, { timeout: 40_000 });
+  const searches = calls.filter((c) => c.path.startsWith('/api/v2/catalog/items')).map((c) => new URL(`https://x${c.path}`).searchParams.get('search_text'));
+  expect(searches.length).toBeGreaterThan(0);
+  expect(searches.every((q) => q && /bonobo/.test(q) && !/inconnu/i.test(q))).toBe(true);
+  // Its own listing was read once on Vinted before searching (verified route).
+  expect(calls.some((c) => c.path === '/api/v2/item_upload/items/106')).toBe(true);
 });

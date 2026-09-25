@@ -1,5 +1,5 @@
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
-import { brandKey, categoriesInTitle, normalizeText } from '@/intelligence/normalize';
+import { brandDisplay, brandInTitle, categoriesInTitle, isUnknownBrand, normalizeText } from '@/intelligence/normalize';
 import { skuOf, skusInText } from '@/intelligence/listing';
 import { REPOST_WINDOW_DAYS, type RepostCandidate, type RepostMatch, matchRepost } from '@/intelligence/repost';
 import { DAY } from '@/domain/time';
@@ -141,6 +141,9 @@ export async function importFromVinted(
         created++;
       } else if (prevItem) {
         updated++;
+        // A brand still unknown is filled as soon as Vinted or the title gives one (never overwritten otherwise).
+        const brandFix = isUnknownBrand(prevItem.brand) && brandGuess ? { brand: brandGuess, meta: { ...prevItem.meta, brand: { p: s.brand ? 'OBSERVED' : 'INFERRED', at: now } } } : null;
+        if (brandFix) prevItem = { ...prevItem, ...brandFix } as typeof prevItem;
         // A repost carries new photo URLs (the old announcement's may be gone): prefer them.
         await db.items.put({ ...prevItem, status: resolved.status, photoUrl: repost ? (s.photoUrl ?? prevItem.photoUrl) : (prevItem.photoUrl ?? s.photoUrl), updatedAt: now, meta: { ...prevItem.meta, status: { p: resolved.p, at: now } } });
         if (prevItem.status !== resolved.status)
@@ -369,7 +372,8 @@ function orderKey(title: string, date: number | null, price: number): string {
   return (h >>> 0).toString(36);
 }
 
+/** A brand written in the title, from ERA's dictionary; displayed the way people write it. */
 function inferBrand(title: string): string | null {
-  const k = brandKey(title);
-  return k !== normalizeText(title) ? k.replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+  const k = brandInTitle(title);
+  return k ? brandDisplay(k) : null;
 }

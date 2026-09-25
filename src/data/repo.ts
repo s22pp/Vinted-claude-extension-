@@ -17,7 +17,8 @@ import {
 import type { Cents } from '@/domain/money';
 import { DAY } from '@/domain/time';
 import { isLiveListing, listingStatusOf } from '@/domain/status';
-import { type ComparableAnalysis, type ComparableSubject, analyzeComparables, buildQueries } from '@/intelligence/comparables';
+import { type ComparableAnalysis, type ComparableSubject, analyzeComparables, brandFromResults, buildQueries } from '@/intelligence/comparables';
+import { isUnknownBrand } from '@/intelligence/normalize';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
 import { type EraDatabase, type InvoiceRow, db as defaultDb, uid } from './db';
@@ -265,6 +266,14 @@ export class EraRepository {
     const results: SearchResult[] = [];
     for (const q of queries) results.push(await adapter.searchComparables(q));
     onStage?.('COMPARING');
+    // Brand unknown: the results often say it (a brand sold on Vinted that the title names). Kept on the item.
+    if (isUnknownBrand(subject.brand)) {
+      const learned = brandFromResults(subject.title, results);
+      if (learned) {
+        subject = { ...subject, brand: learned };
+        if (itemId) await this.setBrand(itemId, learned, 'INFERRED', now);
+      }
+    }
     const analysis = analyzeComparables(subject, results, { queries: queries.map((q) => q.text), source: adapter.isDemo ? 'DEMO' : 'VINTED', now });
     const item = itemId ? await this.db.items.get(itemId) : null;
     const isDemo = adapter.isDemo || !!item?.isDemo;
@@ -514,6 +523,13 @@ export class EraRepository {
       }
     });
     return newId;
+  }
+
+  /** Fill an unknown brand (never overwrite one the seller or Vinted gave). */
+  async setBrand(itemId: string, brand: string, p: 'OBSERVED' | 'INFERRED', now = Date.now()): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item || !isUnknownBrand(item.brand)) return;
+    await this.db.items.put({ ...item, brand, updatedAt: now, meta: { ...item.meta, brand: { p, at: now } } });
   }
 
   async resetAll(): Promise<void> {

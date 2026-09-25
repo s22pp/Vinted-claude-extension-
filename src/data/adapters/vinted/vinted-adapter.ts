@@ -1,6 +1,6 @@
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
-import { currentUserId, firstArray, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
+import { brandOf, currentUserId, firstArray, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
 import type { ApiResult, BudgetStatus, EraMessage, PageResult, ReserveResult } from './protocol';
 import { db } from '../../db';
 
@@ -185,6 +185,13 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   /** Whitelisted GET through the Vinted tab (used by the diagnostic). */
   rawGet(path: string): Promise<unknown> {
     return this.api(path);
+  }
+
+  /** The brand of one of MY listings, from its own upload data (verified route), whatever the field shape. */
+  async listingBrand(id: string): Promise<string | null> {
+    const j = await this.api(`/api/v2/item_upload/items/${id}`);
+    const item = typeof j === 'object' && j !== null && 'item' in j ? (j as { item: unknown }).item : null;
+    return typeof item === 'object' && item !== null ? brandOf(item as Record<string, unknown>) : null;
   }
 
   async userId(): Promise<string> {
