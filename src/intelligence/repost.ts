@@ -1,5 +1,6 @@
 import type { DomainEvent, InventoryItem, Listing, ListingObservation } from '@/domain/entities';
 import { DAY } from '@/domain/time';
+import { observationsByListing } from './observations';
 import { skuOf, skusInText } from './listing';
 import { brandKey, normalizeText } from './normalize';
 
@@ -103,8 +104,7 @@ export function repostEffect(oldObs: readonly ListingObservation[], newObs: read
 
 /** The latest repost of each item, with its measured effect. */
 export function lastReposts(events: readonly DomainEvent[], observations: readonly ListingObservation[], now: number): Map<string, RepostInfo> {
-  const obsByListing = new Map<string, ListingObservation[]>();
-  for (const o of observations) obsByListing.set(o.listingId, [...(obsByListing.get(o.listingId) ?? []), o]);
+  const obsByListing = observationsByListing(observations);
   const count = new Map<string, number>();
   const latest = new Map<string, DomainEvent>();
   for (const e of events) {

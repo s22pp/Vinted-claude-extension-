@@ -169,7 +169,10 @@ export async function importFromVinted(
         isDemo: false,
       };
       await db.listings.put(listing);
-      await db.observations.put({ id: uid('obs'), listingId, inventoryItemId: itemId, at: now, priceCents: s.priceCents, views: s.views, favorites: s.favorites, provenance: 'OBSERVED' });
+      // A closed announcement no longer moves: once it stops changing, no new observation per import.
+      const moved = !prev || prev.priceCents !== s.priceCents || prev.views !== s.views || prev.favorites !== s.favorites;
+      if (moved || isLiveListing(listing.status))
+        await db.observations.put({ id: uid('obs'), listingId, inventoryItemId: itemId, at: now, priceCents: s.priceCents, views: s.views, favorites: s.favorites, provenance: 'OBSERVED' });
       if (!prev && repost) {
         // The same article, published again: the old announcement is closed, what Vinted reset is kept.
         const old = repost.candidate.listing;
@@ -197,7 +200,8 @@ export async function importFromVinted(
       } else if (prev.priceCents !== s.priceCents) {
         await db.events.put({ id: uid('ev'), type: 'PRICE_CHANGED', at: now, inventoryItemId: itemId, listingId, data: { from: prev.priceCents, to: s.priceCents }, provenance: 'OBSERVED', isDemo: false });
       }
-      if (s.views !== null) {
+      // Timeline: engagement when favourites move (views stay in the observation history, charted on the item).
+      if (s.views !== null && (!prev || prev.favorites !== s.favorites)) {
         await db.events.put({ id: uid('ev'), type: 'ENGAGEMENT_OBSERVED', at: now, inventoryItemId: itemId, listingId, data: { views: s.views, favorites: s.favorites }, provenance: 'OBSERVED', isDemo: false });
       }
     }

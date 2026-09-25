@@ -1,8 +1,9 @@
 import type { DomainEvent, ListingObservation } from '@/domain/entities';
 import { DAY } from '@/domain/time';
+import { observationsByListing } from './observations';
 import { nicheKey } from './seller-model';
 import type { ItemView } from './portfolio';
-import { median } from './stats';
+import { median, pushTo } from './stats';
 
 /**
  * Does price actually move views for this kind of article — for THIS seller?
@@ -65,8 +66,7 @@ export function buildSensitivityIndex(
   observations: readonly ListingObservation[],
   priceEvents: readonly DomainEvent[],
 ): Map<string, Sensitivity> {
-  const obsByListing = new Map<string, ListingObservation[]>();
-  for (const o of observations) obsByListing.set(o.listingId, [...(obsByListing.get(o.listingId) ?? []), o]);
+  const obsByListing = observationsByListing(observations);
   const niche = new Map(views.map((v) => [v.item.id, nicheKey(v.item.brand, v.item.model, v.item.category)]));
 
   // 1. Past drops, grouped by niche.
@@ -79,7 +79,7 @@ export function buildSensitivityIndex(
     const eff = dropEffect(obsByListing.get(e.listingId) ?? [], e.at);
     if (eff === null) continue;
     const k = niche.get(e.inventoryItemId);
-    if (k) drops.set(k, [...(drops.get(k) ?? []), eff]);
+    if (k) pushTo(drops, k, eff);
   }
 
   // 2. Cross-section of live listings per niche.
@@ -89,7 +89,7 @@ export function buildSensitivityIndex(
     if (!v.inStock || !l || l.views === null || v.askPrice === null) continue;
     const days = Math.max(1, v.daysListed ?? 1);
     const k = niche.get(v.item.id)!;
-    live.set(k, [...(live.get(k) ?? []), { price: v.askPrice, vpd: l.views / days }]);
+    pushTo(live, k, { price: v.askPrice, vpd: l.views / days });
   }
 
   const byNiche = new Map<string, Sensitivity>();
@@ -127,8 +127,7 @@ export interface LastDrop {
 }
 
 export function lastDrops(priceEvents: readonly DomainEvent[], observations: readonly ListingObservation[], now: number): Map<string, LastDrop> {
-  const obsByListing = new Map<string, ListingObservation[]>();
-  for (const o of observations) obsByListing.set(o.listingId, [...(obsByListing.get(o.listingId) ?? []), o]);
+  const obsByListing = observationsByListing(observations);
   const out = new Map<string, LastDrop>();
   for (const e of priceEvents) {
     if (e.type !== 'PRICE_CHANGED' || !e.inventoryItemId) continue;

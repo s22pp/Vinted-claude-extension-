@@ -1,5 +1,6 @@
 import type { ListingObservation } from '@/domain/entities';
 import { DAY } from '@/domain/time';
+import { observationsByListing } from './observations';
 import type { ItemView } from './portfolio';
 
 export interface FavoriteGain {
@@ -14,8 +15,7 @@ export interface FavoriteGain {
  * observation history (no extra Vinted call). Only recent imports count: an old gain is no longer news.
  */
 export function favoriteGains(views: readonly ItemView[], observations: readonly ListingObservation[], now: number, freshDays = 7): FavoriteGain[] {
-  const byListing = new Map<string, ListingObservation[]>();
-  for (const o of observations) byListing.set(o.listingId, [...(byListing.get(o.listingId) ?? []), o]);
+  const byListing = observationsByListing(observations);
   const out: FavoriteGain[] = [];
   for (const v of views) {
     if (!v.inStock || !v.current) continue;

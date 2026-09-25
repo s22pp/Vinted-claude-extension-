@@ -2,6 +2,7 @@ import { REFUND_REASONS, type RefundReason } from '@/domain/entities';
 import type { Cents } from '@/domain/money';
 import type { SaleView } from './portfolio';
 import { brandKey } from './normalize';
+import { pushTo } from './stats';
 
 /** What a refund reason changes upstream, in the listing sheet. */
 export type RefundGuard = 'MEASURES_REQUIRED' | 'DEFECT_PHOTOS' | 'CONDITION_DETAIL' | 'DESCRIPTION_CHECK' | 'AUTH_PHOTOS' | 'PACKAGING';
@@ -59,7 +60,7 @@ export function refundSummary(sales: readonly SaleView[], labels: { category: (c
     const groups = new Map<string, SaleView[]>();
     for (const s of sales) {
       const k = dim === 'brand' ? brandKey(s.item.brand) : s.item.category;
-      groups.set(k, [...(groups.get(k) ?? []), s]);
+      pushTo(groups, k, s);
     }
     for (const [key, xs] of groups) {
       if (xs.length < MIN_SEGMENT) continue;

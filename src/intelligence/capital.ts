@@ -2,7 +2,7 @@ import { type Cents, type MoneyMetric, sumMetric } from '@/domain/money';
 import { DAY } from '@/domain/time';
 import type { ItemView, SaleView } from './portfolio';
 import { nicheKey } from './seller-model';
-import { median, quantile } from './stats';
+import { median, pushTo, quantile } from './stats';
 
 export type AgeBucket = '0-30' | '30-60' | '60-90' | '90+';
 export const AGE_BUCKETS: AgeBucket[] = ['0-30', '30-60', '60-90', '90+'];
@@ -167,7 +167,7 @@ export function capitalSummary(views: readonly ItemView[], sales: readonly SaleV
   const niches = new Map<string, ItemView[]>();
   for (const v of stock) {
     const k = nicheKey(v.item.brand, v.item.model, v.item.category);
-    niches.set(k, [...(niches.get(k) ?? []), v]);
+    pushTo(niches, k, v);
   }
   const byNiche: NicheCapital[] = [...niches.entries()]
     .map(([key, vs]) => {

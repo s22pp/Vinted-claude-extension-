@@ -40,7 +40,19 @@ const ALIAS_INDEX: { alias: string; brand: string }[] = Object.entries(BRAND_ALI
   .flatMap(([brand, aliases]) => aliases.map((alias) => ({ alias, brand })))
   .sort((a, b) => b.alias.length - a.alias.length);
 
+/** Pure and called with the same few brands thousands of times per render: remembered (bounded). */
+const brandKeyCache = new Map<string, string>();
+
 export function brandKey(raw: string): string {
+  const hit = brandKeyCache.get(raw);
+  if (hit !== undefined) return hit;
+  const key = computeBrandKey(raw);
+  if (brandKeyCache.size >= 5000) brandKeyCache.clear();
+  brandKeyCache.set(raw, key);
+  return key;
+}
+
+function computeBrandKey(raw: string): string {
   const n = normalizeText(raw);
   for (const { alias, brand } of ALIAS_INDEX) if (n === alias) return brand;
   for (const { alias, brand } of ALIAS_INDEX) if (hasPhrase(n, alias)) return brand;

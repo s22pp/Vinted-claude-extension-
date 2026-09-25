@@ -3,7 +3,7 @@ import type { Cents } from '@/domain/money';
 import { brandKey } from './normalize';
 import type { ItemView, SaleView } from './portfolio';
 import { priceBandOf } from './seller-model';
-import { mean, median } from './stats';
+import { mean, median, pushTo } from './stats';
 
 /**
  * Sales pattern mining on the seller's OWN history.
@@ -132,9 +132,11 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       groups.set(l, arr);
     }
     for (const [label, seg] of groups) {
-      const rest = completed.filter((r) => !seg.includes(r));
-      // No conclusion on micro-samples: at least 5 sales in the segment and 5 outside it.
-      if (seg.length < 5 || rest.length < 5) continue;
+      // No conclusion on micro-samples: at least 5 sales in the segment and 5 outside it (checked first:
+      // most groups are small, and the rest of the sales is only built for those that can conclude).
+      if (seg.length < 5 || completed.length - seg.length < 5) continue;
+      const inSeg = new Set(seg);
+      const rest = completed.filter((r) => !inSeg.has(r));
       const sig = seg.map((r) => r.sale.sale.id).sort().join(',');
 
       // Speed: median days to sale — only over sales whose selling time is actually known, counted as such.
@@ -228,8 +230,8 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
   for (const key of ['brand', 'category'] as const) {
     const groups = new Map<string, Row[]>();
     for (const r of rows) {
-      const l = key === 'brand' ? r.sale.item.brand : labels.category(r.sale.item.category);
-      groups.set(l, [...(groups.get(l) ?? []), r]);
+      const l = key === 'brand' ? knownBrand(r) : r.sale.item.category === 'OTHER' ? null : labels.category(r.sale.item.category);
+      if (l) pushTo(groups, l, r);
     }
     for (const [label, seg] of groups) {
       // One refund is an incident, not a pattern: ≥ 8 sales and ≥ 2 refunds.
@@ -294,10 +296,13 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       totalProfit += r.profit;
     }
     const display = new Map(completed.map((r) => [brandKey(r.sale.item.brand), r.sale.item.brand]));
+    const count = (keys: string[]) => keys.reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map<string, number>());
+    const stockBy = count(stock.map((v) => brandKey(v.item.brand)));
+    const soldBy = count(completed.map((r) => brandKey(r.sale.item.brand)));
     for (const [k, p] of profitBy) {
       const share = p / totalProfit;
-      const stockShare = stock.filter((v) => brandKey(v.item.brand) === k).length / stock.length;
-      const n = completed.filter((r) => brandKey(r.sale.item.brand) === k).length;
+      const stockShare = (stockBy.get(k) ?? 0) / stock.length;
+      const n = soldBy.get(k) ?? 0;
       if (n >= 5 && share >= 0.15 && stockShare < share * 0.5) {
         out.push({
           id: `gap:${k}`,
@@ -320,7 +325,7 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
 
   // Sweet spot: the price band with the best profit per day.
   const bands = new Map<string, Row[]>();
-  for (const r of completed) bands.set(priceBandOf(r.sale.sale.salePriceCents), [...(bands.get(priceBandOf(r.sale.sale.salePriceCents)) ?? []), r]);
+  for (const r of completed) pushTo(bands, priceBandOf(r.sale.sale.salePriceCents), r);
   const ranked = [...bands.entries()]
     .map(([band, seg]) => ({ band, n: seg.filter((r) => r.profitPerDay !== null).length, v: avg(seg.map((r) => r.profitPerDay)), days: med(seg.map((r) => r.days)) }))
     .filter((b) => b.n >= 5 && b.v !== null)

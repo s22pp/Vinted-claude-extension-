@@ -119,3 +119,12 @@ describe('splitRepost — a wrong title match is undone in one click', () => {
     expect((await db.items.get('a'))!.status).toBe('ARCHIVED');
   });
 });
+
+describe('condenseEngagement — a readable item history', () => {
+  it('keeps, per announcement, the first reading, favourite moves and the latest; nothing else', async () => {
+    const { condenseEngagement } = await import('@/intelligence/timeline');
+    const e = (id: string, listingId: string, favorites: number, type: DomainEvent['type'] = 'ENGAGEMENT_OBSERVED'): DomainEvent => ({ id, type, at: 0, inventoryItemId: 'a', listingId, data: { views: 1, favorites }, provenance: 'OBSERVED', isDemo: false });
+    const out = condenseEngagement([e('1', 'x', 0), e('2', 'x', 0), e('p', 'x', 0, 'PRICE_CHANGED'), e('3', 'x', 2), e('4', 'x', 2), e('5', 'x', 2), e('6', 'y', 0)]);
+    expect(out.map((x) => x.id)).toEqual(['1', 'p', '3', '5', '6']);
+  });
+});

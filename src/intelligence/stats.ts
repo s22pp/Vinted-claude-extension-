@@ -75,3 +75,10 @@ export function percentileRank(points: readonly { v: number; w: number }[], x: n
 export function clamp(x: number, lo = 0, hi = 1): number {
   return Math.min(hi, Math.max(lo, x));
 }
+
+/** Append to a grouped map in place (never `[...old, x]`, which copies the group at every insertion). */
+export function pushTo<K, V>(m: Map<K, V[]>, k: K, v: V): void {
+  const arr = m.get(k);
+  if (arr) arr.push(v);
+  else m.set(k, [v]);
+}

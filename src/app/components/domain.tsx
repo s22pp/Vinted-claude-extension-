@@ -13,6 +13,7 @@ import { useToast } from '@/ui/components/overlays';
 import { Badge, type BadgeTone, Button, ConfidenceMeter, Tooltip } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { buildPrediction } from '@/intelligence/precision';
+import { condenseEngagement } from '@/intelligence/timeline';
 import { go, useEra } from '../state';
 
 export function ItemCell({ item, sub }: { item: InventoryItem; sub?: React.ReactNode }) {
@@ -274,8 +275,9 @@ const EV_ICON: Record<DomainEvent['type'], { icon: IconName; tone: TileTone }> =
 
 export function Timeline({ itemId }: { itemId: string }) {
   const { t, date, money, pct } = useI18n();
-  const events = useLiveQuery(() => db.events.where('inventoryItemId').equals(itemId).sortBy('at'), [itemId]);
-  if (!events) return null;
+  const raw = useLiveQuery(() => db.events.where('inventoryItemId').equals(itemId).sortBy('at'), [itemId]);
+  if (!raw) return null;
+  const events = condenseEngagement(raw);
   if (events.length === 0) return <p className="t-muted">{t('timeline.empty')}</p>;
   const num = (v: unknown) => (typeof v === 'number' ? v : null);
   return (
