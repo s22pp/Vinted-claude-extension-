@@ -7,6 +7,7 @@ import type {
   Listing,
   ListingObservation,
   PricePrediction,
+  Prep,
   Sale,
 } from '@/domain/entities';
 import type { ComparableAnalysis } from '@/intelligence/comparables';
@@ -49,6 +50,7 @@ export class EraDatabase extends Dexie {
   activation!: EntityTable<ActivationEvent, 'name'>;
   settings!: EntityTable<SettingRow, 'key'>;
   purchases!: EntityTable<PurchaseRow, 'id'>;
+  preps!: EntityTable<Prep, 'itemId'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -65,6 +67,7 @@ export class EraDatabase extends Dexie {
       settings: 'key',
     });
     this.version(2).stores({ purchases: 'id, date, linkedItemId' });
+    this.version(3).stores({ preps: 'itemId, publishedAt' });
   }
 }
 

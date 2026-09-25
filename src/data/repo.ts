@@ -9,6 +9,9 @@ import {
   type ItemStatus,
   type Listing,
   type PricePrediction,
+  type Prep,
+  PrepSchema,
+  type RefundReason,
   type Sale,
 } from '@/domain/entities';
 import type { Cents } from '@/domain/money';
@@ -89,10 +92,11 @@ export class EraRepository {
 
   async clearDemo(): Promise<void> {
     const tables = [this.db.items, this.db.listings, this.db.sales, this.db.events, this.db.predictions] as const;
-    await this.db.transaction('rw', [...tables, this.db.observations, this.db.analyses], async () => {
+    await this.db.transaction('rw', [...tables, this.db.observations, this.db.analyses, this.db.preps], async () => {
       const demoItemIds = (await this.db.items.filter((i) => i.isDemo).primaryKeys()) as string[];
       for (const t of tables) await (t as typeof this.db.items).filter((x: { isDemo?: boolean }) => !!x.isDemo).delete();
       await this.db.observations.where('inventoryItemId').anyOf(demoItemIds).delete();
+      await this.db.preps.where('itemId').anyOf(demoItemIds).delete();
       await this.db.analyses.filter((a) => a.isDemo).delete();
     });
     const count = await this.db.items.count();
@@ -361,6 +365,71 @@ export class EraRepository {
       await this.db.events.put(
         this.event({ type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: listing?.id ?? null, data: { from: item.status, to }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }),
       );
+    });
+  }
+
+  /* ── Atelier de mise en ligne ─────────────────────────── */
+
+  /** Facts read on the item itself (labels): they replace whatever was inferred. */
+  async updateItemFacts(
+    itemId: string,
+    patch: Partial<Pick<InventoryItem, 'brand' | 'model' | 'category' | 'size' | 'condition' | 'material'>>,
+    now = Date.now(),
+  ): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item) throw new Error(`Unknown item ${itemId}`);
+    const meta = { ...item.meta };
+    for (const k of Object.keys(patch)) meta[k] = { p: 'USER_PROVIDED', at: now };
+    await this.db.items.put({ ...item, ...patch, meta, updatedAt: now });
+  }
+
+  async getPrep(itemId: string, now = Date.now()): Promise<Prep> {
+    return (await this.db.preps.get(itemId)) ?? PrepSchema.parse({ itemId, startedAt: now });
+  }
+
+  async savePrep(itemId: string, patch: Partial<Omit<Prep, 'itemId' | 'startedAt'>>, now = Date.now()): Promise<Prep> {
+    const cur = await this.getPrep(itemId, now);
+    const next = { ...cur, ...patch, itemId };
+    await this.db.preps.put(next);
+    return next;
+  }
+
+  /** Time with the sheet open (measured). Idle stretches are capped by the caller. */
+  async addPrepTime(itemId: string, seconds: number, now = Date.now()): Promise<void> {
+    if (seconds <= 0) return;
+    const cur = await this.getPrep(itemId, now);
+    await this.db.preps.put({ ...cur, seconds: cur.seconds + seconds });
+  }
+
+  /**
+   * The seller published it by hand on Vinted. ERA does not touch Vinted: the listing is linked
+   * on the next import through the reference in the title.
+   */
+  async markPrepPublished(itemId: string, priceCents: Cents | null, now = Date.now()): Promise<void> {
+    const cur = await this.getPrep(itemId, now);
+    const item = await this.db.items.get(itemId);
+    await this.db.preps.put({ ...cur, priceCents, readyAt: cur.readyAt ?? now, publishedAt: now });
+    if (item)
+      await this.db.events.put(
+        this.event({ type: 'LISTING_PREPARED', at: now, inventoryItemId: itemId, listingId: null, data: { price: priceCents ?? 0, seconds: Math.round(cur.seconds) }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }),
+      );
+  }
+
+  /* ── Remboursements ──────────────────────────────────── */
+
+  async setRefundReason(saleId: string, reason: RefundReason | null): Promise<void> {
+    const sale = await this.db.sales.get(saleId);
+    if (!sale) throw new Error(`Unknown sale ${saleId}`);
+    await this.db.sales.put({ ...sale, refundReason: reason });
+  }
+
+  /** A sale that was refunded: kept for the refund analysis, excluded from revenue and profit. */
+  async markRefunded(saleId: string, reason: RefundReason | null, now = Date.now()): Promise<void> {
+    const sale = await this.db.sales.get(saleId);
+    if (!sale) throw new Error(`Unknown sale ${saleId}`);
+    await this.db.transaction('rw', [this.db.sales, this.db.events], async () => {
+      await this.db.sales.put({ ...sale, status: 'REFUNDED', refundReason: reason });
+      await this.db.events.put(this.event({ type: 'SALE_REFUNDED', at: now, inventoryItemId: sale.inventoryItemId, listingId: sale.listingId, data: { price: sale.salePriceCents }, provenance: 'USER_PROVIDED', isDemo: sale.isDemo }));
     });
   }
 

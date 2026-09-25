@@ -185,7 +185,13 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   async getSoldOrders(): Promise<SoldOrder[]> {
     const out: SoldOrder[] = [];
     for (let page = 1; page <= 2; page++) {
-      const raw = firstArray(await this.api(`/api/v2/my_orders?type=sold&page=${page}&per_page=20`), ['my_orders', 'orders']);
+      // `status=all` (as read by two production tools) also returns refunded and cancelled orders;
+      // if Vinted refuses the parameter, fall back once to the plain list.
+      const json = await this.api(`/api/v2/my_orders?type=sold&status=all&page=${page}&per_page=20`).catch((e) => {
+        if (page === 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') return this.api(`/api/v2/my_orders?type=sold&page=${page}&per_page=20`);
+        throw e;
+      });
+      const raw = firstArray(json, ['my_orders', 'orders']);
       out.push(...raw.map(parseOrder).filter((o): o is SoldOrder => o !== null));
       if (raw.length < 20) break;
     }

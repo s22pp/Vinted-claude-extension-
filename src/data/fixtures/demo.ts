@@ -87,6 +87,7 @@ function weightedNiche(r: () => number): NicheSpec {
 }
 
 const euro = (e: number) => Math.round(e) * 100;
+const DEMO_REFUND_REASONS = ['SIZE', 'SIZE', 'DEFECT', null, 'DESCRIPTION', 'SIZE', null] as const;
 
 export function generateDemoDataset(now: number, opts: { soldCount?: number; stockCount?: number; seed?: number } = {}): DemoDataset {
   const r = rng(opts.seed ?? 42);
@@ -126,7 +127,7 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
       costDetail: null,
       purchaseDate: costKnown || r() > 0.5 ? purchaseDate : null,
       purchaseSource: costKnown ? pick(r, SOURCES) : null,
-      status: sold ? 'SOLD' : ((x) => (x < 0.05 ? 'DRAFT' : x < 0.12 ? 'RESERVED' : x < 0.16 ? 'HIDDEN' : 'LISTED'))(r()),
+      status: sold ? 'SOLD' : ((x) => (x < 0.12 ? 'DRAFT' : x < 0.17 ? 'RESERVED' : x < 0.2 ? 'HIDDEN' : 'LISTED'))(r()),
       createdAt: purchaseDate,
       updatedAt: now - Math.floor(r() * 3 * DAY),
       meta: costKnown ? { purchasePriceCents: { p: 'USER_PROVIDED', at: purchaseDate } } : {},
@@ -251,6 +252,8 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
         salePriceCents: salePrice,
         extraCostsCents: r() < 0.85 ? 0 : null,
         status: refunded ? 'REFUNDED' : 'COMPLETED',
+        // Demo refunds: most carry a reason, some are left to qualify (deterministic, no extra randomness).
+        refundReason: refunded ? DEMO_REFUND_REASONS[ds.sales.length % DEMO_REFUND_REASONS.length]! : null,
         isDemo: true,
       };
       ds.sales.push(sale);

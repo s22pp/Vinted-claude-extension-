@@ -21,6 +21,13 @@ test('visual QA screenshots', async ({ context, base }) => {
   await page.waitForTimeout(900);
   await page.screenshot({ path: `${OUT}/03-stock-focus.png`, fullPage: false });
 
+  await page.goto(`${base}#/workshop`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${OUT}/04w-workshop.png`, fullPage: true });
+  await page.goto(`${base}#/sales?refunds=1`);
+  await page.waitForTimeout(1500);
+  await page.locator('#refunds').screenshot({ path: `${OUT}/04r-refunds.png` });
+
   await page.goto(`${base}#/capital`);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/04-capital.png`, fullPage: true });
@@ -88,6 +95,7 @@ test('visual QA screenshots', async ({ context, base }) => {
     ['15-sm-buy', 'buy'],
     ['16-sm-item', `item/${ids[0]}`],
     ['17-sm-capital', 'capital'],
+    ['18-sm-workshop', 'workshop'],
   ]) {
     await page.goto(`${base}#/${route}`);
     await page.waitForTimeout(1200);

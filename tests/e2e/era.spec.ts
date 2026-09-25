@@ -28,7 +28,8 @@ test('each Today priority opens exactly the items it counts', async ({ context, 
   const page = await context.newPage();
   await loadDemo(page, base);
   await page.goto(`${base}#/today`);
-  const first = page.locator('.prio__item').first();
+  // Stock-backed priority (the first one may open the workshop instead).
+  const first = page.locator('.prio__item', { hasText: /stagne/ }).first();
   const n = Number(await first.locator('.prio__go .num').innerText());
   await first.click();
   await expect(page).toHaveURL(/#\/stock\?focus=/);
@@ -40,6 +41,34 @@ test('each Today priority opens exactly the items it counts', async ({ context, 
   await page.getByRole('link', { name: 'Capital' }).first().click();
   await expect(page.getByRole('heading', { name: 'Où est mon argent' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Pièges à capital' })).toBeVisible();
+});
+
+test('listing workshop: a sheet in Vinted form order, published by hand, then awaiting import', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  await page.locator('.prio__item', { hasText: /pas encore en ligne|pas en ligne/ }).first().click();
+  await expect(page).toHaveURL(/#\/workshop/);
+  await expect(page.getByRole('heading', { name: 'Mise en ligne' })).toBeVisible();
+  const queued = await page.locator('.wq__row[href^="#/workshop/"]').count();
+  expect(queued).toBeGreaterThan(0);
+  // The 11 steps, in the order of the Vinted form.
+  const steps = page.locator('.wstep__title');
+  await expect(steps).toHaveCount(11);
+  await expect(steps.first()).toHaveText('Catégorie');
+  await expect(page.locator('.wcopy__text')).toContainText(/· E[0-9A-Z]{4}$/);
+  await page.getByRole('button', { name: 'Publié quand même' }).click();
+  await expect(page.locator('.wq__row[href^="#/workshop/"]')).toHaveCount(queued - 1);
+  await expect(page.getByText('Publiés, en attente d’import')).toBeVisible();
+});
+
+test('refunds: one click per reason, rules feed the workshop', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/sales?refunds=1`);
+  const card = page.locator('#refunds');
+  await expect(card.getByText('Taux de remboursement')).toBeVisible();
+  await expect(card.getByText('Règles actives dans l’atelier')).toBeVisible();
 });
 
 test('stock: search, filter and open an item with its timeline', async ({ context, base }) => {

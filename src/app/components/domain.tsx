@@ -266,6 +266,7 @@ const EV_ICON: Record<DomainEvent['type'], { icon: IconName; tone: TileTone }> =
   ITEM_SOLD: { icon: 'check', tone: 'emerald' },
   STATUS_CHANGED: { icon: 'dot', tone: 'amber' },
   SALE_REFUNDED: { icon: 'alert', tone: 'coral' },
+  LISTING_PREPARED: { icon: 'layers', tone: 'pink' },
   MARKET_ANALYZED: { icon: 'market', tone: 'cobalt' },
   PREDICTION_MADE: { icon: 'target', tone: 'pink' },
   PREDICTION_RESOLVED: { icon: 'scale', tone: 'pink' },

@@ -14,16 +14,20 @@ export const PRIO: Record<TodayPriority['code'], { icon: IconName; tone: TileTon
   MISSING_SHIPPING: { icon: 'box', tone: 'cyan' },
   NO_ANALYSIS: { icon: 'market', tone: 'cobalt' },
   NICHE: { icon: 'trendUp', tone: 'emerald' },
+  TO_LIST: { icon: 'upload', tone: 'violet' },
+  REFUND_REASON: { icon: 'alert', tone: 'coral' },
 };
 
 /** Every priority opens exactly the items it counts. */
-export const priorityHref = (p: TodayPriority) => `stock?focus=${p.code}`;
+export const priorityHref = (p: TodayPriority) => (p.code === 'TO_LIST' ? 'workshop' : p.code === 'REFUND_REASON' ? 'sales?refunds=1' : `stock?focus=${p.code}`);
 
 export function usePriorityTitle() {
   const { t } = useI18n();
   return (p: TodayPriority) =>
     p.code === 'CAPITAL_AGED'
       ? t('today.P_CAPITAL_AGED', { amount: p.amount && p.amount.status !== 'unknown' ? p.amount.value : null, n: p.count })
+      : p.code === 'TO_LIST' && p.amount && p.amount.status !== 'unknown' && p.amount.value > 0
+        ? t('today.P_TO_LIST_amount', { n: p.count, amount: p.amount.value })
       : p.code === 'NICHE'
         ? t('today.P_NICHE', { label: p.label ?? '' })
         : t(`today.P_${p.code}`, { n: p.count });

@@ -61,10 +61,11 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
   const price = priceCents(it.price);
   if (!id || !title || price === null) return null;
   const photo = firstPhoto(it);
-  // Verified flags: is_closed (sold), is_draft, is_hidden. `is_reserved` is not in the verified map:
-  // read only when present, otherwise the reservation state stays unknown.
-  const closed = it.is_closed === true;
-  const hidden = it.is_hidden === true;
+  // Verified flags: is_closed (sold), is_draft, is_hidden. `is_reserved` is not in the verified map
+  // (a production extension reads it on this same endpoint): read only when present, else unknown.
+  // `item_alert_type: "delayed_publication"` = Vinted's "Vérification en cours": invisible to buyers.
+  const closed = it.is_closed === true || it.is_sold === true;
+  const hidden = it.is_hidden === true || it.item_alert_type === 'delayed_publication';
   const reservedKnown = typeof it.is_reserved === 'boolean';
   return {
     platformListingId: id,
@@ -125,15 +126,22 @@ export interface SoldOrder {
   /** A calendar date — compare as UTC dates, never as instants. */
   date: number | null;
   status: string | null;
+  /** The Vinted listing id of the ordered item, when the order carries it: an exact match, no title guessing. */
+  itemId: string | null;
 }
 
+/**
+ * my_orders entries. Field variants (item_price, created_at, status_text, item_id / item.id) are the ones
+ * a production extension reads on the same endpoint — still UNVERIFIED on the seller's own account.
+ */
 export function parseOrder(o: Json): SoldOrder | null {
-  const title = str(o.title);
-  const price = priceCents(o.price);
+  const item = isObj(o.item) ? o.item : null;
+  const title = str(o.title) ?? (item ? str(item.title) : null);
+  const price = priceCents(o.price) ?? priceCents(o.item_price);
   if (!title || price === null) return null;
-  const d = str(o.date);
+  const d = str(o.date) ?? str(o.created_at);
   const t = d ? Date.parse(d) : Number.NaN;
-  return { title, priceCents: price, date: Number.isNaN(t) ? null : t, status: str(o.status) };
+  return { title, priceCents: price, date: Number.isNaN(t) ? null : t, status: str(o.status) ?? str(o.status_text), itemId: str(o.item_id) ?? (item ? str(item.id) : null) };
 }
 
 export function currentUserId(json: unknown): string | null {

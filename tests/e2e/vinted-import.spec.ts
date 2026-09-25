@@ -35,7 +35,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
     if (url.pathname === '/my_orders' && url.searchParams.get('order_type') === 'purchased')
       // Test fixture only: the purchases page calls an orders endpoint ERA learns by observation.
       return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20')</script></body></html>` });
-    if (url.pathname === '/api/v2/my_orders' && url.searchParams.get('era_test') === 'purchased')
+    if (url.pathname === '/api/v2/my_orders' && (url.searchParams.get('era_test') === 'purchased' || url.searchParams.get('type') === 'purchased'))
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
     if (url.pathname === '/catalog' && opts.searchMoved)
       // Test fixture only: the search page calls an endpoint ERA does not know yet.

@@ -1,5 +1,6 @@
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
 import { brandKey, categoriesInTitle, normalizeText } from '@/intelligence/normalize';
+import { skuOf, skusInText } from '@/intelligence/listing';
 import { MarketplaceError } from './adapters/marketplace';
 import type { ImportStage } from './adapters/vinted/protocol';
 import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
@@ -18,7 +19,7 @@ import { repo } from './repo';
 export async function importFromVinted(
   onStage: (s: ImportStage) => void = () => undefined,
   now = Date.now(),
-): Promise<{ items: number; updated: number; sales: number }> {
+): Promise<{ items: number; updated: number; sales: number; linked: number }> {
   onStage('CONNECTING');
   const { tabId, created: openedTab } = await ensureVintedTab();
   const adapter = new VintedTabAdapter();
@@ -42,14 +43,28 @@ export async function importFromVinted(
   const byPlatformId = new Map(existing.filter((l) => l.platformListingId).map((l) => [l.platformListingId!, l]));
   let created = 0;
   let updated = 0;
+  let linked = 0;
   let salesCount = 0;
+  // Items prepared in ERA and published by hand carry their reference (E1C4G) in the title:
+  // the new Vinted listing is attached to that item instead of creating a duplicate.
+  const onVinted = new Set(existing.filter((l) => l.platformListingId).map((l) => l.inventoryItemId));
+  const bySku = new Map((await db.items.filter((i) => !i.isDemo && !onVinted.has(i.id)).toArray()).map((i) => [skuOf(i.id), i]));
 
   await db.transaction('rw', [db.items, db.listings, db.observations, db.events, db.sales, db.settings], async () => {
     for (const s of snapshot) {
       const prev = byPlatformId.get(s.platformListingId);
       const brandGuess = s.brand ?? inferBrand(s.title);
       let itemId = prev?.inventoryItemId;
-      const prevItem = itemId ? await db.items.get(itemId) : undefined;
+      let prevItem = itemId ? await db.items.get(itemId) : undefined;
+      if (!prev) {
+        const match = skusInText(s.title).map((k) => bySku.get(k)).find(Boolean);
+        if (match) {
+          itemId = match.id;
+          prevItem = match;
+          bySku.delete(skuOf(match.id));
+          linked++;
+        }
+      }
       const resolved = resolveImportedStatus(prevItem ?? null, s.status, s.reservedKnown);
       if (!itemId) {
         itemId = uid('item');
@@ -83,7 +98,7 @@ export async function importFromVinted(
         created++;
       } else if (prevItem) {
         updated++;
-        await db.items.put({ ...prevItem, status: resolved.status, updatedAt: now, meta: { ...prevItem.meta, status: { p: resolved.p, at: now } } });
+        await db.items.put({ ...prevItem, status: resolved.status, photoUrl: prevItem.photoUrl ?? s.photoUrl, updatedAt: now, meta: { ...prevItem.meta, status: { p: resolved.p, at: now } } });
         if (prevItem.status !== resolved.status)
           await db.events.put({ id: uid('ev'), type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: prev?.id ?? null, data: { from: prevItem.status, to: resolved.status }, provenance: resolved.p, isDemo: false });
       }
@@ -125,8 +140,12 @@ export async function importFromVinted(
     for (const o of orders) {
       // Orders carry a calendar date: compare as UTC dates, never as instants.
       const soldAt = o.date ?? now;
-      const refunded = !!o.status && /rembours|refund|annul|cancel/i.test(o.status);
-      const match = closed.find((l) => normalizeText(l.title) === normalizeText(o.title) && !sold.has(l.inventoryItemId));
+      // A cancelled order never became a sale (the item goes back on sale): not a refund, skipped.
+      if (o.status && /annul|cancel/i.test(o.status) && !/rembours|refund/i.test(o.status)) continue;
+      const refunded = !!o.status && /rembours|refund/i.test(o.status);
+      const match =
+        (o.itemId ? closed.find((l) => l.platformListingId === o.itemId && !sold.has(l.inventoryItemId)) : undefined) ??
+        closed.find((l) => normalizeText(l.title) === normalizeText(o.title) && !sold.has(l.inventoryItemId));
       if (match) {
         const sale: Sale = {
           id: uid('sale'),
@@ -185,7 +204,7 @@ export async function importFromVinted(
   await repo.track('inventory_imported');
   if (salesCount > 0) await repo.track('first_sale_tracked');
   onStage('COMPLETE');
-  return { items: created, updated, sales: salesCount };
+  return { items: created, updated, sales: salesCount, linked };
 }
 
 /**

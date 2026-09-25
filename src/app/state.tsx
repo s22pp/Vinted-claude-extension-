@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { ActivationEventName, Category, Decision, PricePrediction } from '@/domain/entities';
+import type { ActivationEventName, Category, Decision, PricePrediction, Prep } from '@/domain/entities';
 import { db } from '@/data/db';
 import { type DataMode, repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -13,6 +13,9 @@ import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model'
 import { buildSensitivityIndex } from '@/intelligence/sensitivity';
 import { latestAnalyses } from '@/intelligence/market-vs-you';
 import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
+import { type RefundSummary, refundSummary } from '@/intelligence/refunds';
+import { workshopQueue } from '@/intelligence/workshop';
+import { sumMetric } from '@/domain/money';
 
 export interface EraData {
   ready: boolean;
@@ -30,6 +33,9 @@ export interface EraData {
   /** Latest analysis per subject, item-bound or not (Buy Analyzer): the market side of Market vs You. */
   marketAnalyses: ComparableAnalysis[];
   precision: PrecisionRow[];
+  preps: Map<string, Prep>;
+  workshop: { toList: ItemView[]; awaitingImport: ItemView[] };
+  refunds: RefundSummary;
   priorities: TodayPriority[];
   predictions: PricePrediction[];
   activation: Set<ActivationEventName>;
@@ -62,9 +68,10 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
   const observations = useLiveQuery(() => db.observations.toArray(), []);
   const priceEvents = useLiveQuery(() => db.events.where('type').equals('PRICE_CHANGED').toArray(), []);
   const mode = useLiveQuery(() => repo.getSetting<DataMode>('dataMode', 'empty'), []);
+  const prepRows = useLiveQuery(() => db.preps.toArray(), []);
 
   const value = useMemo<EraData>(() => {
-    const ready = !!(items && listings && sales && analyses && predictions && activation && decisions && mode);
+    const ready = !!(items && listings && sales && analyses && predictions && activation && decisions && mode && prepRows);
     const views = buildItemViews(items ?? [], listings ?? [], sales ?? [], now);
     const saleViews = buildSaleViews(views, sales ?? []);
     const model = buildSellerModel(views, saleViews, { category: (c: Category) => t(`category.${c}`) });
@@ -78,6 +85,19 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     // Dismissed / snoozed recommendations stay hidden until they change or the snooze ends.
     const hidden = new Set((decisions ?? []).filter((d) => d.outcome === 'DISMISSED' || (d.outcome === 'SNOOZED' && (d.until ?? 0) > now)).map((d) => d.recommendationKey));
     for (const i of intel) if (i.recommendation && hidden.has(i.recommendation.key)) i.recommendation = null;
+    const preps = new Map((prepRows ?? []).map((p) => [p.itemId, p]));
+    const workshop = workshopQueue(views, preps);
+    const refunds = refundSummary(saleViews, { category: (c) => t(`category.${c}`) });
+    const priorities = todayPriorities(intel, capital, model, views);
+    if (workshop.toList.length) {
+      // Owned, paid, and invisible to buyers: the first lever on sales volume.
+      const idle = sumMetric(workshop.toList.map((v) => v.cost));
+      priorities.unshift({ code: 'TO_LIST', tone: 'warning', count: workshop.toList.length, amount: idle, label: null, itemIds: workshop.toList.map((v) => v.item.id) });
+    }
+    if (refunds.missingReason.length) {
+      const ids = saleViews.filter((x) => refunds.missingReason.includes(x.sale.id)).map((x) => x.item.id);
+      priorities.push({ code: 'REFUND_REASON', tone: 'info', count: ids.length, amount: null, label: null, itemIds: ids });
+    }
     return {
       ready,
       now,
@@ -93,19 +113,22 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       analyses: analysisMap,
       marketAnalyses: latestAnalyses(analyses ?? []),
       precision: precisionRows(predictions ?? []),
-      priorities: todayPriorities(intel, capital, model, views),
+      priorities,
+      preps,
+      workshop,
+      refunds,
       predictions: predictions ?? [],
       activation: new Set((activation ?? []).map((a) => a.name)),
       decisions: decisions ?? [],
     };
-  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents]);
+  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, prepRows]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 /* ── Hash router ─────────────────────────────────────────── */
 
-export type RouteName = 'today' | 'stock' | 'capital' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'settings' | 'onboarding';
+export type RouteName = 'today' | 'stock' | 'capital' | 'workshop' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'settings' | 'onboarding';
 export interface Route {
   name: RouteName;
   id: string | null;
@@ -115,7 +138,7 @@ export interface Route {
 function parse(hash: string): Route {
   const [path = '', qs = ''] = hash.replace(/^#\/?/, '').split('#')[0]!.split('?');
   const [name, id] = path.split('/');
-  const known: RouteName[] = ['today', 'stock', 'capital', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'settings', 'onboarding'];
+  const known: RouteName[] = ['today', 'stock', 'capital', 'workshop', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'settings', 'onboarding'];
   return { name: known.includes(name as RouteName) ? (name as RouteName) : 'today', id: id ?? null, query: new URLSearchParams(qs) };
 }
 

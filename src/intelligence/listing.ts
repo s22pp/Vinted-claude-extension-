@@ -8,7 +8,7 @@ export function skuOf(itemId: string): string {
   return `E${(h >>> 0).toString(36).toUpperCase().slice(0, 4).padStart(4, '0')}`;
 }
 
-const TITLE_WORD: Record<Category, string> = {
+export const TITLE_WORD: Record<Category, string> = {
   JACKET: 'Veste',
   COAT: 'Manteau',
   SWEATSHIRT: 'Sweat',
@@ -24,13 +24,18 @@ const TITLE_WORD: Record<Category, string> = {
   OTHER: '',
 };
 
-const CONDITION_TEXT: Record<Condition, string> = {
+export const CONDITION_TEXT: Record<Condition, string> = {
   NEW_WITH_TAGS: 'Neuf avec étiquette',
   NEW_WITHOUT_TAGS: 'Neuf sans étiquette, jamais porté',
   VERY_GOOD: 'Très bon état, peu porté',
   GOOD: 'Bon état, traces d’usage légères (voir photos)',
   SATISFACTORY: 'État satisfaisant, défauts visibles en photo',
 };
+
+/** ERA references look like "E1C4G": E + 4 base-36 characters. */
+export function skusInText(text: string): string[] {
+  return [...text.matchAll(/\bE[0-9A-Z]{4}\b/g)].map((m) => m[0]);
+}
 
 /** Title: type + brand + model + era + size + SKU. Deterministic, no colour stuffing, no other brand. */
 export function buildTitle(item: Pick<InventoryItem, 'id' | 'brand' | 'model' | 'category' | 'size' | 'era'>, withSku = true): string {

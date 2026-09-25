@@ -969,3 +969,283 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
+.subtabs__n {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--violet);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* ── Atelier de mise en ligne ──────────────────────────── */
+.guard-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in srgb, var(--coral) 30%, var(--border));
+  background: var(--coral-soft);
+  font-size: 13px;
+}
+.workshop {
+  align-items: start;
+}
+.wq {
+  display: flex;
+  flex-direction: column;
+  max-height: 640px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.wq__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition:
+    background var(--t-normal) var(--ease),
+    border-color var(--t-normal) var(--ease);
+}
+.wq__row:hover {
+  background: var(--surface-hover);
+}
+.wq__row[aria-current='true'] {
+  background: var(--violet-soft);
+  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+}
+.wq__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.wq__title {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.wq__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+}
+.wq__bar {
+  display: block;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.wq__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-grad);
+  transition: width var(--t-slow) var(--ease);
+}
+.wq__bar > span.is-ready {
+  background: var(--emerald);
+}
+.sheet {
+  padding: var(--s-6);
+}
+.sheet__head {
+  display: flex;
+  gap: var(--s-4);
+  align-items: center;
+}
+.sheet__rule {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: var(--s-4) 0 var(--s-2);
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  color: var(--text-2);
+}
+.wsteps {
+  display: flex;
+  flex-direction: column;
+}
+.wstep {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.wstep__n {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface-solid);
+  transition:
+    background var(--t-normal) var(--ease),
+    border-color var(--t-normal) var(--ease);
+}
+.wstep.is-done .wstep__n {
+  background: var(--emerald);
+  border-color: var(--emerald);
+  color: var(--text-inverse);
+  animation: milestone-pop 600ms var(--ease) both;
+}
+.wstep__title {
+  font-weight: 650;
+  font-size: 14.5px;
+}
+.wstep__hint {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.wstep__content {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.wstep__content > * {
+  max-width: 100%;
+}
+.wmeasures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.wmeasure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wcheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.wcheck:has(input:checked) {
+  color: var(--text);
+}
+.wcopy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  width: 100%;
+}
+.wcopy__text {
+  flex: 1;
+  min-width: 200px;
+  font-weight: 600;
+}
+.wdesc {
+  width: 100%;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font: 13px/1.55 var(--font-sans);
+  white-space: pre-wrap;
+  color: var(--text);
+}
+.wphotos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  margin-top: 6px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--border-strong);
+}
+.sheet__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 760px) {
+  .sheet {
+    padding: var(--s-4);
+  }
+  .sheet__head {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Refunds ───────────────────────────────────────────── */
+.reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.reason-chips .chip {
+  height: 26px;
+  font-size: 12px;
+}
+.refund-row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.4fr);
+  align-items: center;
+}
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.card--highlight {
+  border-color: color-mix(in srgb, var(--coral) 45%, var(--border));
+  box-shadow:
+    0 0 0 3px var(--coral-soft),
+    var(--shadow-2);
+}
+@media (max-width: 1180px) {
+  .refund-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .refund-row .reason-chips {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 1181px) {
+  .workshop > .span-4 {
+    position: sticky;
+    top: 84px;
+  }
+}
+/* Strips with an explicit column count still fold to 2 columns on phones. */
+@media (max-width: 760px) {
+  .kpi-strip[style] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

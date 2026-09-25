@@ -51,9 +51,23 @@ export async function discoverPurchasesTemplate(): Promise<{ template: string | 
   }
 }
 
+/**
+ * Purchases list: `type=purchased` — the value an accounting extension sends after explicitly mapping
+ * "bought" → "purchased", and the one in Vinted's own page URL (order_type=purchased). UNVERIFIED on the
+ * seller's account: tried once; on failure ERA learns the endpoint from Vinted's own page.
+ */
+export const BOUGHT_TEMPLATE = '/api/v2/my_orders?type=purchased&status=all&page={page}&per_page=20';
+
 /** Up to 2 pages of purchases (budget rule). */
 export async function fetchPurchases(adapter: VintedTabAdapter): Promise<SoldOrder[]> {
   let template = (await db.settings.get(PURCHASES_TEMPLATE_KEY))?.value as string | undefined;
+  if (!template) {
+    const first = (await adapter.rawGet(BOUGHT_TEMPLATE.replace('{page}', '1')).catch(() => null)) as Record<string, unknown> | null;
+    if (first && ['my_orders', 'orders', 'items'].some((k) => Array.isArray(first[k]))) {
+      template = BOUGHT_TEMPLATE;
+      await db.settings.put({ key: PURCHASES_TEMPLATE_KEY, value: template });
+    }
+  }
   if (!template) {
     const found = await discoverPurchasesTemplate();
     if (!found.template) throw new Error(`liste d’achats non trouvée sur Vinted · appels observés : ${found.observed.map((u) => u.split('?')[0]).join(' | ') || 'aucun'}`);

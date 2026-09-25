@@ -521,12 +521,18 @@ function FocusBanner({ priority, title, hint, count }: { priority: TodayPriority
   );
 }
 
-export function StockTabs({ active }: { active: 'stock' | 'capital' }) {
+export function StockTabs({ active }: { active: 'stock' | 'capital' | 'workshop' }) {
   const { t } = useI18n();
+  const era = useEra();
+  const n = era.workshop.toList.length;
   return (
     <nav className="subtabs" aria-label={t('stock.title')}>
       <a href="#/stock" aria-current={active === 'stock' ? 'page' : undefined}>
         <Icon name="stock" size={14} /> {t('stock.tabItems')}
+      </a>
+      <a href="#/workshop" aria-current={active === 'workshop' ? 'page' : undefined}>
+        <Icon name="upload" size={14} /> {t('workshop.title')}
+        {n > 0 && <span className="subtabs__n num">{n}</span>}
       </a>
       <a href="#/capital" aria-current={active === 'capital' ? 'page' : undefined}>
         <Icon name="capital" size={14} /> {t('capital.title')}

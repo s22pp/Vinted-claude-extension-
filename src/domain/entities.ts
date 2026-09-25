@@ -117,9 +117,41 @@ export const SaleSchema = z.object({
   /** Seller-side costs (fees, packaging, shipping not paid by buyer). null = unknown, 0 = known none. */
   extraCostsCents: maybeCents,
   status: SaleStatusSchema,
+  /** Why the buyer was refunded — entered by the seller in one click (Vinted does not expose it). */
+  refundReason: z.enum(['SIZE', 'DEFECT', 'CONDITION', 'DESCRIPTION', 'AUTHENTICITY', 'SHIPPING', 'BUYER', 'OTHER']).nullable().optional(),
   isDemo: z.boolean().default(false),
 });
 export type Sale = z.infer<typeof SaleSchema>;
+export type RefundReason = NonNullable<Sale['refundReason']>;
+export const REFUND_REASONS: RefundReason[] = ['SIZE', 'DEFECT', 'CONDITION', 'DESCRIPTION', 'AUTHENTICITY', 'SHIPPING', 'BUYER', 'OTHER'];
+
+/**
+ * Listing preparation sheet (Atelier de mise en ligne): everything the seller reads on the item
+ * before publishing it by hand on Vinted. Nothing here is sent to Vinted.
+ */
+export const PrepSchema = z.object({
+  itemId: z.string(),
+  /** Measures read with the tape's zero visible, in cm, as typed ("54", "non lisible"). */
+  measures: z.record(z.string(), z.string()).default({}),
+  colors: z.string().default(''),
+  material: z.string().default(''),
+  /** Product reference read on a label (style code, SKU…): a very low-competition search term. */
+  productRef: z.string().default(''),
+  defects: z.string().default(''),
+  packageSize: z.enum(['SMALL', 'MEDIUM', 'LARGE']).nullable().default(null),
+  /** Checklist keys ticked by the seller. */
+  checks: z.array(z.string()).default([]),
+  titleOverride: z.string().nullable().default(null),
+  descriptionOverride: z.string().nullable().default(null),
+  priceCents: z.number().int().nonnegative().nullable().default(null),
+  startedAt: z.number(),
+  /** Seconds with the sheet open and the window visible (measured, idle capped). */
+  seconds: z.number().nonnegative().default(0),
+  readyAt: z.number().nullable().default(null),
+  /** The seller says it is published on Vinted; the next import links the listing via the reference. */
+  publishedAt: z.number().nullable().default(null),
+});
+export type Prep = z.infer<typeof PrepSchema>;
 
 export const DomainEventTypeSchema = z.enum([
   'ITEM_ACQUIRED',
@@ -132,6 +164,7 @@ export const DomainEventTypeSchema = z.enum([
   'ITEM_SOLD',
   'STATUS_CHANGED',
   'SALE_REFUNDED',
+  'LISTING_PREPARED',
   'MARKET_ANALYZED',
   'PREDICTION_MADE',
   'PREDICTION_RESOLVED',

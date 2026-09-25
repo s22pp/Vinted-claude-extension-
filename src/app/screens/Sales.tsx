@@ -12,11 +12,13 @@ import { useToast } from '@/ui/components/overlays';
 import { Input } from '@/ui/components/primitives';
 import type { ItemView } from '@/intelligence/portfolio';
 import { PageHead } from '../Shell';
-import { go, useEra } from '../state';
+import { go, type Route, useEra } from '../state';
+import { RefundsCard } from '../components/refunds';
+import { useEffect } from 'react';
 
 type Period = '30' | '90' | '365' | 'all';
 
-export function Sales() {
+export function Sales({ route }: { route?: Route }) {
   const i = useI18n();
   const { t, money, pct, month, date } = i;
   const era = useEra();
@@ -32,6 +34,11 @@ export function Sales() {
   const unknownProfit = done.filter((x) => x.profit === null).length;
 
   const toComplete = era.views.filter((v) => v.item.status === 'SOLD' && !v.sale);
+  const focusRefunds = route?.query.get('refunds') === '1';
+  const [refundFor, setRefundFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (focusRefunds) setTimeout(() => document.getElementById('refunds')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, [focusRefunds]);
 
   if (era.ready && era.sales.length === 0 && toComplete.length === 0) {
     return (
@@ -119,6 +126,8 @@ export function Sales() {
           </Card>
         </div>
 
+        <RefundsCard highlight={focusRefunds} />
+
         <Card title={t('sales.recent')} icon="calendar" tone="neutral" hint={unknownProfit ? t('sales.unknownProfit', { n: unknownProfit }) : undefined} flush>
           <div className="table-wrap" style={{ border: 0, boxShadow: 'none', borderRadius: 0, maxHeight: 480 }}>
             <table className="dt dt--compact">
@@ -138,6 +147,7 @@ export function Sales() {
                   <th scope="col" className="is-num">
                     {t('sales.col.days')}
                   </th>
+                  <th scope="col" />
                 </tr>
               </thead>
               <tbody>
@@ -158,6 +168,18 @@ export function Sales() {
                     </td>
                     <td className="is-num">{x.sale.status === 'REFUNDED' ? <span className="t-faint">—</span> : <Money cents={x.profit} sign />}</td>
                     <td className="is-num num">{x.daysToSale === null ? '—' : t('kpi.days', { n: x.daysToSale })}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {x.sale.status !== 'REFUNDED' &&
+                        (refundFor === x.sale.id ? (
+                          <span className="row" style={{ gap: 6 }}>
+                            <RefundNow saleId={x.sale.id} onDone={() => setRefundFor(null)} />
+                          </span>
+                        ) : (
+                          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setRefundFor(x.sale.id)}>
+                            {t('refunds.mark')}
+                          </button>
+                        ))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -206,5 +228,32 @@ function ToCompleteRow({ v }: { v: ItemView }) {
         {t('sales.saveSale')}
       </Button>
     </form>
+  );
+}
+
+/** A sale that came back: pick the reason, the sale leaves revenue and profit. */
+function RefundNow({ saleId, onDone }: { saleId: string; onDone: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  return (
+    <span className="reason-chips">
+      {(['SIZE', 'DEFECT', 'CONDITION', 'DESCRIPTION', 'OTHER'] as const).map((r) => (
+        <button
+          key={r}
+          type="button"
+          className="chip"
+          onClick={async () => {
+            await repo.markRefunded(saleId, r);
+            toast('success', t('refunds.marked'), t(`refunds.r.${r}`));
+            onDone();
+          }}
+        >
+          {t(`refunds.r.${r}`)}
+        </button>
+      ))}
+      <button type="button" className="btn btn--ghost btn--sm" onClick={onDone}>
+        {t('common.cancel')}
+      </button>
+    </span>
   );
 }

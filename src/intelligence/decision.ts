@@ -329,7 +329,19 @@ function analyzeReco(id: string, code: string, priority: number, extra: Coded[])
 }
 
 export interface TodayPriority {
-  code: 'MISSING_SALE' | 'RESERVED' | 'STAGNANT' | 'OVERPRICED' | 'MISSING_COST' | 'MISSING_SHIPPING' | 'CAPITAL_AGED' | 'TRAPS' | 'NICHE' | 'NO_ANALYSIS';
+  code:
+    | 'MISSING_SALE'
+    | 'RESERVED'
+    | 'STAGNANT'
+    | 'OVERPRICED'
+    | 'MISSING_COST'
+    | 'MISSING_SHIPPING'
+    | 'CAPITAL_AGED'
+    | 'TRAPS'
+    | 'NICHE'
+    | 'NO_ANALYSIS'
+    | 'TO_LIST'
+    | 'REFUND_REASON';
   tone: Recommendation['tone'];
   count: number;
   amount: MoneyMetric | null;

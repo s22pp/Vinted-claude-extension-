@@ -69,7 +69,12 @@ async function callApi(path: string): Promise<ApiResult> {
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
-    const res = await fetch(path, { credentials: 'same-origin', headers: { accept: 'application/json' } });
+    // Same headers as Vinted's own web app XHR (also used by production extensions): some API routes
+    // answer 404/HTML to a bare fetch. GET only, same origin, never a token or cookie of our own.
+    const res = await fetch(path, {
+      credentials: 'same-origin',
+      headers: { accept: 'application/json, text/plain, */*', 'x-requested-with': 'XMLHttpRequest', locale: 'fr-FR', 'accept-language': 'fr' },
+    });
     await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
     const where = `HTTP ${res.status} · ${path.split('?')[0]}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };

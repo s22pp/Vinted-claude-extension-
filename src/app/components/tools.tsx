@@ -75,7 +75,7 @@ export function OfferCalculator({ intel, compact }: { intel: ItemIntel; compact?
 
 /* ── Listing assistant ────────────────────────────────────── */
 
-function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text }: { text: string }) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
   return (
