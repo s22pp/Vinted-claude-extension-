@@ -132,6 +132,8 @@ export const SaleSchema = z.object({
   orderKey: z.string().nullable().optional(),
   /** false when the Vinted order carried no date: soldAt is then the import day, not the sale day. */
   dateKnown: z.boolean().optional(),
+  /** The order's Vinted conversation (for its shipping label), when the order carries it. */
+  vintedConversationId: z.string().nullable().optional(),
   isDemo: z.boolean().default(false),
 });
 export type Sale = z.infer<typeof SaleSchema>;

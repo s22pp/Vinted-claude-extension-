@@ -14,6 +14,7 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 import { RefundsCard } from '../components/refunds';
+import { ToShipCard } from '../components/to-ship';
 import { SalesTabs } from './Accounting';
 import { useEffect } from 'react';
 
@@ -36,6 +37,10 @@ export function Sales({ route }: { route?: Route }) {
 
   const toComplete = era.views.filter((v) => v.item.status === 'SOLD' && !v.sale);
   const focusRefunds = route?.query.get('refunds') === '1';
+  const focusShip = route?.query.get('ship') === '1';
+  useEffect(() => {
+    if (focusShip) setTimeout(() => document.getElementById('to-ship')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, [focusShip]);
   const [refundFor, setRefundFor] = useState<string | null>(null);
   useEffect(() => {
     if (focusRefunds) setTimeout(() => document.getElementById('refunds')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
@@ -68,6 +73,7 @@ export function Sales({ route }: { route?: Route }) {
         }
       />
       <div className="stack-4">
+        <ToShipCard highlight={focusShip} />
         {toComplete.length > 0 && <ToComplete views={toComplete} />}
         <section className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, minmax(0,1fr))' }} aria-label={t('sales.title')}>
           <div className="kpi">

@@ -98,6 +98,12 @@ Republier (supprimer puis remettre en ligne, à la main ou avec n'importe quel o
 - **Disparition sans republication** : l'annonce passe « retirée » et l'article sort du stock (déduit) ; si une commande la nomme, c'est une vente.
 - Garde-robe de plus de 192 annonces (2 pages lues) : ERA ne conclut rien d'une absence.
 
+## À envoyer, bordereaux, masquer
+
+- **Ventes → À envoyer** : chaque commande que Vinted dit en attente du vendeur, avec un **contrôle avant envoi** (conformité, photo avant emballage, format du colis, ancien code-barre masqué) complété par ce qui aurait évité vos remboursements passés (défauts en photo, mesures, étiquettes, emballage protégé).
+- **Obtenir le bordereau (EXPERIMENTAL)** : comme le bouton de Vinted — un bordereau déjà prêt est récupéré ; sinon il est commandé en imprimable avec le dépôt proposé par Vinted et votre adresse par défaut, puis attendu ~25 s. Ouvert pour impression ; journalisé.
+- **Masquer / réafficher (EXPERIMENTAL)** depuis la fiche article, relu sur Vinted : le statut dans ERA suit ce que Vinted confirme.
+
 ## Liste de courses
 
 Buy → **Liste de courses** : à partir de **vos** ventes (jamais du marché seul), chaque niche vendue au moins 3 fois avec son prix encaissé médian, son délai, son profit par jour (si les coûts sont connus), le stock déjà détenu et le **prix maximal à payer** : prix encaissé médian − max(8 €, 40 %), traduit en prix affiché sur Vinted (protection acheteur 0,70 € + 5 % incluse, port en plus). « À éviter » : profit par vente trop faible, profit par jour très inférieur à l'habitude, ou lenteur quand le profit est inconnu. Une marque inconnue n'est jamais une niche.

@@ -63,7 +63,7 @@ export interface SettingRow {
 export interface AutoLogRow {
   id: string;
   at: number;
-  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT';
+  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT' | 'LABEL' | 'HIDE' | 'UNHIDE';
   dryRun: boolean;
   ok: boolean;
   target: string;

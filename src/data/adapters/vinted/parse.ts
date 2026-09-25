@@ -140,12 +140,17 @@ export interface SoldOrder {
   itemId: string | null;
   /** Vinted waits for the seller on this order (shipping…): `transaction_user_status: "needs_action"`. */
   needsAction: boolean;
+  /** The order's conversation and transaction, when the entry carries them (UNVERIFIED fields). */
+  conversationId: string | null;
+  transactionId: string | null;
 }
 
 /**
  * my_orders entries. Field variants (item_price, created_at, status_text, item_id / item.id) are the ones
  * a production extension reads on the same endpoint — still UNVERIFIED on the seller's own account.
  */
+const numId = (x: unknown): string | null => (typeof x === 'number' && Number.isInteger(x) ? String(x) : typeof x === 'string' && /^\d+$/.test(x) ? x : null);
+
 export function parseOrder(o: Json): SoldOrder | null {
   const item = isObj(o.item) ? o.item : null;
   const title = str(o.title) ?? (item ? str(item.title) : null);
@@ -160,6 +165,8 @@ export function parseOrder(o: Json): SoldOrder | null {
     status: str(o.status) ?? str(o.status_text),
     itemId: str(o.item_id) ?? (item ? str(item.id) : null),
     needsAction: o.transaction_user_status === 'needs_action',
+    conversationId: numId(o.conversation_id) ?? (isObj(o.conversation) ? numId(o.conversation.id) : null),
+    transactionId: numId(o.transaction_id) ?? (isObj(o.transaction) ? numId(o.transaction.id) : null),
   };
 }
 

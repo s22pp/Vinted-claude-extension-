@@ -236,7 +236,7 @@ export async function importFromVinted(
         seenSales.add(prevSale.id);
         // Older imports could date a sale at the import day: the order's own date wins.
         const fixedAt = o.date !== null && o.date !== prevSale.soldAt ? o.date : null;
-        await db.sales.put({ ...prevSale, orderKey: okey, soldAt: fixedAt ?? prevSale.soldAt, dateKnown: o.date !== null || prevSale.dateKnown === true, status: refunded ? 'REFUNDED' : prevSale.status, vintedStatus: o.status, needsAction: o.needsAction });
+        await db.sales.put({ ...prevSale, orderKey: okey, soldAt: fixedAt ?? prevSale.soldAt, dateKnown: o.date !== null || prevSale.dateKnown === true, status: refunded ? 'REFUNDED' : prevSale.status, vintedStatus: o.status, needsAction: o.needsAction, vintedConversationId: o.conversationId ?? prevSale.vintedConversationId ?? null });
         if (fixedAt !== null) {
           await db.events.where('inventoryItemId').equals(prevSale.inventoryItemId).filter((e) => e.type === 'ITEM_SOLD' && e.listingId === prevSale.listingId).modify({ at: fixedAt });
           if (prevSale.listingId) await db.listings.update(prevSale.listingId, { soldAt: fixedAt });
@@ -276,6 +276,7 @@ export async function importFromVinted(
           status: refunded ? 'REFUNDED' : 'COMPLETED',
           vintedStatus: o.status,
           needsAction: o.needsAction,
+          vintedConversationId: o.conversationId,
           orderKey: okey,
           isDemo: false,
         };
@@ -290,7 +291,7 @@ export async function importFromVinted(
       const saleId = `sale_vo_${orderKey(o.title, o.date, o.priceCents)}`;
       const prevVo = await db.sales.get(saleId);
       if (prevVo) {
-        await db.sales.put({ ...prevVo, orderKey: okey, dateKnown: o.date !== null, status: refunded ? 'REFUNDED' : prevVo.status, vintedStatus: o.status, needsAction: o.needsAction });
+        await db.sales.put({ ...prevVo, orderKey: okey, dateKnown: o.date !== null, status: refunded ? 'REFUNDED' : prevVo.status, vintedStatus: o.status, needsAction: o.needsAction, vintedConversationId: o.conversationId ?? prevVo.vintedConversationId ?? null });
         continue;
       }
       const itemId = `item_vo_${orderKey(o.title, o.date, o.priceCents)}`;
@@ -317,7 +318,7 @@ export async function importFromVinted(
         meta: { status: { p: 'OBSERVED', at: now }, brand: { p: brandGuess ? 'INFERRED' : 'UNKNOWN', at: now } },
         isDemo: false,
       });
-      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', vintedStatus: o.status, needsAction: o.needsAction, orderKey: okey, dateKnown: o.date !== null, isDemo: false });
+      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', vintedStatus: o.status, needsAction: o.needsAction, orderKey: okey, dateKnown: o.date !== null, vintedConversationId: o.conversationId, isDemo: false });
       await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: soldAt, inventoryItemId: itemId, listingId: null, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
       salesCount++;
     }

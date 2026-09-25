@@ -38,4 +38,10 @@ describe('parseOrder — orders waiting for the seller', () => {
     expect(parseOrder({ title: 'Veste', price: '20', transaction_user_status: 'completed' })?.needsAction).toBe(false);
     expect(parseOrder({ title: 'Veste', price: '20' })?.needsAction).toBe(false);
   });
+
+  it('keeps the order’s conversation and transaction when the entry carries them', () => {
+    expect(parseOrder({ title: 'Veste', price: '20', conversation_id: 9200, transaction_id: '7200' })).toMatchObject({ conversationId: '9200', transactionId: '7200' });
+    expect(parseOrder({ title: 'Veste', price: '20', conversation: { id: 1 }, transaction: { id: 2 } })).toMatchObject({ conversationId: '1', transactionId: '2' });
+    expect(parseOrder({ title: 'Veste', price: '20' })).toMatchObject({ conversationId: null, transactionId: null });
+  });
 });

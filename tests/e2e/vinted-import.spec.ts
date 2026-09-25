@@ -5,7 +5,7 @@ import { expect, test } from './fixtures';
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null };
+  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false };
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
   await context.route('https://www.vinted.fr/**', (route) => {
@@ -85,6 +85,19 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       return json({ draft: { id: 555 } });
     }
     if (url.pathname === '/api/v2/item_upload/items/555') return json({ item: { id: 555, title: (state.draft as { title?: string } | null)?.title, is_draft: true } });
+    // Test fixture only: an order's conversation, a label Vinted makes after it is ordered, a hide that reads back.
+    if (url.pathname === '/api/v2/conversations/9200') return json({ conversation: { transaction: { id: 7200, shipment_id: 6200, shipment: { status: 1 } } } });
+    if (url.pathname === '/api/v2/shipments/6200/label_url') return json({ label_url: state.labelOrdered ? 'https://labels.example/6200.pdf' : null, code: 0 });
+    if (url.pathname === '/api/v2/user_addresses/default_shipping_address') return json({ user_address: { id: 42 } });
+    if (url.pathname === '/api/v2/transactions/7200/shipment/order' && method === 'PUT') {
+      state.labelOrdered = true;
+      return json({});
+    }
+    if (url.pathname === '/api/v2/items/101/is_hidden' && method === 'PUT') {
+      state.hidden101 = JSON.parse(route.request().postData() ?? '{}').is_hidden === true;
+      return json({});
+    }
+    if (url.pathname === '/api/v2/item_upload/items/101') return json({ item: { id: 101, price: prices['101'], is_hidden: state.hidden101 } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
@@ -173,24 +186,30 @@ test('a listing deleted and published again stays ONE article, with its history;
   await expect(page.getByTestId('repost-memory')).toContainText('Republiée 1 fois');
 });
 
-test('an order Vinted says needs the seller shows first in Today and opens Vinted orders', async ({ context, base }) => {
-  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, transaction_user_status: 'needs_action' }] });
+test('an order Vinted says needs the seller: first in Today, a checklist, then the printable label in one click', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
   await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/today`);
-  const prio = page.getByRole('button', { name: /1 commande attend une action sur Vinted/ });
-  await expect(prio).toBeVisible();
-  // Record the tab ERA asks for (a new tab opened from an extension page is not reliable to observe here).
+  await page.getByRole('button', { name: /1 commande attend une action sur Vinted/ }).click();
+  await expect(page).toHaveURL(/#\/sales\?ship=1/);
+  const card = page.getByTestId('to-ship');
+  await expect(card).toContainText('Sweat Nike vintage L');
+  await card.getByLabel('Photo de l’article avant emballage (preuve d’état)').check();
   await page.evaluate(() => {
     const w = window as unknown as { __opened: string[] };
     w.__opened = [];
     window.open = (u?: string | URL) => (w.__opened.push(String(u)), null);
   });
-  await prio.click();
-  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/my_orders']);
-});
+  await card.getByRole('button', { name: 'Obtenir le bordereau' }).click();
+  await expect(page.getByText('Bordereau prêt')).toBeVisible({ timeout: 40_000 });
+  const put = calls.find((c) => c.method === 'PUT')!;
+  expect(put.path).toBe('/api/v2/transactions/7200/shipment/order');
+  expect(JSON.parse(put.body!)).toEqual({ seller_address_id: 42, drop_off_type: null, label_type: 'printable' });
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://labels.example/6200.pdf']);
+});;
 
 test('not logged in: clear message, Vinted tab brought forward', async ({ context, base }) => {
   await fakeVinted(context, { loggedIn: false });
@@ -439,4 +458,16 @@ test('workshop → a Vinted DRAFT prefilled with Vinted’s own ids, read back, 
   expect(calls.filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/item_upload/suggestions/categories', '/api/v2/item_upload/drafts']);
   expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/items/555/edit']);
   await expect(page.getByRole('button', { name: 'Ouvrir le brouillon Vinted' })).toBeVisible();
+});
+
+test('hide a listing on Vinted from its page: sent, read back, status follows', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await importThenOpen(page, base);
+  await page.getByRole('button', { name: 'Masquer sur Vinted' }).click();
+  await expect(page.getByText('Annonce masquée')).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByText('Confirmé par Vinted.')).toBeVisible();
+  const put = calls.find((c) => c.method === 'PUT')!;
+  expect([put.path, JSON.parse(put.body!)]).toEqual(['/api/v2/items/101/is_hidden', { is_hidden: true }]);
+  await expect(page.getByRole('button', { name: 'Réafficher sur Vinted' })).toBeVisible();
 });

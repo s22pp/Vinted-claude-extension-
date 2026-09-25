@@ -5,6 +5,7 @@ import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult } from '@
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
+import { getShippingLabel, setListingHidden } from '@/data/vinted-actions';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -110,6 +111,14 @@ export default defineBackground(() => {
         return true;
       case 'era:auto:run':
         void runAuto(msg.kind, msg.dryRun).then(sendResponse);
+        return true;
+      case 'era:label:get':
+      case 'era:item:hide':
+        if (autoRunning || importing || editing) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+          return undefined;
+        }
+        void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
         return true;
       case 'era:draft:create':
         if (autoRunning || importing || editing) {

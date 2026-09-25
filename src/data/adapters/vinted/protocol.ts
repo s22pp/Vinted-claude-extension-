@@ -15,6 +15,8 @@ export const ALLOWED_API = [
   // Prefilled draft (EXPERIMENTAL, read side): brand search and size groups of Vinted's upload form.
   '/api/v2/item_upload/brands',
   '/api/v2/item_upload/size_groups',
+  // Shipping label: the seller's default address (the label's sender).
+  '/api/v2/user_addresses/default_shipping_address',
 ];
 
 /**
@@ -29,6 +31,8 @@ const ALLOWED_WRITES: { method: 'POST' | 'PUT'; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/v2\/offers\/\d+\/(accept|reject)$/ }, // same, other route seen in production
   { method: 'POST', path: /^\/api\/v2\/item_upload\/suggestions\/categories$/ }, // category Vinted suggests for a title (a query)
   { method: 'POST', path: /^\/api\/v2\/item_upload\/drafts$/ }, // a DRAFT: never published, the seller adds photos and publishes
+  { method: 'PUT', path: /^\/api\/v2\/transactions\/\d+\/shipment\/order$/ }, // "Obtenir le bordereau" (printable), on the seller's click
+  { method: 'PUT', path: /^\/api\/v2\/items\/\d+\/is_hidden$/ }, // hide / show one of the seller's listings, on click
 ];
 
 export function isAllowedWrite(method: string, path: string): boolean {
@@ -43,7 +47,9 @@ export function isAllowedApi(path: string): boolean {
     // an orders list observed on Vinted's own "Mes commandes" page (read-only GET)
     (path.startsWith('/api/v2/') && /order/i.test(path.split('?')[0]!)) ||
     // package sizes a category allows (upload form)
-    /^\/api\/v2\/catalogs\/\d+\/package_sizes$/.test(path.split('?')[0]!)
+    /^\/api\/v2\/catalogs\/\d+\/package_sizes$/.test(path.split('?')[0]!) ||
+    // the printable label of one shipment
+    /^\/api\/v2\/shipments\/\d+\/label_url$/.test(path.split('?')[0]!)
   );
 }
 
@@ -55,6 +61,8 @@ export type EraMessage =
   | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
   | { type: 'era:auto:schedule' }
   | { type: 'era:draft:create'; input: DraftInput }
+  | { type: 'era:label:get'; conversationId: string; title: string }
+  | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:budget:reserve' }
   | { type: 'era:budget:report'; status: number }
   | { type: 'era:budget:status' }
@@ -109,3 +117,6 @@ export interface DraftInput {
 export type DraftResult =
   | { ok: true; draftId: string; filled: string[]; missing: string[] }
   | { ok: false; code: MarketplaceErrorCode; detail?: string };
+
+export type LabelResult = { ok: true; url: string; ordered: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+export type HideResult = { ok: true; verified: boolean | null } | { ok: false; code: MarketplaceErrorCode; detail?: string };

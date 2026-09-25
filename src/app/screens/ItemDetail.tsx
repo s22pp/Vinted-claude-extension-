@@ -18,7 +18,8 @@ import { CostBreakdown, VintedCostForm } from '../components/cost';
 import { PredictionRow } from '../components/precision';
 import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
-import { PriceOnVintedButton } from '../components/vinted-price';
+import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
+import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
 import { useEra } from '../state';
@@ -31,6 +32,7 @@ export function ItemDetail({ id }: { id: string }) {
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
+  const [hiding, setHiding] = useState(false);
   const v = era.viewById.get(id);
   const intel = era.intelById.get(id) ?? null;
   const obs = useLiveQuery(() => db.observations.where('inventoryItemId').equals(id).sortBy('at'), [id]);
@@ -150,6 +152,25 @@ export function ItemDetail({ id }: { id: string }) {
             }}
           >
             {item.status === 'RESERVED' ? t('item.unmarkReserved') : t('item.markReserved')}
+          </Button>
+        )}
+        {era.mode === 'real' && vintedIdOf(v) && (item.status === 'LISTED' || item.status === 'HIDDEN') && (
+          <Button
+            icon={item.status === 'HIDDEN' ? 'eye' : 'lock'}
+            loading={hiding}
+            onClick={async () => {
+              setHiding(true);
+              try {
+                const hidden = item.status !== 'HIDDEN';
+                const r = (await browser.runtime.sendMessage({ type: 'era:item:hide', platformListingId: vintedIdOf(v)!, itemId: id, hidden } satisfies EraMessage)) as HideResult;
+                if (!r.ok) errorToast(r);
+                else toast('success', t(hidden ? 'item.hiddenDone' : 'item.shownDone'), t(r.verified ? 'item.hideVerified' : 'item.hideUnverified'));
+              } finally {
+                setHiding(false);
+              }
+            }}
+          >
+            {item.status === 'HIDDEN' ? t('item.show') : t('item.hide')}
           </Button>
         )}
         {v.inStock && (
