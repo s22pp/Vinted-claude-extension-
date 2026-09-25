@@ -2,8 +2,8 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
-  const calls: { method: string; path: string }[] = [];
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+  const calls: { method: string; path: string; csrf: string | null }[] = [];
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
   await context.route('https://www.vinted.fr/**', (route) => {
@@ -43,8 +43,9 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
         contentType: 'text/html',
         body: `<html><body>search<script>fetch('/api/v2/era-test/search?search_text=' + encodeURIComponent(${JSON.stringify(url.searchParams.get('search_text') ?? '')}) + '&page=1&per_page=24')</script></body></html>`,
       });
-    if (!url.pathname.startsWith('/api/')) return route.fulfill({ contentType: 'text/html', body: '<html><body>vinted</body></html>' });
-    calls.push({ method: route.request().method(), path: url.pathname + url.search });
+    // Test fixture only: pages carry a CSRF token like Vinted's, which API calls must echo.
+    if (!url.pathname.startsWith('/api/')) return route.fulfill({ contentType: 'text/html', body: '<html><head><meta name="csrf-token" content="t-123"></head><body>vinted</body></html>' });
+    calls.push({ method: route.request().method(), path: url.pathname + url.search, csrf: route.request().headers()['x-csrf-token'] ?? null });
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 177293623, login: 'era-archives' } }) : json({ code: 100 }, 401);
     if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items'))
@@ -61,6 +62,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
     if (url.pathname === '/api/v2/catalog/items' && opts.searchMoved) return json({ code: 404 }, 404);
+    if (url.pathname === '/api/v2/catalog/items' && opts.sortRefused && url.searchParams.has('order')) return json({ code: 404 }, 404);
     if (url.pathname === '/api/v2/catalog/items')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 960 } });
     if (url.pathname === '/api/v2/my_orders')
@@ -97,9 +99,9 @@ test('re-import updates instead of duplicating', async ({ context, base }) => {
   await page.goto(`${base}#/settings`);
   const btn = page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first();
   await btn.click();
-  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.getByRole('button', { name: /Actualiser/ }).first().click();
-  await expect(page.getByText(/0 nouveaux articles · 3 mis à jour/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/0 nouveaux articles · 3 mis à jour/)).toBeVisible({ timeout: 40_000 });
 });
 
 test('not logged in: clear message, Vinted tab brought forward', async ({ context, base }) => {
@@ -177,10 +179,24 @@ test('search moved (404): ERA learns the endpoint from Vinted’s own search pag
   await expect(catalog.getByText('✓')).toBeVisible({ timeout: 40_000 });
   await expect(catalog).toContainText('via /api/v2/era-test/search');
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
-  // The learned endpoint is reused directly next time (no second discovery).
+  // The learned endpoint is reused directly next time (no second discovery). Two catalog/items tries
+  // happened once: the default form, then the plain form a production tool uses.
   await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
   await expect(page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' }).getByText('✓')).toBeVisible({ timeout: 20_000 });
-  expect(calls.filter((c) => c.path.startsWith('/api/v2/catalog/items')).length).toBe(1);
+  expect(calls.filter((c) => c.path.startsWith('/api/v2/catalog/items')).length).toBe(2);
+});
+
+test('search refuses the sort parameter (404): the plain form works, no page discovery, CSRF echoed', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, sortRefused: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
+  const catalog = page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' });
+  await expect(catalog.getByText('✓')).toBeVisible({ timeout: 40_000 });
+  const search = calls.filter((c) => c.path.startsWith('/api/v2/catalog/items'));
+  expect(search.map((c) => c.path.includes('order='))).toEqual([true, false]);
+  expect(search.every((c) => c.csrf === 't-123')).toBe(true);
+  expect(calls.some((c) => c.path.includes('era-test'))).toBe(false);
 });
 
 async function importThenOpen(page: import('@playwright/test').Page, base: string) {

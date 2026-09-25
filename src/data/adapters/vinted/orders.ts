@@ -61,10 +61,13 @@ export const BOUGHT_TEMPLATE = '/api/v2/my_orders?type=purchased&status=all&page
 /** Up to 2 pages of purchases (budget rule). */
 export async function fetchPurchases(adapter: VintedTabAdapter): Promise<SoldOrder[]> {
   let template = (await db.settings.get(PURCHASES_TEMPLATE_KEY))?.value as string | undefined;
+  // The probe's answer is page 1: it is reused, never fetched twice (budget).
+  let firstPage: unknown = null;
   if (!template) {
     const first = (await adapter.rawGet(BOUGHT_TEMPLATE.replace('{page}', '1')).catch(() => null)) as Record<string, unknown> | null;
     if (first && ['my_orders', 'orders', 'items'].some((k) => Array.isArray(first[k]))) {
       template = BOUGHT_TEMPLATE;
+      firstPage = first;
       await db.settings.put({ key: PURCHASES_TEMPLATE_KEY, value: template });
     }
   }
@@ -76,7 +79,8 @@ export async function fetchPurchases(adapter: VintedTabAdapter): Promise<SoldOrd
   }
   const out: SoldOrder[] = [];
   for (let page = 1; page <= 2; page++) {
-    const raw = firstArray(await adapter.rawGet(template.replace('{page}', String(page))), ['my_orders', 'orders', 'items']);
+    const json = page === 1 && firstPage !== null ? firstPage : await adapter.rawGet(template.replace('{page}', String(page)));
+    const raw = firstArray(json, ['my_orders', 'orders', 'items']);
     out.push(...raw.map(parseOrder).filter((o): o is SoldOrder => o !== null));
     if (raw.length < 20) break;
   }

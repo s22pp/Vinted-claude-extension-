@@ -14,6 +14,8 @@ const Market = lazy(() => import('./screens/Market').then((m) => ({ default: m.M
 const Sales = lazy(() => import('./screens/Sales').then((m) => ({ default: m.Sales })));
 const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })));
 const Stock = lazy(() => import('./screens/Stock').then((m) => ({ default: m.Stock })));
+const Accounting = lazy(() => import('./screens/Accounting').then((m) => ({ default: m.Accounting })));
+const Invoice = lazy(() => import('./screens/Invoice').then((m) => ({ default: m.Invoice })));
 const Workshop = lazy(() => import('./screens/Workshop').then((m) => ({ default: m.Workshop })));
 const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
 const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
@@ -57,10 +59,20 @@ function Router() {
       </Suspense>
     );
   if (!era.ready) return <div className="era-backdrop" aria-hidden="true" />;
+  // A printable document: no app chrome around it.
+  if (route.name === 'invoice')
+    return (
+      <Suspense fallback={null}>
+        <Invoice saleId={route.id ?? ''} />
+      </Suspense>
+    );
   let screen: React.ReactNode;
   switch (route.name) {
     case 'stock':
       screen = <Stock route={route} />;
+      break;
+    case 'accounting':
+      screen = <Accounting />;
       break;
     case 'workshop':
       screen = <Workshop route={route} />;

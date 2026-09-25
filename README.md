@@ -49,7 +49,8 @@ src/domain         entités (Zod), argent en centimes (UNKNOWN ≠ 0), provenanc
 src/data           Dexie, repository, adapters (démo / Vinted lecture seule + budget d'appels), import CSV/Vinted
 src/intelligence   moteurs purs : comparables, pricing, stagnation, capital, seller model, buy/deal score,
                    offres, annonce + bouclier, apprentissage, décision
-src/app            écrans React (Today, Stock + Capital, Item, Market, Buy, Sales, Insights, Outils, Réglages), popup, side panel
+src/app            écrans React (Today, Stock + Mise en ligne + Capital, Item, Market, Buy, Sales + Comptabilité,
+                   Insights, Outils, Réglages), facture imprimable, popup, side panel
 src/ui             design system : tokens, composants, graphiques SVG, illustrations, logo
 ```
 
@@ -60,6 +61,10 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
 - ERA ne publie, ne republie, ne supprime, n'envoie aucune offre ni message, ne suit personne et ne change jamais un prix automatiquement.
 - Seule exception, **EXPERIMENTAL et gelée** : modifier le prix d'une annonce depuis la fiche article, un article à la fois, après confirmation explicite. Elle n'est pas améliorée et peut cesser de fonctionner si Vinted change sa page.
 
+## Code tiers
+
+Des extensions commerciales ont été examinées uniquement pour relever des **faits d'interopérabilité** (noms de routes et de champs de l'API Vinted). **Aucune ligne de leur code n'est reprise** : leur code est protégé par le droit d'auteur. Les fonctionnalités d'ERA sont écrites de zéro.
+
 ## Ce qui est vérifié — et ce qui ne l'est pas
 
 Les tests automatiques utilisent des données fictives : **ils prouvent la logique d'ERA, pas le fonctionnement réel de Vinted.**
@@ -69,6 +74,6 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | --- | --- |
 | Import garde-robe, ventes | utilisé en réel, champs non garantis |
 | Statut « réservé » (`is_reserved`) | NON VÉRIFIÉ |
-| Recherche de comparables (point d'accès appris après un 404) | NON VÉRIFIÉ |
-| Achats (Mes commandes → Achats) | NON VÉRIFIÉ |
+| Recherche de comparables (`catalog/items`, en-têtes CSRF/anon_id de la page ; replis : forme sans tri, puis apprentissage) | NON VÉRIFIÉ |
+| Achats (`my_orders?type=purchased`, repli : apprentissage depuis la page Mes commandes) | NON VÉRIFIÉ |
 | Modification de prix | EXPERIMENTAL (gelée) |

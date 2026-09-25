@@ -28,6 +28,13 @@ test('visual QA screenshots', async ({ context, base }) => {
   await page.waitForTimeout(1500);
   await page.locator('#refunds').screenshot({ path: `${OUT}/04r-refunds.png` });
 
+  await page.goto(`${base}#/accounting`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${OUT}/04a-accounting.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Facture', exact: true }).first().click();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: `${OUT}/04b-invoice.png`, fullPage: true });
+
   await page.goto(`${base}#/capital`);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/04-capital.png`, fullPage: true });

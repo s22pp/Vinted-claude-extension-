@@ -9,7 +9,7 @@ import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, DemoBadge, Flag, Segmented } from '@/ui/components/primitives';
 import { SEARCH_TEMPLATE_KEY } from '@/data/adapters/vinted/vinted-adapter';
-import { db } from '@/data/db';
+import { type SellerIdentity, db } from '@/data/db';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
@@ -127,6 +127,7 @@ export function Settings() {
             </div>
           </Card>
           <IntegrationsCard />
+          <SellerIdentityCard />
           <DiagnosticCard />
           <Card title={t('settings.data')} icon="stock" tone="amber">
             <p className="t-small t-muted" style={{ marginBottom: 14 }}>
@@ -301,6 +302,58 @@ function IntegrationsCard() {
       <p className="t-small t-faint" style={{ marginTop: 6 }}>
         {t('integrations.tests')}
       </p>
+    </Card>
+  );
+}
+
+/** Printed on invoices. Local only; ERA sends it nowhere. */
+function SellerIdentityCard() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const saved = useLiveQuery(() => repo.getSetting<SellerIdentity | null>('sellerIdentity', null), []);
+  const [v, setV] = useState<SellerIdentity>({ name: '', address: '', siret: '', email: '', vatExempt: false });
+  useEffect(() => {
+    if (saved) setV(saved);
+  }, [saved]);
+  const set = (k: keyof SellerIdentity) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV((x) => ({ ...x, [k]: k === 'vatExempt' ? (e.target as HTMLInputElement).checked : e.target.value }));
+  return (
+    <Card title={t('identity.title')} hint={t('identity.hint')} icon="book" tone="emerald" id="identity">
+      <form
+        className="stack-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await repo.setSetting('sellerIdentity', v);
+          toast('success', t('common.saved'));
+        }}
+      >
+        <label className="stack" style={{ gap: 4 }}>
+          <span className="t-small t-muted">{t('identity.name')}</span>
+          <input className="input" value={v.name} onChange={set('name')} />
+        </label>
+        <label className="stack" style={{ gap: 4 }}>
+          <span className="t-small t-muted">{t('identity.address')}</span>
+          <textarea className="input" rows={3} value={v.address} onChange={set('address')} />
+        </label>
+        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="t-small t-muted">{t('identity.siret')}</span>
+            <input className="input" value={v.siret} onChange={set('siret')} inputMode="numeric" />
+          </label>
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="t-small t-muted">{t('identity.email')}</span>
+            <input className="input" type="email" value={v.email} onChange={set('email')} />
+          </label>
+        </div>
+        <label className="row t-small" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" className="checkbox" checked={v.vatExempt} onChange={set('vatExempt')} />
+          {t('identity.vatExempt')}
+        </label>
+        <div>
+          <Button type="submit" variant="primary" size="sm" icon="check">
+            {t('common.save')}
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }

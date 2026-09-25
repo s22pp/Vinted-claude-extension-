@@ -20,6 +20,27 @@ export interface StoredAnalysis {
   isDemo: boolean;
 }
 
+/** A sales invoice: numbered per year, sequential and gap-free (never deleted, never renumbered). */
+export interface InvoiceRow {
+  saleId: string;
+  number: string;
+  year: number;
+  seq: number;
+  issuedAt: number;
+  /** Buyer name as the seller types it (Vinted does not expose it to ERA). */
+  buyer: string;
+}
+
+/** Seller identity printed on invoices. Local only. */
+export interface SellerIdentity {
+  name: string;
+  address: string;
+  siret: string;
+  email: string;
+  /** Micro-entrepreneur under the VAT franchise: prints « TVA non applicable, art. 293 B du CGI ». */
+  vatExempt: boolean;
+}
+
 /** An order the seller PAID for on Vinted (from "Mes commandes → Achats"): a real purchase price. */
 export interface PurchaseRow {
   id: string;
@@ -51,6 +72,7 @@ export class EraDatabase extends Dexie {
   settings!: EntityTable<SettingRow, 'key'>;
   purchases!: EntityTable<PurchaseRow, 'id'>;
   preps!: EntityTable<Prep, 'itemId'>;
+  invoices!: EntityTable<InvoiceRow, 'saleId'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -68,6 +90,7 @@ export class EraDatabase extends Dexie {
     });
     this.version(2).stores({ purchases: 'id, date, linkedItemId' });
     this.version(3).stores({ preps: 'itemId, publishedAt' });
+    this.version(4).stores({ invoices: 'saleId, year, seq' });
   }
 }
 

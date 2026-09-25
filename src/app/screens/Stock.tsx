@@ -18,6 +18,8 @@ import { go, type Route, useEra } from '../state';
 import type { CapitalPosition } from '@/intelligence/capital';
 import type { TodayPriority } from '@/intelligence/decision';
 import { nicheKey } from '@/intelligence/seller-model';
+import { stockCsv } from '@/intelligence/accounting';
+import { downloadText } from '@/lib/download';
 import { IconTile } from '@/ui/components/icons';
 import { PRIO, usePriorityTitle } from '../components/priorities';
 
@@ -334,6 +336,9 @@ export function Stock({ route }: { route: Route }) {
             <VintedImportButton />
             <Button icon="upload" onClick={() => setImportOpen(true)}>
               {t('stock.import')}
+            </Button>
+            <Button icon="rows" variant="ghost" onClick={() => downloadText(`era-stock-${new Date(era.now).toISOString().slice(0, 10)}.csv`, stockCsv(era.views.filter((v) => v.inStock)))}>
+              {t('stock.exportCsv')}
             </Button>
             <Button variant="primary" icon="plus" onClick={() => go('stock?add=1')}>
               {t('stock.add')}

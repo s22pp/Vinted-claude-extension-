@@ -71,6 +71,19 @@ test('refunds: one click per reason, rules feed the workshop', async ({ context,
   await expect(card.getByText('Règles actives dans l’atelier')).toBeVisible();
 });
 
+test('accounting: sales ledger, DAC7 threshold, a numbered printable invoice', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/sales`);
+  await page.getByRole('link', { name: 'Comptabilité' }).click();
+  await expect(page.getByRole('heading', { name: 'Seuil DAC7' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Livre des recettes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Facture', exact: true }).first().click();
+  await expect(page.getByText('FACTURE', { exact: true })).toBeVisible();
+  await expect(page.locator('.invoice__meta')).toContainText(/N° \d{4}-0001/);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+});
+
 test('stock: search, filter and open an item with its timeline', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

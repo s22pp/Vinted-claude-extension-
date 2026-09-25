@@ -109,8 +109,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((kind: ToastKind, title: string, body?: string) => {
     const id = ++seq.current;
     setItems((xs) => [...xs.slice(-3), { id, kind, title, body }]);
-    setTimeout(() => setItems((xs) => xs.map((x) => (x.id === id ? { ...x, leaving: true } : x))), 3800);
-    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 4100);
+    // Errors stay long enough to read and copy their technical detail.
+    const life = kind === 'error' ? 12_000 : 3800;
+    setTimeout(() => setItems((xs) => xs.map((x) => (x.id === id ? { ...x, leaving: true } : x))), life);
+    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), life + 300);
   }, []);
   return (
     <ToastCtx.Provider value={push}>

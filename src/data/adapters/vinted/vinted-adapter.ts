@@ -63,6 +63,8 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
 /** From the verified API map. Replaced by the observed endpoint if Vinted answers 404. */
 export const DEFAULT_SEARCH_TEMPLATE = '/api/v2/catalog/items?search_text={q}&per_page=60&order=newest_first';
+/** The same endpoint in the form a production extension calls it (Sept. 2026): no sort, first page of 20. */
+export const PLAIN_SEARCH_TEMPLATE = '/api/v2/catalog/items?search_text={q}&page=1&per_page=20';
 
 export function fillTemplate(template: string, q: string): string {
   return template.replace('{q}', encodeURIComponent(q));
@@ -212,12 +214,23 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const stored = (await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined;
     const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
     let json: unknown;
-    let learnedUsed = template !== DEFAULT_SEARCH_TEMPLATE;
+    let learnedUsed = template !== DEFAULT_SEARCH_TEMPLATE && template !== PLAIN_SEARCH_TEMPLATE;
     try {
       json = await this.api(fillTemplate(template, query.text));
     } catch (e) {
-      // 404: Vinted moved its search. Learn the endpoint its own search page uses, then retry once.
+      // 404: first the exact form a production tool uses on this endpoint (page=1, per_page=20, no sort);
+      // then learn the endpoint Vinted's own search page uses. Each is tried once.
       if (!(e instanceof MarketplaceError) || !/HTTP 404/.test(e.message)) throw e;
+      if (template !== PLAIN_SEARCH_TEMPLATE) {
+        try {
+          json = await this.api(fillTemplate(PLAIN_SEARCH_TEMPLATE, query.text));
+          await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: PLAIN_SEARCH_TEMPLATE });
+        } catch (e2) {
+          if (!(e2 instanceof MarketplaceError) || !/HTTP 404/.test(e2.message)) throw e2;
+        }
+      }
+    }
+    if (json === undefined) {
       const learned = await discoverSearchTemplate(query.text);
       if (!learned.template || learned.template === template) {
         throw new MarketplaceError('UNAVAILABLE', `recherche Vinted introuvable (HTTP 404 sur ${template.split('?')[0]}) · appels observés sur la page de recherche : ${learned.observed.join(' | ') || 'aucun'}`);

@@ -14,6 +14,7 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 import { RefundsCard } from '../components/refunds';
+import { SalesTabs } from './Accounting';
 import { useEffect } from 'react';
 
 type Period = '30' | '90' | '365' | 'all';
@@ -56,6 +57,7 @@ export function Sales({ route }: { route?: Route }) {
       <PageHead
         title={t('sales.title')}
         sub={t('sales.subtitle')}
+        tabs={<SalesTabs active="sales" />}
         actions={
           <Segmented
             label="Période"

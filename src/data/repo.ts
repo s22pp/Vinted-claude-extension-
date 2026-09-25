@@ -20,7 +20,7 @@ import { isLiveListing, listingStatusOf } from '@/domain/status';
 import { type ComparableAnalysis, type ComparableSubject, analyzeComparables, buildQueries } from '@/intelligence/comparables';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
-import { type EraDatabase, db as defaultDb, uid } from './db';
+import { type EraDatabase, type InvoiceRow, db as defaultDb, uid } from './db';
 import { generateDemoDataset } from './fixtures/demo';
 import { DemoMarketplaceAdapter } from './adapters/demo-adapter';
 
@@ -92,8 +92,10 @@ export class EraRepository {
 
   async clearDemo(): Promise<void> {
     const tables = [this.db.items, this.db.listings, this.db.sales, this.db.events, this.db.predictions] as const;
-    await this.db.transaction('rw', [...tables, this.db.observations, this.db.analyses, this.db.preps], async () => {
+    await this.db.transaction('rw', [...tables, this.db.observations, this.db.analyses, this.db.preps, this.db.invoices], async () => {
       const demoItemIds = (await this.db.items.filter((i) => i.isDemo).primaryKeys()) as string[];
+      const demoSaleIds = (await this.db.sales.filter((x) => x.isDemo).primaryKeys()) as string[];
+      await this.db.invoices.where('saleId').anyOf(demoSaleIds).delete();
       for (const t of tables) await (t as typeof this.db.items).filter((x: { isDemo?: boolean }) => !!x.isDemo).delete();
       await this.db.observations.where('inventoryItemId').anyOf(demoItemIds).delete();
       await this.db.preps.where('itemId').anyOf(demoItemIds).delete();
@@ -413,6 +415,29 @@ export class EraRepository {
       await this.db.events.put(
         this.event({ type: 'LISTING_PREPARED', at: now, inventoryItemId: itemId, listingId: null, data: { price: priceCents ?? 0, seconds: Math.round(cur.seconds) }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }),
       );
+  }
+
+  /* ── Comptabilité ────────────────────────────────────── */
+
+  /** Issue (or return) the invoice of a sale: next number of the sale's year, inside one transaction. */
+  async issueInvoice(saleId: string, now = Date.now()): Promise<InvoiceRow> {
+    return this.db.transaction('rw', [this.db.invoices, this.db.sales], async () => {
+      const existing = await this.db.invoices.get(saleId);
+      if (existing) return existing;
+      const sale = await this.db.sales.get(saleId);
+      if (!sale) throw new Error(`Unknown sale ${saleId}`);
+      const year = new Date(sale.soldAt).getFullYear();
+      const last = await this.db.invoices.where('year').equals(year).toArray();
+      const seq = last.reduce((m, r) => Math.max(m, r.seq), 0) + 1;
+      const row: InvoiceRow = { saleId, number: `${year}-${String(seq).padStart(4, '0')}`, year, seq, issuedAt: now, buyer: '' };
+      await this.db.invoices.put(row);
+      return row;
+    });
+  }
+
+  async setInvoiceBuyer(saleId: string, buyer: string): Promise<void> {
+    const row = await this.db.invoices.get(saleId);
+    if (row) await this.db.invoices.put({ ...row, buyer });
   }
 
   /* ── Remboursements ──────────────────────────────────── */
