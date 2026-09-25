@@ -9,7 +9,7 @@ import { Ring } from '@/ui/charts/charts';
 import { IllustrationBuy } from '@/ui/components/illustrations';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Field, Flag, Input, Stages } from '@/ui/components/primitives';
-import { IconTile } from '@/ui/components/icons';
+import { Icon, IconTile } from '@/ui/components/icons';
 import { DualDistribution } from '@/ui/charts/dual';
 import { CategorySelect, ConditionSelect, useMoneyField } from '../components/forms';
 import { marketAdapter } from '../market-run';
@@ -38,6 +38,9 @@ export function Buy({ route }: { route: Route }) {
   const price = useMoneyField(route.query.get('price') ? Number(route.query.get('price')) : null);
   const shipping = useMoneyField(null);
   const [onVinted, setOnVinted] = useState(route.query.get('vinted') === '1');
+  // Sourcing from another shop (Companion): where the product was read, kept as the purchase source.
+  const source = route.query.get('source');
+  const sourceUrl = route.query.get('url');
   const [stage, setStage] = useState<Stage | null>(null);
   const [result, setResult] = useState<BuyAnalysis | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -55,7 +58,7 @@ export function Buy({ route }: { route: Route }) {
     setResult(null);
     setSaved(false);
     try {
-      const input = { title: title.trim(), brand: brand.trim(), model: model.trim() || null, category, gender: null, size: size.trim() || null, condition: condition || null, purchasePriceCents: cost!, url: null };
+      const input = { title: title.trim(), brand: brand.trim(), model: model.trim() || null, category, gender: null, size: size.trim() || null, condition: condition || null, purchasePriceCents: cost!, url: sourceUrl };
       const adapter = marketAdapter(era.mode, false);
       const analysis = await repo.analyzeMarket(adapter, buySubject(input), null, setStage);
       const personal = personalEvidence(era.model, { brand: input.brand, model: input.model, category });
@@ -71,7 +74,7 @@ export function Buy({ route }: { route: Route }) {
   const addToStock = async () => {
     if (!result) return;
     const r = result.input;
-    await repo.addItem({ ...r, title: r.title || `${r.brand} ${r.model ?? t(`category.${r.category}`)}`, purchaseDate: Date.now(), purchaseSource: onVinted ? 'Vinted' : null, priceCents: null, listedAt: null, views: null, favorites: null });
+    await repo.addItem({ ...r, title: r.title || `${r.brand} ${r.model ?? t(`category.${r.category}`)}`, purchaseDate: Date.now(), purchaseSource: onVinted ? 'Vinted' : (source ?? null), priceCents: null, listedAt: null, views: null, favorites: null });
     setSaved(true);
     toast('success', t('buy.saved'));
   };
@@ -82,6 +85,11 @@ export function Buy({ route }: { route: Route }) {
       <div className="grid-12">
         <Card className="span-4" title={t('buy.form')} icon="buy" tone="violet" style={{ alignSelf: 'start' }}>
           <form className="stack-3" onSubmit={submit} noValidate>
+            {source && (
+              <p className="t-small t-muted row" style={{ gap: 6, alignItems: 'flex-start' }} data-testid="buy-source">
+                <Icon name="info" size={14} /> {t('buy.fromSource', { host: source })}
+              </p>
+            )}
             <Field label={t('buy.fTitle')} htmlFor="b-title" optional>
               <Input id="b-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Veste Harrington vintage" />
             </Field>

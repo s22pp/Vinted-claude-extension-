@@ -383,7 +383,8 @@ export interface TodayPriority {
     | 'NO_ANALYSIS'
     | 'TO_LIST'
     | 'REFUND_REASON'
-    | 'NEW_FAVORITES';
+    | 'NEW_FAVORITES'
+    | 'ORDERS_TO_HANDLE';
   tone: Recommendation['tone'];
   count: number;
   amount: MoneyMetric | null;

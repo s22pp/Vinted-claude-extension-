@@ -137,12 +137,29 @@ export async function importFromVinted(
     const closed = await db.listings.filter((l) => l.status === 'SOLD' && !l.isDemo).toArray();
     const existingSales = await db.sales.toArray();
     const sold = new Set(existingSales.map((x) => x.inventoryItemId));
+    const seenSales = new Set<string>();
     for (const o of orders) {
       // Orders carry a calendar date: compare as UTC dates, never as instants.
       const soldAt = o.date ?? now;
       // A cancelled order never became a sale (the item goes back on sale): not a refund, skipped.
       if (o.status && /annul|cancel/i.test(o.status) && !/rembours|refund/i.test(o.status)) continue;
       const refunded = !!o.status && /rembours|refund/i.test(o.status);
+      // The same order seen again: refresh its Vinted status (a refund, an action awaited) and never
+      // record a second sale. Each sale keeps the key of its order (the listing id when the order carries
+      // one, else title|date|price), so two identical titles sold twice stay two sales.
+      const okey = o.itemId ? `id:${o.itemId}` : `k:${orderKey(o.title, o.date, o.priceCents)}`;
+      const byId = o.itemId ? closed.filter((l) => l.platformListingId === o.itemId) : [];
+      const pool = byId.length ? byId : closed.filter((l) => normalizeText(l.title) === normalizeText(o.title));
+      const free = (x: Sale) => !seenSales.has(x.id);
+      const prevSale =
+        existingSales.find((x) => free(x) && x.orderKey === okey) ??
+        // Sales recorded before order keys existed: same listing, or same title at the same price — once each.
+        existingSales.find((x) => free(x) && !x.orderKey && pool.some((l) => l.inventoryItemId === x.inventoryItemId) && (byId.length > 0 || x.salePriceCents === o.priceCents));
+      if (prevSale) {
+        seenSales.add(prevSale.id);
+        await db.sales.put({ ...prevSale, orderKey: okey, status: refunded ? 'REFUNDED' : prevSale.status, vintedStatus: o.status, needsAction: o.needsAction });
+        continue;
+      }
       const match =
         (o.itemId ? closed.find((l) => l.platformListingId === o.itemId && !sold.has(l.inventoryItemId)) : undefined) ??
         closed.find((l) => normalizeText(l.title) === normalizeText(o.title) && !sold.has(l.inventoryItemId));
@@ -156,6 +173,9 @@ export async function importFromVinted(
           // Private sellers pay no commission on Vinted: extra costs are known to be zero.
           extraCostsCents: 0,
           status: refunded ? 'REFUNDED' : 'COMPLETED',
+          vintedStatus: o.status,
+          needsAction: o.needsAction,
+          orderKey: okey,
           isDemo: false,
         };
         await db.sales.put(sale);
@@ -167,7 +187,11 @@ export async function importFromVinted(
       // No listing left in the wardrobe for this order (older sales drop out of it): keep the sale anyway,
       // as a sold item built from the order. Deterministic id → re-importing never duplicates it.
       const saleId = `sale_vo_${orderKey(o.title, o.date, o.priceCents)}`;
-      if (await db.sales.get(saleId)) continue;
+      const prevVo = await db.sales.get(saleId);
+      if (prevVo) {
+        await db.sales.put({ ...prevVo, orderKey: okey, status: refunded ? 'REFUNDED' : prevVo.status, vintedStatus: o.status, needsAction: o.needsAction });
+        continue;
+      }
       const itemId = `item_vo_${orderKey(o.title, o.date, o.priceCents)}`;
       const brandGuess = inferBrand(o.title);
       await db.items.put({
@@ -192,7 +216,7 @@ export async function importFromVinted(
         meta: { status: { p: 'OBSERVED', at: now }, brand: { p: brandGuess ? 'INFERRED' : 'UNKNOWN', at: now } },
         isDemo: false,
       });
-      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', isDemo: false });
+      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', vintedStatus: o.status, needsAction: o.needsAction, orderKey: okey, isDemo: false });
       await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: soldAt, inventoryItemId: itemId, listingId: null, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
       salesCount++;
     }

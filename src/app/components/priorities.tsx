@@ -17,7 +17,11 @@ export const PRIO: Record<TodayPriority['code'], { icon: IconName; tone: TileTon
   TO_LIST: { icon: 'upload', tone: 'violet' },
   REFUND_REASON: { icon: 'alert', tone: 'coral' },
   NEW_FAVORITES: { icon: 'heart', tone: 'pink' },
+  ORDERS_TO_HANDLE: { icon: 'box', tone: 'coral' },
 };
+
+/** Vinted's own orders page (the address the seller uses): orders are handled there, never by ERA. */
+export const VINTED_ORDERS_URL = 'https://www.vinted.fr/my_orders';
 
 /** Every priority opens exactly the items it counts. */
 export const priorityHref = (p: TodayPriority) => (p.code === 'TO_LIST' ? 'workshop' : p.code === 'REFUND_REASON' ? 'sales?refunds=1' : `stock?focus=${p.code}`);
@@ -44,7 +48,13 @@ export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
       {priorities.map((p, idx) => {
         const cfg = PRIO[p.code];
         return (
-          <button key={p.code} type="button" className={`prio__item prio__item--${p.tone}`} style={{ animationDelay: `${idx * 55}ms` }} onClick={() => go(priorityHref(p))}>
+          <button
+            key={p.code}
+            type="button"
+            className={`prio__item prio__item--${p.tone}`}
+            style={{ animationDelay: `${idx * 55}ms` }}
+            onClick={() => (p.code === 'ORDERS_TO_HANDLE' ? window.open(VINTED_ORDERS_URL, '_blank', 'noopener') : go(priorityHref(p)))}
+          >
             <IconTile name={cfg.icon} tone={cfg.tone} />
             <span className="prio__body">
               <span className="prio__title">{title(p)}</span>

@@ -7,6 +7,7 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type BuyAnalysis, analyzeBuy, buySubject } from '@/intelligence/buy';
 import { categoriesInTitle, normalizeText } from '@/intelligence/normalize';
+import { type ExternalProduct, type PageSnapshot, buyRouteFor, productFromPage, snapshotPage } from '@/intelligence/sourcing';
 import { personalEvidence } from '@/intelligence/seller-model';
 import { Ring } from '@/ui/charts/charts';
 import { Icon, IconTile } from '@/ui/components/icons';
@@ -20,7 +21,12 @@ import { marketAdapter } from '../market-run';
 import { vintedLandedCost } from '../screens/Buy';
 import { useEra } from '../state';
 
-type Ctx = { status: 'loading' } | { status: 'none' } | { status: 'page'; isItemPage: boolean; item: PageItem | null; tabId: number };
+type Ctx =
+  | { status: 'loading' }
+  | { status: 'none' }
+  | { status: 'page'; isItemPage: boolean; item: PageItem | null; tabId: number }
+  /** Another shop's page: ERA reads its product only when the user clicks (sourcing). */
+  | { status: 'external'; tabId: number; host: string };
 
 /** The page the user is looking at: the active tab, or the most recent vinted.fr tab when ERA itself is focused. */
 function usePageContext(): [Ctx, () => void] {
@@ -29,6 +35,9 @@ function usePageContext(): [Ctx, () => void] {
     try {
       const [active] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
       let tab = active;
+      if (active?.id && active.url && /^https?:\/\//.test(active.url) && !active.url.startsWith('https://www.vinted.fr/')) {
+        return setCtx({ status: 'external', tabId: active.id, host: new URL(active.url).hostname.replace(/^www\./, '') });
+      }
       if (!tab?.url?.startsWith('https://www.vinted.fr/')) {
         const vinted = await browser.tabs.query({ url: 'https://www.vinted.fr/*' });
         tab = vinted.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0] ?? tab;
@@ -118,6 +127,8 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
           <p className="t-small t-muted row" style={{ gap: 8, alignItems: 'flex-start' }}>
             <Icon name="info" size={15} /> {t('popup.noContext')}
           </p>
+        ) : ctx.status === 'external' ? (
+          <SourcingCard key={ctx.tabId} tabId={ctx.tabId} host={ctx.host} />
         ) : !ctx.item ? (
           <p className="t-small t-muted">{t('popup.notRecognized')}</p>
         ) : (
@@ -200,6 +211,59 @@ function OwnItem({ itemId, mode }: { itemId: string; mode: 'popup' | 'panel' }) 
       {intel.view.askPrice !== null && <OfferCalculator intel={intel} compact />}
       <Button size="sm" variant="ghost" iconRight="chevronRight" onClick={() => openDashboard(`item/${itemId}`)}>
         {t('item.overview')}
+      </Button>
+    </div>
+  );
+}
+
+/** Sourcing on any shop: read the product the page publishes (JSON-LD / OpenGraph), then open the Buy Analyzer. */
+function SourcingCard({ tabId, host }: { tabId: number; host: string }) {
+  const { t } = useI18n();
+  const [state, setState] = useState<'idle' | 'reading' | 'none' | 'denied'>('idle');
+  const [prod, setProd] = useState<ExternalProduct | null>(null);
+  const read = async () => {
+    setState('reading');
+    try {
+      const [res] = await browser.scripting.executeScript({ target: { tabId }, func: snapshotPage });
+      const p = res?.result ? productFromPage(res.result as PageSnapshot) : null;
+      setProd(p);
+      setState(p ? 'idle' : 'none');
+    } catch {
+      // No activeTab grant (e.g. side panel following another tab): the page stays untouched.
+      setState('denied');
+    }
+  };
+  if (!prod) {
+    return (
+      <div className="stack" data-testid="sourcing">
+        <p className="t-small t-muted">{t('sourcing.hint', { host })}</p>
+        <Button size="sm" variant="primary" icon="target" loading={state === 'reading'} onClick={read}>
+          {t('sourcing.read')}
+        </Button>
+        {state === 'none' && <p className="t-small t-muted">{t('sourcing.none')}</p>}
+        {state === 'denied' && <p className="t-small t-muted">{t('sourcing.denied')}</p>}
+      </div>
+    );
+  }
+  const category = categoriesInTitle(normalizeText(prod.title))[0] ?? 'OTHER';
+  return (
+    <div className="stack-3" data-testid="sourcing">
+      <div className="row" style={{ gap: 10 }}>
+        <Thumb photoUrl={prod.image} category={category} alt={prod.title} />
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="clamp-1" style={{ fontWeight: 600 }}>
+            {prod.title}
+          </div>
+          <div className="t-small t-muted">
+            {prod.brand ?? t('sourcing.noBrand')} · {prod.priceCents === null ? t('sourcing.noPrice') : <Money cents={prod.priceCents} />}
+          </div>
+          <div className="t-faint" style={{ fontSize: 11 }}>
+            {prod.host}
+          </div>
+        </div>
+      </div>
+      <Button size="sm" variant="primary" icon="buy" onClick={() => openDashboard(buyRouteFor(prod, category))}>
+        {t('sourcing.analyze')}
       </Button>
     </div>
   );

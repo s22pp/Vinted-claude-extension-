@@ -94,6 +94,9 @@ export const fr = {
     days: '{lo}–{hi} j estimés',
   },
   today: {
+    P_ORDERS_TO_HANDLE: '{n} commandes attendent une action sur Vinted',
+    P_ORDERS_TO_HANDLE_one: '1 commande attend une action sur Vinted',
+    P_ORDERS_TO_HANDLE_hint: 'Envoi à préparer : ouvre « Mes commandes » sur Vinted (statut non vérifié)',
     P_NEW_FAVORITES: '+{n} favoris sur {k} articles depuis le dernier import',
     P_NEW_FAVORITES_one: '+1 favori depuis le dernier import',
     P_NEW_FAVORITES_hint: 'Intérêt frais : répondez vite aux messages et aux offres sur Vinted',
@@ -382,6 +385,7 @@ export const fr = {
     tradeoff: 'Compromis vitesse / marge',
   },
   buy: {
+    fromSource: 'Produit lu sur {host} : prix affiché par le site, frais de port à ajouter.',
     decision: 'Décision',
     expectedProfit: 'Profit attendu',
     profitRange: 'Fourchette {min} – {max} (vente rapide → équilibré)',
@@ -1559,6 +1563,15 @@ export const fr = {
     reset: 'Revenir au modèle ERA',
     vars: 'Variables : {title} {size} {condition} {defects} {measures} {price} {counter}',
     never: 'ERA n’envoie jamais de message : vous gardez la main.',
+  },
+  sourcing: {
+    hint: 'Boutique {host} : ERA peut lire le produit que la page publie (nom, marque, prix) — rien n\'est envoyé.',
+    read: 'Lire ce produit',
+    none: 'Aucune fiche produit lisible sur cette page (ni JSON-LD, ni balises produit).',
+    denied: 'Lecture non autorisée ici : cliquez sur l\'icône ERA depuis cette page puis réessayez.',
+    noBrand: 'marque non lue',
+    noPrice: 'prix non lu (autre devise ou absent)',
+    analyze: 'Analyser l\'achat',
   },
 };
 

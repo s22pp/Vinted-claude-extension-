@@ -102,6 +102,40 @@ test('re-import updates instead of duplicating', async ({ context, base }) => {
   await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.getByRole('button', { name: /Actualiser/ }).first().click();
   await expect(page.getByText(/0 nouveaux articles · 3 mis à jour/)).toBeVisible({ timeout: 40_000 });
+  // The sold order is matched to the sale it already created: still one sale, not two.
+  await page.goto(`${base}#/sales`);
+  await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(1);
+});
+
+test('two sales under the same title stay two sales, import after import', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 105, title: 'Veste Carhartt Detroit M', price: '70.0', view_count: 50, favourite_count: 3, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '68.0' }, date: '2026-09-18', status: 'Terminée' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.getByRole('button', { name: /Actualiser/ }).first().click();
+  await expect(page.getByText(/0 nouveaux articles · 4 mis à jour/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales`);
+  await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(2);
+});
+
+test('an order Vinted says needs the seller shows first in Today and opens Vinted orders', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/today`);
+  const prio = page.getByRole('button', { name: /1 commande attend une action sur Vinted/ });
+  await expect(prio).toBeVisible();
+  // Record the tab ERA asks for (a new tab opened from an extension page is not reliable to observe here).
+  await page.evaluate(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = (u?: string | URL) => (w.__opened.push(String(u)), null);
+  });
+  await prio.click();
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/my_orders']);
 });
 
 test('not logged in: clear message, Vinted tab brought forward', async ({ context, base }) => {

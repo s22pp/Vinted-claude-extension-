@@ -91,11 +91,15 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const workshop = workshopQueue(views, preps);
     const refunds = refundSummary(saleViews, { category: (c) => t(`category.${c}`) });
     const priorities = todayPriorities(intel, capital, model, views);
+    // Vinted waits for the seller on these orders (shipping…): first thing to do, every day.
+    const toHandle = saleViews.filter((x) => x.sale.needsAction && x.sale.status !== 'REFUNDED');
     if (workshop.toList.length) {
       // Owned, paid, and invisible to buyers: the first lever on sales volume.
       const idle = sumMetric(workshop.toList.map((v) => v.cost));
       priorities.unshift({ code: 'TO_LIST', tone: 'warning', count: workshop.toList.length, amount: idle, label: null, itemIds: workshop.toList.map((v) => v.item.id) });
     }
+    // A buyer already paid and Vinted waits for the seller (shipping): before anything else.
+    if (toHandle.length) priorities.unshift({ code: 'ORDERS_TO_HANDLE', tone: 'risk', count: toHandle.length, amount: null, label: null, itemIds: toHandle.map((x) => x.item.id) });
     // Buyers showing fresh interest: favourites gained since the previous import (no extra Vinted call).
     const gains = favoriteGains(views, observations ?? [], now);
     if (gains.length) {

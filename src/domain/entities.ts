@@ -119,6 +119,12 @@ export const SaleSchema = z.object({
   status: SaleStatusSchema,
   /** Why the buyer was refunded — entered by the seller in one click (Vinted does not expose it). */
   refundReason: z.enum(['SIZE', 'DEFECT', 'CONDITION', 'DESCRIPTION', 'AUTHENTICITY', 'SHIPPING', 'BUYER', 'OTHER']).nullable().optional(),
+  /** Order status text as Vinted shows it, refreshed at each import (UNVERIFIED field). */
+  vintedStatus: z.string().nullable().optional(),
+  /** Vinted waits for the seller (e.g. to ship): `transaction_user_status: "needs_action"` (UNVERIFIED field). */
+  needsAction: z.boolean().optional(),
+  /** The Vinted order this sale came from (listing id, else title|date|price): re-imports update, never duplicate. */
+  orderKey: z.string().nullable().optional(),
   isDemo: z.boolean().default(false),
 });
 export type Sale = z.infer<typeof SaleSchema>;

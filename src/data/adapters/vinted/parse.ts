@@ -128,6 +128,8 @@ export interface SoldOrder {
   status: string | null;
   /** The Vinted listing id of the ordered item, when the order carries it: an exact match, no title guessing. */
   itemId: string | null;
+  /** Vinted waits for the seller on this order (shipping…): `transaction_user_status: "needs_action"`. */
+  needsAction: boolean;
 }
 
 /**
@@ -141,7 +143,14 @@ export function parseOrder(o: Json): SoldOrder | null {
   if (!title || price === null) return null;
   const d = str(o.date) ?? str(o.created_at);
   const t = d ? Date.parse(d) : Number.NaN;
-  return { title, priceCents: price, date: Number.isNaN(t) ? null : t, status: str(o.status) ?? str(o.status_text), itemId: str(o.item_id) ?? (item ? str(item.id) : null) };
+  return {
+    title,
+    priceCents: price,
+    date: Number.isNaN(t) ? null : t,
+    status: str(o.status) ?? str(o.status_text),
+    itemId: str(o.item_id) ?? (item ? str(item.id) : null),
+    needsAction: o.transaction_user_status === 'needs_action',
+  };
 }
 
 export function currentUserId(json: unknown): string | null {

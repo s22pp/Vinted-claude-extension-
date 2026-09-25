@@ -271,6 +271,11 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
   for (let i = 0; i < soldCount; i++) makeItem(true);
   for (let i = 0; i < stockCount; i++) makeItem(false);
   ds.events.sort((a, b) => a.at - b.at);
+  // Demo: the two latest completed sales still wait for shipping on Vinted.
+  for (const x of ds.sales.filter((y) => y.status === 'COMPLETED').sort((a, b) => b.soldAt - a.soldAt).slice(0, 2)) {
+    x.needsAction = true;
+    x.vintedStatus = 'À envoyer (démo)';
+  }
   return ds;
 }
 
