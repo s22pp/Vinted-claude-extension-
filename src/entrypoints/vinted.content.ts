@@ -1,12 +1,13 @@
-import { isAllowedApi, isAllowedWrite, type ApiResult, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
+import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { editPriceOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
- * Runs on vinted.fr pages. Two jobs, both read-only:
+ * Runs on vinted.fr pages:
  *  - read the item currently open (JSON-LD already in the page: zero network calls);
- *  - perform whitelisted GET calls same-origin, each one reserved against the session budget.
- * It never posts, reposts, likes, follows or messages.
+ *  - perform whitelisted GET calls same-origin, each one reserved against the session budget;
+ *  - on ERA's background request only (a seller's click or an automation they switched on), send one of the
+ *    whitelisted writes (protocol.ts) or a photo for a draft copy. Nothing else: no follow, no like.
  */
 export default defineContentScript({
   matches: ['https://www.vinted.fr/*'],
@@ -48,6 +49,11 @@ export default defineContentScript({
       if (msg.type === 'era:write') {
         // Only from ERA's background, only whitelisted routes of an automation the seller switched on.
         void callApi(msg.path, msg.method, msg.body).then(sendResponse);
+        return true;
+      }
+      if (msg.type === 'era:photo:upload') {
+        // A photo of the seller's own listing, sent again for its draft copy (repost, on click).
+        void uploadPhoto(msg.base64, msg.mime, msg.tempUuid, msg.name).then(sendResponse);
         return true;
       }
     });
@@ -97,6 +103,40 @@ async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', bod
     }
   } catch (e) {
     return { ok: false, code: 'UNAVAILABLE', detail: `fetch ${path.split('?')[0]} · ${e instanceof Error ? e.message : 'network'}` };
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** POST one image to the upload route, as Vinted's form does (multipart). Same budget as any call. */
+async function uploadPhoto(base64: string, mime: string, tempUuid: string, name: string): Promise<ApiResult> {
+  if (!/^image\/(jpeg|png|webp)$/.test(mime) || !UUID.test(tempUuid) || base64.length > 20_000_000) return { ok: false, code: 'NOT_IMPLEMENTED', detail: 'photo refusée (type, taille ou session)' };
+  const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
+  if (!r.ok) return r;
+  if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const form = new FormData();
+    form.append('photo[type]', 'item');
+    form.append('photo[temp_uuid]', tempUuid);
+    form.append('photo[file]', new Blob([bytes], { type: mime }), name.replace(/[^\w.-]/g, '') || 'photo.jpg');
+    // No content-type header: the browser writes the multipart boundary itself.
+    const res = await fetch(PHOTO_UPLOAD_PATH, { method: 'POST', credentials: 'same-origin', headers: apiHeaders(), body: form });
+    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
+    const where = `HTTP ${res.status} · POST ${PHOTO_UPLOAD_PATH}`;
+    if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
+    if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
+    if (res.status === 401) return { ok: false, code: 'NOT_LOGGED_IN', status: 401, detail: where };
+    if (!res.ok) return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: where };
+    try {
+      return { ok: true, json: JSON.parse(await res.text()) };
+    } catch {
+      return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: `${where} · réponse non JSON` };
+    }
+  } catch (e) {
+    return { ok: false, code: 'UNAVAILABLE', detail: `envoi photo · ${e instanceof Error ? e.message : 'network'}` };
   }
 }
 

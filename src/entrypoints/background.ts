@@ -1,7 +1,8 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult } from '@/data/adapters/vinted/protocol';
+import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
@@ -57,10 +58,12 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
 }
 
 let autoRunning: Promise<AutoRunResult> | null = null;
+/** A repost copies photos for a while: one at a time, and nothing else writes meanwhile. */
+let reposting: Promise<RepostResult | RepostFinishResult> | null = null;
 
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
-  if (autoRunning || importing || editing) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
+  if (autoRunning || importing || editing || reposting) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
   autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : runOffers(dryRun)).finally(() => {
     autoRunning = null;
   });
@@ -107,6 +110,11 @@ export default defineBackground(() => {
         void budget.status().then(sendResponse);
         return true;
       case 'era:import':
+        // Mid-repost, the fresh draft is not yet recorded as a copy: an import now would count it as a new article.
+        if (reposting) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'republication en cours : importez dans un instant' } satisfies ImportResult);
+          return undefined;
+        }
         void runImport().then(sendResponse);
         return true;
       case 'era:auto:run':
@@ -114,18 +122,27 @@ export default defineBackground(() => {
         return true;
       case 'era:label:get':
       case 'era:item:hide':
-        if (autoRunning || importing || editing) {
+        if (autoRunning || importing || editing || reposting) {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
           return undefined;
         }
         void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
         return true;
       case 'era:draft:create':
-        if (autoRunning || importing || editing) {
+      case 'era:repost:create':
+      case 'era:repost:finish':
+        if (autoRunning || importing || editing || reposting) {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
           return undefined;
         }
-        void createVintedDraft(msg.input).then(sendResponse);
+        if (msg.type === 'era:draft:create') {
+          void createVintedDraft(msg.input).then(sendResponse);
+          return true;
+        }
+        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId) : finishRepost(msg.itemId)).finally(() => {
+          reposting = null;
+        });
+        void reposting.then(sendResponse);
         return true;
       case 'era:auto:schedule':
         void scheduleAuto().then(() => sendResponse({ ok: true }));

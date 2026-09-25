@@ -25,11 +25,14 @@ export interface NewListing {
   priceCents: number;
 }
 
-export type RepostBasis = 'SKU' | 'TITLE';
+export type RepostBasis = 'SKU' | 'TITLE' | 'ERA';
 
 export interface RepostMatch {
   candidate: RepostCandidate;
-  /** SKU: ERA's reference in the new title (certain). TITLE: same title, brand and size (inferred). */
+  /**
+   * SKU: ERA's reference in the new title (certain). TITLE: same title, brand and size (inferred).
+   * ERA: the new listing is the draft copy ERA made of the old one (certain).
+   */
   basis: RepostBasis;
 }
 
@@ -123,7 +126,7 @@ export function lastReposts(events: readonly DomainEvent[], observations: readon
       daysSince: Math.max(0, Math.floor((now - e.at) / DAY)),
       fromListingId: from,
       toListingId: to,
-      basis: e.data.basis === 'SKU' ? 'SKU' : 'TITLE',
+      basis: e.data.basis === 'SKU' || e.data.basis === 'ERA' ? e.data.basis : 'TITLE',
       priceFrom: num(e.data.priceFrom),
       priceTo: num(e.data.priceTo),
       viewsLost: num(e.data.viewsLost),

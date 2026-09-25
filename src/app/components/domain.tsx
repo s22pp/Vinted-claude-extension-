@@ -300,7 +300,7 @@ export function Timeline({ itemId }: { itemId: string }) {
           case 'LISTING_REPUBLISHED':
             // Same article, new announcement: what Vinted reset stays visible here.
             value = money(num(d.price));
-            detail = d.basis === 'SKU' || d.basis === 'TITLE' ? t('timeline.repostDetail', { basis: t(`timeline.basis${d.basis}`), views: num(d.viewsLost), favorites: num(d.favoritesLost) }) : null;
+            detail = d.basis === 'SKU' || d.basis === 'TITLE' || d.basis === 'ERA' ? t('timeline.repostDetail', { basis: t(`timeline.basis${d.basis}`), views: num(d.viewsLost), favorites: num(d.favoritesLost) }) : null;
             break;
           case 'PRICE_CHANGED':
             value = money(num(d.to));

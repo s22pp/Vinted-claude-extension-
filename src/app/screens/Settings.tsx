@@ -275,7 +275,22 @@ function IntegrationsCard() {
     const searches = await db.analyses.filter((a) => !a.isDemo && a.analysis.source === 'VINTED' && a.analysis.keptCount > 0).count();
     const learned = !!(await db.settings.get(SEARCH_TEMPLATE_KEY))?.value;
     const purchases = await db.purchases.count();
-    return { listings, reserved, sold, searches, learned, purchases };
+    // Writes: only what Vinted accepted here, as the journal recorded it (simulations excluded).
+    const okLog = await db.autoLog.filter((r) => r.ok && !r.dryRun).toArray();
+    const done = (...kinds: string[]) => okLog.filter((r) => kinds.includes(r.kind)).length;
+    return {
+      listings,
+      reserved,
+      sold,
+      searches,
+      learned,
+      purchases,
+      draft: done('DRAFT'),
+      label: done('LABEL'),
+      hide: done('HIDE', 'UNHIDE'),
+      repost: done('REPOST', 'DELETE'),
+      auto: done('FAV_MESSAGE', 'FAV_OFFER', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'),
+    };
   }, []);
   const rows: { key: string; n: number | null; flag?: 'EXPERIMENTAL' | 'UNVERIFIED' }[] = ev
     ? [
@@ -285,6 +300,11 @@ function IntegrationsCard() {
         { key: 'search', n: ev.searches, flag: ev.learned ? 'UNVERIFIED' : undefined },
         { key: 'purchases', n: ev.purchases },
         { key: 'priceEdit', n: null, flag: 'EXPERIMENTAL' },
+        { key: 'draft', n: ev.draft, flag: 'EXPERIMENTAL' },
+        { key: 'label', n: ev.label, flag: 'EXPERIMENTAL' },
+        { key: 'hide', n: ev.hide, flag: 'EXPERIMENTAL' },
+        { key: 'repost', n: ev.repost, flag: 'EXPERIMENTAL' },
+        { key: 'auto', n: ev.auto, flag: 'EXPERIMENTAL' },
       ]
     : [];
   return (
@@ -297,15 +317,15 @@ function IntegrationsCard() {
               <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
             </div>
             <div className="integ__status">
-              {r.flag === 'EXPERIMENTAL' ? (
-                <Flag kind="EXPERIMENTAL" />
-              ) : r.n && r.n > 0 ? (
+              {r.n && r.n > 0 ? (
                 <>
                   <Badge tone="emerald" dot>
                     {t('integrations.observed', { n: r.n })}
                   </Badge>
-                  {r.flag && <Flag kind={r.flag} title={t('flag.learnedEndpoint')} />}
+                  {r.flag && <Flag kind={r.flag} title={r.flag === 'UNVERIFIED' ? t('flag.learnedEndpoint') : undefined} />}
                 </>
+              ) : r.flag === 'EXPERIMENTAL' ? (
+                <Flag kind="EXPERIMENTAL" />
               ) : (
                 <Flag kind="UNVERIFIED" />
               )}

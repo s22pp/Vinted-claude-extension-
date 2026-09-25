@@ -11,7 +11,8 @@ export default defineConfig({
     permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage', 'alarms'],
     // vinted.fr only: read the page you have open, call its API with your session — reads, plus the few
     // whitelisted writes of the automations you switch on (EXPERIMENTAL).
-    host_permissions: ['https://www.vinted.fr/*'],
+    // vinted.net: Vinted's image servers, read only to copy a listing's own photos into its repost draft.
+    host_permissions: ['https://www.vinted.fr/*', 'https://*.vinted.net/*'],
     action: { default_title: 'ERA Intelligence' },
     icons: { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' },
     // Public key only: pins the extension ID (mjcnlfhbedofkagpnhdmghgmgbbbhpni) whatever folder it is loaded from,

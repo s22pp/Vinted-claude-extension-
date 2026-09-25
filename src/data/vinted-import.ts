@@ -10,6 +10,7 @@ import { isInStock, isLiveListing, listingStatusOf, resolveImportedStatus } from
 import { fetchPurchases } from './adapters/vinted/orders';
 import { db, uid } from './db';
 import { repo } from './repo';
+import { PENDING_REPOSTS_KEY, pendingReposts } from './vinted-repost';
 
 /**
  * Import the seller's own wardrobe + sold orders from Vinted (≤ 5 budgeted GET calls).
@@ -81,14 +82,35 @@ export async function importFromVinted(
   const repostedFrom = new Set<string>();
   let reposts = 0;
   let removed = 0;
+  // Draft copies made by ERA (repost without loss): the copy IS the same article, whatever its title.
+  const pending = await pendingReposts(now);
+  const copyByDraft = new Map(pending.map((p) => [p.draftId, p]));
 
   await db.transaction('rw', [db.items, db.listings, db.observations, db.events, db.sales, db.settings], async () => {
     for (const s of snapshot) {
       const prev = byPlatformId.get(s.platformListingId);
+      const copyOf = prev ? undefined : copyByDraft.get(s.platformListingId);
+      // ERA's copy not published yet: a draft of an article already on sale, nothing to record.
+      if (copyOf && s.status === 'DRAFT') continue;
       const brandGuess = s.brand ?? inferBrand(s.title);
       let itemId = prev?.inventoryItemId;
       let prevItem = itemId ? await db.items.get(itemId) : undefined;
-      if (!prev) {
+      let repost: RepostMatch | null = null;
+      /** The old listing of an ERA copy, still on sale next to it (deleted later, on the seller's click). */
+      let copyBeside: Listing | null = null;
+      const copyItem = copyOf ? itemsById.get(copyOf.itemId) : undefined;
+      if (copyOf && copyItem) {
+        itemId = copyItem.id;
+        prevItem = (await db.items.get(itemId)) ?? copyItem;
+        const gone = repostPool.find((c) => c.listing.id === copyOf.oldListingId);
+        if (gone) {
+          repost = { candidate: gone, basis: 'ERA' };
+          repostPool.splice(repostPool.indexOf(gone), 1);
+          repostedFrom.add(gone.listing.id);
+        } else copyBeside = existing.find((l) => l.id === copyOf.oldListingId) ?? null;
+        reposts++;
+      }
+      if (!prev && !itemId) {
         const match = skusInText(s.title).map((k) => bySku.get(k)).find(Boolean);
         if (match) {
           itemId = match.id;
@@ -97,7 +119,6 @@ export async function importFromVinted(
           linked++;
         }
       }
-      let repost: RepostMatch | null = null;
       if (!prev && !itemId) {
         repost = matchRepost({ title: s.title, brand: s.brand, size: s.size, priceCents: s.priceCents }, repostPool);
         if (repost) {
@@ -191,11 +212,24 @@ export async function importFromVinted(
           inventoryItemId: itemId,
           listingId,
           data: { price: s.priceCents, from: old.id, basis: repost.basis, priceFrom: old.priceCents, priceTo: s.priceCents, viewsLost: old.views, favoritesLost: old.favorites },
-          provenance: 'INFERRED',
+          provenance: repost.basis === 'ERA' ? 'OBSERVED' : 'INFERRED',
           isDemo: false,
         });
         if (s.priceCents < old.priceCents)
           await db.events.put({ id: uid('ev'), type: 'PRICE_CHANGED', at: listedAt, inventoryItemId: itemId, listingId, data: { from: old.priceCents, to: s.priceCents }, provenance: 'OBSERVED', isDemo: false });
+      } else if (!prev && copyOf) {
+        // ERA's copy published while the old listing is still on sale: same article, the old one goes on the
+        // seller's click (and is recorded then). What the copy starts from is kept.
+        await db.events.put({
+          id: uid('ev'),
+          type: 'LISTING_REPUBLISHED',
+          at: listedAt,
+          inventoryItemId: itemId,
+          listingId,
+          data: { price: s.priceCents, from: copyBeside?.id ?? null, basis: 'ERA', priceFrom: copyBeside?.priceCents ?? null, priceTo: s.priceCents, viewsLost: copyBeside?.views ?? null, favoritesLost: copyBeside?.favorites ?? null },
+          provenance: 'OBSERVED',
+          isDemo: false,
+        });
       } else if (!prev) {
         // First seen already sold, with no publication date: no invented "published today" entry.
         if (listedAtKnown || s.status !== 'SOLD')
@@ -334,6 +368,13 @@ export async function importFromVinted(
       }
       removed++;
     }
+    // A copy is done waiting once its old listing is no longer on sale (deleted, by ERA or by hand, or sold).
+    const done = new Set<string>();
+    for (const p of pending) {
+      const old = await db.listings.get(p.oldListingId);
+      if (!old || !isLiveListing(old.status)) done.add(p.itemId);
+    }
+    if (done.size) await repo.setSetting(PENDING_REPOSTS_KEY, pending.filter((p) => !done.has(p.itemId)));
     await repo.setSetting('dataMode', 'real');
     await repo.setSetting('lastVintedImport', now);
     // Diagnostic: which fields Vinted actually returned (e.g. whether a reservation flag exists).

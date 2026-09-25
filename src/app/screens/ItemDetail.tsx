@@ -19,6 +19,7 @@ import { PredictionRow } from '../components/precision';
 import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
+import { RepostButton, RepostPending } from '../components/repost';
 import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
@@ -173,6 +174,7 @@ export function ItemDetail({ id }: { id: string }) {
             {item.status === 'HIDDEN' ? t('item.show') : t('item.hide')}
           </Button>
         )}
+        {era.mode === 'real' && <RepostButton v={v} />}
         {v.inStock && (
           <Button icon="check" onClick={() => setSaleOpen(true)}>
             {t('item.recordSale')}
@@ -202,6 +204,11 @@ export function ItemDetail({ id }: { id: string }) {
       {error != null && (
         <div style={{ marginBottom: 16 }}>
           <ErrorState error={error} onRetry={runAnalysis} />
+        </div>
+      )}
+      {era.mode === 'real' && (
+        <div style={{ marginBottom: 16 }}>
+          <RepostPending v={v} />
         </div>
       )}
 

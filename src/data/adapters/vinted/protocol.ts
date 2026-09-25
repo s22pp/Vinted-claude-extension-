@@ -33,7 +33,22 @@ const ALLOWED_WRITES: { method: 'POST' | 'PUT'; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/v2\/item_upload\/drafts$/ }, // a DRAFT: never published, the seller adds photos and publishes
   { method: 'PUT', path: /^\/api\/v2\/transactions\/\d+\/shipment\/order$/ }, // "Obtenir le bordereau" (printable), on the seller's click
   { method: 'PUT', path: /^\/api\/v2\/items\/\d+\/is_hidden$/ }, // hide / show one of the seller's listings, on click
+  // Repost (EXPERIMENTAL): the OLD listing, only once its copy is live, with 0 favourites, after confirmation.
+  { method: 'POST', path: /^\/api\/v2\/items\/\d+\/delete$/ },
 ];
+
+/** The one upload route (a photo for a draft copy): sent as a form by the content script, never anything else. */
+export const PHOTO_UPLOAD_PATH = '/api/v2/photos';
+
+/** Photos are copied only from Vinted's own image servers. */
+export function isVintedImageUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && (u.hostname === 'vinted.net' || u.hostname.endsWith('.vinted.net'));
+  } catch {
+    return false;
+  }
+}
 
 export function isAllowedWrite(method: string, path: string): boolean {
   return ALLOWED_WRITES.some((w) => w.method === method && w.path.test(path));
@@ -63,6 +78,9 @@ export type EraMessage =
   | { type: 'era:draft:create'; input: DraftInput }
   | { type: 'era:label:get'; conversationId: string; title: string }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
+  | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
+  | { type: 'era:repost:create'; itemId: string }
+  | { type: 'era:repost:finish'; itemId: string }
   | { type: 'era:budget:reserve' }
   | { type: 'era:budget:report'; status: number }
   | { type: 'era:budget:status' }
@@ -120,3 +138,22 @@ export type DraftResult =
 
 export type LabelResult = { ok: true; url: string; ordered: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 export type HideResult = { ok: true; verified: boolean | null } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+
+/** A repost prepared as a draft copy: photos uploaded again, never published by ERA. */
+export type RepostResult =
+  | { ok: true; draftId: string; photos: number; photosBack: number | null }
+  | { ok: false; code: MarketplaceErrorCode; detail?: string };
+/** The old listing deleted once its copy is live; `verified`: Vinted no longer returns it. */
+export type RepostFinishResult = { ok: true; verified: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+
+/** A draft copy made by ERA, waiting to be published by the seller, then for the old listing to go. */
+export interface PendingRepost {
+  itemId: string;
+  draftId: string;
+  oldListingId: string;
+  oldPlatformListingId: string;
+  title: string;
+  at: number;
+  /** The old listing's deletion was sent but not confirmed by the read-back. */
+  deleteSentAt?: number;
+}

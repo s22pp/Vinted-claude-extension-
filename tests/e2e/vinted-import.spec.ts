@@ -5,9 +5,11 @@ import { expect, test } from './fixtures';
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false };
+  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
+  // Test fixture only: Vinted's image server (a tiny JPEG header is enough).
+  await context.route('https://images1.vinted.net/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]) }));
   await context.route('https://www.vinted.fr/**', (route) => {
     const url = new URL(route.request().url());
     if (/^\/items\/\d+\/edit$/.test(url.pathname) && opts.editForm) {
@@ -84,7 +86,39 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       state.draft = JSON.parse(route.request().postData() ?? '{}').draft;
       return json({ draft: { id: 555 } });
     }
-    if (url.pathname === '/api/v2/item_upload/items/555') return json({ item: { id: 555, title: (state.draft as { title?: string } | null)?.title, is_draft: true } });
+    if (url.pathname === '/api/v2/item_upload/items/555') {
+      const d = state.draft as { title?: string; assigned_photos?: { id: number }[] } | null;
+      return json({ item: { id: 555, title: d?.title, is_draft: !state.published555, photos: (d?.assigned_photos ?? []).map((p) => ({ id: p.id, full_size_url: `https://images1.vinted.net/t/copy/${p.id}.jpeg` })) } });
+    }
+    // Test fixture only: a listing with no favourite, its photos, the upload route and the delete route.
+    if (url.pathname === '/api/v2/photos' && method === 'POST') return json({ photo: { id: 7001 + state.photos++, url: 'https://images1.vinted.net/t/new.jpeg' } });
+    if (url.pathname === '/api/v2/item_upload/items/110')
+      return state.deleted.has(110)
+        ? json({ code: 404 }, 404)
+        : json({
+            item: {
+              id: 110,
+              title: 'Chemise Pierre Cardin L',
+              description: 'Chemise Pierre Cardin, coton, très bon état.',
+              price: { amount: '25.0', currency_code: 'EUR' },
+              brand_id: 5575,
+              brand: 'Pierre Cardin',
+              size_id: 209,
+              catalog_id: 1803,
+              status_id: 2,
+              package_size_id: 1,
+              color_ids: [9],
+              favourite_count: 0,
+              is_draft: false,
+              photos: [{ id: 1, full_size_url: 'https://images1.vinted.net/t/110/1.jpeg' }, { id: 2, full_size_url: 'https://images1.vinted.net/t/110/2.jpeg' }],
+            },
+          });
+    if (/^\/api\/v2\/items\/\d+\/delete$/.test(url.pathname) && method === 'POST') {
+      const id = Number(url.pathname.split('/')[4]);
+      state.deleted.add(id);
+      state.hide.add(id);
+      return json({});
+    }
     // Test fixture only: an order's conversation, a label Vinted makes after it is ordered, a hide that reads back.
     if (url.pathname === '/api/v2/conversations/9200') return json({ conversation: { transaction: { id: 7200, shipment_id: 6200, shipment: { status: 1 } } } });
     if (url.pathname === '/api/v2/shipments/6200/label_url') return json({ label_url: state.labelOrdered ? 'https://labels.example/6200.pdf' : null, code: 0 });
@@ -470,4 +504,68 @@ test('hide a listing on Vinted from its page: sent, read back, status follows', 
   const put = calls.find((c) => c.method === 'PUT')!;
   expect([put.path, JSON.parse(put.body!)]).toEqual(['/api/v2/items/101/is_hidden', { is_hidden: true }]);
   await expect(page.getByRole('button', { name: 'Réafficher sur Vinted' })).toBeVisible();
+});
+
+test('repost without loss: a draft copy with the same photos, the old listing deleted only once the copy is live', async ({ context, base }) => {
+  // Two imports and two spaced writes (≥ 12 s apart), under the 12-calls-per-minute limit, as on a real account.
+  test.setTimeout(300_000);
+  const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true }] };
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [shirt] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const open = async () => {
+    await page.goto(`${base}#/stock?filter=all`);
+    await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Chemise Pierre Cardin L' }).click();
+    await page.evaluate(() => {
+      const w = window as unknown as { __opened: string[] };
+      w.__opened = [];
+      window.open = (u?: string | URL) => (w.__opened.push(String(u)), null);
+    });
+  };
+  await open();
+  await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+  await page.getByRole('button', { name: 'Créer la copie en brouillon' }).click();
+  await expect(page.getByText('Copie créée en brouillon')).toBeVisible({ timeout: 40_000 });
+  // Same fields, Vinted's own ids, and the photos sent again — nothing published, nothing deleted.
+  const draft = JSON.parse(calls.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')!.body!).draft;
+  expect(draft).toMatchObject({ title: 'Chemise Pierre Cardin L', price: '25.00', brand_id: 5575, size_id: 209, catalog_id: 1803, status_id: 2, package_size_id: 1, color_ids: [9], assigned_photos: [{ id: 7001, orientation: 0 }, { id: 7002, orientation: 0 }] });
+  expect(calls.filter((c) => c.method === 'POST').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts']);
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/items/555/edit']);
+  await expect(page.getByTestId('repost-pending')).toContainText('brouillon');
+
+  // Not published yet: ERA refuses to delete the old listing.
+  await page.getByRole('button', { name: 'Supprimer l’ancienne annonce' }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Supprimer l’ancienne annonce' }).click();
+  await expect(page.getByText(/pas encore publiée/)).toBeVisible({ timeout: 20_000 });
+  expect(calls.some((c) => c.path.endsWith('/delete'))).toBe(false);
+  await page.keyboard.press('Escape');
+
+  // The seller publishes the copy on Vinted: the next import joins it to the SAME article.
+  calls.state.published555 = true;
+  calls.state.add.push({ ...shirt, id: 555, view_count: 0 });
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Actualiser/ }).first().click();
+  // The per-minute limit may hold the import back for up to a minute: waited, never bypassed.
+  await expect(page.getByText(/1 republication reconnue/)).toBeVisible({ timeout: 120_000 });
+  await open();
+  await expect(page.getByText('Chemise Pierre Cardin L').first()).toBeVisible();
+  await expect(page.getByTestId('repost-pending')).toContainText('La copie est en ligne');
+  await page.getByRole('button', { name: 'Supprimer l’ancienne annonce' }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Supprimer l’ancienne annonce' }).click();
+  await expect(page.getByText('Ancienne annonce supprimée').first()).toBeVisible({ timeout: 120_000 });
+  expect(calls.filter((c) => c.path.endsWith('/delete')).map((c) => c.path)).toEqual(['/api/v2/items/110/delete']);
+  await expect(page.getByTestId('repost-pending')).toHaveCount(0);
+  await expect(page.getByText(/copie faite par ERA/)).toBeVisible();
+  await page.goto(`${base}#/stock?filter=all`);
+  await expect(page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Chemise Pierre Cardin L' })).toHaveCount(1);
+});
+
+test('repost refused when the listing has favourites: no button action, nothing sent', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await importThenOpen(page, base);
+  await expect(page.getByRole('button', { name: 'Republier sans rien perdre' })).toBeDisabled();
+  expect(calls.every((c) => c.method === 'GET')).toBe(true);
 });

@@ -58,12 +58,12 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
 
 - Lecture : endpoints vérifiés, `GET`, via la session de l'onglet ouvert. Écriture : seulement les automatisations activées (ci-dessous).
 - Budget : 60 appels / session · 12 / min · 1,2 s d'espacement · 2 pages max. **403/429 = arrêt total 6 h.**
-- ERA ne publie, ne republie, ne supprime, ne suit personne et ne change jamais un prix automatiquement.
+- ERA ne publie jamais une annonce, ne suit personne et ne change jamais un prix automatiquement. Il ne supprime qu'une **ancienne annonce republiée**, sans favoris, une fois la copie en ligne, après votre confirmation.
 - Modifier le prix d'une annonce depuis la fiche article : **EXPERIMENTAL**, un article à la fois, après confirmation explicite.
 - **Automatisations (EXPERIMENTAL, désactivées par défaut)** — Outils → Automatisations :
   - *Favoris → message et offre* : à un nouveau favori, un message et (si le coût d'achat est connu) une offre, jamais sous coût + marge ;
   - *Offres reçues* : acceptée au-dessus d'un seuil, une contre-offre entre deux, refusée en dessous — jamais sous le plancher.
-  - Écritures limitées à une **liste blanche** de 5 routes (conversation, message, offre, réponse à une offre) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
+  - Écritures limitées à une **liste blanche** de routes (conversation, message, offre, réponse à une offre ; plus, sur votre clic seulement : brouillon, bordereau, masquer, suppression d'une ancienne annonce republiée, envoi d'une photo pour une copie) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
   - « Simuler » ne fait que lire ; chaque action (ou simulation) est écrite dans un **journal**. La planification ne tourne qu'avec un onglet vinted.fr déjà ouvert.
   - Routes et champs relevés dans des extensions du marché (faits d'interopérabilité, aucun code repris) : **NON VÉRIFIÉS** sur votre compte tant que le journal ne les montre pas fonctionner.
 - **Brouillon Vinted pré-rempli (EXPERIMENTAL)** — Atelier → « Créer le brouillon sur Vinted » : titre, description, prix, état, et les identifiants que Vinted lui-même propose (catégorie suggérée pour le titre, marque au nom exact, taille exacte de la catégorie, format de colis). Ce qui ne correspond pas reste vide. **Jamais publié** : vous ajoutez les photos et publiez sur Vinted. Relu sur Vinted avant d'être annoncé.
@@ -86,6 +86,11 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Commandes « à traiter » (`transaction_user_status: needs_action` dans `my_orders`) | NON VÉRIFIÉ |
 | Modification de prix | EXPERIMENTAL |
 | Automatisations : notifications de favoris, conversations, messages, offres (`/web/api/notifications/notifications`, `/api/v2/conversations`, `/api/v2/transactions/{id}/offers`, `offer_requests/{id}/accept\|reject`, `/api/v2/inbox`) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Brouillon pré-rempli (`item_upload/suggestions/categories`, `item_upload/brands`, `item_upload/size_groups`, `catalogs/{id}/package_sizes`, `item_upload/drafts`) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Bordereau (`conversations/{id}`, `shipments/{id}/label_url`, `transactions/{id}/shipment/order`), masquer (`items/{id}/is_hidden`) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Republication sans perte (`item_upload/items/{id}`, `POST /api/v2/photos`, `item_upload/drafts`, `POST items/{id}/delete`) | EXPERIMENTAL · NON VÉRIFIÉ |
+
+Réglages → *Intégrations Vinted* compte aussi, pour chaque écriture, les envois que Vinted a **acceptés sur cet appareil** (d'après le journal) : c'est la seule preuve qu'une route fonctionne sur votre compte.
 
 ## Republications : un article, une mémoire
 
@@ -97,6 +102,17 @@ Republier (supprimer puis remettre en ligne, à la main ou avec n'importe quel o
 - **Décisions** : aucune autre action proposée pendant 7 jours après une republication (son effet sur les vues est mesuré) ; une republication sans effet n'est pas reproposée.
 - **Disparition sans republication** : l'annonce passe « retirée » et l'article sort du stock (déduit) ; si une commande la nomme, c'est une vente.
 - Garde-robe de plus de 192 annonces (2 pages lues) : ERA ne conclut rien d'une absence.
+
+## Republier sans rien perdre (EXPERIMENTAL)
+
+Fiche article → **« Republier sans rien perdre »** (annonce en ligne, ni réservée ni masquée) :
+
+1. ERA lit l'annonce sur Vinted et **refuse s'il y a un seul favori** (une republication les ferait perdre ; favoris non confirmés = refus aussi).
+2. Il la copie dans un **brouillon** : mêmes titre, description, prix, catégorie, marque, taille, état, couleurs, format de colis, et **les mêmes photos**, téléchargées depuis les serveurs d'images de Vinted puis renvoyées (tout ou rien : si une photo échoue, aucun brouillon ; le budget d'appels doit couvrir la copie entière avant de commencer). Le brouillon est relu, puis ouvert sur Vinted. **Rien n'est publié, rien n'est supprimé.**
+3. Vous vérifiez la copie et la publiez vous-même. À l'import suivant, la copie rejoint **le même article** (jamais un doublon) : coût, date d'achat, 1re mise en ligne et historique restent.
+4. « Supprimer l'ancienne annonce » : ERA revérifie sur Vinted que la copie est publiée et que l'ancienne n'a toujours aucun favori, demande confirmation, supprime, puis relit. Non confirmé par la relecture → rien ne bouge dans ERA, le prochain import tranche.
+
+Nouvelle autorisation : `https://*.vinted.net/*` (serveurs d'images de Vinted), lue seulement pour copier les photos de **vos** annonces.
 
 ## À envoyer, bordereaux, masquer
 

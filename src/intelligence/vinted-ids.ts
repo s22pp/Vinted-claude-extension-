@@ -57,3 +57,51 @@ export function pickPackageId(json: unknown, want: PackageSize): number | null {
   const id = PACKAGE_ID_OF[want];
   return ids.length === 0 || ids.includes(id) ? id : null;
 }
+
+/* ── Repost as a draft copy ─────────────────────────────── */
+
+export interface RepostSource {
+  title: string;
+  photoUrls: string[];
+  favorites: number | null;
+  /** The draft fields copied as they are, ids included (Vinted's own values for this listing). */
+  fields: Record<string, unknown>;
+}
+
+const num = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : typeof x === 'string' && x.trim() !== '' && Number.isFinite(Number(x)) ? Number(x) : null);
+
+/**
+ * From one of MY listings as Vinted's upload data returns it, what a copy needs: its own ids and texts, its photos
+ * (to upload again), and its favourites (a listing with favourites is never reposted: they would be lost).
+ */
+export function repostSource(json: unknown): RepostSource | null {
+  const it = isObj(json) && isObj(json.item) ? json.item : isObj(json) ? json : null;
+  if (!it || typeof it.title !== 'string') return null;
+  const photos = (Array.isArray(it.photos) ? it.photos.filter(isObj) : [])
+    .map((p) => (typeof p.full_size_url === 'string' ? p.full_size_url : typeof p.url === 'string' ? p.url : null))
+    .filter((u): u is string => !!u && /^https:\/\//.test(u));
+  const price = isObj(it.price) ? num(it.price.amount) : num(it.price);
+  const colors = Array.isArray(it.color_ids) ? it.color_ids.map(idOf).filter((x): x is number => x !== null) : [idOf(it.color1_id), idOf(it.color2_id)].filter((x): x is number => x !== null);
+  return {
+    title: it.title,
+    photoUrls: photos,
+    favorites: num(it.favourite_count),
+    fields: {
+      title: it.title,
+      description: typeof it.description === 'string' ? it.description : '',
+      price: price === null ? null : price.toFixed(2),
+      currency: typeof it.currency === 'string' ? it.currency : 'EUR',
+      brand_id: idOf(it.brand_id),
+      brand: typeof it.brand === 'string' ? it.brand : isObj(it.brand) && typeof it.brand.title === 'string' ? it.brand.title : null,
+      size_id: idOf(it.size_id),
+      catalog_id: idOf(it.catalog_id),
+      status_id: idOf(it.status_id),
+      package_size_id: idOf(it.package_size_id),
+      color_ids: colors,
+      is_unisex: it.is_unisex === true,
+      measurement_length: num(it.measurement_length),
+      measurement_width: num(it.measurement_width),
+      item_attributes: Array.isArray(it.item_attributes) ? it.item_attributes : [],
+    },
+  };
+}
