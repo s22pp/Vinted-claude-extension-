@@ -19,6 +19,10 @@ test('visual QA screenshots', async ({ context, base }) => {
   await page.waitForTimeout(900);
   await page.screenshot({ path: `${OUT}/02-stock.png`, fullPage: false });
 
+  await page.goto(`${base}#/buy?tab=list`);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${OUT}/02b-shopping.png`, fullPage: true });
+
   await page.goto(`${base}#/automations`);
   await page.waitForTimeout(900);
   await page.screenshot({ path: `${OUT}/02a-automations.png`, fullPage: true });

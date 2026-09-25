@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Condition, Prep } from '@/domain/entities';
 import { PrepSchema } from '@/domain/entities';
 import { errorCode } from '@/data/adapters/marketplace';
+import type { DraftInput, DraftResult, EraMessage } from '@/data/adapters/vinted/protocol';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { buildPrediction } from '@/intelligence/precision';
@@ -246,6 +247,27 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
     }
   };
 
+  // A Vinted DRAFT prefilled from the sheet: the seller adds the photos and publishes on Vinted (EXPERIMENTAL).
+  const [drafting, setDrafting] = useState(false);
+  const createDraft = async () => {
+    if (chosen === null) return;
+    setDrafting(true);
+    try {
+      await repo.savePrep(item.id, { priceCents: chosen, packageSize: pkg });
+      const input: DraftInput = { itemId: item.id, title, description, priceCents: chosen, brand: item.brand, size: item.size, condition: item.condition, packageSize: pkg };
+      const res = (await browser.runtime.sendMessage({ type: 'era:draft:create', input } satisfies EraMessage)) as DraftResult;
+      if (!res.ok) {
+        errorToast(res);
+        return;
+      }
+      const todo = res.missing.map((k) => t(`workshop.draftField.${k}`)).join(', ');
+      toast('success', t('workshop.draftDone'), res.missing.length ? t('workshop.draftTodo', { fields: todo }) : t('workshop.draftAllSet'));
+      window.open(`https://www.vinted.fr/items/${res.draftId}/edit`, '_blank', 'noopener');
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   const publish = async () => {
     await repo.markPrepPublished(item.id, chosen);
     // The asking price becomes a forecast, confronted with the real sale later.
@@ -468,6 +490,16 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
             </span>
           )}
         </div>
+        {era.mode === 'real' &&
+          (prep.vintedDraftId ? (
+            <Button variant="ghost" size="sm" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${prep.vintedDraftId}/edit`, '_blank', 'noopener')}>
+              {t('workshop.draftOpen')}
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" icon="upload" loading={drafting} disabled={chosen === null || !title.trim()} onClick={createDraft}>
+              {t('workshop.draftCreate')}
+            </Button>
+          ))}
         {!r.ready && (
           <Button variant="ghost" size="sm" onClick={publish}>
             {t('workshop.publishAnyway')}

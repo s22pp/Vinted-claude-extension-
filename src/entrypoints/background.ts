@@ -4,6 +4,7 @@ import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
 import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult } from '@/data/adapters/vinted/protocol';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
+import { createVintedDraft } from '@/data/vinted-draft';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -109,6 +110,13 @@ export default defineBackground(() => {
         return true;
       case 'era:auto:run':
         void runAuto(msg.kind, msg.dryRun).then(sendResponse);
+        return true;
+      case 'era:draft:create':
+        if (autoRunning || importing || editing) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+          return undefined;
+        }
+        void createVintedDraft(msg.input).then(sendResponse);
         return true;
       case 'era:auto:schedule':
         void scheduleAuto().then(() => sendResponse({ ok: true }));

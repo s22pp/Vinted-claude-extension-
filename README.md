@@ -66,6 +66,7 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
   - Écritures limitées à une **liste blanche** de 5 routes (conversation, message, offre, réponse à une offre) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
   - « Simuler » ne fait que lire ; chaque action (ou simulation) est écrite dans un **journal**. La planification ne tourne qu'avec un onglet vinted.fr déjà ouvert.
   - Routes et champs relevés dans des extensions du marché (faits d'interopérabilité, aucun code repris) : **NON VÉRIFIÉS** sur votre compte tant que le journal ne les montre pas fonctionner.
+- **Brouillon Vinted pré-rempli (EXPERIMENTAL)** — Atelier → « Créer le brouillon sur Vinted » : titre, description, prix, état, et les identifiants que Vinted lui-même propose (catégorie suggérée pour le titre, marque au nom exact, taille exacte de la catégorie, format de colis). Ce qui ne correspond pas reste vide. **Jamais publié** : vous ajoutez les photos et publiez sur Vinted. Relu sur Vinted avant d'être annoncé.
 
 ## Code tiers
 
@@ -96,6 +97,10 @@ Republier (supprimer puis remettre en ligne, à la main ou avec n'importe quel o
 - **Décisions** : aucune autre action proposée pendant 7 jours après une republication (son effet sur les vues est mesuré) ; une republication sans effet n'est pas reproposée.
 - **Disparition sans republication** : l'annonce passe « retirée » et l'article sort du stock (déduit) ; si une commande la nomme, c'est une vente.
 - Garde-robe de plus de 192 annonces (2 pages lues) : ERA ne conclut rien d'une absence.
+
+## Liste de courses
+
+Buy → **Liste de courses** : à partir de **vos** ventes (jamais du marché seul), chaque niche vendue au moins 3 fois avec son prix encaissé médian, son délai, son profit par jour (si les coûts sont connus), le stock déjà détenu et le **prix maximal à payer** : prix encaissé médian − max(8 €, 40 %), traduit en prix affiché sur Vinted (protection acheteur 0,70 € + 5 % incluse, port en plus). « À éviter » : profit par vente trop faible, profit par jour très inférieur à l'habitude, ou lenteur quand le profit est inconnu. Une marque inconnue n'est jamais une niche.
 
 ## Approvisionnement hors Vinted
 

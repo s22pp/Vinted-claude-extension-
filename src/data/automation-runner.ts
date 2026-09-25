@@ -1,11 +1,11 @@
 import { type AutoConfig, type FavItem, decideOffer, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planFavorite, withDefaults } from '@/intelligence/automation';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
-import { autoWriteWait, recordAutoWrite } from './adapters/vinted/budget-store';
 import { currentUserId, priceCents } from './adapters/vinted/parse';
-import type { ApiResult, AutoRunResult, EraMessage } from './adapters/vinted/protocol';
-import { VintedTabAdapter, ensureVintedTab, findVintedTab, ping } from './adapters/vinted/vinted-adapter';
+import type { AutoRunResult } from './adapters/vinted/protocol';
+import { VintedTabAdapter, findVintedTab, ping } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db, uid } from './db';
 import { repo } from './repo';
+import { vintedWrite } from './vinted-write';
 
 /**
  * Background-only. Runs ONE automation pass on the seller's own account: reads through the whitelisted GET
@@ -27,30 +27,7 @@ async function log(row: Omit<AutoLogRow, 'id' | 'at'>): Promise<void> {
   if (n > 600) await db.autoLog.orderBy('at').limit(n - 500).delete();
 }
 
-/** Sleep in short steps touching an extension API: the service worker stays awake meanwhile. */
-async function waitAlive(ms: number): Promise<void> {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    await new Promise((r) => setTimeout(r, Math.min(4000, end - Date.now())));
-    await browser.storage.local.get('eraAuto');
-  }
-}
-
-async function write(method: 'POST' | 'PUT', path: string, body: unknown): Promise<unknown> {
-  const wait = await autoWriteWait();
-  if (wait > 0) await waitAlive(wait);
-  const { tabId } = await ensureVintedTab();
-  let res: ApiResult;
-  try {
-    res = (await browser.tabs.sendMessage(tabId, { type: 'era:write', method, path, body } satisfies EraMessage)) as ApiResult;
-  } catch {
-    throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
-  }
-  // Counted even when refused: the quota protects the account, not the success rate.
-  await recordAutoWrite();
-  if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? res.code);
-  return res.json;
-}
+const write = (method: 'POST' | 'PUT', path: string, body: unknown) => vintedWrite(method, path, body);
 
 type Json = Record<string, unknown>;
 const obj = (x: unknown): Json => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Json) : {});

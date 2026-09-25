@@ -194,3 +194,16 @@ test('companion reads the open vinted.fr item page (no API call)', async ({ cont
   await expect(panel.getByText('Coût réel d’achat :')).toBeVisible();
   expect(apiCalls).toBe(0);
 });
+
+test('shopping list: niches to rebuy from your own sales, with the most to pay on Vinted', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/buy?tab=list`);
+  await expect(page.getByRole('tab', { name: 'Liste de courses' })).toHaveAttribute('aria-selected', 'true');
+  const buy = page.getByTestId('shopping-buy');
+  await expect(buy.locator('tbody tr').first()).toBeVisible();
+  // Every line carries its sample and a maximum price in euros.
+  await expect(buy.locator('tbody tr').first()).toContainText('€');
+  await page.getByRole('tab', { name: 'Analyser un achat' }).click();
+  await expect(page).toHaveURL(/#\/buy$/);
+});

@@ -163,6 +163,8 @@ export const PrepSchema = z.object({
   readyAt: z.number().nullable().default(null),
   /** The seller says it is published on Vinted; the next import links the listing via the reference. */
   publishedAt: z.number().nullable().default(null),
+  /** The Vinted draft ERA created from this sheet (photos and publication stay with the seller). */
+  vintedDraftId: z.string().nullable().optional(),
 });
 export type Prep = z.infer<typeof PrepSchema>;
 

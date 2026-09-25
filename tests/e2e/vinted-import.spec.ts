@@ -5,7 +5,7 @@ import { expect, test } from './fixtures';
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { hide: new Set<number>(), add: [] as object[] };
+  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null };
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
   await context.route('https://www.vinted.fr/**', (route) => {
@@ -75,6 +75,16 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
         ].filter((it) => !state.hide.has((it as { id: number }).id)),
         pagination: { total_entries: 3 },
       });
+    // Test fixture only: Vinted's upload helpers and a draft endpoint that remembers what it was sent.
+    if (url.pathname === '/api/v2/item_upload/suggestions/categories' && method === 'POST') return json({ suggested_category_id: 1812 });
+    if (url.pathname === '/api/v2/item_upload/brands') return json({ brands: [{ id: 4273, title: 'Polo Ralph Lauren' }, { id: 88, title: 'Ralph Lauren' }] });
+    if (url.pathname === '/api/v2/item_upload/size_groups') return json({ size_groups: [{ sizes: [{ id: 207, title: 'S' }, { id: 208, title: 'M' }] }] });
+    if (url.pathname === '/api/v2/catalogs/1812/package_sizes') return json({ package_sizes: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+    if (url.pathname === '/api/v2/item_upload/drafts' && method === 'POST') {
+      state.draft = JSON.parse(route.request().postData() ?? '{}').draft;
+      return json({ draft: { id: 555 } });
+    }
+    if (url.pathname === '/api/v2/item_upload/items/555') return json({ item: { id: 555, title: (state.draft as { title?: string } | null)?.title, is_draft: true } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
@@ -403,4 +413,30 @@ test('price analysis without a brand on Vinted: searches the title’s words, ne
   expect(searches.every((q) => q && /bonobo/.test(q) && !/inconnu/i.test(q))).toBe(true);
   // Its own listing was read once on Vinted before searching (verified route).
   expect(calls.some((c) => c.path === '/api/v2/item_upload/items/106')).toBe(true);
+});
+
+test('workshop → a Vinted DRAFT prefilled with Vinted’s own ids, read back, never published', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 107, title: 'Pull Ralph Lauren M', price: '0', view_count: 0, favourite_count: 0, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: true, is_closed: false, is_hidden: false, photos: [] }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/workshop`);
+  await page.locator('.wq__row', { hasText: 'Pull Ralph Lauren M' }).first().click();
+  await page.getByLabel('Prix', { exact: true }).fill('35');
+  await page.evaluate(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = (u?: string | URL) => (w.__opened.push(String(u)), null);
+  });
+  await page.getByRole('button', { name: 'Créer le brouillon sur Vinted' }).click();
+  await expect(page.getByText('Brouillon créé sur Vinted')).toBeVisible({ timeout: 40_000 });
+  const posted = calls.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')!;
+  const draft = JSON.parse(posted.body!).draft;
+  expect(draft).toMatchObject({ catalog_id: 1812, brand_id: 88, size_id: 208, status_id: 2, package_size_id: 2, price: '35.00', currency: 'EUR', assigned_photos: [] });
+  expect(draft.title).toMatch(/E[0-9A-Z]{4}$/);
+  // Only a draft: nothing published, the seller opens it on Vinted to add the photos.
+  expect(calls.filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/item_upload/suggestions/categories', '/api/v2/item_upload/drafts']);
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/items/555/edit']);
+  await expect(page.getByRole('button', { name: 'Ouvrir le brouillon Vinted' })).toBeVisible();
 });

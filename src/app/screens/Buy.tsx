@@ -8,13 +8,14 @@ import { personalEvidence, realizedFor } from '@/intelligence/seller-model';
 import { Ring } from '@/ui/charts/charts';
 import { IllustrationBuy } from '@/ui/components/illustrations';
 import { useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Field, Flag, Input, Stages } from '@/ui/components/primitives';
+import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Field, Flag, Input, Stages, Tabs } from '@/ui/components/primitives';
 import { Icon, IconTile } from '@/ui/components/icons';
 import { DualDistribution } from '@/ui/charts/dual';
 import { CategorySelect, ConditionSelect, useMoneyField } from '../components/forms';
 import { marketAdapter } from '../market-run';
 import { AnalysisView } from './Market';
 import { PageHead } from '../Shell';
+import { ShoppingListView } from '../components/shopping';
 import { go, type Route, useEra } from '../state';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
@@ -26,6 +27,26 @@ export function vintedLandedCost(listed: number, shipping: number | null): numbe
 }
 
 export function Buy({ route }: { route: Route }) {
+  const { t } = useI18n();
+  const tab = route.query.get('tab') === 'list' ? 'list' : 'analyze';
+  return (
+    <>
+      <PageHead title={t('buy.title')} sub={t(tab === 'list' ? 'shopping.sub' : 'buy.subtitle')} />
+      <Tabs<'analyze' | 'list'>
+        label={t('buy.title')}
+        value={tab}
+        onChange={(v) => go(v === 'list' ? 'buy?tab=list' : 'buy')}
+        tabs={[
+          { value: 'analyze', label: t('shopping.tabAnalyze') },
+          { value: 'list', label: t('shopping.tabList') },
+        ]}
+      />
+      <div style={{ marginTop: 16 }}>{tab === 'list' ? <ShoppingListView /> : <BuyAnalyzer route={route} />}</div>
+    </>
+  );
+}
+
+function BuyAnalyzer({ route }: { route: Route }) {
   const { t, money } = useI18n();
   const era = useEra();
   const toast = useToast();
@@ -81,7 +102,6 @@ export function Buy({ route }: { route: Route }) {
 
   return (
     <>
-      <PageHead title={t('buy.title')} sub={t('buy.subtitle')} />
       <div className="grid-12">
         <Card className="span-4" title={t('buy.form')} icon="buy" tone="violet" style={{ alignSelf: 'start' }}>
           <form className="stack-3" onSubmit={submit} noValidate>

@@ -2,7 +2,7 @@
   "name": "era-intelligence",
   "description": "ERA Intelligence — cockpit de décision pour revendeurs Vinted",
   "private": true,
-  "version": "0.12.1",
+  "version": "0.13.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
