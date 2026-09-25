@@ -239,6 +239,10 @@ export const fr = {
     },
   },
   item: {
+    repostMemory: 'Republiée {n} fois : même article, 1re mise en ligne il y a {days} j. C’est cette date qui compte pour le capital immobilisé et vos délais de vente.',
+    repostMemory_one: 'Republiée 1 fois : même article, 1re mise en ligne il y a {days} j. C’est cette date qui compte pour le capital immobilisé et vos délais de vente.',
+    repostEffectPending: 'Effet sur les vues : mesure en cours.',
+    repostEffect: 'Effet de la dernière republication : {pct} de vues par jour.',
     inDistribution: 'Prix dans sa distribution',
     inDistributionHint: 'Lancez une analyse pour placer votre prix parmi les comparables',
     positionLine: 'Votre prix est au percentile {pct} des {n} comparables retenus (prix demandés).',
@@ -294,6 +298,14 @@ export const fr = {
     },
   },
   timeline: {
+    splitAsk: 'Pas le même article ? Séparer',
+    splitConfirm: 'Confirmer : deux articles distincts',
+    splitDone: 'Articles séparés',
+    splitDoneHint: 'La nouvelle annonce est un article à part : renseignez son coût d’achat.',
+    repostDetail: 'Même article ({basis}) · l’ancienne annonce avait {views} vues et {favorites} favoris',
+    basisSKU: 'référence ERA dans le titre',
+    basisTITLE: 'même titre, marque et taille',
+    removedInferred: 'Disparue de la garde-robe Vinted · {views} vues · {favorites} favoris',
     ITEM_ACQUIRED: 'Acheté',
     COST_ENTERED: 'Coût renseigné',
     LISTING_PUBLISHED: 'Publié',
@@ -534,6 +546,8 @@ export const fr = {
       ANALYZE: 'Lancer une analyse marché',
     },
     w: {
+      recentRepost: 'Republiée il y a {days} j (Vinted a remis {views} vues et {favorites} favoris à zéro). ERA mesure l’effet sur les vues avant toute autre action (encore {wait} j).',
+      repostNoEffect: 'La dernière republication n’a pas augmenté les vues ({pct} de vues par jour la semaine suivante) : la refaire effacerait encore l’historique sans gain.',
       priceSeen: 'Prix pris en compte : {price}, lu sur Vinted il y a {days} j. Changé depuis sur Vinted ? Réimportez pour mettre ERA à jour.',
       priceSeenToday: 'Prix pris en compte : {price}, lu sur Vinted aujourd’hui.',
       recentDrop: 'Baisse récente : {from} → {to} il y a {days} j. ERA mesure son effet sur les vues avant toute nouvelle baisse (encore {wait} j).',
@@ -565,6 +579,7 @@ export const fr = {
       priceAlreadyMarket: 'Votre prix est déjà dans le marché ({pct} % vs médiane) : le prix n’est pas le frein principal.',
     },
     i: {
+      measureRepost: 'Aucune autre action tant que l’effet de la republication n’est pas mesuré.',
       fasterLowerMargin: 'Probabilité de vente supérieure, marge réduite de {delta}.',
       notifyFavorites: 'Une baisse notifie les {favorites} favoris : le seul levier qui touche des acheteurs identifiés.',
       visibilityReset: 'Remet l’annonce en tête des résultats récents.',
@@ -824,6 +839,10 @@ export const fr = {
     of: 'sur',
   },
   vinted: {
+    reposts: '{n} republications reconnues (même article, historique conservé)',
+    reposts_one: '1 republication reconnue (même article, historique conservé)',
+    removed: '{n} annonces disparues de Vinted, retirées du stock',
+    removed_one: '1 annonce disparue de Vinted, retirée du stock',
     linkedPrepared: '{n} annonces préparées dans ERA reliées par leur référence',
     import: 'Importer mon stock Vinted',
     importShort: 'Importer Vinted',

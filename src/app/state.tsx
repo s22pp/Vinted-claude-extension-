@@ -10,6 +10,7 @@ import { type ItemIntel, type TodayPriority, computeItemIntel, todayPriorities }
 import { type LearningSummary, summarizeLearning } from '@/intelligence/learning';
 import { type ItemView, type SaleView, buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model';
+import { lastReposts } from '@/intelligence/repost';
 import { buildSensitivityIndex, lastDrops } from '@/intelligence/sensitivity';
 import { latestAnalyses } from '@/intelligence/market-vs-you';
 import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
@@ -68,6 +69,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
   const decisions = useLiveQuery(() => db.decisions.toArray(), []);
   const observations = useLiveQuery(() => db.observations.toArray(), []);
   const priceEvents = useLiveQuery(() => db.events.where('type').equals('PRICE_CHANGED').toArray(), []);
+  const repostEvents = useLiveQuery(() => db.events.where('type').equals('LISTING_REPUBLISHED').toArray(), []);
   const mode = useLiveQuery(() => repo.getSetting<DataMode>('dataMode', 'empty'), []);
   const prepRows = useLiveQuery(() => db.preps.toArray(), []);
 
@@ -81,9 +83,10 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const analysisMap = new Map((analyses ?? []).filter((a) => a.inventoryItemId).map((a) => [a.inventoryItemId!, a.analysis]));
     const sensitivity = buildSensitivityIndex(views, observations ?? [], priceEvents ?? []);
     const drops = lastDrops(priceEvents ?? [], observations ?? [], now);
+    const reposts = lastReposts(repostEvents ?? [], observations ?? [], now);
     const intel = views
       .filter((v) => v.inStock)
-      .map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now, sensitivity.get(v.item.id), drops.get(v.item.id) ?? null));
+      .map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now, sensitivity.get(v.item.id), drops.get(v.item.id) ?? null, reposts.get(v.item.id) ?? null));
     // Dismissed / snoozed recommendations stay hidden until they change or the snooze ends.
     const hidden = new Set((decisions ?? []).filter((d) => d.outcome === 'DISMISSED' || (d.outcome === 'SNOOZED' && (d.until ?? 0) > now)).map((d) => d.recommendationKey));
     for (const i of intel) if (i.recommendation && hidden.has(i.recommendation.key)) i.recommendation = null;
@@ -132,7 +135,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       activation: new Set((activation ?? []).map((a) => a.name)),
       decisions: decisions ?? [],
     };
-  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, prepRows]);
+  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, repostEvents, prepRows]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

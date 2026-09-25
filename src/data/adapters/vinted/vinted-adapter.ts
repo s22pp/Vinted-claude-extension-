@@ -193,9 +193,16 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     return id;
   }
 
+  /**
+   * true when the last getInventory() read the whole wardrobe (its last page was not full). Only then
+   * does a listing missing from it mean "gone from Vinted" — never after a page cap.
+   */
+  inventoryComplete = false;
+
   async getInventory(): Promise<InventorySnapshotItem[]> {
     const uid = await this.userId();
     const out: InventorySnapshotItem[] = [];
+    this.inventoryComplete = false;
     for (let page = 1; page <= 2; page++) {
       const raw = firstArray(await this.api(`/api/v2/wardrobe/${uid}/items?page=${page}&per_page=96`), ['items']);
       for (const it of raw) {
@@ -203,7 +210,10 @@ export class VintedTabAdapter implements MarketplaceAdapter {
         const p = parseWardrobeItem(it);
         if (p) out.push(p);
       }
-      if (raw.length < 96) break;
+      if (raw.length < 96) {
+        this.inventoryComplete = true;
+        break;
+      }
     }
     return out;
   }

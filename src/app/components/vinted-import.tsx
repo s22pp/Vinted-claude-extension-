@@ -34,7 +34,12 @@ export function useVintedImport(onDone?: (r: Extract<ImportResult, { ok: true }>
       r = { ok: false, code: 'UNAVAILABLE', detail: `service worker : ${e instanceof Error ? e.message : String(e)}` };
     }
     if (r.ok) {
-      toast('success', t('vinted.stageCOMPLETE'), `${t('vinted.imported', { n: r.items, updated: r.updated, sales: r.sales })}${r.linked ? ` · ${t('vinted.linkedPrepared', { n: r.linked })}` : ''}`);
+      const extra = [
+        r.linked ? t('vinted.linkedPrepared', { n: r.linked }) : null,
+        r.reposts ? t('vinted.reposts', { n: r.reposts }) : null,
+        r.removed ? t('vinted.removed', { n: r.removed }) : null,
+      ].filter(Boolean);
+      toast('success', t('vinted.stageCOMPLETE'), [t('vinted.imported', { n: r.items, updated: r.updated, sales: r.sales }), ...extra].join(' · '));
       onDone?.(r);
     } else {
       errorToast(r);

@@ -469,6 +469,53 @@ export class EraRepository {
     await this.db.decisions.put({ id: uid('dec'), recommendationKey: key, inventoryItemId: itemId, action, outcome, at: now, until: outcome === 'SNOOZED' ? now + 7 * DAY : null });
   }
 
+  /**
+   * Undo a repost recognised by title: the new announcement was another article after all. It becomes its
+   * own article (descriptive fields copied, cost and purchase date unknown — never guessed); the old article
+   * keeps its history and, its announcement being gone from Vinted, leaves the stock (INFERRED).
+   * Returns the new article's id, or null when the event is not a recognised repost.
+   */
+  async splitRepost(eventId: string, now = Date.now()): Promise<string | null> {
+    const ev = await this.db.events.get(eventId);
+    if (!ev || ev.type !== 'LISTING_REPUBLISHED' || !ev.inventoryItemId || !ev.listingId) return null;
+    const item = await this.db.items.get(ev.inventoryItemId);
+    const listing = await this.db.listings.get(ev.listingId);
+    if (!item || !listing) return null;
+    const newId = uid('item');
+    await this.db.transaction('rw', [this.db.items, this.db.listings, this.db.observations, this.db.events, this.db.sales], async () => {
+      await this.db.items.put({
+        ...item,
+        id: newId,
+        title: listing.title,
+        purchasePriceCents: null,
+        costDetail: null,
+        purchaseDate: null,
+        purchaseSource: null,
+        createdAt: now,
+        updatedAt: now,
+        // Only what describes the listing carries over; cost-related provenance does not.
+        meta: Object.fromEntries(['status', 'brand', 'category', 'size', 'condition'].flatMap((k) => (item.meta[k] ? [[k, item.meta[k]!]] : []))),
+      });
+      await this.db.listings.put({ ...listing, inventoryItemId: newId });
+      await this.db.observations.where('inventoryItemId').equals(item.id).filter((o) => o.listingId === listing.id).modify({ inventoryItemId: newId });
+      await this.db.sales.where('inventoryItemId').equals(item.id).filter((x) => x.listingId === listing.id).modify({ inventoryItemId: newId });
+      // The price change recorded across the two announcements compared two different articles: dropped.
+      await this.db.events
+        .where('inventoryItemId')
+        .equals(item.id)
+        .filter((e) => e.listingId === listing.id && e.type === 'PRICE_CHANGED' && e.at === ev.at && e.data.from === ev.data.priceFrom)
+        .delete();
+      await this.db.events.where('inventoryItemId').equals(item.id).filter((e) => e.listingId === listing.id).modify({ inventoryItemId: newId });
+      await this.db.events.put({ ...ev, type: 'LISTING_PUBLISHED', inventoryItemId: newId, data: { price: listing.priceCents }, provenance: 'USER_PROVIDED' });
+      const stillLive = await this.db.listings.where('inventoryItemId').equals(item.id).filter((l) => isLiveListing(l.status)).count();
+      if (!stillLive && item.status !== 'SOLD' && item.status !== 'ARCHIVED') {
+        await this.db.items.put({ ...item, status: 'ARCHIVED', updatedAt: now, meta: { ...item.meta, status: { p: 'INFERRED', at: now } } });
+        await this.db.events.put(this.event({ type: 'STATUS_CHANGED', at: now, inventoryItemId: item.id, listingId: null, data: { from: item.status, to: 'ARCHIVED' }, provenance: 'INFERRED' }));
+      }
+    });
+    return newId;
+  }
+
   async resetAll(): Promise<void> {
     await this.db.delete();
     await this.db.open();

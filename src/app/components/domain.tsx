@@ -291,10 +291,14 @@ export function Timeline({ itemId }: { itemId: string }) {
             break;
           case 'COST_ENTERED':
           case 'LISTING_PUBLISHED':
-          case 'LISTING_REPUBLISHED':
           case 'ITEM_SOLD':
           case 'SALE_REFUNDED':
             value = money(num(d.price) ?? num(d.cost));
+            break;
+          case 'LISTING_REPUBLISHED':
+            // Same article, new announcement: what Vinted reset stays visible here.
+            value = money(num(d.price));
+            detail = d.basis === 'SKU' || d.basis === 'TITLE' ? t('timeline.repostDetail', { basis: t(`timeline.basis${d.basis}`), views: num(d.viewsLost), favorites: num(d.favoritesLost) }) : null;
             break;
           case 'PRICE_CHANGED':
             value = money(num(d.to));
@@ -302,7 +306,10 @@ export function Timeline({ itemId }: { itemId: string }) {
             break;
           case 'ENGAGEMENT_OBSERVED':
           case 'LISTING_REMOVED':
-            detail = d.views !== undefined ? t('timeline.engagementDetail', { views: num(d.views), favorites: num(d.favorites) }) : null;
+            detail =
+              d.views === undefined
+                ? null
+                : t(e.type === 'LISTING_REMOVED' && e.provenance === 'INFERRED' ? 'timeline.removedInferred' : 'timeline.engagementDetail', { views: num(d.views), favorites: num(d.favorites) });
             break;
           case 'MARKET_ANALYZED':
             detail = t('timeline.analysisDetail', { quality: t(`compQuality.${String(d.quality)}`), n: num(d.n) });
@@ -333,12 +340,45 @@ export function Timeline({ itemId }: { itemId: string }) {
               <span className="tl__prov" style={{ display: 'block' }}>
                 {t(`data.${provKey(e.provenance)}`)}
               </span>
+              {e.type === 'LISTING_REPUBLISHED' && d.basis === 'TITLE' && !e.isDemo && <SplitRepost eventId={e.id} />}
             </span>
             <span className="tl__value num">{value}</span>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+/** A repost recognised by its title only can be wrong (two units, one title): one click puts it apart. */
+function SplitRepost({ eventId }: { eventId: string }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [armed, setArmed] = useState(false);
+  if (!armed)
+    return (
+      <Button size="sm" variant="ghost" onClick={() => setArmed(true)}>
+        {t('timeline.splitAsk')}
+      </Button>
+    );
+  return (
+    <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={async () => {
+          const id = await repo.splitRepost(eventId);
+          if (!id) return;
+          toast('success', t('timeline.splitDone'), t('timeline.splitDoneHint'));
+          go(`item/${id}`);
+        }}
+      >
+        {t('timeline.splitConfirm')}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setArmed(false)}>
+        {t('common.cancel')}
+      </Button>
+    </span>
   );
 }
 

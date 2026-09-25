@@ -33,7 +33,9 @@ export type EditFormResult = { ok: true; before: string } | { ok: false; detail:
 export type PriceEditResult = { ok: true; before: number | null; after: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 export type ImportStage = 'CONNECTING' | 'READING' | 'MATCHING' | 'COMPLETE';
-export type ImportResult = { ok: true; items: number; updated: number; sales: number; linked?: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+export type ImportResult =
+  | { ok: true; items: number; updated: number; sales: number; linked?: number; reposts?: number; removed?: number }
+  | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 export type ApiResult = { ok: true; json: unknown } | { ok: false; code: MarketplaceErrorCode; status?: number; detail?: string };
 export type ReserveResult = { ok: true; wait: number } | { ok: false; code: MarketplaceErrorCode };

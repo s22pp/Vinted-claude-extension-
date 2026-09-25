@@ -274,3 +274,39 @@ describe('no price drop on top of a price drop', () => {
     expect(r.action).toBe('SMALL_DROP');
   });
 });
+
+describe('a repost keeps one memory of the article', () => {
+  // Listed 40 days ago, deleted and published again 3 days ago: one article, two announcements.
+  const old = listing('old', 'r', { priceCents: 5500, views: 30, favorites: 0, listedAt: NOW - 40 * DAY, removedAt: NOW - 3 * DAY, status: 'REMOVED' });
+  const cur = listing('new', 'r', { priceCents: 5500, views: 4, favorites: 0, listedAt: NOW - 3 * DAY });
+  const [v] = buildItemViews([item('r', { purchaseDate: null })], [old, cur], [], NOW);
+  const fresh = { ...MKT, at: NOW - DAY };
+  const repost = (over: object = {}) => ({ eventId: 'e', at: NOW - 3 * DAY, daysSince: 3, fromListingId: 'old', toListingId: 'new', basis: 'TITLE' as const, priceFrom: 5500, priceTo: 5500, viewsLost: 30, favoritesLost: 0, effect: null, count: 1, ...over });
+
+  it('ages count from the first listing, the live signals from the new announcement', () => {
+    expect(v!.firstListedAt).toBe(NOW - 40 * DAY);
+    expect(v!.daysHeld).toBe(40);
+    expect(v!.current!.id).toBe('new');
+    expect(computeItemIntel(v!, fresh, null, null, null, NOW).stagnation!.daysListed).toBe(40);
+  });
+
+  it('just reposted: nothing else is proposed until its effect is measured', () => {
+    expect(computeItemIntel(v!, fresh, null, null, null, NOW).recommendation!.action).toBe('REPOST');
+    const r = computeItemIntel(v!, fresh, null, null, null, NOW, undefined, null, repost()).recommendation!;
+    expect(r.action).toBe('HOLD');
+    expect(r.why[0]).toEqual({ code: 'why.recentRepost', params: { days: 3, wait: 4, views: 30, favorites: 0 } });
+  });
+
+  it('a repost that brought no views is not repeated: the listing itself is reviewed', () => {
+    const [w] = buildItemViews([item('r', { purchaseDate: null })], [old, listing('new', 'r', { views: 10, favorites: 0, listedAt: NOW - 12 * DAY })], [], NOW);
+    const r = computeItemIntel(w!, fresh, null, null, null, NOW, undefined, null, repost({ at: NOW - 12 * DAY, daysSince: 12, effect: 0.02 })).recommendation!;
+    expect(r.action).toBe('REVIEW_LISTING');
+    expect(r.why[0]!.code).toBe('why.repostNoEffect');
+  });
+
+  it('selling speed counts from the first listing: a repost does not make the seller look faster', () => {
+    const sold: Sale = { id: 's', inventoryItemId: 'r', listingId: 'new', soldAt: NOW, salePriceCents: 5000, extraCostsCents: 0, status: 'COMPLETED', isDemo: false };
+    const [sv] = buildSaleViews(buildItemViews([item('r', { status: 'SOLD' })], [old, { ...cur, status: 'SOLD' }], [sold], NOW), [sold]);
+    expect(sv!.daysToSale).toBe(40);
+  });
+});

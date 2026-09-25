@@ -4,6 +4,8 @@ import { expect, test } from './fixtures';
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null }[] = [];
+  // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
+  const state = { hide: new Set<number>(), add: [] as object[] };
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
   await context.route('https://www.vinted.fr/**', (route) => {
@@ -55,7 +57,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
           { id: 102, title: "Jean Levi's 501 W32", price: '30.0', view_count: 40, favourite_count: 1, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] },
           { id: 103, title: 'Veste Carhartt Detroit M', price: { amount: '80.0' }, view_count: 300, favourite_count: 14, brand_title: 'Carhartt', is_draft: false, is_closed: true, is_hidden: false, photos: [] },
           ...(opts.extra ?? []),
-        ],
+          ...state.add,
+        ].filter((it) => !state.hide.has((it as { id: number }).id)),
         pagination: { total_entries: 3 },
       });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
@@ -69,7 +72,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       return json({ my_orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '75.0' }, date: '2026-09-10', status: 'Terminée' }, ...(opts.orders ?? [])] });
     return json({}, 404);
   });
-  return Object.assign(calls, { clicked, prices });
+  return Object.assign(calls, { clicked, prices, state });
 }
 
 test('one click imports stock + sales, opening vinted.fr by itself', async ({ context, base }) => {
@@ -117,6 +120,27 @@ test('two sales under the same title stay two sales, import after import', async
   await expect(page.getByText(/0 nouveaux articles · 4 mis à jour/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/sales`);
   await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(2);
+});
+
+test('a listing deleted and published again stays ONE article, with its history; a deleted one leaves the stock', async ({ context, base }) => {
+  const v = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // On Vinted: the Harrington is deleted then published again (new id, zero views); the Levi's is deleted.
+  v.state.hide.add(101);
+  v.state.hide.add(102);
+  v.state.add.push({ id: 201, title: 'Veste Harrington Ralph Lauren M', price: { amount: '55.0' }, view_count: 3, favourite_count: 0, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: null, is_main: true, high_resolution: { timestamp: 1758700000 } }] });
+  await page.getByRole('button', { name: /Actualiser/ }).first().click();
+  await expect(page.getByText(/1 republication reconnue/)).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByText(/1 annonce disparue de Vinted/)).toBeVisible();
+  await page.goto(`${base}#/stock?filter=all`);
+  const row = page.getByText('Veste Harrington Ralph Lauren M');
+  await expect(row).toHaveCount(1);
+  await row.click();
+  await expect(page.getByText(/l’ancienne annonce avait 212 vues et 9 favoris/)).toBeVisible();
+  await expect(page.getByTestId('repost-memory')).toContainText('Republiée 1 fois');
 });
 
 test('an order Vinted says needs the seller shows first in Today and opens Vinted orders', async ({ context, base }) => {

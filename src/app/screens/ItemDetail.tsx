@@ -332,6 +332,13 @@ export function ItemDetail({ id }: { id: string }) {
                   <Metric small label={t('market.positioning')} value={<span className="num">{st.priceDeltaPct === null ? '—' : pct(st.priceDeltaPct, { sign: true })}</span>} />
                 </div>
                 <p className="t-small t-faint">{t('stagnation.threshold', { n: st.thresholdDays })}</p>
+                {intel?.lastRepost && v.firstListedAt !== null && (
+                  // Reposted: same article, one memory. Its age for capital and selling speed counts from the first listing.
+                  <p className="t-small t-muted" data-testid="repost-memory">
+                    {t('item.repostMemory', { n: intel.lastRepost.count, days: Math.max(0, Math.floor((Date.now() - v.firstListedAt) / 86_400_000)) })}{' '}
+                    {intel.lastRepost.effect === null ? t('item.repostEffectPending') : t('item.repostEffect', { pct: pct(intel.lastRepost.effect, { sign: true }) })}
+                  </p>
+                )}
               </div>
             </Card>
           )}

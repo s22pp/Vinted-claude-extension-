@@ -7,6 +7,7 @@ import type { LearningSummary } from './learning';
 import type { ItemView } from './portfolio';
 import { type PricingResult, priceStrategies } from './pricing';
 import { type SegmentStats, type SellerModel, nicheKey, personalEvidence, rankNiches, velocityScore } from './seller-model';
+import { REPOST_COOLDOWN_DAYS, type RepostInfo } from './repost';
 import type { LastDrop, Sensitivity } from './sensitivity';
 import { type StagnationDiagnosis, diagnoseStagnation } from './stagnation';
 
@@ -56,6 +57,8 @@ export interface ItemIntel {
   lastDrop: LastDrop | null;
   /** Days since Vinted last showed the price ERA reasons on (a price changed on Vinted is seen at the next import). */
   priceSeenDays: number | null;
+  /** The article's latest repost (same article, new announcement): measured before anything else is proposed. */
+  lastRepost: RepostInfo | null;
   recommendation: Recommendation | null;
 }
 
@@ -73,6 +76,7 @@ export function computeItemIntel(
   now: number,
   sensitivity: Sensitivity = { status: 'UNKNOWN', basis: 'NONE', n: 0, effect: null, scope: null },
   lastDrop: LastDrop | null = null,
+  lastRepost: RepostInfo | null = null,
 ): ItemIntel {
   const personal = model ? personalEvidence(model, view.item) : null;
   const pricing = analysis
@@ -103,6 +107,7 @@ export function computeItemIntel(
     sensitivity,
     lastDrop,
     priceSeenDays: view.current?.lastObservedAt ? Math.max(0, Math.floor((now - view.current.lastObservedAt) / DAY)) : null,
+    lastRepost,
     recommendation: null,
   };
   intel.recommendation = recommendFor(intel);
@@ -189,6 +194,22 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
             42,
           )
         : null;
+  // A repost resets views and favourites on Vinted: its effect is measured for a week before anything else.
+  const lr = intel.lastRepost;
+  const repostBlock: Recommendation | null =
+    lr && lr.daysSince < REPOST_COOLDOWN_DAYS
+      ? base({
+          action: 'HOLD',
+          actionParams: {},
+          why: [{ code: 'why.recentRepost', params: { days: lr.daysSince, wait: REPOST_COOLDOWN_DAYS - lr.daysSince, views: lr.viewsLost ?? 0, favorites: lr.favoritesLost ?? 0 } }, ...evidence],
+          confidence: 'HIGH',
+          impact: { code: 'impact.measureRepost', params: {} },
+          alternative: { code: 'alt.titleReference', params: {} },
+          tone: 'info',
+          priority: 30,
+        })
+      : null;
+  const actionBlock = repostBlock ?? dropBlock;
 
   if (!settled && st?.stagnant && price !== null) {
     const over = Math.max(0, st.daysListed - st.thresholdDays);
@@ -202,7 +223,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
         if (price < d!.p50) return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence], null);
         const target = euro(Math.max(price * 0.92, d!.p50, floor));
         if (target >= price) break;
-        if (dropBlock) return dropBlock;
+        if (actionBlock) return actionBlock;
         return base({
           action: 'SMALL_DROP',
           actionParams: { price: target, from: price },
@@ -222,7 +243,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
           return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence, sensLine], { code: 'alt.titleReference', params: {} });
         const target = euro(Math.max(st.state === 'LOW_DEMAND' ? option(pricing, 'FAST')!.range.max : bal.range.max, floor));
         if (target >= price) break;
-        if (dropBlock) return dropBlock;
+        if (actionBlock) return actionBlock;
         const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
         return base({
           action: 'SET_PRICE',
@@ -244,7 +265,26 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
           priority: 70 + capitalWeight + Math.min(10, over / 3),
         });
       }
-      case 'REPOST':
+      case 'REPOST': {
+        // Only a cooldown blocks a repost: a drop that did not work says price is not the lever, not visibility.
+        const cooling = repostBlock ?? (ld && ld.daysSince < DROP_COOLDOWN_DAYS ? dropBlock : null);
+        if (cooling) return cooling;
+        // A repost that brought no views: repeating it only destroys history. Work on the listing instead.
+        if (lr && lr.effect !== null && lr.effect <= 0.1)
+          return base({
+            action: 'REVIEW_LISTING',
+            actionParams: {},
+            why: [
+              { code: 'why.repostNoEffect', params: { pct: `${lr.effect >= 0 ? '+' : '−'}${Math.abs(Math.round(lr.effect * 100))} %`, n: lr.count } },
+              { code: 'why.lowVisibility', params: { views: st.views ?? 0, days: view.daysListed ?? 0 } },
+            ],
+            confidence: 'MEDIUM',
+            impact: { code: 'impact.conversion', params: {} },
+            alternative: { code: 'alt.titleReference', params: {} },
+            tone: 'warning',
+            priority: 54 + capitalWeight,
+            evidence: 'PERSONAL',
+          });
         return base({
           action: 'REPOST',
           actionParams: {},
@@ -259,6 +299,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
           priority: 55 + capitalWeight,
           evidence: 'PERSONAL',
         });
+      }
       case 'REVIEW_LISTING':
         return base({
           action: 'REVIEW_LISTING',
@@ -281,7 +322,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     const fast = option(pricing, 'FAST');
     const target = fast ? euro(Math.max(fast.range.max, floor)) : null;
     if (target !== null && target < price) {
-      if (dropBlock) return dropBlock;
+      if (actionBlock) return actionBlock;
       return base({
         action: 'FREE_CAPITAL',
         actionParams: { price: target, from: price },
@@ -300,7 +341,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     if (!insensitive && pricing.currentVsRecommended === 'ABOVE' && price > d!.p75 * 1.05 && price > rec.range.max * 1.1) {
       const target = euro(Math.max(rec.range.max, floor));
       const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
-      if (target < price && dropBlock) return dropBlock;
+      if (target < price && actionBlock) return actionBlock;
       if (target < price)
         return base({
           action: 'SET_PRICE',

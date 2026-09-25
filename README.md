@@ -79,6 +79,17 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Commandes « à traiter » (`transaction_user_status: needs_action` dans `my_orders`) | NON VÉRIFIÉ |
 | Modification de prix | EXPERIMENTAL (gelée) |
 
+## Republications : un article, une mémoire
+
+Republier (supprimer puis remettre en ligne, à la main ou avec n'importe quel outil) donne à l'annonce un nouvel identifiant Vinted, 0 vue et 0 favori. ERA ne crée pas pour autant un nouvel article :
+
+- **Rapprochement à l'import** : une annonce qui disparaît de la garde-robe (lue en entier) et une nouvelle annonce avec la **référence ERA** dans le titre (certain) ou le **même titre, même marque, même taille** (déduit) sont le même article. Coût, date d'achat, historique des prix et prédictions sont conservés. Fenêtre : 30 jours après la disparition.
+- **Âges** : la 1re mise en ligne compte pour le capital immobilisé, la stagnation et vos délais de vente ; vues et favoris viennent de l'annonce actuelle.
+- **Historique** : « Annonce retirée » puis « Republié », avec les vues et favoris que Vinted a remis à zéro. Rapprochement faux (deux exemplaires, un titre) ? « Séparer » dans l'historique de l'article.
+- **Décisions** : aucune autre action proposée pendant 7 jours après une republication (son effet sur les vues est mesuré) ; une republication sans effet n'est pas reproposée.
+- **Disparition sans republication** : l'annonce passe « retirée » et l'article sort du stock (déduit) ; si une commande la nomme, c'est une vente.
+- Garde-robe de plus de 192 annonces (2 pages lues) : ERA ne conclut rien d'une absence.
+
 ## Approvisionnement hors Vinted
 
 Sur la page produit d'une autre boutique, le popup ERA propose **« Lire ce produit »** : un script ponctuel, lancé par votre clic (`activeTab` + `scripting`), copie la fiche produit que la page publie déjà (JSON-LD schema.org, sinon balises OpenGraph `product:*`) puis ouvre l'analyse d'achat préremplie. Aucune requête réseau, aucune lecture en arrière-plan ; un prix dans une autre devise reste inconnu (jamais converti).
