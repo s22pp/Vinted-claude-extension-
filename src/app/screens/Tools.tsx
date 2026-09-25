@@ -8,13 +8,14 @@ import { PhotoCheck } from '../components/photo-check';
 import { Replies } from '../components/replies';
 import { go, useEra } from '../state';
 
-type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
+type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'automations' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
 const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] = [
   { key: 'today', icon: 'today', tone: 'violet', href: 'today' },
   { key: 'bulk', icon: 'market', tone: 'cobalt' },
   { key: 'offer', icon: 'scale', tone: 'amber' },
   { key: 'replies', icon: 'book', tone: 'cyan' },
+  { key: 'automations', icon: 'repost', tone: 'coral', href: 'automations' },
   { key: 'listing', icon: 'edit', tone: 'pink' },
   { key: 'shield', icon: 'alert', tone: 'coral' },
   { key: 'photo', icon: 'eye', tone: 'cyan' },

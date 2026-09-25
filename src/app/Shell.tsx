@@ -23,7 +23,7 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
   const era = useEra();
-  const active = route === 'item' || route === 'capital' || route === 'workshop' ? 'stock' : route === 'accounting' ? 'sales' : route;
+  const active = route === 'item' || route === 'capital' || route === 'workshop' ? 'stock' : route === 'accounting' ? 'sales' : route === 'automations' ? 'tools' : route;
   const navRef = useRef<HTMLElement>(null);
   const [marker, setMarker] = useState<number | null>(null);
   useLayoutEffect(() => {

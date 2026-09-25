@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
-  const calls: { method: string; path: string; csrf: string | null }[] = [];
+  const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[] };
   const prices: Record<string, string> = { '101': '59.0' };
@@ -45,10 +45,24 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
         contentType: 'text/html',
         body: `<html><body>search<script>fetch('/api/v2/era-test/search?search_text=' + encodeURIComponent(${JSON.stringify(url.searchParams.get('search_text') ?? '')}) + '&page=1&per_page=24')</script></body></html>`,
       });
+    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const method = route.request().method();
+    const record = () => calls.push({ method, path: url.pathname + url.search, csrf: route.request().headers()['x-csrf-token'] ?? null, body: route.request().postData() });
+    // Test fixture only: a new favourite (member 555 on item 101, an hour ago), as the notifications feed shows it.
+    if (url.pathname === '/web/api/notifications/notifications') {
+      record();
+      return json({ code: 0, notifications: [{ entry_type: 20, link: 'vintedfr://member?id=555', subject_id: 101, updated_at: new Date(Date.now() - 3_600_000).toISOString() }] });
+    }
     // Test fixture only: pages carry a CSRF token like Vinted's, which API calls must echo.
     if (!url.pathname.startsWith('/api/')) return route.fulfill({ contentType: 'text/html', body: '<html><head><meta name="csrf-token" content="t-123"></head><body>vinted</body></html>' });
-    calls.push({ method: route.request().method(), path: url.pathname + url.search, csrf: route.request().headers()['x-csrf-token'] ?? null });
-    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    record();
+    // Test fixture only: conversations, messages, offers — enough to watch what the automations send.
+    if (url.pathname === '/api/v2/conversations' && method === 'POST') return json({ conversation: { id: 9001 } });
+    if (url.pathname === '/api/v2/conversations/9001')
+      return json({ conversation: { messages: [], opposite_user: { id: 555, login: 'alice' }, transaction: { id: 7001, item_title: 'Veste Harrington Ralph Lauren M', offer_price: { amount: '59.0' } } } });
+    if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
+    if (url.pathname === '/api/v2/inbox')
+      return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
     if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 177293623, login: 'era-archives' } }) : json({ code: 100 }, 401);
     if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items'))
       return json({
@@ -331,4 +345,37 @@ test('purchases: real buying prices imported and linked to stock in one click', 
   await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Harrington' }).click();
   // 18 € + 0,70 € + 5 % buyer protection = 19,60 €
   await expect(page.locator('header').getByText('19,60 €')).toBeVisible();
+});
+
+test('automations: a simulation sends nothing; a real run writes only whitelisted requests, with the page token', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  await page.getByLabel('Activer pour les nouveaux favoris').check();
+  await page.getByLabel('Activer le tri des offres reçues').check();
+  const log = page.getByTestId('auto-log');
+
+  // Simulation: reads only; the purchase cost is unknown, so no offer is planned.
+  const before = calls.length;
+  await page.getByRole('button', { name: 'Simuler' }).first().click();
+  await expect(log).toContainText('coût d’achat inconnu', { timeout: 30_000 });
+  expect(calls.slice(before).every((c) => c.method === 'GET')).toBe(true);
+
+  // Real run on the new favourite: open the conversation, send the message — nothing else.
+  await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
+  await expect(log).toContainText('Bonjour alice', { timeout: 60_000 });
+  const writes = () => calls.filter((c) => c.method !== 'GET');
+  expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
+  expect(JSON.parse(writes()[0]!.body!)).toEqual({ initiator: 'seller_enters_notification', item_id: 101, opposite_user_id: 555 });
+  expect(writes().every((w) => w.csrf === 't-123')).toBe(true);
+
+  // Offer received: 40 € on 59 € (68 %) → one counter-offer at 92 % → 55 €.
+  await page.getByRole('button', { name: 'Lancer maintenant' }).nth(1).click();
+  await expect(log).toContainText('contre-offre 55,00 €', { timeout: 60_000 });
+  const counter = writes().slice(2);
+  expect(counter.map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/transactions/7100/offers']);
+  expect(JSON.parse(counter[0]!.body!)).toEqual({ offer: { price: '55.00', currency: 'EUR' } });
 });

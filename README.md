@@ -56,10 +56,16 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
 
 ## Garde-fous Vinted
 
-- Endpoints vérifiés uniquement, `GET` seulement, via la session de l'onglet ouvert.
+- Lecture : endpoints vérifiés, `GET`, via la session de l'onglet ouvert. Écriture : seulement les automatisations activées (ci-dessous).
 - Budget : 60 appels / session · 12 / min · 1,2 s d'espacement · 2 pages max. **403/429 = arrêt total 6 h.**
-- ERA ne publie, ne republie, ne supprime, n'envoie aucune offre ni message, ne suit personne et ne change jamais un prix automatiquement.
-- Seule exception, **EXPERIMENTAL et gelée** : modifier le prix d'une annonce depuis la fiche article, un article à la fois, après confirmation explicite. Elle n'est pas améliorée et peut cesser de fonctionner si Vinted change sa page.
+- ERA ne publie, ne republie, ne supprime, ne suit personne et ne change jamais un prix automatiquement.
+- Modifier le prix d'une annonce depuis la fiche article : **EXPERIMENTAL**, un article à la fois, après confirmation explicite.
+- **Automatisations (EXPERIMENTAL, désactivées par défaut)** — Outils → Automatisations :
+  - *Favoris → message et offre* : à un nouveau favori, un message et (si le coût d'achat est connu) une offre, jamais sous coût + marge ;
+  - *Offres reçues* : acceptée au-dessus d'un seuil, une contre-offre entre deux, refusée en dessous — jamais sous le plancher.
+  - Écritures limitées à une **liste blanche** de 5 routes (conversation, message, offre, réponse à une offre) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
+  - « Simuler » ne fait que lire ; chaque action (ou simulation) est écrite dans un **journal**. La planification ne tourne qu'avec un onglet vinted.fr déjà ouvert.
+  - Routes et champs relevés dans des extensions du marché (faits d'interopérabilité, aucun code repris) : **NON VÉRIFIÉS** sur votre compte tant que le journal ne les montre pas fonctionner.
 
 ## Code tiers
 
@@ -77,7 +83,8 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Recherche de comparables (`catalog/items`, en-têtes CSRF/anon_id de la page ; replis : forme sans tri, puis apprentissage) | NON VÉRIFIÉ |
 | Achats (`my_orders?type=purchased`, repli : apprentissage depuis la page Mes commandes) | NON VÉRIFIÉ |
 | Commandes « à traiter » (`transaction_user_status: needs_action` dans `my_orders`) | NON VÉRIFIÉ |
-| Modification de prix | EXPERIMENTAL (gelée) |
+| Modification de prix | EXPERIMENTAL |
+| Automatisations : notifications de favoris, conversations, messages, offres (`/web/api/notifications/notifications`, `/api/v2/conversations`, `/api/v2/transactions/{id}/offers`, `offer_requests/{id}/accept\|reject`, `/api/v2/inbox`) | EXPERIMENTAL · NON VÉRIFIÉ |
 
 ## Republications : un article, une mémoire
 

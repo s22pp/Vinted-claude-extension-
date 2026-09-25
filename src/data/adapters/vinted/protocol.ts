@@ -2,7 +2,33 @@ import type { MarketplaceErrorCode } from '../marketplace';
 import type { PageItem } from './parse';
 
 /** Read-only GET paths ERA may call. Anything else is refused by the content script. */
-export const ALLOWED_API = ['/api/v2/users/current', '/api/v2/wardrobe/', '/api/v2/catalog/items', '/api/v2/my_orders', '/api/v2/item_upload/items/'];
+export const ALLOWED_API = [
+  '/api/v2/users/current',
+  '/api/v2/wardrobe/',
+  '/api/v2/catalog/items',
+  '/api/v2/my_orders',
+  '/api/v2/item_upload/items/',
+  // Automations (EXPERIMENTAL, read side): favourites notifications, inbox, one conversation.
+  '/web/api/notifications/notifications',
+  '/api/v2/inbox',
+  '/api/v2/conversations/',
+];
+
+/**
+ * The ONLY writes ERA may send, each tied to one automation the seller switched on. Routes as read in
+ * production tools on the same site — UNVERIFIED by ERA until the journal shows them working.
+ */
+const ALLOWED_WRITES: { method: 'POST' | 'PUT'; path: RegExp }[] = [
+  { method: 'POST', path: /^\/api\/v2\/conversations$/ }, // open the conversation with a member who favourited an item
+  { method: 'POST', path: /^\/api\/v2\/conversations\/\d+\/replies$/ }, // send a message
+  { method: 'POST', path: /^\/api\/v2\/transactions\/\d+\/offers$/ }, // seller's offer / counter-offer
+  { method: 'PUT', path: /^\/api\/v2\/transactions\/\d+\/offer_requests\/\d+\/(accept|reject)$/ }, // answer a buyer's offer
+  { method: 'POST', path: /^\/api\/v2\/offers\/\d+\/(accept|reject)$/ }, // same, other route seen in production
+];
+
+export function isAllowedWrite(method: string, path: string): boolean {
+  return ALLOWED_WRITES.some((w) => w.method === method && w.path.test(path));
+}
 
 /** A search endpoint observed on Vinted's own search page is allowed too: GET, /api/, with a search_text param. */
 export function isAllowedApi(path: string): boolean {
@@ -18,6 +44,9 @@ export type EraMessage =
   | { type: 'era:ping' }
   | { type: 'era:page' }
   | { type: 'era:api'; path: string }
+  | { type: 'era:write'; method: 'POST' | 'PUT'; path: string; body: unknown }
+  | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
+  | { type: 'era:auto:schedule' }
   | { type: 'era:budget:reserve' }
   | { type: 'era:budget:report'; status: number }
   | { type: 'era:budget:status' }
@@ -45,3 +74,14 @@ export interface BudgetStatus {
   haltedUntil: number | null;
 }
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
+
+export interface AutoRunResult {
+  ok: boolean;
+  kind: 'FAV' | 'OFFERS';
+  dryRun: boolean;
+  done: number;
+  skipped: number;
+  failed: number;
+  /** Why the run stopped early (budget, block, not logged in…), if it did. */
+  stopped: string | null;
+}

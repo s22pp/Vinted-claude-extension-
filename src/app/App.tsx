@@ -19,6 +19,7 @@ const Invoice = lazy(() => import('./screens/Invoice').then((m) => ({ default: m
 const Workshop = lazy(() => import('./screens/Workshop').then((m) => ({ default: m.Workshop })));
 const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
 const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
+const Automations = lazy(() => import('./screens/Automations').then((m) => ({ default: m.Automations })));
 
 function PageSkeleton() {
   return (
@@ -97,6 +98,9 @@ function Router() {
       break;
     case 'tools':
       screen = <Tools />;
+      break;
+    case 'automations':
+      screen = <Automations />;
       break;
     case 'settings':
       screen = <Settings />;

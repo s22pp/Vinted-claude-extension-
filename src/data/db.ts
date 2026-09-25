@@ -59,6 +59,17 @@ export interface SettingRow {
   value: unknown;
 }
 
+/** One line per automated action (or simulated one): what, when, on what, and what Vinted answered. */
+export interface AutoLogRow {
+  id: string;
+  at: number;
+  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP';
+  dryRun: boolean;
+  ok: boolean;
+  target: string;
+  detail: string;
+}
+
 export class EraDatabase extends Dexie {
   items!: EntityTable<InventoryItem, 'id'>;
   listings!: EntityTable<Listing, 'id'>;
@@ -73,6 +84,7 @@ export class EraDatabase extends Dexie {
   purchases!: EntityTable<PurchaseRow, 'id'>;
   preps!: EntityTable<Prep, 'itemId'>;
   invoices!: EntityTable<InvoiceRow, 'saleId'>;
+  autoLog!: EntityTable<AutoLogRow, 'id'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -91,6 +103,7 @@ export class EraDatabase extends Dexie {
     this.version(2).stores({ purchases: 'id, date, linkedItemId' });
     this.version(3).stores({ preps: 'itemId, publishedAt' });
     this.version(4).stores({ invoices: 'saleId, year, seq' });
+    this.version(5).stores({ autoLog: 'id, at, kind' });
   }
 }
 

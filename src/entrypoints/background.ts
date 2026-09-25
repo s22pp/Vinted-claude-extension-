@@ -1,8 +1,9 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { EraMessage, ImportResult, PriceEditResult } from '@/data/adapters/vinted/protocol';
+import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult } from '@/data/adapters/vinted/protocol';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
+import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -53,7 +54,40 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
   return editing;
 }
 
+let autoRunning: Promise<AutoRunResult> | null = null;
+
+/** One automation pass at a time, never during an import or a price edit. */
+function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
+  if (autoRunning || importing || editing) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
+  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : runOffers(dryRun)).finally(() => {
+    autoRunning = null;
+  });
+  return autoRunning;
+}
+
+const AUTO_ALARM = 'era-auto';
+
+/** The schedule follows the saved settings: off unless the seller switched the master switch and one automation on. */
+async function scheduleAuto(): Promise<void> {
+  const cfg = await loadAutoConfig();
+  await browser.alarms.clear(AUTO_ALARM);
+  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
+}
+
+async function onAutoAlarm(): Promise<void> {
+  const cfg = await loadAutoConfig();
+  if (!cfg.enabled) return;
+  // Blocked by Vinted, or no vinted.fr tab open: nothing happens (a scheduled pass never opens Vinted itself).
+  if ((await budget.status()).halted || !(await vintedTabOpen())) return;
+  if (cfg.offers.enabled) await runAuto('OFFERS', false);
+  if (cfg.fav.enabled) await runAuto('FAV', false);
+}
+
 export default defineBackground(() => {
+  browser.alarms.onAlarm.addListener((a) => {
+    if (a.name === AUTO_ALARM) void onAutoAlarm();
+  });
+  void scheduleAuto();
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
   });
@@ -72,6 +106,12 @@ export default defineBackground(() => {
         return true;
       case 'era:import':
         void runImport().then(sendResponse);
+        return true;
+      case 'era:auto:run':
+        void runAuto(msg.kind, msg.dryRun).then(sendResponse);
+        return true;
+      case 'era:auto:schedule':
+        void scheduleAuto().then(() => sendResponse({ ok: true }));
         return true;
       case 'era:price:edit':
         void runPriceEdit(msg.platformListingId, msg.cents, msg.itemId).then(sendResponse);

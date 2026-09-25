@@ -51,3 +51,31 @@ export async function reserveWrite(now = Date.now()): Promise<void> {
   if (wait > 0) throw new MarketplaceError('WRITE_COOLDOWN', `réessayez dans ${Math.ceil(wait / 1000)} s`);
   await browser.storage.session.set({ eraWrites: { last: now, count: w.count + 1 } });
 }
+
+/**
+ * Automations send little, slowly: ≥ 12 s between two writes and ≤ 40 per day, on top of the read budget
+ * (60 per session, 12 per minute) that every request still goes through. A 403/429 stops everything.
+ */
+export const AUTO_SPACING_MS = 12_000;
+export const AUTO_DAY_MAX = 40;
+
+const dayKey = (now: number) => new Date(now).toISOString().slice(0, 10);
+
+/** How long to wait before the next automated write (0 = now); throws when today's quota is spent. */
+export async function autoWriteWait(now = Date.now()): Promise<number> {
+  const { eraAuto } = (await browser.storage.local.get('eraAuto')) as { eraAuto?: { day: string; count: number; last: number } };
+  const w = eraAuto && eraAuto.day === dayKey(now) ? eraAuto : { day: dayKey(now), count: 0, last: eraAuto?.last ?? 0 };
+  if (w.count >= AUTO_DAY_MAX) throw new MarketplaceError('BUDGET_EXHAUSTED', `${AUTO_DAY_MAX} envois automatiques maximum par jour`);
+  return Math.max(0, w.last + AUTO_SPACING_MS - now);
+}
+
+export async function recordAutoWrite(now = Date.now()): Promise<void> {
+  const { eraAuto } = (await browser.storage.local.get('eraAuto')) as { eraAuto?: { day: string; count: number; last: number } };
+  const w = eraAuto && eraAuto.day === dayKey(now) ? eraAuto : { day: dayKey(now), count: 0, last: 0 };
+  await browser.storage.local.set({ eraAuto: { day: w.day, count: w.count + 1, last: now } });
+}
+
+export async function autoWritesToday(now = Date.now()): Promise<number> {
+  const { eraAuto } = (await browser.storage.local.get('eraAuto')) as { eraAuto?: { day: string; count: number } };
+  return eraAuto && eraAuto.day === dayKey(now) ? eraAuto.count : 0;
+}

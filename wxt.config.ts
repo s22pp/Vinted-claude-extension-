@@ -7,8 +7,10 @@ export default defineConfig({
     name: 'ERA Intelligence',
     description: 'Cockpit de décision pour revendeurs Vinted : stock, capital, marché, achats, apprentissage.',
     // scripting + activeTab: on your click only, read the product the open shop page publishes (sourcing).
-    permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage'],
-    // Read-only access to vinted.fr, only to read the page you have open and to call its API with your session.
+    // alarms: the automations' schedule — off unless you switch it on, and only with a vinted.fr tab open.
+    permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage', 'alarms'],
+    // vinted.fr only: read the page you have open, call its API with your session — reads, plus the few
+    // whitelisted writes of the automations you switch on (EXPERIMENTAL).
     host_permissions: ['https://www.vinted.fr/*'],
     action: { default_title: 'ERA Intelligence' },
     icons: { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' },

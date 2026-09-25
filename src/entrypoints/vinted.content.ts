@@ -1,4 +1,4 @@
-import { isAllowedApi, type ApiResult, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
+import { isAllowedApi, isAllowedWrite, type ApiResult, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { editPriceOnPage } from '@/data/adapters/vinted/edit-form';
 
@@ -45,6 +45,11 @@ export default defineContentScript({
         void callApi(msg.path).then(sendResponse);
         return true;
       }
+      if (msg.type === 'era:write') {
+        // Only from ERA's background, only whitelisted routes of an automation the seller switched on.
+        void callApi(msg.path, msg.method, msg.body).then(sendResponse);
+        return true;
+      }
     });
   },
 });
@@ -63,23 +68,29 @@ function readPage(): PageResult {
   return { item: parseItemJsonLd(blocks, location.href), isItemPage };
 }
 
-async function callApi(path: string): Promise<ApiResult> {
-  if (!isAllowedApi(path)) return { ok: false, code: 'NOT_IMPLEMENTED', detail: `chemin refusé : ${path.split('?')[0]}` };
+async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<ApiResult> {
+  const allowed = method === 'GET' ? isAllowedApi(path) : isAllowedWrite(method, path);
+  if (!allowed) return { ok: false, code: 'NOT_IMPLEMENTED', detail: `chemin refusé : ${method} ${path.split('?')[0]}` };
   const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
     // The headers Vinted's own web app sends with its API calls: CSRF token and anonymous id read from
     // this very page, XHR marker, locale. GET only, same origin; ERA holds no token or cookie of its own.
-    const res = await fetch(path, { credentials: 'same-origin', headers: apiHeaders() });
+    const res =
+      method === 'GET'
+        ? await fetch(path, { credentials: 'same-origin', headers: apiHeaders() })
+        : await fetch(path, { method, credentials: 'same-origin', headers: { ...apiHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
     await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
-    const where = `HTTP ${res.status} · ${path.split('?')[0]}`;
+    const where = `HTTP ${res.status} · ${method === 'GET' ? '' : `${method} `}${path.split('?')[0]}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
     if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
     if (res.status === 401) return { ok: false, code: 'NOT_LOGGED_IN', status: 401, detail: where };
     if (!res.ok) return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: where };
     try {
-      return { ok: true, json: await res.json() };
+      // A write may answer 204 / an empty body: that is a success, not "non JSON".
+      const text = await res.text();
+      return { ok: true, json: text ? JSON.parse(text) : {} };
     } catch {
       // HTML instead of JSON: usually a login page or an anti-bot interstitial.
       return { ok: false, code: 'UNAVAILABLE', status: res.status, detail: `${where} · réponse non JSON` };
