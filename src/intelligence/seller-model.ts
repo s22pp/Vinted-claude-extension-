@@ -32,6 +32,8 @@ export interface SegmentStats {
 
 export interface SellerModel {
   totalSold: number;
+  /** Sales whose selling time is known (real publication and sale dates): the sample behind medianDays. */
+  timedSold: number;
   medianDays: number | null;
   p90Days: number | null;
   refundRate: number | null;
@@ -163,6 +165,7 @@ export function buildSellerModel(
 
   return {
     totalSold: done.length,
+    timedSold: days.length,
     medianDays: days.length ? median(days) : null,
     p90Days: days.length >= 5 ? quantile(days, 0.9) : null,
     refundRate: sv.length ? (sv.length - done.length) / sv.length : null,

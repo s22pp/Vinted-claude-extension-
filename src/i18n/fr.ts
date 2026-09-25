@@ -94,6 +94,8 @@ export const fr = {
     days: '{lo}–{hi} j estimés',
   },
   today: {
+    medianDaysHint_one: 'sur votre seule vente datée',
+    medianDaysUnknown: 'inconnu : Vinted n’a pas donné les dates de mise en ligne de vos ventes',
     P_ORDERS_TO_HANDLE: '{n} commandes attendent une action sur Vinted',
     P_ORDERS_TO_HANDLE_one: '1 commande attend une action sur Vinted',
     P_ORDERS_TO_HANDLE_hint: 'Envoi à préparer : ouvre « Mes commandes » sur Vinted (statut non vérifié)',
@@ -109,7 +111,7 @@ export const fr = {
     P_REFUND_REASON_hint: '1 clic chacun : le motif devient une règle de mise en ligne',
     returned90: 'Capital retourné · 90 j',
     returned90Hint: 'coût des articles vendus sur 90 jours',
-    medianDaysHint: 'sur vos {n} ventes',
+    medianDaysHint: 'sur vos {n} ventes datées',
     P_MISSING_SHIPPING: '{n} coûts sans frais de port',
     P_MISSING_SHIPPING_one: '1 coût sans frais de port',
     P_MISSING_SHIPPING_hint: 'Total connu hors port : le profit est surestimé tant qu’il manque',

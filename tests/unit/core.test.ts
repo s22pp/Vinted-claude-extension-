@@ -310,3 +310,34 @@ describe('a repost keeps one memory of the article', () => {
     expect(sv!.daysToSale).toBe(40);
   });
 });
+
+describe('selling speed only from real dates (UNKNOWN ≠ 0)', () => {
+  const sale = (id: string, over: Partial<Sale> = {}): Sale => ({ id, inventoryItemId: id, listingId: `l${id}`, soldAt: NOW, salePriceCents: 4000, extraCostsCents: 0, status: 'COMPLETED', isDemo: false, ...over });
+
+  it('no speed when Vinted gave no publication date or no sale date', () => {
+    const items = [item('a', { status: 'SOLD' }), item('b', { status: 'SOLD' }), item('c', { status: 'SOLD' }), item('d', { status: 'SOLD' })];
+    const ls = [
+      listing('la', 'a', { listedAt: NOW - 20 * DAY, listedAtKnown: true, platformListingId: '1', status: 'SOLD' }),
+      // First seen already sold: listedAt is only the import day.
+      listing('lb', 'b', { listedAt: NOW, listedAtKnown: false, platformListingId: '2', status: 'SOLD' }),
+      // Imported before the flag existed: not trusted until the next import.
+      listing('lc', 'c', { listedAt: NOW - 5 * DAY, platformListingId: '3', status: 'SOLD' }),
+      listing('ld', 'd', { listedAt: NOW - 20 * DAY, listedAtKnown: true, platformListingId: '4', status: 'SOLD' }),
+    ];
+    const sales = [sale('a'), sale('b'), sale('c'), sale('d', { dateKnown: false })];
+    const byId = new Map(buildSaleViews(buildItemViews(items, ls, sales, NOW), sales).map((s) => [s.sale.id, s.daysToSale]));
+    expect(byId.get('a')).toBe(20);
+    expect(byId.get('b')).toBeNull();
+    expect(byId.get('c')).toBeNull();
+    expect(byId.get('d')).toBeNull();
+  });
+
+  it('the seller model says how many sales its median rests on', () => {
+    const items = [item('a', { status: 'SOLD' }), item('b', { status: 'SOLD' })];
+    const ls = [listing('la', 'a', { listedAt: NOW - 12 * DAY, listedAtKnown: true, status: 'SOLD' }), listing('lb', 'b', { listedAt: NOW, listedAtKnown: false, platformListingId: '9', status: 'SOLD' })];
+    const sales = [sale('a'), sale('b')];
+    const views = buildItemViews(items, ls, sales, NOW);
+    const m = buildSellerModel(views, buildSaleViews(views, sales), { category: (c) => c });
+    expect(m).toMatchObject({ totalSold: 2, timedSold: 1, medianDays: 12 });
+  });
+});

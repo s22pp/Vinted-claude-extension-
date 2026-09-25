@@ -147,7 +147,9 @@ export async function importFromVinted(
           await db.events.put({ id: uid('ev'), type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: prev?.id ?? null, data: { from: prevItem.status, to: resolved.status }, provenance: resolved.p, isDemo: false });
       }
       const listingId = prev?.id ?? uid('listing');
+      // No photo timestamp: ERA only knows when it first saw the listing. Kept as a bound, flagged unknown.
       const listedAt = s.listedAt ?? prev?.listedAt ?? now;
+      const listedAtKnown = s.listedAt !== null;
       const listing: Listing = {
         id: listingId,
         inventoryItemId: itemId,
@@ -159,6 +161,7 @@ export async function importFromVinted(
         views: s.views,
         favorites: s.favorites,
         listedAt,
+        listedAtKnown,
         removedAt: resolved.status === 'ARCHIVED' || resolved.status === 'DRAFT' ? (prev?.removedAt ?? now) : null,
         soldAt: resolved.status === 'SOLD' ? (prev?.soldAt ?? now) : null,
         status: listingStatusOf(resolved.status),
@@ -188,7 +191,9 @@ export async function importFromVinted(
         if (s.priceCents < old.priceCents)
           await db.events.put({ id: uid('ev'), type: 'PRICE_CHANGED', at: listedAt, inventoryItemId: itemId, listingId, data: { from: old.priceCents, to: s.priceCents }, provenance: 'OBSERVED', isDemo: false });
       } else if (!prev) {
-        await db.events.put({ id: uid('ev'), type: 'LISTING_PUBLISHED', at: listedAt, inventoryItemId: itemId, listingId, data: { price: s.priceCents }, provenance: s.listedAt ? 'INFERRED' : 'OBSERVED', isDemo: false });
+        // First seen already sold, with no publication date: no invented "published today" entry.
+        if (listedAtKnown || s.status !== 'SOLD')
+          await db.events.put({ id: uid('ev'), type: 'LISTING_PUBLISHED', at: listedAt, inventoryItemId: itemId, listingId, data: { price: s.priceCents }, provenance: s.listedAt ? 'INFERRED' : 'OBSERVED', isDemo: false });
       } else if (prev.priceCents !== s.priceCents) {
         await db.events.put({ id: uid('ev'), type: 'PRICE_CHANGED', at: now, inventoryItemId: itemId, listingId, data: { from: prev.priceCents, to: s.priceCents }, provenance: 'OBSERVED', isDemo: false });
       }
@@ -222,7 +227,13 @@ export async function importFromVinted(
         existingSales.find((x) => free(x) && !x.orderKey && pool.some((l) => l.inventoryItemId === x.inventoryItemId) && (byId.length > 0 || x.salePriceCents === o.priceCents));
       if (prevSale) {
         seenSales.add(prevSale.id);
-        await db.sales.put({ ...prevSale, orderKey: okey, status: refunded ? 'REFUNDED' : prevSale.status, vintedStatus: o.status, needsAction: o.needsAction });
+        // Older imports could date a sale at the import day: the order's own date wins.
+        const fixedAt = o.date !== null && o.date !== prevSale.soldAt ? o.date : null;
+        await db.sales.put({ ...prevSale, orderKey: okey, soldAt: fixedAt ?? prevSale.soldAt, dateKnown: o.date !== null || prevSale.dateKnown === true, status: refunded ? 'REFUNDED' : prevSale.status, vintedStatus: o.status, needsAction: o.needsAction });
+        if (fixedAt !== null) {
+          await db.events.where('inventoryItemId').equals(prevSale.inventoryItemId).filter((e) => e.type === 'ITEM_SOLD' && e.listingId === prevSale.listingId).modify({ at: fixedAt });
+          if (prevSale.listingId) await db.listings.update(prevSale.listingId, { soldAt: fixedAt });
+        }
         continue;
       }
       const soldPool = [...closed, ...goneLeft];
@@ -236,7 +247,7 @@ export async function importFromVinted(
         );
       if (match && match.status !== 'SOLD') {
         // It left the wardrobe because it sold: the order says so, it was not deleted.
-        await db.listings.put({ ...match, status: 'SOLD', soldAt: Math.max(soldAt, match.listedAt), removedAt: null });
+        await db.listings.put({ ...match, status: 'SOLD', soldAt, removedAt: null });
         const it = await db.items.get(match.inventoryItemId);
         if (it && it.status !== 'SOLD') {
           await db.items.put({ ...it, status: 'SOLD', updatedAt: now, meta: { ...it.meta, status: { p: 'OBSERVED', at: now } } });
@@ -249,7 +260,9 @@ export async function importFromVinted(
           id: uid('sale'),
           inventoryItemId: match.inventoryItemId,
           listingId: match.id,
-          soldAt: Math.max(soldAt, match.listedAt),
+          // The order's date, never moved to fit a listing date ERA may only have guessed.
+          soldAt,
+          dateKnown: o.date !== null,
           salePriceCents: o.priceCents,
           // Private sellers pay no commission on Vinted: extra costs are known to be zero.
           extraCostsCents: 0,
@@ -270,7 +283,7 @@ export async function importFromVinted(
       const saleId = `sale_vo_${orderKey(o.title, o.date, o.priceCents)}`;
       const prevVo = await db.sales.get(saleId);
       if (prevVo) {
-        await db.sales.put({ ...prevVo, orderKey: okey, status: refunded ? 'REFUNDED' : prevVo.status, vintedStatus: o.status, needsAction: o.needsAction });
+        await db.sales.put({ ...prevVo, orderKey: okey, dateKnown: o.date !== null, status: refunded ? 'REFUNDED' : prevVo.status, vintedStatus: o.status, needsAction: o.needsAction });
         continue;
       }
       const itemId = `item_vo_${orderKey(o.title, o.date, o.priceCents)}`;
@@ -297,7 +310,7 @@ export async function importFromVinted(
         meta: { status: { p: 'OBSERVED', at: now }, brand: { p: brandGuess ? 'INFERRED' : 'UNKNOWN', at: now } },
         isDemo: false,
       });
-      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', vintedStatus: o.status, needsAction: o.needsAction, orderKey: okey, isDemo: false });
+      await db.sales.put({ id: saleId, inventoryItemId: itemId, listingId: null, soldAt, salePriceCents: o.priceCents, extraCostsCents: 0, status: refunded ? 'REFUNDED' : 'COMPLETED', vintedStatus: o.status, needsAction: o.needsAction, orderKey: okey, dateKnown: o.date !== null, isDemo: false });
       await db.events.put({ id: uid('ev'), type: 'ITEM_SOLD', at: soldAt, inventoryItemId: itemId, listingId: null, data: { price: o.priceCents }, provenance: 'OBSERVED', isDemo: false });
       salesCount++;
     }

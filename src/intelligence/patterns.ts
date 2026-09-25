@@ -69,6 +69,11 @@ const CONDITION_LABEL: Record<Condition, string> = {
 const eurDay = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 const eur = (cents: number) => `${Math.round(cents / 100)} €`;
 
+const knownBrand = (r: Row): string | null => {
+  const b = r.sale.item.brand?.trim();
+  return !b || /^(inconnue|unknown|sans marque)$/i.test(b) || r.sale.item.meta.brand?.p === 'UNKNOWN' ? null : b;
+};
+
 const WEEKDAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
 export function minePatterns(sales: readonly SaleView[], views: readonly ItemView[], labels: { category: (c: string) => string }): Pattern[] {
@@ -90,9 +95,10 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
   if (completed.length < 8) return [];
 
   const dims: Dim[] = [
-    { key: 'brand', name: 'marque', label: (r) => r.sale.item.brand },
-    { key: 'category', name: 'catégorie', label: (r) => labels.category(r.sale.item.category) },
-    { key: 'niche', name: 'niche', label: (r) => `${r.sale.item.brand} ${r.sale.item.model ?? labels.category(r.sale.item.category).toLowerCase()}` },
+    // An unknown brand is not a brand: "Inconnue" never becomes a finding.
+    { key: 'brand', name: 'marque', label: (r) => knownBrand(r) },
+    { key: 'category', name: 'catégorie', label: (r) => (r.sale.item.category === 'OTHER' ? null : labels.category(r.sale.item.category)) },
+    { key: 'niche', name: 'niche', label: (r) => (knownBrand(r) ? `${r.sale.item.brand} ${r.sale.item.model ?? labels.category(r.sale.item.category).toLowerCase()}` : null) },
     { key: 'band', name: 'tranche de prix', label: (r) => priceBandOf(r.sale.sale.salePriceCents) },
     { key: 'size', name: 'taille', label: (r) => r.sale.item.size },
     { key: 'source', name: 'source d’achat', label: (r) => r.sale.item.purchaseSource },
@@ -131,11 +137,14 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       if (seg.length < 5 || rest.length < 5) continue;
       const sig = seg.map((r) => r.sale.sale.id).sort().join(',');
 
-      // Speed: median days to sale.
-      const sd = med(seg.map((r) => r.days));
-      const bd = med(rest.map((r) => r.days));
-      if (sd !== null && bd !== null && bd > 0) {
-        const adj = shrink(sd, seg.length, bd);
+      // Speed: median days to sale — only over sales whose selling time is actually known, counted as such.
+      const segDays = seg.map((r) => r.days).filter((x): x is number => x !== null);
+      const restDays = rest.map((r) => r.days).filter((x): x is number => x !== null);
+      const sd = segDays.length >= 5 && restDays.length >= 5 ? Math.round(median(segDays)) : null;
+      const bd = sd !== null ? Math.round(median(restDays)) : null;
+      // Dates are calendar days: below 2 days on either side, a "×" between them is noise, not a finding.
+      if (sd !== null && bd !== null && Math.min(sd, bd) >= 2) {
+        const adj = shrink(sd, segDays.length, bd);
         const ratio = adj / bd;
         if (ratio <= 0.67 || ratio >= 1.5) {
           const fast = ratio < 1;
@@ -145,12 +154,12 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
             kind: 'SPEED',
             tone: fast ? 'positive' : 'warning',
             code: fast ? 'speedFast' : 'speedSlow',
-            params: { label, dim: d.name, days: Math.round(sd), base: Math.round(bd), x: Math.round((fast ? bd / Math.max(1, sd) : sd / Math.max(1, bd)) * 10) / 10 },
+            params: { label, dim: d.name, days: sd, base: bd, x: Math.round((fast ? bd / sd : sd / bd) * 10) / 10 },
             value: sd,
             baseline: bd,
             unit: 'days',
-            sample: seg.length,
-            baselineSample: rest.length,
+            sample: segDays.length,
+            baselineSample: restDays.length,
             confidence: conf(seg.length),
             action: fast ? 'buyMore' : 'priceLower',
             score: Math.abs(Math.log(ratio)) * Math.sqrt(seg.length),

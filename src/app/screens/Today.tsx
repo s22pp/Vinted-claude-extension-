@@ -166,7 +166,7 @@ export function Today() {
             <button type="button" className="cockpit__cell cockpit__cell--wide" onClick={() => go('insights?tab=you')}>
               <span className="cockpit__k">{t('kpi.medianDays')}</span>
               <span className="cockpit__v num">{era.model.medianDays === null ? '—' : t('kpi.days', { n: Math.round(era.model.medianDays) })}</span>
-              <span className="t-small t-faint">{t('today.medianDaysHint', { n: era.model.totalSold })}</span>
+              <span className="t-small t-faint">{era.model.medianDays === null ? t('today.medianDaysUnknown') : t('today.medianDaysHint', { n: era.model.timedSold })}</span>
             </button>
             <div className="cockpit__spark">
               <span className="t-caption">{t('today.profit12')}</span>

@@ -11,6 +11,11 @@ export interface ItemView {
   current: Listing | null;
   sale: Sale | null;
   firstListedAt: number | null;
+  /**
+   * The first listing date is a real publication date (photo timestamp, entered by hand, demo) — not only
+   * the day ERA first saw the listing. Selling speed is computed only then.
+   */
+  firstListedKnown: boolean;
   /** Days since acquisition. Falls back to first listing date (INFERRED) when purchase date is unknown. */
   daysHeld: number | null;
   daysHeldInferred: boolean;
@@ -47,6 +52,8 @@ export function buildItemViews(
     const ls = (byItem.get(item.id) ?? []).sort((a, b) => a.listedAt - b.listedAt);
     const current = [...ls].reverse().find((l) => isLiveListing(l.status)) ?? null;
     const firstListedAt = ls[0]?.listedAt ?? null;
+    // Imported rows from before the flag existed are not trusted until the next import sets it.
+    const firstListedKnown = ls[0] ? (ls[0].listedAtKnown ?? ls[0].platformListingId === null) : false;
     const heldFrom = item.purchaseDate ?? firstListedAt;
     const sale = saleByItem.get(item.id) ?? null;
     const end = sale?.soldAt ?? now;
@@ -58,6 +65,7 @@ export function buildItemViews(
       current,
       sale,
       firstListedAt,
+      firstListedKnown,
       daysHeld: heldFrom === null ? null : daysBetween(heldFrom, end),
       daysHeldInferred: item.purchaseDate === null && firstListedAt !== null,
       daysListed: current ? daysBetween(current.listedAt, now) : null,
@@ -95,7 +103,8 @@ export function buildSaleViews(views: readonly ItemView[], sales: readonly Sale[
       item: v.item,
       cost,
       profit,
-      daysToSale: v.firstListedAt === null ? null : daysBetween(v.firstListedAt, sale.soldAt),
+      // UNKNOWN ≠ 0: no speed without a real publication date and a real sale date.
+      daysToSale: v.firstListedAt === null || !v.firstListedKnown || sale.dateKnown === false || sale.soldAt < v.firstListedAt ? null : daysBetween(v.firstListedAt, sale.soldAt),
       lastAskCents: listing?.priceCents ?? null,
     });
   }

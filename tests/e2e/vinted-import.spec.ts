@@ -108,6 +108,9 @@ test('re-import updates instead of duplicating', async ({ context, base }) => {
   // The sold order is matched to the sale it already created: still one sale, not two.
   await page.goto(`${base}#/sales`);
   await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(1);
+  // Dated by the order (10 Sept.), not by the import day, even though Vinted gave no publication date.
+  const row = page.locator('tr', { hasText: 'Veste Carhartt Detroit M' });
+  await expect(row).toContainText('10 sept.');
 });
 
 test('two sales under the same title stay two sales, import after import', async ({ context, base }) => {

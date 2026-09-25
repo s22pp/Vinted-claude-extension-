@@ -84,6 +84,11 @@ export const ListingSchema = z.object({
   views: z.number().int().nonnegative().nullable(),
   favorites: z.number().int().nonnegative().nullable(),
   listedAt: ts,
+  /**
+   * false when Vinted gave no publication date (no photo timestamp): listedAt is then only when ERA first
+   * saw the listing, a bound, never a date to compute selling speed from. Missing on older imported rows.
+   */
+  listedAtKnown: z.boolean().optional(),
   removedAt: ts.nullable(),
   soldAt: ts.nullable(),
   status: ListingStatusSchema,
@@ -125,6 +130,8 @@ export const SaleSchema = z.object({
   needsAction: z.boolean().optional(),
   /** The Vinted order this sale came from (listing id, else title|date|price): re-imports update, never duplicate. */
   orderKey: z.string().nullable().optional(),
+  /** false when the Vinted order carried no date: soldAt is then the import day, not the sale day. */
+  dateKnown: z.boolean().optional(),
   isDemo: z.boolean().default(false),
 });
 export type Sale = z.infer<typeof SaleSchema>;
