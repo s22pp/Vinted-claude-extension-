@@ -206,6 +206,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const stored = (await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined;
     const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
     let json: unknown;
+    let learnedUsed = template !== DEFAULT_SEARCH_TEMPLATE;
     try {
       json = await this.api(fillTemplate(template, query.text));
     } catch (e) {
@@ -217,6 +218,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       }
       await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: learned.template });
       json = await this.api(fillTemplate(learned.template, query.text));
+      learnedUsed = true;
     }
     const { total, capped } = parseTotalEntries(json);
     return {
@@ -224,6 +226,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       totalEntries: total,
       totalCapped: capped,
       fetchedAt: Date.now(),
+      via: learnedUsed ? 'LEARNED' : null,
     };
   }
 

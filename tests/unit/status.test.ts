@@ -39,7 +39,7 @@ describe('status after re-import', () => {
 const NOW = Date.UTC(2026, 8, 24);
 const item = (id: string, status: InventoryItem['status']): InventoryItem => ({
   id, title: 'Veste', brand: 'Ralph Lauren', model: null, category: 'JACKET', gender: null, size: null, condition: null, material: null, era: null,
-  photoUrl: null, purchasePriceCents: 2000, purchaseDate: NOW - 90 * DAY, purchaseSource: null, status, createdAt: 0, updatedAt: 0, meta: {}, isDemo: false,
+  photoUrl: null, purchasePriceCents: 2000, costDetail: null, purchaseDate: NOW - 90 * DAY, purchaseSource: null, status, createdAt: 0, updatedAt: 0, meta: {}, isDemo: false,
 });
 const listing = (id: string, itemId: string, status: Listing['status']): Listing => ({
   id, inventoryItemId: itemId, platform: 'vinted', platformListingId: null, url: null, title: 'Veste', priceCents: 9000, views: 900, favorites: 1,

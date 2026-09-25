@@ -15,9 +15,14 @@ import { analyzeItem } from '../market-run';
 import { errorCode } from '@/data/adapters/marketplace';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
+import type { CapitalPosition } from '@/intelligence/capital';
+import type { TodayPriority } from '@/intelligence/decision';
+import { nicheKey } from '@/intelligence/seller-model';
+import { IconTile } from '@/ui/components/icons';
+import { PRIO, usePriorityTitle } from '../components/priorities';
 
 type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost';
-type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
+type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
 type SortKey = 'title' | ColKey;
 
 interface Row {
@@ -25,12 +30,12 @@ interface Row {
   intel: ItemIntel | null;
 }
 
-const ALL_COLS: ColKey[] = ['brand', 'size', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
+const ALL_COLS: ColKey[] = ['brand', 'size', 'cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
 const STATUS_ORDER = ['RESERVED', 'LISTED', 'HIDDEN', 'DRAFT', 'SOLD', 'ARCHIVED'];
 const DEFAULT_COLS: ColKey[] = ['status', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'reco'];
-const NUMERIC = new Set<ColKey>(['cost', 'price', 'margin', 'views', 'favorites', 'age', 'listings']);
+const NUMERIC = new Set<ColKey>(['cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings']);
 
-function sortValue(r: Row, k: SortKey): number | string | null {
+function sortValue(r: Row, k: SortKey, pos?: CapitalPosition): number | string | null {
   const v = r.v;
   switch (k) {
     case 'title':
@@ -45,6 +50,10 @@ function sortValue(r: Row, k: SortKey): number | string | null {
       return v.askPrice ?? v.sale?.salePriceCents ?? null;
     case 'margin':
       return v.potentialProfit;
+    case 'roi':
+      return pos?.potentialRoi ?? null;
+    case 'yield':
+      return pos?.efficiency30 ?? null;
     case 'views':
       return v.current?.views ?? null;
     case 'favorites':
@@ -77,11 +86,13 @@ function savePref(key: string, value: unknown) {
 }
 
 export function Stock({ route }: { route: Route }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
+  const prioTitle = usePriorityTitle();
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(route.query.get('q') ?? '');
   const [filter, setFilter] = useState<Filter>((route.query.get('filter') as Filter) ?? 'all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
   const [density, setDensity] = useState<'compact' | 'comfortable'>(() => loadPref('era.stock.density', 'compact'));
@@ -111,6 +122,23 @@ export function Stock({ route }: { route: Route }) {
   }, []);
 
   const rows: Row[] = useMemo(() => era.views.map((v) => ({ v, intel: era.intelById.get(v.item.id) ?? null })), [era.views, era.intelById]);
+  const positions = useMemo(() => new Map(era.capital.positions.map((p) => [p.itemId, p])), [era.capital.positions]);
+  // A priority from Today (or an age slice) opens exactly the items it counts.
+  const focus = route.query.get('focus');
+  const focusSet = useMemo(() => {
+    if (!focus) return null;
+    const age = /^AGE(\d+)$/.exec(focus);
+    if (age) return new Set(era.views.filter((v) => v.inStock && (v.daysHeld ?? 0) >= Number(age[1])).map((v) => v.item.id));
+    if (focus.startsWith('NICHE:')) {
+      const key = focus.slice(6);
+      return new Set(era.views.filter((v) => v.inStock && nicheKey(v.item.brand, v.item.model, v.item.category) === key).map((v) => v.item.id));
+    }
+    return new Set(era.priorities.find((p) => p.code === focus)?.itemIds ?? []);
+  }, [focus, era.views, era.priorities]);
+  const focusPriority = focus ? (era.priorities.find((p) => p.code === focus) ?? null) : null;
+  useEffect(() => {
+    if (focus?.startsWith('AGE') || focus === 'CAPITAL_AGED' || focus === 'TRAPS') setSort({ key: 'age', dir: -1 });
+  }, [focus]);
   const counts = useMemo(
     () => ({
       all: rows.length,
@@ -128,6 +156,7 @@ export function Stock({ route }: { route: Route }) {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const out = rows.filter((r) => {
+      if (focusSet) return focusSet.has(r.v.item.id) && (!needle || `${r.v.item.title} ${r.v.item.brand} ${r.v.item.model ?? ''}`.toLowerCase().includes(needle));
       const s = r.v.item.status;
       if (filter === 'listed' && s !== 'LISTED') return false;
       if (filter === 'reserved' && s !== 'RESERVED') return false;
@@ -140,15 +169,15 @@ export function Stock({ route }: { route: Route }) {
       return true;
     });
     return out.sort((a, b) => {
-      const x = sortValue(a, sort.key);
-      const y = sortValue(b, sort.key);
+      const x = sortValue(a, sort.key, positions.get(a.v.item.id));
+      const y = sortValue(b, sort.key, positions.get(b.v.item.id));
       // Unknown values always sink to the bottom, whatever the direction.
       if (x === null && y === null) return 0;
       if (x === null) return 1;
       if (y === null) return -1;
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
     });
-  }, [rows, filter, q, sort]);
+  }, [rows, filter, q, sort, focusSet, positions]);
 
   // Virtualisation: fixed row height, only the visible window is rendered.
   const rowH = density === 'compact' ? 42 : 58;
@@ -221,10 +250,23 @@ export function Stock({ route }: { route: Route }) {
         return <td key={c}>{v.item.size ?? <span className="t-faint">—</span>}</td>;
       case 'cost':
         return (
-          <td key={c} className="is-num">
+          <td key={c} className="is-num" title={v.cost !== null && !v.costComplete ? t('capital.knownExShipping') : undefined}>
             <Money cents={v.cost} compact />
+            {v.cost !== null && !v.costComplete && <sup className="t-warn" aria-label={t('capital.knownExShipping')}>+</sup>}
           </td>
         );
+      case 'roi': {
+        const p = positions.get(v.item.id);
+        return <td key={c} className="is-num num">{p?.potentialRoi != null ? i18n.pct(p.potentialRoi) : <span className="t-faint">—</span>}</td>;
+      }
+      case 'yield': {
+        const p = positions.get(v.item.id);
+        return (
+          <td key={c} className="is-num num">
+            {p?.efficiency30 != null ? <span className={p.efficiency30 < 0.25 ? 't-warn' : p.efficiency30 >= 1 ? 't-pos' : ''}>{i18n.pct(p.efficiency30)}</span> : <span className="t-faint">—</span>}
+          </td>
+        );
+      }
       case 'price':
         return (
           <td key={c} className="is-num">
@@ -286,6 +328,7 @@ export function Stock({ route }: { route: Route }) {
       <PageHead
         title={t('stock.title')}
         sub={t('stock.subtitle', { n: inStock, listed: counts.listed, reserved: counts.reserved, sold: counts.sold })}
+        tabs={<StockTabs active="stock" />}
         actions={
           <>
             <VintedImportButton />
@@ -305,13 +348,38 @@ export function Stock({ route }: { route: Route }) {
       ) : (
         <>
           <PurchasesBanner />
+          {focus && (
+            <FocusBanner
+              priority={focusPriority}
+              title={
+                focusPriority
+                  ? prioTitle(focusPriority)
+                  : /^AGE(\d+)$/.test(focus)
+                    ? t('stock.focusAge', { n: Number(focus.slice(3)) })
+                    : focus.startsWith('NICHE:')
+                      ? t('stock.focusNiche', { label: route.query.get('label') ?? '' })
+                      : t('stock.focusGone')
+              }
+              hint={focusPriority ? t(`today.P_${focusPriority.code}_hint`) : null}
+              count={visible.length}
+            />
+          )}
           <div className="toolbar">
             <div style={{ width: 300, maxWidth: '100%' }}>
               <SearchInput value={q} onChange={setQ} placeholder={t('stock.search')} inputRef={searchRef} />
             </div>
             <div className="row wrap" role="group" aria-label="Filtres" style={{ gap: 6 }}>
               {filters.map((f) => (
-                <button key={f.value} type="button" className="chip" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)}>
+                <button
+                  key={f.value}
+                  type="button"
+                  className="chip"
+                  aria-pressed={!focus && filter === f.value}
+                  onClick={() => {
+                    if (focus) go(`stock?filter=${f.value}`);
+                    setFilter(f.value);
+                  }}
+                >
                   {f.label}
                   <span className="chip__n num">{counts[f.value]}</span>
                 </button>
@@ -431,5 +499,38 @@ export function Stock({ route }: { route: Route }) {
       <AddItemDrawer open={addOpen} onClose={() => go('stock')} />
       <ImportCsvModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
+  );
+}
+
+function FocusBanner({ priority, title, hint, count }: { priority: TodayPriority | null; title: string; hint: string | null; count: number }) {
+  const { t } = useI18n();
+  const cfg = priority ? PRIO[priority.code] : { icon: 'capital' as const, tone: 'amber' as const };
+  return (
+    <div className="focus-banner" role="status">
+      <IconTile name={cfg.icon} tone={cfg.tone} />
+      <div className="grow">
+        <div className="t-caption">{t('stock.focusTitle')}</div>
+        <div className="focus-banner__title">{title}</div>
+        {hint && <div className="t-small t-muted">{hint}</div>}
+      </div>
+      <span className="t-small t-muted num">{t('stock.focusCount', { n: count })}</span>
+      <Button size="sm" variant="ghost" icon="x" onClick={() => go('stock')}>
+        {t('stock.focusClear')}
+      </Button>
+    </div>
+  );
+}
+
+export function StockTabs({ active }: { active: 'stock' | 'capital' }) {
+  const { t } = useI18n();
+  return (
+    <nav className="subtabs" aria-label={t('stock.title')}>
+      <a href="#/stock" aria-current={active === 'stock' ? 'page' : undefined}>
+        <Icon name="stock" size={14} /> {t('stock.tabItems')}
+      </a>
+      <a href="#/capital" aria-current={active === 'capital' ? 'page' : undefined}>
+        <Icon name="capital" size={14} /> {t('capital.title')}
+      </a>
+    </nav>
   );
 }

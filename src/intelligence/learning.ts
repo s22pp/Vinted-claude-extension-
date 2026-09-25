@@ -4,9 +4,14 @@ import { mean, median } from './stats';
 
 type Resolved = NonNullable<PricePrediction['resolved']>;
 
+/** The single price a forecast is judged against: the suggested price, else the range mid. */
+export function predictedPrice(p: Pick<PricePrediction, 'priceMinCents' | 'priceMaxCents'> & { suggestedCents?: number | null }): number {
+  return p.suggestedCents ?? (p.priceMinCents + p.priceMaxCents) / 2;
+}
+
 /** Confront a stored prediction with what actually happened. */
 export function resolvePrediction(p: PricePrediction, sale: { soldAt: number; salePriceCents: number }): Resolved {
-  const mid = (p.priceMinCents + p.priceMaxCents) / 2;
+  const mid = predictedPrice(p);
   const days = daysBetween(p.at, sale.soldAt);
   const timeErrorDays = days < p.daysMin ? days - p.daysMin : days > p.daysMax ? days - p.daysMax : 0;
   return {

@@ -182,6 +182,8 @@ export class EraRepository {
     await this.db.items.put({
       ...item,
       purchasePriceCents: cents,
+      // A total typed by the seller replaces any breakdown.
+      costDetail: null,
       updatedAt: now,
       meta: { ...item.meta, purchasePriceCents: { p: cents === null ? 'UNKNOWN' : 'USER_PROVIDED', at: now } },
     });
@@ -279,27 +281,66 @@ export class EraRepository {
     return analysis;
   }
 
-  /** Link a Vinted purchase to a stock item: its real buying price becomes the item's cost. */
-  async linkPurchase(purchaseId: string, itemId: string, withProtection: boolean, now = Date.now()): Promise<void> {
+  /**
+   * Link a Vinted purchase to a stock item. Cost = item price + buyer protection (0,70 € + 5 %, verified rule);
+   * shipping stays UNKNOWN (never 0) until entered: the known total then explicitly excludes shipping.
+   */
+  async linkPurchase(purchaseId: string, itemId: string, now = Date.now()): Promise<void> {
     const p = await this.db.purchases.get(purchaseId);
     const item = await this.db.items.get(itemId);
     if (!p || !item) throw new Error('Unknown purchase or item');
-    const cost = withProtection ? p.priceCents + 70 + Math.round(p.priceCents * 0.05) : p.priceCents;
+    const protection = 70 + Math.round(p.priceCents * 0.05);
+    const cost = p.priceCents + protection;
     await this.db.transaction('rw', [this.db.items, this.db.purchases, this.db.events], async () => {
       await this.db.purchases.put({ ...p, linkedItemId: itemId });
       await this.db.items.put({
         ...item,
         purchasePriceCents: cost,
+        costDetail: { itemCents: p.priceCents, protectionCents: protection, shippingCents: null },
         purchaseDate: p.date ?? item.purchaseDate,
         purchaseSource: 'Vinted',
         updatedAt: now,
-        meta: { ...item.meta, purchasePriceCents: { p: withProtection ? 'DERIVED' : 'OBSERVED', at: now } },
+        meta: { ...item.meta, purchasePriceCents: { p: 'DERIVED', at: now } },
       });
       await this.db.events.put(
-        this.event({ type: 'COST_ENTERED', at: now, inventoryItemId: itemId, listingId: null, data: { cost, source: 'vinted_purchase' }, provenance: withProtection ? 'DERIVED' : 'OBSERVED', isDemo: item.isDemo }),
+        this.event({ type: 'COST_ENTERED', at: now, inventoryItemId: itemId, listingId: null, data: { cost, source: 'vinted_purchase', shippingKnown: false }, provenance: 'DERIVED', isDemo: item.isDemo }),
       );
     });
     await this.track('first_cost_entered');
+  }
+
+  /**
+   * A Vinted purchase entered by hand: item price + buyer protection (0,70 € + 5 %, DERIVED) + shipping.
+   * Unknown shipping stays null — the total is then "known excluding shipping", never shipping = 0.
+   */
+  async setCostBreakdown(itemId: string, itemCents: Cents, shippingCents: Cents | null, now = Date.now()): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item) throw new Error(`Unknown item ${itemId}`);
+    const protection = 70 + Math.round(itemCents * 0.05);
+    const total = itemCents + protection + (shippingCents ?? 0);
+    await this.db.transaction('rw', [this.db.items, this.db.events], async () => {
+      await this.db.items.put({
+        ...item,
+        purchasePriceCents: total,
+        costDetail: { itemCents, protectionCents: protection, shippingCents },
+        purchaseSource: item.purchaseSource ?? 'Vinted',
+        updatedAt: now,
+        meta: { ...item.meta, purchasePriceCents: { p: 'USER_PROVIDED', at: now } },
+      });
+      await this.db.events.put(
+        this.event({ type: 'COST_ENTERED', at: now, inventoryItemId: itemId, listingId: null, data: { cost: total, source: 'vinted_breakdown', shippingKnown: shippingCents !== null }, provenance: 'USER_PROVIDED', isDemo: item.isDemo }),
+      );
+    });
+    await this.track('first_cost_entered');
+  }
+
+  /** Shipping paid for a purchase: completes the total. null = still unknown. */
+  async setShipping(itemId: string, shippingCents: Cents | null, now = Date.now()): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item?.costDetail) throw new Error('No cost breakdown for this item');
+    const d = { ...item.costDetail, shippingCents };
+    const total = d.itemCents + (d.protectionCents ?? 0) + (shippingCents ?? 0);
+    await this.db.items.put({ ...item, costDetail: d, purchasePriceCents: total, updatedAt: now });
   }
 
   async dismissPurchase(purchaseId: string): Promise<void> {

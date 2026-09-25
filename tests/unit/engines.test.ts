@@ -25,6 +25,7 @@ const item = (id: string, over: Partial<InventoryItem> = {}): InventoryItem => (
   era: null,
   photoUrl: null,
   purchasePriceCents: 1800,
+  costDetail: null,
   purchaseDate: NOW - 40 * DAY,
   purchaseSource: null,
   status: 'LISTED',
@@ -241,6 +242,9 @@ describe('prediction → reality', () => {
     daysMax: 18,
     confidence: 'MEDIUM',
     sampleSize: 12,
+    kind: 'ANALYSIS',
+    suggestedCents: 4900,
+    basis: null,
     resolved: null,
     isDemo: false,
   };

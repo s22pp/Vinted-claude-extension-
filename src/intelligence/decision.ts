@@ -6,7 +6,7 @@ import type { ComparableAnalysis } from './comparables';
 import type { LearningSummary } from './learning';
 import type { ItemView } from './portfolio';
 import { type PricingResult, priceStrategies } from './pricing';
-import { type SegmentStats, type SellerModel, personalEvidence, rankNiches, velocityScore } from './seller-model';
+import { type SegmentStats, type SellerModel, nicheKey, personalEvidence, rankNiches, velocityScore } from './seller-model';
 import type { Sensitivity } from './sensitivity';
 import { type StagnationDiagnosis, diagnoseStagnation } from './stagnation';
 
@@ -329,7 +329,7 @@ function analyzeReco(id: string, code: string, priority: number, extra: Coded[])
 }
 
 export interface TodayPriority {
-  code: 'MISSING_SALE' | 'RESERVED' | 'STAGNANT' | 'OVERPRICED' | 'MISSING_COST' | 'CAPITAL_AGED' | 'TRAPS' | 'NICHE' | 'NO_ANALYSIS';
+  code: 'MISSING_SALE' | 'RESERVED' | 'STAGNANT' | 'OVERPRICED' | 'MISSING_COST' | 'MISSING_SHIPPING' | 'CAPITAL_AGED' | 'TRAPS' | 'NICHE' | 'NO_ANALYSIS';
   tone: Recommendation['tone'];
   count: number;
   amount: MoneyMetric | null;
@@ -345,8 +345,16 @@ export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSum
   const ids = (f: (i: ItemIntel) => boolean) => intel.filter(f).map((i) => i.view.item.id);
   const stagnant = ids((i) => !!i.stagnation?.stagnant && i.recommendation?.action !== 'HOLD');
   if (stagnant.length) out.push({ code: 'STAGNANT', tone: 'risk', count: stagnant.length, amount: null, label: null, itemIds: stagnant });
-  // Not double-counted with stagnant items: those are already in the first priority.
-  const over = ids((i) => i.recommendation?.action === 'SET_PRICE' && !i.stagnation?.stagnant);
+  // A fact, not an opinion: fresh, reliable comparables and an ask above their P75.
+  const over = ids(
+    (i) =>
+      !!i.analysis &&
+      !i.analysisStale &&
+      (i.analysis.quality === 'HIGH' || i.analysis.quality === 'MEDIUM') &&
+      !!i.analysis.distribution &&
+      i.view.askPrice !== null &&
+      i.view.askPrice > i.analysis.distribution.p75,
+  );
   if (over.length) out.push({ code: 'OVERPRICED', tone: 'warning', count: over.length, amount: null, label: null, itemIds: over });
   if (capital.traps.length)
     out.push({ code: 'TRAPS', tone: 'warning', count: capital.traps.length, amount: null, label: null, itemIds: capital.traps.map((t) => t.itemId) });
@@ -356,6 +364,9 @@ export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSum
   }
   const missing = ids((i) => i.view.inStock && i.view.cost === null);
   if (missing.length) out.push({ code: 'MISSING_COST', tone: 'info', count: missing.length, amount: null, label: null, itemIds: missing });
+  // Known item price + buyer protection, but shipping unknown: the cost is a lower bound, never "complete".
+  const noShip = ids((i) => i.view.inStock && i.view.cost !== null && !i.view.costComplete);
+  if (noShip.length) out.push({ code: 'MISSING_SHIPPING', tone: 'info', count: noShip.length, amount: null, label: null, itemIds: noShip });
   const reserved = ids((i) => i.view.item.status === 'RESERVED');
   if (reserved.length) out.push({ code: 'RESERVED', tone: 'positive', count: reserved.length, amount: null, label: null, itemIds: reserved });
   const noAnalysis = ids((i) => i.view.inStock && !!i.view.current && (!i.analysis || i.analysisStale));
@@ -364,7 +375,12 @@ export function todayPriorities(intel: readonly ItemIntel[], capital: CapitalSum
   const top = niches[0];
   if (top && niches.length >= 3) {
     const avg = niches.reduce((a, n) => a + velocityScore(n), 0) / niches.length;
-    if (velocityScore(top) > avg * 1.4) out.push({ code: 'NICHE', tone: 'positive', count: top.sold, amount: null, label: top.label, itemIds: [] });
+    if (velocityScore(top) > avg * 1.4) {
+      // Opens what you hold in that niche, else what you sold in it.
+      const inNiche = views.filter((v) => nicheKey(v.item.brand, v.item.model, v.item.category) === top.key);
+      const held = inNiche.filter((v) => v.inStock).map((v) => v.item.id);
+      out.push({ code: 'NICHE', tone: 'positive', count: top.sold, amount: null, label: top.label, itemIds: held.length ? held : inNiche.map((v) => v.item.id) });
+    }
   }
   return out;
 }

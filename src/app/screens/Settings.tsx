@@ -7,7 +7,9 @@ import { type DataMode, repo } from '@/data/repo';
 import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
+import { Badge, Button, Card, DemoBadge, Flag, Segmented } from '@/ui/components/primitives';
+import { SEARCH_TEMPLATE_KEY } from '@/data/adapters/vinted/vinted-adapter';
+import { db } from '@/data/db';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
@@ -124,6 +126,7 @@ export function Settings() {
               </div>
             </div>
           </Card>
+          <IntegrationsCard />
           <DiagnosticCard />
           <Card title={t('settings.data')} icon="stock" tone="amber">
             <p className="t-small t-muted" style={{ marginBottom: 14 }}>
@@ -237,6 +240,67 @@ function DiagnosticCard() {
           {t('vinted.lastError')} : {lastError.code} · {lastError.detail}
         </p>
       )}
+    </Card>
+  );
+}
+
+/**
+ * What of the Vinted integration has actually been observed working on THIS device, and what has not.
+ * Fixture tests prove ERA's logic; they never prove the real Vinted integration.
+ */
+function IntegrationsCard() {
+  const { t } = useI18n();
+  const ev = useLiveQuery(async () => {
+    const listings = await db.listings.filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '')).count();
+    const reserved = await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count();
+    const sold = await db.events.where('type').equals('ITEM_SOLD').filter((e) => !e.isDemo && e.provenance === 'OBSERVED').count();
+    const searches = await db.analyses.filter((a) => !a.isDemo && a.analysis.source === 'VINTED' && a.analysis.keptCount > 0).count();
+    const learned = !!(await db.settings.get(SEARCH_TEMPLATE_KEY))?.value;
+    const purchases = await db.purchases.count();
+    return { listings, reserved, sold, searches, learned, purchases };
+  }, []);
+  const rows: { key: string; n: number | null; flag?: 'EXPERIMENTAL' | 'UNVERIFIED' }[] = ev
+    ? [
+        { key: 'stock', n: ev.listings },
+        { key: 'sold', n: ev.sold },
+        { key: 'reserved', n: ev.reserved },
+        { key: 'search', n: ev.searches, flag: ev.learned ? 'UNVERIFIED' : undefined },
+        { key: 'purchases', n: ev.purchases },
+        { key: 'priceEdit', n: null, flag: 'EXPERIMENTAL' },
+      ]
+    : [];
+  return (
+    <Card title={t('integrations.title')} hint={t('integrations.hint')} icon="lock" tone="pink" id="integrations">
+      <div className="integ">
+        {rows.map((r) => (
+          <div key={r.key} className="integ__row">
+            <div className="grow">
+              <div className="integ__name">{t(`integrations.${r.key}`)}</div>
+              <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
+            </div>
+            <div className="integ__status">
+              {r.flag === 'EXPERIMENTAL' ? (
+                <Flag kind="EXPERIMENTAL" />
+              ) : r.n && r.n > 0 ? (
+                <>
+                  <Badge tone="emerald" dot>
+                    {t('integrations.observed', { n: r.n })}
+                  </Badge>
+                  {r.flag && <Flag kind={r.flag} title={t('flag.learnedEndpoint')} />}
+                </>
+              ) : (
+                <Flag kind="UNVERIFIED" />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="t-small t-muted" style={{ marginTop: 12 }}>
+        {t('integrations.freeze')}
+      </p>
+      <p className="t-small t-faint" style={{ marginTop: 6 }}>
+        {t('integrations.tests')}
+      </p>
     </Card>
   );
 }

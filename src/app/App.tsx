@@ -14,6 +14,7 @@ const Market = lazy(() => import('./screens/Market').then((m) => ({ default: m.M
 const Sales = lazy(() => import('./screens/Sales').then((m) => ({ default: m.Sales })));
 const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })));
 const Stock = lazy(() => import('./screens/Stock').then((m) => ({ default: m.Stock })));
+const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
 const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
 
 function PageSkeleton() {
@@ -60,6 +61,9 @@ function Router() {
     case 'stock':
       screen = <Stock route={route} />;
       break;
+    case 'capital':
+      screen = <Capital />;
+      break;
     case 'item':
       screen = <ItemDetail id={route.id ?? ''} />;
       break;
@@ -73,7 +77,7 @@ function Router() {
       screen = <Sales />;
       break;
     case 'insights':
-      screen = <Insights />;
+      screen = <Insights route={route} />;
       break;
     case 'tools':
       screen = <Tools />;

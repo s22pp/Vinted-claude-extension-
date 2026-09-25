@@ -17,6 +17,8 @@ export interface ItemView {
   /** Days on the current listing. */
   daysListed: number | null;
   cost: MaybeCents;
+  /** false when the known cost excludes a part still unknown (e.g. shipping of a Vinted purchase). */
+  costComplete: boolean;
   askPrice: MaybeCents;
   /** ask − cost, null when either is unknown. */
   potentialProfit: MaybeCents;
@@ -60,6 +62,7 @@ export function buildItemViews(
       daysHeldInferred: item.purchaseDate === null && firstListedAt !== null,
       daysListed: current ? daysBetween(current.listedAt, now) : null,
       cost: item.purchasePriceCents,
+      costComplete: item.purchasePriceCents !== null && (!item.costDetail || (item.costDetail.shippingCents !== null && item.costDetail.protectionCents !== null)),
       askPrice,
       potentialProfit: inStock ? subKnown(askPrice, item.purchasePriceCents) : null,
       inStock,

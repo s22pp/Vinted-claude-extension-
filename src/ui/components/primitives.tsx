@@ -360,3 +360,17 @@ export function Sample({ n }: { n: number }) {
   const { t } = useI18n();
   return <span className="t-faint t-small num">{t('data.sample', { n })}</span>;
 }
+
+/**
+ * Integration honesty. EXPERIMENTAL = a Vinted action that may break at any time;
+ * UNVERIFIED = relies on a Vinted structure never confirmed on a real account.
+ * Fixture tests prove ERA's logic, not the real Vinted integration.
+ */
+export function Flag({ kind, title }: { kind: 'EXPERIMENTAL' | 'UNVERIFIED'; title?: string }) {
+  const { t } = useI18n();
+  return (
+    <span className={`flag flag--${kind.toLowerCase()}`} title={title ?? t(`flag.${kind}_hint`)}>
+      {t(`flag.${kind}`)}
+    </span>
+  );
+}

@@ -1,4 +1,4 @@
-import type { Category, Condition, Gender } from '@/domain/entities';
+import type { Category, Condition, Gender, Strategy } from '@/domain/entities';
 import type { Cents, MoneyRange } from '@/domain/money';
 import { roundToEuro } from '@/domain/money';
 import type { ComparableAnalysis, ComparableSubject } from './comparables';
@@ -53,14 +53,34 @@ export interface DealScore {
 export type Level = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 export type Verdict = 'BUY' | 'NEGOTIATE' | 'AVOID' | 'INSUFFICIENT_DATA';
 
+export type CapitalRiskReason = 'HIGH_COST' | 'THIN_ROI' | 'WEAK_COMPARABLES' | 'SLOW' | 'CROWDED' | 'LOW_DEMAND' | 'NO_MARKET';
+
+export interface BuyStrategy {
+  strategy: Strategy;
+  /** Asking price range (market positioning). */
+  range: MoneyRange;
+  days: { min: number; max: number };
+  profit: MoneyRange;
+  roi: { min: number; max: number } | null;
+}
+
 export interface BuyAnalysis {
   input: BuyInput;
   analysis: ComparableAnalysis;
   pricing: PricingResult;
   profit: MoneyRange | null;
   roi: { min: number; max: number } | null;
+  /** Expected profit at the balanced strategy, after your personal discount/bias. */
+  expectedProfitCents: Cents | null;
+  strategies: BuyStrategy[];
+  /** Probable delay to sell at the balanced price, and what it is based on. */
+  speed: { min: number; max: number; basis: 'PERSONAL' | 'DEFAULT'; n: number } | null;
+  /** Expected profit per € invested per 30 days of immobilisation. */
+  yield30: number | null;
   demand: Level;
+  demandDetail: { avgFavorites: number | null; favoritesSample: number; supply: number | null; supplyCapped: boolean; sellThrough: number | null; personalSold: number };
   capitalRisk: Exclude<Level, 'UNKNOWN'>;
+  capitalRiskReasons: CapitalRiskReason[];
   dealScore: DealScore | null;
   /** Highest purchase price that still leaves ≥ 100 % ROI and ≥ 12 € at the balanced low end. */
   maxBuyCents: Cents | null;
@@ -87,6 +107,14 @@ export function analyzeBuy(
   const favs = analysis.comparables.filter((c) => c.kept && c.candidate.favorites !== null).map((c) => c.candidate.favorites!);
   const avgFav = favs.length >= 3 ? mean(favs) : null;
   const demand: Level = avgFav === null ? 'UNKNOWN' : avgFav >= 8 ? 'HIGH' : avgFav >= 3 ? 'MEDIUM' : 'LOW';
+  const demandDetail: BuyAnalysis['demandDetail'] = {
+    avgFavorites: avgFav,
+    favoritesSample: favs.length,
+    supply: analysis.totalEntries,
+    supplyCapped: analysis.totalCapped,
+    sellThrough: personal && personal.sold >= 3 ? personal.sellThrough : null,
+    personalSold: personal?.sold ?? 0,
+  };
 
   if (pricing.status !== 'OK') {
     return {
@@ -95,8 +123,14 @@ export function analyzeBuy(
       pricing,
       profit: null,
       roi: null,
+      expectedProfitCents: null,
+      strategies: [],
+      speed: null,
+      yield30: null,
       demand,
+      demandDetail,
       capitalRisk: cost >= 5000 ? 'HIGH' : 'MEDIUM',
+      capitalRiskReasons: [...(cost >= 5000 ? (['HIGH_COST'] as const) : []), 'NO_MARKET'],
       dealScore: null,
       maxBuyCents: null,
       verdict: 'INSUFFICIENT_DATA',
@@ -178,8 +212,26 @@ export function analyzeBuy(
   const total = dims.reduce((a, d) => a + d.score, 0);
   const maxBuy = Math.min(bal.range.min / 2, bal.range.min - 1200);
   const maxBuyCents = maxBuy > 0 ? Math.floor(maxBuy / 100) * 100 : 0;
+  const strategies: BuyStrategy[] = pricing.options.map((o) => ({
+    strategy: o.strategy,
+    range: o.range,
+    days: o.days,
+    profit: { min: o.range.min - cost, max: o.range.max - cost },
+    roi: cost > 0 ? { min: (o.range.min - cost) / cost, max: (o.range.max - cost) / cost } : null,
+  }));
+  const personalSpeed = personal?.medianDays != null && personal.sold >= 3;
+  const speed = { min: bal.days.min, max: bal.days.max, basis: personalSpeed ? ('PERSONAL' as const) : ('DEFAULT' as const), n: personalSpeed ? personal!.sold : 0 };
+  const yield30 = cost > 0 ? expProfit / cost / (Math.max(1, (speed.min + speed.max) / 2) / 30) : null;
+
+  const reasons: CapitalRiskReason[] = [];
+  if (cost >= 5000) reasons.push('HIGH_COST');
+  if ((roi?.min ?? 0) < 0.3) reasons.push('THIN_ROI');
+  if (analysis.quality === 'LOW') reasons.push('WEAK_COMPARABLES');
+  if (speed.max > 30) reasons.push('SLOW');
+  if (analysis.totalCapped) reasons.push('CROWDED');
+  if (demand === 'LOW') reasons.push('LOW_DEMAND');
   const capitalRisk: BuyAnalysis['capitalRisk'] =
-    cost >= 5000 && (analysis.quality === 'LOW' || (roi?.min ?? 0) < 0.3)
+    cost >= 5000 && (analysis.quality === 'LOW' || (roi?.min ?? 0) < 0.3 || (reasons.includes('SLOW') && reasons.includes('LOW_DEMAND')))
       ? 'HIGH'
       : cost <= 2000 && (roi?.min ?? 0) >= 1
         ? 'LOW'
@@ -194,8 +246,14 @@ export function analyzeBuy(
     pricing,
     profit,
     roi,
+    expectedProfitCents: expProfit,
+    strategies,
+    speed,
+    yield30,
     demand,
+    demandDetail,
     capitalRisk,
+    capitalRiskReasons: reasons,
     dealScore: { total, dimensions: dims },
     maxBuyCents,
     verdict,

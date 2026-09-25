@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ActivationEventName, DomainEvent, InventoryItem } from '@/domain/entities';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
@@ -12,8 +12,8 @@ import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/ic
 import { useToast } from '@/ui/components/overlays';
 import { Badge, type BadgeTone, Button, ConfidenceMeter, Tooltip } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
+import { buildPrediction } from '@/intelligence/precision';
 import { go, useEra } from '../state';
-import { ApplyPriceModal, vintedIdOf } from './vinted-price';
 
 export function ItemCell({ item, sub }: { item: InventoryItem; sub?: React.ReactNode }) {
   return (
@@ -74,16 +74,33 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
   const [busy, setBusy] = useState(false);
   const priceAction = ['SET_PRICE', 'SMALL_DROP', 'RAISE_PRICE', 'FREE_CAPITAL'].includes(r.action);
   const era = useEra();
-  const view = r.itemId ? era.viewById.get(r.itemId) : undefined;
-  const onVinted = priceAction && !!vintedIdOf(view) && typeof r.actionParams.price === 'number';
-  const [applyOpen, setApplyOpen] = useState(false);
 
   const accept = async () => {
     setBusy(true);
     try {
       if (r.action === 'ADD_COST') return onAddCost?.();
       if (r.action === 'ANALYZE') return onAnalyze?.();
-      if (priceAction && r.itemId && typeof r.actionParams.price === 'number') await repo.updatePrice(r.itemId, r.actionParams.price);
+      if (priceAction && r.itemId && typeof r.actionParams.price === 'number') {
+        await repo.updatePrice(r.itemId, r.actionParams.price);
+        // The accepted price becomes a forecast, confronted with the real sale later (Précision ERA).
+        const intel = era.intelById.get(r.itemId);
+        const pred =
+          intel?.analysis && intel.pricing
+            ? buildPrediction({
+                itemId: r.itemId,
+                at: Date.now(),
+                analysis: intel.analysis,
+                pricing: intel.pricing,
+                personal: intel.personal,
+                askCents: intel.view.askPrice,
+                correction: era.learning.priceCorrection,
+                kind: 'RECOMMENDATION',
+                isDemo: intel.view.item.isDemo,
+                suggestedCents: r.actionParams.price,
+              })
+            : null;
+        if (pred) await repo.storePrediction(pred);
+      }
       await repo.recordDecision(r.key, r.itemId, r.action, 'ACCEPTED');
       toast('success', t('reco.applied'), priceAction ? t('reco.appliedHint') : undefined);
     } finally {
@@ -137,12 +154,7 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
         )}
       </dl>
       <div className="reco__foot">
-        {onVinted && (
-          <Button size="sm" variant="primary" icon="price" onClick={() => setApplyOpen(true)}>
-            {t('vintedPrice.applyReco', { price: r.actionParams.price as number })}
-          </Button>
-        )}
-        <Button size="sm" variant={onVinted ? 'ghost' : 'primary'} icon={r.action === 'ADD_COST' ? 'edit' : r.action === 'ANALYZE' ? 'market' : 'check'} loading={busy} onClick={accept}>
+        <Button size="sm" variant="primary" icon={r.action === 'ADD_COST' ? 'edit' : r.action === 'ANALYZE' ? 'market' : 'check'} loading={busy} onClick={accept}>
           {r.action === 'ADD_COST' ? t('item.editCost') : r.action === 'ANALYZE' ? t('item.analyze') : t('reco.accept')}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => dismiss('SNOOZED')}>
@@ -152,16 +164,6 @@ export function RecommendationCard({ r, onAddCost, onAnalyze, compact }: { r: Re
           {t('reco.dismiss')}
         </Button>
       </div>
-      {onVinted && view && (
-        <ApplyPriceModal
-          v={view}
-          cents={r.actionParams.price as number}
-          open={applyOpen}
-          onClose={() => {
-            setApplyOpen(false);
-          }}
-        />
-      )}
     </article>
   );
 }
@@ -356,6 +358,21 @@ export const ACTIVATION_STEPS: { name: ActivationEventName; href: string }[] = [
 export function ActivationProgress({ done }: { done: Set<ActivationEventName> }) {
   const { t } = useI18n();
   const n = ACTIVATION_STEPS.filter((s) => done.has(s.name)).length;
+  // Steps completed while this view is open get a short celebratory pop.
+  const prev = useRef<Set<ActivationEventName> | null>(null);
+  const [fresh, setFresh] = useState<Set<ActivationEventName>>(new Set());
+  useEffect(() => {
+    if (prev.current) {
+      const f = new Set([...done].filter((d) => !prev.current!.has(d)));
+      if (f.size) {
+        setFresh(f);
+        const id = setTimeout(() => setFresh(new Set()), 1600);
+        prev.current = new Set(done);
+        return () => clearTimeout(id);
+      }
+    }
+    prev.current = new Set(done);
+  }, [done]);
   return (
     <section className="card activation" aria-label={t('activation.title')}>
       <Ring value={n} max={ACTIVATION_STEPS.length} size={64}>
@@ -367,7 +384,7 @@ export function ActivationProgress({ done }: { done: Set<ActivationEventName> })
         <div className="t-h3">{t('activation.title')}</div>
         <div className="activation__steps">
           {ACTIVATION_STEPS.map((s) => (
-            <button key={s.name} type="button" className={`activation__step ${done.has(s.name) ? 'is-done' : ''}`} onClick={() => go(s.href)}>
+            <button key={s.name} type="button" className={`activation__step ${done.has(s.name) ? 'is-done' : ''} ${fresh.has(s.name) ? 'is-new' : ''}`} onClick={() => go(s.href)}>
               <span className="activation__check" aria-hidden="true">
                 {done.has(s.name) && <Icon name="check" size={11} strokeWidth={3} />}
               </span>

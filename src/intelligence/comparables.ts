@@ -103,6 +103,8 @@ export interface ComparableAnalysis {
   exclusions: Record<ExclusionReason, number>;
   position: { priceCents: number; deltaPct: number; percentile: number } | null;
   notes: AnalysisNote[];
+  /** Search endpoint learned at runtime (structure never verified on a real account). */
+  via?: 'LEARNED' | null;
 }
 
 const WEIGHTS: SimilarityBreakdown = {
@@ -330,6 +332,7 @@ export function analyzeComparables(
     exclusions,
     position,
     notes,
+    via: results.some((r) => r.via === 'LEARNED') ? 'LEARNED' : null,
   };
 }
 

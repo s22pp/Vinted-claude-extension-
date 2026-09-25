@@ -4,7 +4,7 @@ import { useI18n } from '@/i18n';
 /* ── helpers ─────────────────────────────────────────────── */
 
 /** Callback-ref width observer: works even when the measured element mounts after an empty state. */
-function useWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
+export function useWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
   const [el, setEl] = useState<T | null>(null);
   const [w, setW] = useState(0);
   useLayoutEffect(() => {
@@ -70,7 +70,7 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
   return out;
 }
 
-function ChartEmpty({ height, text }: { height: number; text: string }) {
+export function ChartEmpty({ height, text }: { height: number; text: string }) {
   return (
     <div className="chart-empty" style={{ height }}>
       {text}
@@ -78,7 +78,7 @@ function ChartEmpty({ height, text }: { height: number; text: string }) {
   );
 }
 
-function DataTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
+export function DataTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
   const { t } = useI18n();
   return (
     <details className="chart-table">
@@ -302,6 +302,7 @@ export function BarChart({
   orientation = 'horizontal',
   height = 200,
   color = 'var(--chart-1)',
+  onSelect,
 }: {
   data: BarDatum[];
   format: (v: number) => string;
@@ -309,6 +310,8 @@ export function BarChart({
   orientation?: 'horizontal' | 'vertical';
   height?: number;
   color?: string;
+  /** Makes each bar a way into the underlying items. */
+  onSelect?: (index: number) => void;
 }) {
   const { t } = useI18n();
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -334,7 +337,7 @@ export function BarChart({
               const bw = v === null ? 0 : Math.max(2, scale(v));
               const bx = labelW + (v !== null && v < 0 ? x0 - bw : x0);
               return (
-                <g key={d.label} transform={`translate(0,${i * rowH})`} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.55} style={{ transition: 'opacity 120ms' }}>
+                <g key={d.label} transform={`translate(0,${i * rowH})`} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onClick={onSelect ? () => onSelect(i) : undefined} opacity={hover === null || hover === i ? 1 : 0.55} style={{ transition: 'opacity 120ms', cursor: onSelect ? 'pointer' : undefined }}>
                   <rect x={0} y={0} width={width} height={rowH} fill="transparent" />
                   <text x={0} y={rowH / 2} dy="0.32em" fontSize="12.5" fill="var(--text-2)">
                     {d.label.length > 24 ? `${d.label.slice(0, 23)}…` : d.label}
@@ -387,7 +390,7 @@ export function BarChart({
               const cx = band * i + band / 2;
               const v = d.value ?? 0;
               return (
-                <g key={d.label} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)}>
+                <g key={d.label} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onClick={onSelect ? () => onSelect(i) : undefined} style={{ cursor: onSelect ? 'pointer' : undefined }}>
                   <rect x={band * i} y={0} width={band} height={h} fill={hover === i ? 'var(--highlight)' : 'transparent'} rx={6} />
                   {d.value !== null && (
                     <path
@@ -443,6 +446,9 @@ export function ScatterChart({
   height = 240,
   guides,
   minPoints = 5,
+  diagonal,
+  onSelect,
+  zeroBased = true,
 }: {
   points: ScatterPoint[];
   xFormat: (v: number) => string;
@@ -453,6 +459,10 @@ export function ScatterChart({
   height?: number;
   guides?: { x?: number; y?: number };
   minPoints?: number;
+  /** y = x reference: on the line = perfect forecast. Axes share the same scale. */
+  diagonal?: boolean;
+  onSelect?: (index: number) => void;
+  zeroBased?: boolean;
 }) {
   const { t } = useI18n();
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -463,8 +473,10 @@ export function ScatterChart({
   const h = height - pad.t - pad.b;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
-  const xt = niceTicks(Math.min(0, ...xs), Math.max(...xs), 5);
-  const yt = niceTicks(Math.min(0, ...ys), Math.max(...ys), 4);
+  const lo = (vs: number[]) => (zeroBased ? Math.min(0, ...vs) : Math.min(...vs) * 0.9);
+  const shared = diagonal ? [lo([...xs, ...ys]), Math.max(...xs, ...ys)] : null;
+  const xt = shared ? niceTicks(shared[0]!, shared[1]!, 5) : niceTicks(lo(xs), Math.max(...xs), 5);
+  const yt = shared ? xt : niceTicks(lo(ys), Math.max(...ys), 4);
   const X = (v: number) => ((v - xt[0]!) / (xt[xt.length - 1]! - xt[0]! || 1)) * w;
   const Y = (v: number) => h - ((v - yt[0]!) / (yt[yt.length - 1]! - yt[0]! || 1)) * h;
   const hp = hover !== null ? points[hover] : null;
@@ -492,13 +504,15 @@ export function ScatterChart({
             <text className="chart-axis" x={-44} y={-14} textAnchor="start">
               ↑ {yLabel}
             </text>
+            {diagonal && (
+              <line x1={X(xt[0]!)} y1={Y(xt[0]!)} x2={X(xt[xt.length - 1]!)} y2={Y(xt[xt.length - 1]!)} stroke="var(--violet)" strokeOpacity={0.55} strokeDasharray="5 5" strokeWidth={1.5} />
+            )}
             {guides?.x !== undefined && <line x1={X(guides.x)} x2={X(guides.x)} y1={0} y2={h} stroke="var(--border-strong)" strokeDasharray="3 4" />}
             {guides?.y !== undefined && <line x1={0} x2={w} y1={Y(guides.y)} y2={Y(guides.y)} stroke="var(--border-strong)" strokeDasharray="3 4" />}
             {points.map((p, i) => (
               <circle
                 key={i}
                 className="chart-dot"
-                style={{ animationDelay: `${Math.min(i * 12, 500)}ms` }}
                 cx={X(p.x)}
                 cy={Y(p.y)}
                 r={hover === i ? (p.r ?? 5) + 2 : (p.r ?? 5)}
@@ -508,6 +522,8 @@ export function ScatterChart({
                 strokeWidth={2}
                 onPointerEnter={() => setHover(i)}
                 onPointerLeave={() => setHover(null)}
+                onClick={onSelect ? () => onSelect(i) : undefined}
+                style={{ animationDelay: `${Math.min(i * 12, 500)}ms`, cursor: onSelect ? 'pointer' : undefined }}
               />
             ))}
           </g>

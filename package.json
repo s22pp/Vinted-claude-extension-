@@ -2,7 +2,7 @@
   "name": "era-intelligence",
   "description": "ERA Intelligence — cockpit de décision pour revendeurs Vinted",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "e2e": "wxt build && playwright test",
     "icons": "node scripts/build-icons.mjs",
-    "release": "wxt build && rm -rf extension && cp -r .output/chrome-mv3 extension && wxt zip"
+    "release": "wxt build && rm -rf extension && cp -r .output/chrome-mv3 extension && wxt zip",
+    "qa:screens": "wxt build && playwright test --config tests/visual/playwright.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

@@ -11,6 +11,8 @@ import { type LearningSummary, summarizeLearning } from '@/intelligence/learning
 import { type ItemView, type SaleView, buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model';
 import { buildSensitivityIndex } from '@/intelligence/sensitivity';
+import { latestAnalyses } from '@/intelligence/market-vs-you';
+import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
 
 export interface EraData {
   ready: boolean;
@@ -25,6 +27,9 @@ export interface EraData {
   intel: ItemIntel[];
   intelById: Map<string, ItemIntel>;
   analyses: Map<string, ComparableAnalysis>;
+  /** Latest analysis per subject, item-bound or not (Buy Analyzer): the market side of Market vs You. */
+  marketAnalyses: ComparableAnalysis[];
+  precision: PrecisionRow[];
   priorities: TodayPriority[];
   predictions: PricePrediction[];
   activation: Set<ActivationEventName>;
@@ -64,7 +69,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const saleViews = buildSaleViews(views, sales ?? []);
     const model = buildSellerModel(views, saleViews, { category: (c: Category) => t(`category.${c}`) });
     const learning = summarizeLearning(predictions ?? []);
-    const capital = capitalSummary(views, saleViews, now);
+    const capital = capitalSummary(views, saleViews, now, model.medianDays);
     const analysisMap = new Map((analyses ?? []).filter((a) => a.inventoryItemId).map((a) => [a.inventoryItemId!, a.analysis]));
     const sensitivity = buildSensitivityIndex(views, observations ?? [], priceEvents ?? []);
     const intel = views
@@ -86,6 +91,8 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       intel,
       intelById: new Map(intel.map((i) => [i.view.item.id, i])),
       analyses: analysisMap,
+      marketAnalyses: latestAnalyses(analyses ?? []),
+      precision: precisionRows(predictions ?? []),
       priorities: todayPriorities(intel, capital, model, views),
       predictions: predictions ?? [],
       activation: new Set((activation ?? []).map((a) => a.name)),
@@ -98,7 +105,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
 
 /* ── Hash router ─────────────────────────────────────────── */
 
-export type RouteName = 'today' | 'stock' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'settings' | 'onboarding';
+export type RouteName = 'today' | 'stock' | 'capital' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'settings' | 'onboarding';
 export interface Route {
   name: RouteName;
   id: string | null;
@@ -108,7 +115,7 @@ export interface Route {
 function parse(hash: string): Route {
   const [path = '', qs = ''] = hash.replace(/^#\/?/, '').split('#')[0]!.split('?');
   const [name, id] = path.split('/');
-  const known: RouteName[] = ['today', 'stock', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'settings', 'onboarding'];
+  const known: RouteName[] = ['today', 'stock', 'capital', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'settings', 'onboarding'];
   return { name: known.includes(name as RouteName) ? (name as RouteName) : 'today', id: id ?? null, query: new URLSearchParams(qs) };
 }
 

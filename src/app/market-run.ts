@@ -7,6 +7,7 @@ import type { ComparableAnalysis, ComparableSubject } from '@/intelligence/compa
 import type { LearningSummary } from '@/intelligence/learning';
 import type { ItemView } from '@/intelligence/portfolio';
 import { priceStrategies } from '@/intelligence/pricing';
+import { buildPrediction } from '@/intelligence/precision';
 import { type SellerModel, personalEvidence } from '@/intelligence/seller-model';
 
 export function itemSubject(v: ItemView): ComparableSubject {
@@ -51,20 +52,17 @@ export async function analyzeItem(
     personal,
     learning?.priceCorrection ?? 1,
   );
-  if (pricing.status === 'OK' && pricing.recommended) {
-    const o = pricing.options.find((x) => x.strategy === pricing.recommended)!;
-    await repo.storePrediction({
-      inventoryItemId: v.item.id,
-      at: Date.now(),
-      strategy: o.strategy,
-      priceMinCents: o.range.min,
-      priceMaxCents: o.range.max,
-      daysMin: o.days.min,
-      daysMax: o.days.max,
-      confidence: pricing.confidence,
-      sampleSize: analysis.keptCount,
-      isDemo: v.item.isDemo,
-    });
-  }
+  const pred = buildPrediction({
+    itemId: v.item.id,
+    at: Date.now(),
+    analysis,
+    pricing,
+    personal,
+    askCents: v.askPrice,
+    correction: learning?.priceCorrection ?? 1,
+    kind: 'ANALYSIS',
+    isDemo: v.item.isDemo,
+  });
+  if (pred) await repo.storePrediction(pred);
   return analysis;
 }

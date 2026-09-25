@@ -24,6 +24,24 @@ test('onboarding → demo → Today answers "what now?"', async ({ context, base
   expect(errors).toEqual([]);
 });
 
+test('each Today priority opens exactly the items it counts', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  const first = page.locator('.prio__item').first();
+  const n = Number(await first.locator('.prio__go .num').innerText());
+  await first.click();
+  await expect(page).toHaveURL(/#\/stock\?focus=/);
+  await expect(page.locator('.focus-banner')).toBeVisible();
+  await expect(page.locator('.focus-banner')).toContainText(`${n} articles`);
+  await page.getByRole('button', { name: 'Tout le stock' }).click();
+  await expect(page.locator('.focus-banner')).toHaveCount(0);
+  // Capital: where the money is stuck, one click from Stock.
+  await page.getByRole('link', { name: 'Capital' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Où est mon argent' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pièges à capital' })).toBeVisible();
+});
+
 test('stock: search, filter and open an item with its timeline', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);
@@ -64,6 +82,11 @@ test('buy analyzer explains its deal score', async ({ context, base }) => {
   for (const d of ['Marge', 'Demande', 'Vitesse', 'Risque', 'Rareté', 'Revente', 'Capital']) {
     await expect(page.locator('.score-bars').getByText(d, { exact: true })).toBeVisible();
   }
+  await expect(page.getByText('Somme des sous-scores')).toBeVisible();
+  await expect(page.getByText('Vitesse probable')).toBeVisible();
+  // Asking prices and realised prices are shown as two separate distributions.
+  await expect(page.locator('.dual').first().getByText(/Médiane demandée/)).toBeVisible();
+  await expect(page.locator('.dual').first().getByText(/Médiane encaissée/)).toBeVisible();
 });
 
 test('offer calculator answers an offer', async ({ context, base }) => {

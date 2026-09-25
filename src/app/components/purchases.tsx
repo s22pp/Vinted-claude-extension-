@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import { suggestMatches, withBuyerProtection } from '@/intelligence/purchase-match';
+import { suggestMatches } from '@/intelligence/purchase-match';
+import { CostLines, protectionOf } from './cost';
 import { IconTile } from '@/ui/components/icons';
 import { Drawer, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Select } from '@/ui/components/primitives';
+import { Badge, Button, Flag, Select } from '@/ui/components/primitives';
 import { useEra } from '../state';
 
 function usePending() {
@@ -23,7 +24,9 @@ export function PurchasesBanner() {
       <div className="card row wrap" style={{ marginBottom: 12, padding: '12px 16px', gap: 12 }}>
         <IconTile name="tag" tone="violet" />
         <div className="grow">
-          <div className="t-h3">{t('purchases.banner', { n: pending.length })}</div>
+          <div className="t-h3 row" style={{ gap: 8 }}>
+            {t('purchases.banner', { n: pending.length })} <Flag kind="UNVERIFIED" title={t('flag.purchasesHint')} />
+          </div>
           <div className="t-small t-muted">{t('purchases.bannerHint')}</div>
         </div>
         <Button variant="primary" icon="check" onClick={() => setOpen(true)}>
@@ -40,7 +43,6 @@ export function PurchasesDrawer({ open, onClose }: { open: boolean; onClose: () 
   const era = useEra();
   const toast = useToast();
   const pending = usePending();
-  const [protection, setProtection] = useState(true);
   const [choice, setChoice] = useState<Record<string, string>>({});
   // Candidates: items still owned or sold, preferring those whose cost is unknown.
   const items = useMemo(() => era.views.map((v) => v.item).filter((i) => !i.isDemo), [era.views]);
@@ -50,16 +52,16 @@ export function PurchasesDrawer({ open, onClose }: { open: boolean; onClose: () 
   );
   const sure = pending.filter((p) => suggestions.get(p.id)?.sure);
   const link = async (purchaseId: string, itemId: string) => {
-    await repo.linkPurchase(purchaseId, itemId, protection);
+    await repo.linkPurchase(purchaseId, itemId);
   };
   return (
     <Drawer open={open} onClose={onClose} title={t('purchases.title')}>
       <div className="stack-3">
         <p className="t-small t-muted">{t('purchases.intro')}</p>
-        <label className="row t-small" style={{ cursor: 'pointer' }}>
-          <input type="checkbox" className="checkbox" checked={protection} onChange={(e) => setProtection(e.target.checked)} />
-          {t('purchases.protection')}
-        </label>
+        <p className="t-small t-faint row" style={{ gap: 8, alignItems: 'flex-start' }}>
+          <Flag kind="UNVERIFIED" title={t('flag.purchasesHint')} />
+          <span>{t('purchases.unverified')}</span>
+        </p>
         {sure.length > 0 && (
           <Button
             variant="primary"
@@ -84,18 +86,21 @@ export function PurchasesDrawer({ open, onClose }: { open: boolean; onClose: () 
                   <span style={{ fontWeight: 600 }} className="clamp-1">
                     {p.title}
                   </span>
-                  <span className="num" style={{ fontWeight: 600 }}>
+                  <span className="num t-muted" style={{ fontWeight: 600 }}>
                     {money(p.priceCents)}
                   </span>
                 </div>
                 <div className="t-small t-faint">
-                  {date(p.date)} · {t('purchases.cost', { price: protection ? withBuyerProtection(p.priceCents) : p.priceCents })}
+                  {date(p.date)}
                   {s?.sure && (
                     <>
                       {' '}
                       · <Badge tone="emerald">{t('purchases.sure')}</Badge>
                     </>
                   )}
+                </div>
+                <div className="costlines-box">
+                  <CostLines itemCents={p.priceCents} protectionCents={protectionOf(p.priceCents)} shippingCents={null} />
                 </div>
                 <div className="row" style={{ gap: 8 }}>
                   <Select

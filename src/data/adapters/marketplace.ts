@@ -17,6 +17,8 @@ export interface SearchResult {
   totalEntries: number | null;
   totalCapped: boolean;
   fetchedAt: number;
+  /** 'LEARNED' = search endpoint discovered at runtime from Vinted's own page (UNVERIFIED structure). */
+  via?: 'LEARNED' | null;
 }
 
 export interface InventorySnapshotItem {

@@ -50,7 +50,13 @@ export const InventoryItemSchema = z.object({
   material: z.string().nullable(),
   era: z.string().nullable(),
   photoUrl: z.string().nullable(),
+  /** Total known cost (what the engines use). With a costDetail whose shipping is unknown, it EXCLUDES shipping. */
   purchasePriceCents: maybeCents,
+  /** Breakdown when known (Vinted purchases): item price, buyer protection, shipping (null = unknown, never 0). */
+  costDetail: z
+    .object({ itemCents: cents, protectionCents: cents.nullable(), shippingCents: cents.nullable() })
+    .nullable()
+    .default(null),
   purchaseDate: ts.nullable(),
   purchaseSource: z.string().nullable(),
   status: ItemStatusSchema,
@@ -163,6 +169,27 @@ export const PricePredictionSchema = z.object({
   daysMax: z.number().nonnegative(),
   confidence: ConfidenceSchema,
   sampleSize: z.number().nonnegative(),
+  /** Where the forecast came from: a market analysis, an accepted recommendation, or a price the seller set. */
+  kind: z.enum(['ANALYSIS', 'RECOMMENDATION']).default('ANALYSIS'),
+  /** The single price ERA suggested (the forecast is judged against it). Null on legacy records → range mid. */
+  suggestedCents: cents.nullable().default(null),
+  /** The data the forecast was built on, frozen at prediction time. */
+  basis: z
+    .object({
+      comparables: z.number().nonnegative(),
+      p25: cents.nullable(),
+      p50: cents.nullable(),
+      p75: cents.nullable(),
+      source: z.enum(['DEMO', 'VINTED']).nullable(),
+      quality: z.string().nullable(),
+      personalN: z.number().nonnegative(),
+      personalMedianCents: cents.nullable(),
+      personalMedianDays: z.number().nullable(),
+      askCents: cents.nullable(),
+      correction: z.number(),
+    })
+    .nullable()
+    .default(null),
   resolved: z
     .object({
       at: ts,

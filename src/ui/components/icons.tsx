@@ -49,6 +49,10 @@ const PATHS = {
   book: 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15ZM5 19.5A1.5 1.5 0 0 0 6.5 21H19',
   dot: 'M12 12.01h.01',
   edit: 'M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
+  box: 'M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4v-9ZM3.5 7.5 12 11.5l8.5-4M12 11.5v9',
+  lock: 'M6 11h12v9.5H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11M12 15v2',
+  flask: 'M9.5 3.5h5M10.5 3.5v6L5 18.5a1.4 1.4 0 0 0 1.2 2h11.6a1.4 1.4 0 0 0 1.2-2L13.5 9.5v-6M7.5 14.5h9',
+  compare: 'M7 4v16M17 4v16M3.5 8H7M17 16h3.5M7 12h10',
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -123,6 +123,7 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
       era: title.toLowerCase().includes('vintage') ? 'vintage' : null,
       photoUrl: `demo:${spec.photo}:${Math.floor(r() * 6)}`,
       purchasePriceCents: costKnown ? euro(buy) : null,
+      costDetail: null,
       purchaseDate: costKnown || r() > 0.5 ? purchaseDate : null,
       purchaseSource: costKnown ? pick(r, SOURCES) : null,
       status: sold ? 'SOLD' : ((x) => (x < 0.05 ? 'DRAFT' : x < 0.12 ? 'RESERVED' : x < 0.16 ? 'HIDDEN' : 'LISTED'))(r()),
@@ -216,9 +217,25 @@ export function generateDemoDataset(now: number, opts: { soldCount?: number; sto
       daysMax: Math.round(spec.days * 1.8),
       confidence: r() < 0.35 ? 'HIGH' : r() < 0.7 ? 'MEDIUM' : 'LOW',
       sampleSize: 8 + Math.floor(r() * 20),
+      kind: 'ANALYSIS',
+      suggestedCents: predMid,
+      basis: {
+        comparables: 0,
+        p25: euro(spec.market * 0.8),
+        p50: euro(spec.market),
+        p75: euro(spec.market * 1.22),
+        source: 'DEMO',
+        quality: 'MEDIUM',
+        personalN: 0,
+        personalMedianCents: null,
+        personalMedianDays: null,
+        askCents: null,
+        correction: 1,
+      },
       resolved: null,
       isDemo: true,
     };
+    pred.basis!.comparables = pred.sampleSize;
     ds.predictions.push(pred);
     ev({ type: 'PREDICTION_MADE', at: listedAt, inventoryItemId: id, listingId: lastListing?.id ?? null, data: { min: pred.priceMinCents, max: pred.priceMaxCents } , provenance: 'PREDICTED' });
 

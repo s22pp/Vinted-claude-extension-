@@ -4,9 +4,11 @@ import { useI18n } from '@/i18n';
 import type { ComparableAnalysis } from '@/intelligence/comparables';
 import type { PricingResult } from '@/intelligence/pricing';
 import { DistributionStrip, Legend } from '@/ui/charts/charts';
+import { DualDistribution } from '@/ui/charts/dual';
+import { realizedFor } from '@/intelligence/seller-model';
 import { IllustrationAnalysis, IllustrationNoComparables } from '@/ui/components/illustrations';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Select, Stages, Tabs } from '@/ui/components/primitives';
+import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Flag, Metric, Select, Stages, Tabs } from '@/ui/components/primitives';
 import { StrategyCards } from '../components/domain';
 import { analyzeItem } from '../market-run';
 import { useBulkAnalyze } from '../components/tools';
@@ -102,12 +104,14 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
   const excluded = analysis.comparables.filter((c) => !c.kept);
   const insufficient = analysis.quality === 'INSUFFICIENT' || !d;
   const pos = analysis.position;
+  const era = useEra();
+  const realized = realizedFor(era.sales, analysis.subject);
 
   return (
     <div className="stack-4">
       <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(7, minmax(0,1fr))' }}>
         <div className="kpi">
-          <Metric small label={t('market.quality')} value={<Badge tone={QUALITY_TONE[analysis.quality]}>{t(`compQuality.${analysis.quality}`)}</Badge>} foot={analysis.source === 'DEMO' ? <DemoBadge /> : t('market.sourceVINTED')} />
+          <Metric small label={t('market.quality')} value={<Badge tone={QUALITY_TONE[analysis.quality]}>{t(`compQuality.${analysis.quality}`)}</Badge>} foot={analysis.source === 'DEMO' ? <DemoBadge /> : analysis.via ? <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} /> : t('market.sourceVINTED')} />
         </div>
         <div className="kpi">
           <Metric small label={t('market.effectiveSample')} value={<span className="num">{analysis.effectiveSample}</span>} foot={t('market.kept', { kept: analysis.keptCount, collected: analysis.collected })} />
@@ -211,6 +215,16 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
                 ))}
               </ul>
             )}
+          </Card>
+          <Card className="span-12" title={t('dual.title')} hint={t('dual.hint')} icon="compare" tone="cyan">
+            <DualDistribution
+              title={t('dual.title')}
+              asking={{ points: kept.map((c) => ({ v: c.candidate.priceCents, w: c.similarity, label: c.candidate.title })), q: { p25: d!.p25, p50: d!.p50, p75: d!.p75 } }}
+              realized={{ points: realized?.points ?? [] }}
+              realizedScope={realized ? t(`dual.scope.${realized.scope}`) : null}
+              current={current}
+              format={(x) => money(Math.round(x / 100) * 100)}
+            />
           </Card>
           {pricing?.status === 'OK' && (
             <Card className="span-12" title={t('market.strategies')} hint={t('market.tradeoff')} icon="scale" tone="violet">

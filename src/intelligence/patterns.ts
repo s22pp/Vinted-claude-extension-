@@ -127,7 +127,8 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
     }
     for (const [label, seg] of groups) {
       const rest = completed.filter((r) => !seg.includes(r));
-      if (seg.length < 4 || rest.length < 4) continue;
+      // No conclusion on micro-samples: at least 5 sales in the segment and 5 outside it.
+      if (seg.length < 5 || rest.length < 5) continue;
       const sig = seg.map((r) => r.sale.sale.id).sort().join(',');
 
       // Speed: median days to sale.
@@ -161,7 +162,7 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       const sp = avg(seg.map((r) => r.profitPerDay));
       const bp = avg(rest.map((r) => r.profitPerDay));
       const nP = seg.filter((r) => r.profitPerDay !== null).length;
-      if (sp !== null && bp !== null && bp > 0 && nP >= 4) {
+      if (sp !== null && bp !== null && bp > 0 && nP >= 5) {
         const ratio = shrink(sp, nP, bp) / bp;
         if (ratio >= 1.6 || ratio <= 0.55) {
           const good = ratio > 1;
@@ -288,7 +289,7 @@ export function minePatterns(sales: readonly SaleView[], views: readonly ItemVie
       const share = p / totalProfit;
       const stockShare = stock.filter((v) => brandKey(v.item.brand) === k).length / stock.length;
       const n = completed.filter((r) => brandKey(r.sale.item.brand) === k).length;
-      if (n >= 4 && share >= 0.15 && stockShare < share * 0.5) {
+      if (n >= 5 && share >= 0.15 && stockShare < share * 0.5) {
         out.push({
           id: `gap:${k}`,
           kind: 'STOCK_GAP',

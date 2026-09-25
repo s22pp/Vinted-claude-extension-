@@ -44,7 +44,7 @@ function Compare({ p }: { p: Pattern }) {
 }
 
 export function PatternsCard() {
-  const { t } = useI18n();
+  const { t, pct } = useI18n();
   const era = useEra();
   const patterns = useMemo(() => minePatterns(era.sales, era.views, { category: (c) => t(`category.${c}`) }), [era.sales, era.views, t]);
   const [open, setOpen] = useState<string | null>(null);
@@ -71,6 +71,13 @@ export function PatternsCard() {
                     </div>
                   </div>
                   <Compare p={p} />
+                  <div className="pattern__facts">
+                    <span>
+                      {t('patterns.diff')} <b className="num">{p.baseline ? pct((p.value - p.baseline) / Math.abs(p.baseline), { sign: true }) : '—'}</b>
+                    </span>
+                    <span className="num">{t('patterns.samples', { n: p.sample, b: p.baselineSample })}</span>
+                    <ConfidenceMeter level={p.confidence} />
+                  </div>
                   <button type="button" className="btn btn--ghost btn--sm" style={{ alignSelf: 'flex-start', paddingLeft: 0 }} aria-expanded={expanded} onClick={() => setOpen(expanded ? null : p.id)}>
                     <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={14} /> {t('patterns.why')} · {t('patterns.todo')}
                   </button>

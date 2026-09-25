@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useMemo } from 'react';
 import '@fontsource-variable/geist';
 import '@fontsource/instrument-serif/400-italic.css';
 import '@/ui/styles/base.css';
+import '@/ui/styles/core.css';
 import { repo } from '@/data/repo';
 import { I18nContext, type Locale, createI18n } from '@/i18n';
 import { ToastProvider } from '@/ui/components/overlays';

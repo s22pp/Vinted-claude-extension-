@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ACTIVATION_STEPS } from './components/domain';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/icons';
@@ -22,7 +23,7 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
   const era = useEra();
-  const active = route === 'item' ? 'stock' : route;
+  const active = route === 'item' || route === 'capital' ? 'stock' : route;
   const navRef = useRef<HTMLElement>(null);
   const [marker, setMarker] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -30,6 +31,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
     setMarker(el ? el.offsetTop : null);
   }, [active]);
   const urgent = era.priorities.filter((p) => p.tone === 'risk' || p.tone === 'warning').length;
+  useMilestones();
 
   return (
     <div className="app">
@@ -115,9 +117,11 @@ function Topbar() {
       </span>
       <span className="topbar__spacer" />
       <VintedImportButton size="sm" variant={era.mode === 'real' ? 'default' : 'primary'} label="short" />
-      <Button size="sm" icon="buy" onClick={() => go('buy')}>
-        {t('buy.title')}
-      </Button>
+      <span className="topbar__hide-sm">
+        <Button size="sm" icon="buy" onClick={() => go('buy')}>
+          {t('buy.title')}
+        </Button>
+      </span>
       <Button size="sm" variant="primary" icon="plus" onClick={() => go('stock?add=1')}>
         {t('stock.add')}
       </Button>
@@ -130,7 +134,7 @@ function Topbar() {
   );
 }
 
-export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
+export function PageHead({ eyebrow, title, sub, actions, tabs }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode; tabs?: ReactNode }) {
   return (
     <div className="page-head">
       <div className="page-head__titles">
@@ -139,6 +143,7 @@ export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: ReactNode
         {sub && <p className="page-head__sub">{sub}</p>}
       </div>
       {actions && <div className="page-head__actions">{actions}</div>}
+      {tabs && <div className="page-head__tabs">{tabs}</div>}
     </div>
   );
 }
@@ -150,4 +155,37 @@ export function BackLink({ href, label }: { href: string; label: string }) {
       {label}
     </a>
   );
+}
+
+const MILESTONES_KEY = 'era.milestones.v1';
+
+/** Discreet, local-only celebration when an activation step is completed for the first time. */
+function useMilestones() {
+  const { t } = useI18n();
+  const era = useEra();
+  const toast = useToast();
+  useEffect(() => {
+    if (!era.ready) return;
+    const done = ACTIVATION_STEPS.filter((s) => era.activation.has(s.name)).map((s) => s.name as string);
+    let seen: string[] | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem(MILESTONES_KEY) ?? 'null') as string[] | null;
+    } catch {
+      seen = null;
+    }
+    const save = () => {
+      try {
+        localStorage.setItem(MILESTONES_KEY, JSON.stringify(done));
+      } catch {
+        /* per-viewer convenience only */
+      }
+    };
+    // First run on this browser: take the current state as the baseline, silently.
+    if (seen === null) return save();
+    const fresh = done.filter((d) => !seen!.includes(d));
+    if (!fresh.length) return;
+    save();
+    if (done.length === ACTIVATION_STEPS.length) toast('success', t('activation.allDone'), t('activation.allDoneHint'));
+    else for (const f of fresh) toast('success', t('activation.milestone', { done: done.length, total: ACTIVATION_STEPS.length }), t(`activation.${f}`));
+  }, [era.ready, era.activation, t, toast]);
 }

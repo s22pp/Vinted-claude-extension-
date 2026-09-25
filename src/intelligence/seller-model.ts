@@ -22,6 +22,8 @@ export interface SegmentStats {
   profitSample: number;
   medianDays: number | null;
   roi: number | null;
+  /** Capital rotation: profit per € invested per 30 days of immobilisation (sold items with known cost). */
+  yield30: number | null;
   sellThrough: number | null;
   /** Average (sale − last ask) / last ask. Negative = accepted discounts. */
   avgDiscount: number | null;
@@ -37,6 +39,7 @@ export interface SellerModel {
   byCategory: SegmentStats[];
   byNiche: SegmentStats[];
   byPriceBand: SegmentStats[];
+  bySize: SegmentStats[];
   /** Sales count per calendar month (0 = January), for seasonality. */
   seasonality: number[];
   /** Sales count per weekday (0 = Monday). */
@@ -84,6 +87,8 @@ function segment(
     .map((s) => (s.sale.salePriceCents - s.lastAskCents!) / s.lastAskCents!);
   const profitSum = withProfit.reduce((a, s) => a + s.profit!, 0);
   const costSum = withProfit.reduce((a, s) => a + s.cost!, 0);
+  const timed = withProfit.filter((s) => s.daysToSale !== null && s.cost! > 0);
+  const capitalMonths = timed.reduce((a, s) => a + (s.cost! * Math.max(1, s.daysToSale!)) / 30, 0);
   return {
     key,
     label,
@@ -99,6 +104,7 @@ function segment(
     profitSample: withProfit.length,
     medianDays: days.length ? median(days) : null,
     roi: costSum > 0 ? profitSum / costSum : null,
+    yield30: capitalMonths > 0 ? timed.reduce((a, s) => a + s.profit!, 0) / capitalMonths : null,
     sellThrough: done.length + stock.length > 0 ? done.length / (done.length + stock.length) : null,
     avgDiscount: discounts.length ? mean(discounts) : null,
     confidence: sampleConfidence(done.length),
@@ -178,9 +184,19 @@ export function buildSellerModel(
     byPriceBand: PRICE_BANDS.map(([, , label]) =>
       segment(label, label, null, null, bandSales.get(label) ?? [], bandStock.get(label) ?? []),
     ),
+    bySize: build(
+      (i) => sizeKey(i.size),
+      (k) => k,
+      () => ({ brand: null, category: null }),
+    ).filter((s) => s.key !== '?'),
     seasonality,
     weekdays,
   };
+}
+
+export function sizeKey(size: string | null): string {
+  const s = (size ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+  return s || '?';
 }
 
 /** Best personal evidence for a subject: niche first, then brand, then category. */
@@ -207,4 +223,26 @@ export function rankNiches(model: SellerModel, minSample = 3): SegmentStats[] {
 export function velocityScore(s: SegmentStats): number {
   const days = Math.max(1, s.medianDays ?? 30);
   return (s.avgProfitCents ?? 0) / days;
+}
+
+/**
+ * Your REALISED sale prices for the closest segment with ≥ 3 sales (niche → brand → category).
+ * Never mixed with market asking prices; returned separately for a side-by-side view.
+ */
+export function realizedFor(
+  sales: readonly SaleView[],
+  subject: { brand: string; model: string | null; category: Category },
+  excludeItemId: string | null = null,
+): { scope: 'niche' | 'brand' | 'category'; points: { v: Cents; label: string }[] } | null {
+  const done = sales.filter((s) => s.sale.status !== 'REFUNDED' && s.item.id !== excludeItemId);
+  const levels: ['niche' | 'brand' | 'category', (s: SaleView) => boolean][] = [
+    ['niche', (s) => nicheKey(s.item.brand, s.item.model, s.item.category) === nicheKey(subject.brand, subject.model, subject.category)],
+    ['brand', (s) => brandKey(s.item.brand) === brandKey(subject.brand)],
+    ['category', (s) => s.item.category === subject.category],
+  ];
+  for (const [scope, f] of levels) {
+    const xs = done.filter(f);
+    if (xs.length >= 3) return { scope, points: xs.map((s) => ({ v: s.sale.salePriceCents, label: s.item.title })) };
+  }
+  return null;
 }

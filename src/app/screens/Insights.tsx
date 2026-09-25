@@ -7,12 +7,18 @@ import { IllustrationDone } from '@/ui/components/illustrations';
 import { ItemCell } from '../components/domain';
 import { PatternsCard } from '../components/patterns';
 import { PageHead } from '../Shell';
-import { useEra } from '../state';
+import { go, type Route, useEra } from '../state';
+import { MarketVsYou, YouHighlights } from '../components/market-vs-you';
+import { PrecisionView } from '../components/precision';
+import { Icon } from '@/ui/components/icons';
 
 const CONF_TONE = { HIGH: 'emerald', MEDIUM: 'cyan', LOW: 'amber' } as const;
 
-export function Insights() {
+type Tab = 'patterns' | 'you' | 'precision' | 'niches';
+
+export function Insights({ route }: { route: Route }) {
   const i = useI18n();
+  const tab = (['patterns', 'you', 'precision', 'niches'].includes(route.query.get('tab') ?? '') ? route.query.get('tab') : 'patterns') as Tab;
   const { t, money, pct, date } = i;
   const era = useEra();
   const L = era.learning;
@@ -38,62 +44,55 @@ export function Insights() {
     );
   }
 
+  const tabs: { value: Tab; icon: 'insights' | 'compare' | 'target' | 'layers'; label: string }[] = [
+    { value: 'patterns', icon: 'insights', label: t('insights.tabPatterns') },
+    { value: 'you', icon: 'compare', label: t('insights.tabYou') },
+    { value: 'precision', icon: 'target', label: t('insights.tabPrecision') },
+    { value: 'niches', icon: 'layers', label: t('insights.tabNiches') },
+  ];
+  const nicheBars = rankNiches(era.model, 3).slice(0, 10);
+
   return (
     <>
-      <PageHead title={t('insights.title')} sub={t('insights.subtitle')} />
-      <p className="t-small t-muted" style={{ marginTop: -12, marginBottom: 16 }}>
-        {t('insights.marketVsPersonal')}
-      </p>
+      <PageHead
+        title={t('insights.title')}
+        sub={t('insights.marketVsPersonal')}
+        tabs={
+          <nav className="subtabs" role="tablist" aria-label={t('insights.title')}>
+            {tabs.map((x) => (
+              <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} onClick={() => go(`insights?tab=${x.value}`)}>
+                <Icon name={x.icon} size={14} /> {x.label}
+              </button>
+            ))}
+          </nav>
+        }
+      />
       <div className="stack-4">
-        <PatternsCard />
-        <div className="grid-12">
-          <Card className="span-7" title={t('insights.predictionReality')} hint={`${t('insights.predictionHint')} · ${t('insights.resolved', { n: L.resolved, open: L.open })}`} icon="scale" tone="pink">
-            {L.resolved === 0 ? (
-              <p className="t-muted">{t('insights.noCorrection')}</p>
-            ) : (
-              <div className="stack-4">
-                <div className="row wrap" style={{ gap: 32 }}>
-                  <Metric small label={t('insights.priceError')} value={<span className="num">{pct(L.priceMape, { digits: 1 })}</span>} foot={<Sample n={L.resolved} />} />
-                  <Metric small label={t('insights.hitRate')} value={<span className="num">{pct(L.priceHitRate)}</span>} />
-                  <Metric small label={t('insights.timeHit')} value={<span className="num">{pct(L.timeHitRate)}</span>} />
-                  <Metric small label={t('insights.bias')} value={<span className={`num ${L.priceBias !== null && L.priceBias < 0 ? 't-warn' : ''}`}>{pct(L.priceBias, { sign: true, digits: 1 })}</span>} />
-                </div>
-                {L.priceBias !== null && <p className="t-small">{t('insights.biasText', { pct: pct(L.priceBias, { sign: true, digits: 1 }) })}</p>}
-                <p className="t-small t-muted">{L.resolved >= 5 ? t('insights.correction', { f: L.priceCorrection.toFixed(3) }) : t('insights.noCorrection')}</p>
-                <LineChart
-                  title={t('insights.trend')}
-                  labels={L.trend.map((p) => date(p.at))}
-                  series={[{ key: 'mape', label: t('insights.trend'), color: 'var(--pink)', values: L.trend.map((p) => p.mape), area: true }]}
-                  format={(v) => pct(v)}
-                  height={160}
-                />
-                <p className="t-small t-faint">{t('insights.trendHint')}</p>
-              </div>
-            )}
-          </Card>
-          <Card className="span-5" title={t('insights.calibration')} hint={t('insights.calibrationHint')} icon="target" tone="pink">
-            <div className="stack-3">
-              {L.calibration.map((c) => (
-                <div key={c.confidence} className="stack" style={{ gap: 6 }}>
-                  <div className="row-between t-small">
-                    <span className="row" style={{ gap: 8 }}>
-                      <Badge tone={CONF_TONE[c.confidence]}>{t(`confidence.${c.confidence}`)}</Badge>
-                      <Sample n={c.n} />
-                    </span>
-                    <span className="num" style={{ fontWeight: 600 }}>
-                      {pct(c.hitRate)} <span className="t-faint" style={{ fontWeight: 400 }}>· {t('insights.target', { pct: pct(c.target) })}</span>
-                    </span>
-                  </div>
-                  <div className="meter" style={{ position: 'relative', height: 8 }} aria-hidden="true">
-                    <span className="meter__fill" style={{ display: 'block', width: `${(c.hitRate ?? 0) * 100}%` }} />
-                    <span style={{ position: 'absolute', top: -3, bottom: -3, width: 2, left: `${c.target * 100}%`, background: 'var(--text-2)', borderRadius: 1 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
+        {tab === 'patterns' && <PatternsCard />}
+        {tab === 'you' && (
+          <>
+            <YouHighlights />
+            <MarketVsYou />
+          </>
+        )}
+        {tab === 'precision' && <PrecisionView />}
+        {tab === 'niches' && (
+          <>
+        <Card title={t('insights.nichePerf')} hint={t('insights.nichePerfHint')} icon="trendUp" tone="emerald">
+          <BarChart
+            title={t('insights.nichePerf')}
+            data={nicheBars.map((n) => ({
+              label: `${n.label} · n=${n.sold}`,
+              value: Math.round(velocityScore(n)),
+              color: n.confidence === 'HIGH' ? 'var(--emerald)' : n.confidence === 'MEDIUM' ? 'var(--chart-1)' : 'var(--border-strong)',
+              note: `${t('insights.niche.roi')} ${pct(n.roi)} · ${n.medianDays === null ? '—' : t('kpi.days', { n: Math.round(n.medianDays) })}`,
+            }))}
+            format={(v) => `${money(Math.round(v))}/j`}
+          />
+          <p className="t-small t-faint" style={{ marginTop: 8 }}>
+            {t('insights.nichePerfRead')}
+          </p>
+        </Card>
         <Card title={t('insights.niches')} hint={t('insights.nichesHint')} icon="insights" tone="cyan">
           {niches.length === 0 ? (
             <p className="t-muted">{t('insights.emptyWhy')}</p>
@@ -124,28 +123,10 @@ export function Insights() {
 
         <div className="grid-12" id="capital">
           <Card className="span-6" title={t('insights.capitalTraps')} hint={t('insights.capitalTrapsHint')} icon="trap" tone="amber">
-            {era.capital.traps.length === 0 ? (
-              <p className="t-muted">{t('today.noPriorities')}</p>
-            ) : (
-              <div className="list">
-                {era.capital.traps.slice(0, 6).map((tr) => {
-                  const v = era.viewById.get(tr.itemId)!;
-                  return (
-                    <a key={tr.itemId} className="list__row" href={`#/item/${tr.itemId}`} style={{ gridTemplateColumns: 'minmax(0,1fr) auto', color: 'inherit' }}>
-                      <ItemCell item={v.item} sub={t('insights.held', { n: tr.daysHeld })} />
-                      <span style={{ textAlign: 'right' }}>
-                        <span className="num" style={{ display: 'block', fontWeight: 600 }}>
-                          {money(tr.costCents)} <span className="t-faint" style={{ fontWeight: 400 }}>{t('insights.invested')}</span>
-                        </span>
-                        <span className="t-small">
-                          <Money cents={tr.potentialProfitCents} sign /> <span className="t-faint">{t('insights.profitPot')}</span>
-                        </span>
-                      </span>
-                    </a>
-                  );
-                })}
-              </div>
-            )}
+            <p className="t-muted">{t('insights.trapsMoved', { n: era.capital.traps.length })}</p>
+            <button type="button" className="btn btn--sm" style={{ marginTop: 10 }} onClick={() => go('capital')}>
+              {t('capital.title')} →
+            </button>
           </Card>
           <Card className="span-6" title={t('insights.capitalStars')} hint={t('insights.capitalStarsHint')} icon="trendUp" tone="emerald">
             <div className="list">
@@ -203,6 +184,8 @@ export function Insights() {
             />
           </Card>
         </div>
+          </>
+        )}
         <p className="t-small t-faint row" style={{ gap: 8 }}>
           <IconTile name="info" tone="neutral" size="sm" />
           {t('kpi.refundRate')} : {pct(era.model.refundRate, { digits: 1 })} · <Sample n={era.sales.length} />

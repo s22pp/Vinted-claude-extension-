@@ -4,13 +4,18 @@ import { errorCode } from '@/data/adapters/marketplace';
 import { db } from '@/data/db';
 import { qualityOf } from '@/domain/provenance';
 import { useI18n } from '@/i18n';
-import { DistributionStrip, LineChart } from '@/ui/charts/charts';
+import { LineChart } from '@/ui/charts/charts';
+import { DualDistribution } from '@/ui/charts/dual';
+import { realizedFor } from '@/intelligence/seller-model';
+import { IconTile } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
+import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Flag, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
 import { CostEditor, SaleModal } from '../components/forms';
+import { CostBreakdown, VintedCostForm } from '../components/cost';
+import { PredictionRow } from '../components/precision';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton } from '../components/vinted-price';
 import { analyzeItem } from '../market-run';
@@ -61,6 +66,9 @@ export function ItemDetail({ id }: { id: string }) {
 
   const priceSeries = (obs ?? []).map((o) => ({ at: o.at, price: o.priceCents, views: o.views, favs: o.favorites }));
   const d = analysis?.distribution ?? null;
+  const pos = era.capital.positions.find((p) => p.itemId === id) ?? null;
+  const realized = realizedFor(era.sales, item, id);
+  const preds = era.precision.filter((r) => r.itemId === id);
 
   return (
     <>
@@ -82,12 +90,44 @@ export function ItemDetail({ id }: { id: string }) {
           <p className="t-muted">
             {[item.brand, item.model, item.size, item.condition ? t(`condition.${item.condition}`) : null].filter(Boolean).join(' · ')}
           </p>
-          <div className="row wrap" style={{ gap: 28, rowGap: 14 }}>
-            <Metric small label={t('item.purchase')} value={<Money cents={v.cost} unknownLabel={t('data.notProvided')} />} foot={<QualityTag quality={qualityOf(v.cost, item.meta.purchasePriceCents)} />} />
-            <Metric small label={t('item.currentPrice')} value={<Money cents={v.askPrice ?? v.sale?.salePriceCents ?? null} />} foot={analysis?.position ? <span className="num">{pct(analysis.position.deltaPct, { sign: true })} vs {t('market.median').toLowerCase()}</span> : null} />
-            <Metric small label={t('item.potentialProfit')} value={v.inStock ? <Money cents={v.potentialProfit} sign /> : <span className="t-faint">—</span>} foot={v.cost === null && v.inStock ? <QualityTag quality="UNKNOWN" text={t('reco.w.missingCost')} /> : null} />
+          <div className="item-kpis">
+            <Metric
+              small
+              label={t('capital.invested')}
+              value={<Money cents={v.cost} unknownLabel={t('data.notProvided')} />}
+              foot={v.cost !== null && !v.costComplete ? <QualityTag quality="PARTIAL" text={t('cost.exShippingShort')} /> : <QualityTag quality={qualityOf(v.cost, item.meta.purchasePriceCents)} />}
+            />
+            <Metric
+              small
+              label={t('item.currentPrice')}
+              value={<Money cents={v.askPrice ?? v.sale?.salePriceCents ?? null} />}
+              foot={analysis?.position ? <span className="num">{pct(analysis.position.deltaPct, { sign: true })} vs {t('market.median').toLowerCase()}</span> : null}
+            />
+            <Metric
+              small
+              label={v.sale ? t('insights.niche.profit') : t('item.potentialProfit')}
+              value={v.sale ? <Money cents={v.cost === null ? null : v.sale.salePriceCents - v.cost} sign /> : v.inStock ? <Money cents={v.potentialProfit} sign /> : <span className="t-faint">—</span>}
+              foot={pos?.potentialRoi != null ? `ROI ${pct(pos.potentialRoi)}` : v.cost === null && v.inStock ? <QualityTag quality="UNKNOWN" text={t('reco.w.missingCost')} /> : null}
+            />
             <Metric small label={t('item.held')} value={v.daysHeld === null ? <span className="t-faint">—</span> : <span className="num">{t('kpi.days', { n: v.daysHeld })}</span>} foot={v.daysHeldInferred ? <QualityTag quality="INFERRED" /> : null} />
+            {v.inStock && (
+              <Metric
+                small
+                label={t('capital.efficiencyCol')}
+                help={t('kpi.efficiencyHint')}
+                value={<span className={`num ${pos?.efficiency30 != null && pos.efficiency30 < 0.25 ? 't-warn' : ''}`}>{pos?.efficiency30 == null ? '—' : pct(pos.efficiency30)}</span>}
+                foot={pos ? `${t('capital.demand')} : ${t(`capital.demandLevel.${pos.demand}`).toLowerCase()}` : null}
+              />
+            )}
           </div>
+          {pos?.trap && (
+            <div className="trap-note">
+              <IconTile name="trap" tone="coral" size="sm" />
+              <span>
+                <b>{t('capital.trapTitle')}</b> — {pos.trap.reasons.map((r) => t(`capital.reason.${r}`)).join(' · ')}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -97,7 +137,6 @@ export function ItemDetail({ id }: { id: string }) {
             {analysis ? t('item.reanalyze') : t('item.analyze')}
           </Button>
         )}
-        {v.inStock && v.current && <PriceOnVintedButton v={v} suggested={intel?.recommendation?.actionParams.price as number | undefined ?? v.askPrice} />}
         <Button icon="edit" onClick={() => setEditCost((x) => !x)} aria-expanded={editCost}>
           {t('item.editCost')}
         </Button>
@@ -126,7 +165,16 @@ export function ItemDetail({ id }: { id: string }) {
       </div>
       {editCost && (
         <Card style={{ marginBottom: 16 }}>
-          <CostEditor itemId={id} initial={v.cost} onDone={() => setEditCost(false)} />
+          <div className="grid-12">
+            <div className="span-6 stack-3">
+              <span className="t-caption">{t('cost.totalMode')}</span>
+              <CostEditor itemId={id} initial={v.cost} onDone={() => setEditCost(false)} />
+            </div>
+            <div className="span-6 stack-3">
+              <span className="t-caption">{t('cost.vintedMode')}</span>
+              <VintedCostForm itemId={id} onDone={() => setEditCost(false)} />
+            </div>
+          </div>
         </Card>
       )}
       {error != null && (
@@ -140,25 +188,51 @@ export function ItemDetail({ id }: { id: string }) {
           {intel?.recommendation && <RecommendationCard r={intel.recommendation} onAddCost={() => setEditCost(true)} onAnalyze={runAnalysis} />}
 
           <Card
-            title={t('item.field.market')}
-            icon="market"
-            tone="cobalt"
-            hint={analysis ? `${t('market.analyzedAt', { when: i.relative(analysis.at, era.now) })} · ${t(`market.source${analysis.source}`)}` : undefined}
-            actions={analysis ? <Badge tone={analysis.quality === 'HIGH' ? 'emerald' : analysis.quality === 'MEDIUM' ? 'cyan' : 'amber'}>{t('market.quality')} · {t(`compQuality.${analysis.quality}`)}</Badge> : null}
+            title={t('item.inDistribution')}
+            icon="compare"
+            tone="cyan"
+            hint={analysis ? `${t('market.analyzedAt', { when: i.relative(analysis.at, era.now) })} · ${t(`market.source${analysis.source}`)}` : t('item.inDistributionHint')}
+            actions={
+              analysis ? (
+                <span className="row" style={{ gap: 6 }}>
+                  {analysis.via && <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} />}
+                  {intel?.analysisStale && <Badge tone="amber">{t('item.stale')}</Badge>}
+                  <Badge tone={analysis.quality === 'HIGH' ? 'emerald' : analysis.quality === 'MEDIUM' ? 'cyan' : 'amber'}>
+                    {t('market.quality')} · {t(`compQuality.${analysis.quality}`)}
+                  </Badge>
+                </span>
+              ) : null
+            }
           >
             {!analysis ? (
-              <p className="t-muted">{t('reco.w.noAnalysis')}</p>
+              <div className="stack-3">
+                <p className="t-muted">{t('reco.w.noAnalysis')}</p>
+                {realized && (
+                  <DualDistribution
+                    title={t('item.inDistribution')}
+                    asking={{ points: [] }}
+                    realized={{ points: realized.points }}
+                    realizedScope={t(`dual.scope.${realized.scope}`)}
+                    current={v.askPrice}
+                    format={(x) => money(Math.round(x / 100) * 100)}
+                  />
+                )}
+              </div>
             ) : d && analysis.quality !== 'INSUFFICIENT' ? (
               <div className="stack-4">
-                <DistributionStrip
-                  title={t('market.distribution')}
-                  points={analysis.comparables.filter((c) => c.kept).map((c) => ({ v: c.candidate.priceCents, w: c.similarity, label: c.candidate.title }))}
-                  p25={d.p25}
-                  p50={d.p50}
-                  p75={d.p75}
+                <DualDistribution
+                  title={t('item.inDistribution')}
+                  asking={{ points: analysis.comparables.filter((c) => c.kept).map((c) => ({ v: c.candidate.priceCents, w: c.similarity, label: c.candidate.title })), q: { p25: d.p25, p50: d.p50, p75: d.p75 } }}
+                  realized={{ points: realized?.points ?? [] }}
+                  realizedScope={realized ? t(`dual.scope.${realized.scope}`) : null}
                   current={v.askPrice}
                   format={(x) => money(Math.round(x / 100) * 100)}
                 />
+                {analysis.position && (
+                  <p className="t-small">
+                    {t('item.positionLine', { pct: Math.round(analysis.position.percentile * 100), n: analysis.keptCount })}
+                  </p>
+                )}
                 {pricing?.status === 'OK' && <StrategyCards pricing={pricing} current={v.askPrice} />}
                 <div className="row wrap t-small t-muted" style={{ gap: 16 }}>
                   <span>
@@ -175,6 +249,18 @@ export function ItemDetail({ id }: { id: string }) {
               </div>
             ) : (
               <EmptyState compact title={t('market.insufficient')} why={t('market.insufficientWhy')} />
+            )}
+          </Card>
+
+          <Card title={t('precision.itemTitle')} hint={t('precision.itemHint')} icon="target" tone="violet">
+            {preds.length === 0 ? (
+              <p className="t-muted">{t('precision.itemEmpty')}</p>
+            ) : (
+              <div className="stack">
+                {preds.slice(0, 5).map((p) => (
+                  <PredictionRow key={p.id} row={p} />
+                ))}
+              </div>
             )}
           </Card>
 
@@ -255,36 +341,22 @@ export function ItemDetail({ id }: { id: string }) {
             </Card>
           )}
 
-          <Card title={t('item.financials')} icon="capital" tone="amber">
-            <dl className="reco__grid" style={{ margin: 0, gridTemplateColumns: '1fr auto' }}>
-              <dt className="t-muted">{t('item.purchase')}</dt>
-              <dd style={{ margin: 0, textAlign: 'right' }}>
-                <Money cents={v.cost} unknownLabel={t('data.notProvided')} />
-              </dd>
-              <dt className="t-muted">{v.sale ? t('item.salePrice') : t('item.currentPrice')}</dt>
-              <dd style={{ margin: 0, textAlign: 'right' }}>
-                <Money cents={v.sale?.salePriceCents ?? v.askPrice} />
-              </dd>
-              {pricing?.expectedSaleCents != null && v.inStock && (
-                <>
-                  <dt className="t-muted">
-                    {t('item.expectedSale')} <QualityTag quality="PREDICTED" />
-                  </dt>
-                  <dd style={{ margin: 0, textAlign: 'right' }} className="num">
-                    {money(pricing.expectedSaleCents)}
-                  </dd>
-                </>
-              )}
-              <dt className="t-muted">{v.sale ? t('insights.niche.profit') : t('item.potentialProfit')}</dt>
-              <dd style={{ margin: 0, textAlign: 'right', fontWeight: 600 }}>
-                <Money cents={v.sale ? (v.cost === null ? null : v.sale.salePriceCents - v.cost) : v.potentialProfit} sign />
-              </dd>
-              <dt className="t-muted">ROI</dt>
-              <dd style={{ margin: 0, textAlign: 'right' }} className="num">
-                {v.cost && (v.sale || v.potentialProfit !== null) ? pct(((v.sale?.salePriceCents ?? v.askPrice ?? 0) - v.cost) / v.cost) : '—'}
-              </dd>
-            </dl>
+          <Card title={t('cost.title')} hint={t('cost.hint')} icon="capital" tone="amber">
+            <CostBreakdown item={item} onEdit={() => setEditCost(true)} />
           </Card>
+
+          {v.inStock && v.current && (
+            <Card
+              title={t('vintedPrice.sectionTitle')}
+              icon="flask"
+              tone="pink"
+              actions={<Flag kind="EXPERIMENTAL" />}
+              className="card--quiet"
+            >
+              <p className="t-small t-muted">{t('vintedPrice.sectionHint')}</p>
+              <PriceOnVintedButton v={v} suggested={v.askPrice} variant="ghost" size="sm" />
+            </Card>
+          )}
 
           <Card title={t('item.timeline')} icon="clock" tone="violet">
             <Timeline itemId={id} />
