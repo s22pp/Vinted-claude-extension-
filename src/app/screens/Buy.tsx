@@ -15,7 +15,7 @@ import { CategorySelect, ConditionSelect, useMoneyField } from '../components/fo
 import { marketAdapter } from '../market-run';
 import { AnalysisView } from './Market';
 import { PageHead } from '../Shell';
-import { ShoppingListView } from '../components/shopping';
+import { DealScanner, ShoppingListView } from '../components/shopping';
 import { go, type Route, useEra } from '../state';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
@@ -28,20 +28,22 @@ export function vintedLandedCost(listed: number, shipping: number | null): numbe
 
 export function Buy({ route }: { route: Route }) {
   const { t } = useI18n();
-  const tab = route.query.get('tab') === 'list' ? 'list' : 'analyze';
+  const q = route.query.get('tab');
+  const tab = q === 'list' || q === 'scan' ? q : 'analyze';
   return (
     <>
-      <PageHead title={t('buy.title')} sub={t(tab === 'list' ? 'shopping.sub' : 'buy.subtitle')} />
-      <Tabs<'analyze' | 'list'>
+      <PageHead title={t('buy.title')} sub={t(tab === 'list' ? 'shopping.sub' : tab === 'scan' ? 'scanner.sub' : 'buy.subtitle')} />
+      <Tabs<'analyze' | 'list' | 'scan'>
         label={t('buy.title')}
         value={tab}
-        onChange={(v) => go(v === 'list' ? 'buy?tab=list' : 'buy')}
+        onChange={(v) => go(v === 'analyze' ? 'buy' : `buy?tab=${v}`)}
         tabs={[
           { value: 'analyze', label: t('shopping.tabAnalyze') },
           { value: 'list', label: t('shopping.tabList') },
+          { value: 'scan', label: t('scanner.tab') },
         ]}
       />
-      <div style={{ marginTop: 16 }}>{tab === 'list' ? <ShoppingListView /> : <BuyAnalyzer route={route} />}</div>
+      <div style={{ marginTop: 16 }}>{tab === 'list' ? <ShoppingListView /> : tab === 'scan' ? <DealScanner /> : <BuyAnalyzer route={route} />}</div>
     </>
   );
 }

@@ -1,5 +1,6 @@
-import type { Confidence } from '@/domain/entities';
-import { isUnknownBrand } from './normalize';
+import type { Category, Confidence, MarketCandidate } from '@/domain/entities';
+import type { SearchResult } from '@/data/adapters/marketplace';
+import { EXCLUDED_TERMS, brandKey, categoriesInTitle, categoryAffinity, isUnknownBrand, normalizeText, titleHasBrand } from './normalize';
 import { type SegmentStats, type SellerModel, sampleConfidence } from './seller-model';
 
 /**
@@ -11,6 +12,9 @@ import { type SegmentStats, type SellerModel, sampleConfidence } from './seller-
 export interface ShoppingLine {
   key: string;
   label: string;
+  /** Canonical brand key and category of the niche (what a deal must match). */
+  brand: string | null;
+  category: Category | null;
   sold: number;
   confidence: Confidence;
   /** Median price actually cashed in. */
@@ -63,6 +67,8 @@ function line(s: SegmentStats, o: ShoppingOptions): ShoppingLine | null {
   return {
     key: s.key,
     label: s.label,
+    brand: s.brand,
+    category: s.category,
     sold: s.sold,
     confidence: sampleConfidence(s.sold),
     medianSaleCents: s.medianSaleCents,
@@ -119,4 +125,42 @@ export function shoppingList(model: SellerModel, o: ShoppingOptions = SHOPPING_D
             : { code: 'sold', params: { n: l.sold } },
     }));
   return { buy, avoid, unsure, basis };
+}
+
+/* ── Deal scanner ───────────────────────────────────────── */
+
+/** What buying a listing on Vinted really costs: price + buyer protection (0,70 € + 5 %); shipping on top. */
+export const vintedLanded = (listedCents: number) => listedCents + 70 + Math.round(listedCents * 0.05);
+
+export interface Deal {
+  niche: string;
+  candidate: MarketCandidate;
+  landedCents: number;
+  maxLandedCents: number;
+  /** Median price this niche cashes in for you. */
+  expectedSaleCents: number;
+  /** expected − landed, shipping excluded. */
+  marginCents: number;
+}
+
+/**
+ * Listings of a niche worth buying: same brand, same kind of article, not a lot / kids / replica, not yours,
+ * all-in cost at or under the niche's maximum. Best margin first.
+ */
+export function findDeals(line: ShoppingLine, result: SearchResult, ownIds: ReadonlySet<string>, max = 5): Deal[] {
+  const out: Deal[] = [];
+  for (const c of result.candidates) {
+    if (ownIds.has(c.id)) continue;
+    const nt = normalizeText(c.title);
+    if (EXCLUDED_TERMS.test(nt)) continue;
+    if (line.brand && !isUnknownBrand(line.brand) && !((c.brand && brandKey(c.brand) === line.brand) || titleHasBrand(c.title, line.brand))) continue;
+    if (line.category && line.category !== 'OTHER') {
+      const cats = c.category ? [c.category] : categoriesInTitle(nt);
+      if (cats.length && !cats.some((k) => categoryAffinity(line.category!, k) >= 0.5)) continue;
+    }
+    const landed = vintedLanded(c.priceCents);
+    if (landed > line.maxLandedCents) continue;
+    out.push({ niche: line.label, candidate: c, landedCents: landed, maxLandedCents: line.maxLandedCents, expectedSaleCents: line.medianSaleCents, marginCents: line.medianSaleCents - landed });
+  }
+  return out.sort((a, b) => b.marginCents - a.marginCents).slice(0, max);
 }

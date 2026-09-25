@@ -207,3 +207,15 @@ test('shopping list: niches to rebuy from your own sales, with the most to pay o
   await page.getByRole('tab', { name: 'Analyser un achat' }).click();
   await expect(page).toHaveURL(/#\/buy$/);
 });
+
+test('deal scanner: one click searches the best niches and lists only what fits under the maximum', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/buy?tab=scan`);
+  await page.getByRole('button', { name: /Scanner \d+ niches/ }).click();
+  await expect(page.getByRole('heading', { name: /affaire/ })).toBeVisible({ timeout: 60_000 });
+  const rows = page.getByTestId('deals').locator('tbody tr');
+  const n = await rows.count();
+  for (let i = 0; i < n; i++) await expect(rows.nth(i)).toContainText('€');
+  await expect(page.getByText('DÉMO').first()).toBeVisible();
+});

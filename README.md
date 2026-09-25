@@ -102,6 +102,10 @@ Republier (supprimer puis remettre en ligne, à la main ou avec n'importe quel o
 
 Buy → **Liste de courses** : à partir de **vos** ventes (jamais du marché seul), chaque niche vendue au moins 3 fois avec son prix encaissé médian, son délai, son profit par jour (si les coûts sont connus), le stock déjà détenu et le **prix maximal à payer** : prix encaissé médian − max(8 €, 40 %), traduit en prix affiché sur Vinted (protection acheteur 0,70 € + 5 % incluse, port en plus). « À éviter » : profit par vente trop faible, profit par jour très inférieur à l'habitude, ou lenteur quand le profit est inconnu. Une marque inconnue n'est jamais une niche.
 
+## Scanner d'affaires
+
+Buy → **Scanner d'affaires** : en un clic, les 5 meilleures niches de la liste de courses sont cherchées sur Vinted (lecture seule, une recherche chacune, annonces récentes d'abord, dans le budget d'appels). Restent seulement les annonces de la même marque et du même type d'article, hors lots / enfant / copies / vos propres annonces, dont le coût tout compris (prix + 0,70 € + 5 %) est sous votre maximum ; classées par marge attendue (port non compris).
+
 ## Approvisionnement hors Vinted
 
 Sur la page produit d'une autre boutique, le popup ERA propose **« Lire ce produit »** : un script ponctuel, lancé par votre clic (`activeTab` + `scripting`), copie la fiche produit que la page publie déjà (JSON-LD schema.org, sinon balises OpenGraph `product:*`) puis ouvre l'analyse d'achat préremplie. Aucune requête réseau, aucune lecture en arrière-plan ; un prix dans une autre devise reste inconnu (jamais converti).

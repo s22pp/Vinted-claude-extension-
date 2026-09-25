@@ -1709,6 +1709,29 @@ export const fr = {
       poor: 'seulement {profit} de profit moyen par vente',
     },
   },
+  scanner: {
+    tab: 'Scanner d’affaires',
+    sub: 'Les annonces Vinted de vos niches rentables, sous votre prix d’achat maximal.',
+    title: 'Scanner vos meilleures niches',
+    hint: '{n} recherches Vinted en lecture seule, les plus récentes d’abord',
+    run: 'Scanner {n} niches',
+    scanning: 'Recherche : {niche}…',
+    results: '{n} affaires',
+    results_one: '1 affaire',
+    resultsHint: 'Même marque, même type d’article, coût tout compris sous votre maximum · marge attendue hors frais de port',
+    none: 'Aucune annonce sous votre prix maximal pour l’instant : repassez plus tard, les nouvelles annonces arrivent en continu.',
+    open: 'Voir',
+    emptyTitle: 'Rien à scanner',
+    emptyWhy: 'Il faut d’abord des niches à racheter dans votre liste de courses (au moins 3 ventes par niche).',
+    rule: 'Écartés : vos annonces, les lots, les articles enfant, les copies, une autre marque ou un autre type d’article. Coût tout compris = prix + 0,70 € + 5 % (protection acheteur), port en plus.',
+    col: {
+      listing: 'Annonce',
+      price: 'Prix affiché',
+      landed: 'Tout compris',
+      max: 'Votre max',
+      margin: 'Marge attendue',
+    },
+  },
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };

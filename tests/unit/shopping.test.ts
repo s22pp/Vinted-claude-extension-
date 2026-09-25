@@ -66,3 +66,30 @@ describe('shopping list — from your own sales', () => {
     expect(l.buy[0]).toMatchObject({ profitPerDayCents: null, why: { code: 'fast', params: { days: 10 } } });
   });
 });
+
+describe('deal scanner', () => {
+  const line = shoppingList(model([seg('carhartt|JACKET', { label: 'Carhartt Veste', category: 'JACKET', medianSaleCents: 7500, avgProfitCents: 4500, medianDays: 5 })])).buy[0]!;
+  const cand = (id: string, title: string, price: number, brand: string | null = 'Carhartt') => ({ id, title, brand, priceCents: price, size: 'M', condition: 'GOOD' as const, category: null, gender: null, url: `https://www.vinted.fr/items/${id}`, photoUrl: null, favorites: null, listedAt: null, promoted: false, sellerId: 's' });
+  const result = (cands: ReturnType<typeof cand>[]) => ({ candidates: cands, totalEntries: cands.length, totalCapped: false, fetchedAt: 0 });
+
+  it('keeps same brand, same kind, under the all-in maximum — best margin first', async () => {
+    const { findDeals, vintedLanded } = await import('@/intelligence/shopping');
+    // max landed: 75 € − max(8 €, 30 €) = 45 €.
+    const deals = findDeals(
+      line,
+      result([
+        cand('1', 'Veste Carhartt Detroit M', 3000),
+        cand('2', 'Veste Carhartt Active L', 4000), // 42,70 € landed: still under 45 €
+        cand('3', 'Veste Carhartt M', 4500), // 47,95 € landed: over
+        cand('4', 'Lot de 3 vestes Carhartt', 2000), // a lot
+        cand('5', 'Veste Dickies M', 1500, 'Dickies'), // another brand
+        cand('6', 'Pantalon Carhartt', 1500), // another kind of article
+        cand('7', 'Veste Carhartt enfant 12 ans', 1000), // kids
+        cand('8', 'Veste Carhartt S', 1200), // mine
+      ]),
+      new Set(['8']),
+    );
+    expect(deals.map((d) => d.candidate.id)).toEqual(['1', '2']);
+    expect(deals[0]).toMatchObject({ landedCents: vintedLanded(3000), marginCents: 7500 - 3220 });
+  });
+});
