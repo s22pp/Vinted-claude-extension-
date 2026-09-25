@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null }[] = [];
   const prices: Record<string, string> = { '101': '59.0' };
   const clicked: string[] = [];
@@ -61,7 +61,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
-    if (url.pathname === '/api/v2/catalog/items' && opts.searchMoved) return json({ code: 404 }, 404);
+    if (url.pathname === '/api/v2/catalog/items' && (opts.searchMoved || opts.searchDead)) return json({ code: 404 }, 404);
     if (url.pathname === '/api/v2/catalog/items' && opts.sortRefused && url.searchParams.has('order')) return json({ code: 404 }, 404);
     if (url.pathname === '/api/v2/catalog/items')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 960 } });
@@ -184,6 +184,18 @@ test('search moved (404): ERA learns the endpoint from Vinted’s own search pag
   await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
   await expect(page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' }).getByText('✓')).toBeVisible({ timeout: 20_000 });
   expect(calls.filter((c) => c.path.startsWith('/api/v2/catalog/items')).length).toBe(2);
+});
+
+test('search unreachable everywhere: the report lists every try, the journal keeps it', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true, searchDead: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
+  const catalog = page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' });
+  await expect(catalog.getByText('✗')).toBeVisible({ timeout: 60_000 });
+  await expect(catalog).toContainText('forme par défaut /api/v2/catalog/items → HTTP 404');
+  await expect(catalog).toContainText('forme simple → HTTP 404');
+  await expect(page.getByText('Journal technique (dernières erreurs Vinted)')).toBeVisible();
 });
 
 test('search refuses the sort parameter (404): the plain form works, no page discovery, CSRF echoed', async ({ context, base }) => {

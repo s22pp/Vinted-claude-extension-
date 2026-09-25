@@ -245,3 +245,32 @@ describe('Today priorities open their items', () => {
     for (const x of p) if (x.code !== 'NICHE') expect(x.itemIds.length).toBe(x.count);
   });
 });
+
+describe('no price drop on top of a price drop', () => {
+  // Stagnant for 40 days, 5 favourites on 100 views: the classic "favourites waiting for a drop" case.
+  const [v] = buildItemViews([item('d', { purchasePriceCents: 1800 })], [listing('l', 'd', { priceCents: 5500, views: 100, favorites: 5, listedAt: NOW - 40 * DAY, lastObservedAt: NOW - 2 * DAY })], [], NOW);
+  const fresh = { ...MKT, at: NOW - DAY };
+
+  it('without a recent drop, a small drop can be proposed — with the price ERA reasoned on', () => {
+    const r = computeItemIntel(v!, fresh, null, null, null, NOW).recommendation!;
+    expect(r.action).toBe('SMALL_DROP');
+    expect(r.why.find((w) => w.code === 'why.priceSeen')!.params).toEqual({ price: 5500, days: 2 });
+  });
+
+  it('a drop made 2 days ago is measured first: no new drop for 7 days', () => {
+    const r = computeItemIntel(v!, fresh, null, null, null, NOW, undefined, { at: NOW - 2 * DAY, from: 6000, to: 5500, daysSince: 2, effect: null }).recommendation!;
+    expect(r.action).toBe('HOLD');
+    expect(r.why[0]).toEqual({ code: 'why.recentDrop', params: { from: 6000, to: 5500, days: 2, wait: 5 } });
+  });
+
+  it('a drop that did not bring views: the price is not the lever, no second drop', () => {
+    const r = computeItemIntel(v!, fresh, null, null, null, NOW, undefined, { at: NOW - 12 * DAY, from: 6000, to: 5500, daysSince: 12, effect: 0.02 }).recommendation!;
+    expect(r.action).toBe('HOLD');
+    expect(r.why.map((w) => w.code)).toContain('why.dropNoEffect');
+  });
+
+  it('a drop that worked, measured after the wait: another step is allowed', () => {
+    const r = computeItemIntel(v!, fresh, null, null, null, NOW, undefined, { at: NOW - 12 * DAY, from: 6000, to: 5500, daysSince: 12, effect: 0.6 }).recommendation!;
+    expect(r.action).toBe('SMALL_DROP');
+  });
+});

@@ -8,7 +8,7 @@ import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, DemoBadge, Flag, Segmented } from '@/ui/components/primitives';
-import { SEARCH_TEMPLATE_KEY } from '@/data/adapters/vinted/vinted-adapter';
+import { ERROR_LOG_KEY, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
 import { type SellerIdentity, db } from '@/data/db';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
@@ -182,6 +182,7 @@ function DiagnosticCard() {
   const [steps, setSteps] = useState<DiagStep[]>([]);
   const [running, setRunning] = useState(false);
   const [lastError, setLastError] = useState<{ code: string; detail?: string; at: number } | null>(null);
+  const journal = useLiveQuery(() => repo.getSetting<VintedErrorEntry[]>(ERROR_LOG_KEY, []), []) ?? [];
   useEffect(() => {
     void browser.storage.local.get('eraLastImportError').then((r) => setLastError((r.eraLastImportError as typeof lastError) ?? null));
   }, [running]);
@@ -190,6 +191,7 @@ function DiagnosticCard() {
       `ERA v${browser.runtime.getManifest().version} · ${navigator.userAgent}`,
       ...steps.map((s) => `${s.ok ? '✓' : '✗'} ${t(`vinted.diagStep.${s.key}`)} — ${s.info}`),
       lastError ? `Dernière erreur d’import (${new Date(lastError.at).toLocaleString()}) : ${lastError.code} · ${lastError.detail ?? ''}` : '',
+      ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})`),
     ]
       .filter(Boolean)
       .join('\n');
@@ -212,7 +214,7 @@ function DiagnosticCard() {
         >
           {t('vinted.diagRun')}
         </Button>
-        {(steps.length > 0 || lastError) && (
+        {(steps.length > 0 || lastError || journal.length > 0) && (
           <Button
             icon="layers"
             onClick={async () => {
@@ -240,6 +242,21 @@ function DiagnosticCard() {
         <p className="t-small t-faint" style={{ marginTop: 10, wordBreak: 'break-word' }}>
           {t('vinted.lastError')} : {lastError.code} · {lastError.detail}
         </p>
+      )}
+      {journal.length > 0 && (
+        <div className="journal">
+          <div className="t-caption" style={{ margin: '12px 0 6px' }}>
+            {t('vinted.journal')}
+          </div>
+          <ul>
+            {journal.slice(0, 6).map((j) => (
+              <li key={j.at + j.path} className="t-small">
+                <span className="t-faint num">{new Date(j.at).toLocaleString()}</span> <b>{j.code}</b> <span className="t-muted">{j.detail}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="t-small t-faint">{t('vinted.journalHint')}</p>
+        </div>
       )}
     </Card>
   );

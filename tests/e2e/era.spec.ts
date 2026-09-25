@@ -84,6 +84,19 @@ test('accounting: sales ledger, DAC7 threshold, a numbered printable invoice', a
   await expect(page.locator('.sidebar')).toHaveCount(0);
 });
 
+test('monthly goal and reply templates: set a goal, copy a filled reply', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  await page.getByLabel('Montant de l’objectif').fill('2000');
+  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await expect(page.getByText(/Au rythme actuel : ≈/)).toBeVisible();
+  await page.goto(`${base}#/stock?filter=listed`);
+  await page.locator('tbody tr[aria-rowindex]').first().click();
+  await expect(page.getByRole('heading', { name: 'Réponses types' })).toBeVisible();
+  await expect(page.locator('.reply-text')).toContainText('Bonjour');
+});
+
 test('stock: search, filter and open an item with its timeline', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

@@ -115,3 +115,35 @@ export function buildSensitivityIndex(
   for (const v of views) out.set(v.item.id, byNiche.get(niche.get(v.item.id)!) ?? UNKNOWN);
   return out;
 }
+
+/** The latest price decrease of an item, and — once a week of observations covers it — its measured effect. */
+export interface LastDrop {
+  at: number;
+  from: number;
+  to: number;
+  daysSince: number;
+  /** Relative change in views/day in the week after vs the week before; null until measurable. */
+  effect: number | null;
+}
+
+export function lastDrops(priceEvents: readonly DomainEvent[], observations: readonly ListingObservation[], now: number): Map<string, LastDrop> {
+  const obsByListing = new Map<string, ListingObservation[]>();
+  for (const o of observations) obsByListing.set(o.listingId, [...(obsByListing.get(o.listingId) ?? []), o]);
+  const out = new Map<string, LastDrop>();
+  for (const e of priceEvents) {
+    if (e.type !== 'PRICE_CHANGED' || !e.inventoryItemId) continue;
+    const from = e.data.from;
+    const to = e.data.to;
+    if (typeof from !== 'number' || typeof to !== 'number' || to >= from) continue;
+    const prev = out.get(e.inventoryItemId);
+    if (prev && prev.at >= e.at) continue;
+    out.set(e.inventoryItemId, {
+      at: e.at,
+      from,
+      to,
+      daysSince: Math.floor((now - e.at) / DAY),
+      effect: e.listingId ? dropEffect(obsByListing.get(e.listingId) ?? [], e.at) : null,
+    });
+  }
+  return out;
+}

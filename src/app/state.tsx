@@ -10,11 +10,12 @@ import { type ItemIntel, type TodayPriority, computeItemIntel, todayPriorities }
 import { type LearningSummary, summarizeLearning } from '@/intelligence/learning';
 import { type ItemView, type SaleView, buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model';
-import { buildSensitivityIndex } from '@/intelligence/sensitivity';
+import { buildSensitivityIndex, lastDrops } from '@/intelligence/sensitivity';
 import { latestAnalyses } from '@/intelligence/market-vs-you';
 import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
 import { type RefundSummary, refundSummary } from '@/intelligence/refunds';
 import { workshopQueue } from '@/intelligence/workshop';
+import { favoriteGains } from '@/intelligence/favorites';
 import { sumMetric } from '@/domain/money';
 
 export interface EraData {
@@ -79,9 +80,10 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const capital = capitalSummary(views, saleViews, now, model.medianDays);
     const analysisMap = new Map((analyses ?? []).filter((a) => a.inventoryItemId).map((a) => [a.inventoryItemId!, a.analysis]));
     const sensitivity = buildSensitivityIndex(views, observations ?? [], priceEvents ?? []);
+    const drops = lastDrops(priceEvents ?? [], observations ?? [], now);
     const intel = views
       .filter((v) => v.inStock)
-      .map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now, sensitivity.get(v.item.id)));
+      .map((v) => computeItemIntel(v, analysisMap.get(v.item.id) ?? null, model, learning, capital, now, sensitivity.get(v.item.id), drops.get(v.item.id) ?? null));
     // Dismissed / snoozed recommendations stay hidden until they change or the snooze ends.
     const hidden = new Set((decisions ?? []).filter((d) => d.outcome === 'DISMISSED' || (d.outcome === 'SNOOZED' && (d.until ?? 0) > now)).map((d) => d.recommendationKey));
     for (const i of intel) if (i.recommendation && hidden.has(i.recommendation.key)) i.recommendation = null;
@@ -93,6 +95,11 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       // Owned, paid, and invisible to buyers: the first lever on sales volume.
       const idle = sumMetric(workshop.toList.map((v) => v.cost));
       priorities.unshift({ code: 'TO_LIST', tone: 'warning', count: workshop.toList.length, amount: idle, label: null, itemIds: workshop.toList.map((v) => v.item.id) });
+    }
+    // Buyers showing fresh interest: favourites gained since the previous import (no extra Vinted call).
+    const gains = favoriteGains(views, observations ?? [], now);
+    if (gains.length) {
+      priorities.push({ code: 'NEW_FAVORITES', tone: 'positive', count: gains.reduce((a, g) => a + g.gained, 0), amount: null, label: null, itemIds: gains.map((g) => g.itemId) });
     }
     if (refunds.missingReason.length) {
       const ids = saleViews.filter((x) => refunds.missingReason.includes(x.sale.id)).map((x) => x.item.id);

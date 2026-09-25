@@ -16,6 +16,7 @@ import { repo } from '@/data/repo';
 import { CostEditor, SaleModal } from '../components/forms';
 import { CostBreakdown, VintedCostForm } from '../components/cost';
 import { PredictionRow } from '../components/precision';
+import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton } from '../components/vinted-price';
 import { analyzeItem } from '../market-run';
@@ -338,6 +339,12 @@ export function ItemDetail({ id }: { id: string }) {
           {intel && v.askPrice !== null && v.inStock && (
             <Card title={t('offer.title')} hint={t('offer.hint')} icon="scale" tone="amber">
               <OfferCalculator intel={intel} compact />
+            </Card>
+          )}
+
+          {intel && v.inStock && (
+            <Card title={t('replies.title')} hint={t('replies.hint')} icon="book" tone="cyan">
+              <Replies intel={intel} />
             </Card>
           )}
 

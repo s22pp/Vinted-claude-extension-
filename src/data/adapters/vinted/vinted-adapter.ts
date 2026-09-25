@@ -61,6 +61,25 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
 }
 
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
+export const ERROR_LOG_KEY = 'vintedErrorLog';
+
+export interface VintedErrorEntry {
+  at: number;
+  code: string;
+  detail: string;
+  path: string;
+}
+
+/** Local technical journal of the last Vinted errors, so the exact cause can be copied in one click. */
+export async function logVintedError(code: string, detail: string, path: string): Promise<void> {
+  try {
+    const cur = ((await db.settings.get(ERROR_LOG_KEY))?.value as VintedErrorEntry[] | undefined) ?? [];
+    const entry: VintedErrorEntry = { at: Date.now(), code, detail, path: path.split('?')[0]! };
+    await db.settings.put({ key: ERROR_LOG_KEY, value: [entry, ...cur].slice(0, 15) });
+  } catch {
+    /* the journal must never break the call itself */
+  }
+}
 /** From the verified API map. Replaced by the observed endpoint if Vinted answers 404. */
 export const DEFAULT_SEARCH_TEMPLATE = '/api/v2/catalog/items?search_text={q}&per_page=60&order=newest_first';
 /** The same endpoint in the form a production extension calls it (Sept. 2026): no sort, first page of 20. */
@@ -146,16 +165,21 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   readonly wardrobeKeys = new Set<string>();
 
   private async api(path: string): Promise<unknown> {
-    // One click: if no vinted.fr tab is open, ERA opens one in the background.
-    const { tabId: tab } = await ensureVintedTab();
-    let res: ApiResult;
     try {
-      res = (await browser.tabs.sendMessage(tab, { type: 'era:api', path } satisfies EraMessage)) as ApiResult;
-    } catch {
-      throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+      // One click: if no vinted.fr tab is open, ERA opens one in the background.
+      const { tabId: tab } = await ensureVintedTab();
+      let res: ApiResult;
+      try {
+        res = (await browser.tabs.sendMessage(tab, { type: 'era:api', path } satisfies EraMessage)) as ApiResult;
+      } catch {
+        throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+      }
+      if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
+      return res.json;
+    } catch (e) {
+      if (e instanceof MarketplaceError) await logVintedError(e.code, e.message, path);
+      throw e;
     }
-    if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
-    return res.json;
   }
 
   /** Whitelisted GET through the Vinted tab (used by the diagnostic). */
@@ -215,25 +239,35 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
     let json: unknown;
     let learnedUsed = template !== DEFAULT_SEARCH_TEMPLATE && template !== PLAIN_SEARCH_TEMPLATE;
+    // Every try is kept: when all fail, the error says exactly which form answered what.
+    const attempts: string[] = [];
+    const short = (e: MarketplaceError) => e.message.replace(/ · \/api\/[^ ]*/, '');
     try {
       json = await this.api(fillTemplate(template, query.text));
     } catch (e) {
       // 404: first the exact form a production tool uses on this endpoint (page=1, per_page=20, no sort);
       // then learn the endpoint Vinted's own search page uses. Each is tried once.
       if (!(e instanceof MarketplaceError) || !/HTTP 404/.test(e.message)) throw e;
+      attempts.push(`${template === DEFAULT_SEARCH_TEMPLATE ? 'forme par défaut' : 'forme mémorisée'} ${template.split('?')[0]} → ${short(e)}`);
       if (template !== PLAIN_SEARCH_TEMPLATE) {
         try {
           json = await this.api(fillTemplate(PLAIN_SEARCH_TEMPLATE, query.text));
           await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: PLAIN_SEARCH_TEMPLATE });
         } catch (e2) {
           if (!(e2 instanceof MarketplaceError) || !/HTTP 404/.test(e2.message)) throw e2;
+          attempts.push(`forme simple → ${short(e2)}`);
         }
       }
     }
     if (json === undefined) {
       const learned = await discoverSearchTemplate(query.text);
       if (!learned.template || learned.template === template) {
-        throw new MarketplaceError('UNAVAILABLE', `recherche Vinted introuvable (HTTP 404 sur ${template.split('?')[0]}) · appels observés sur la page de recherche : ${learned.observed.join(' | ') || 'aucun'}`);
+        const err = new MarketplaceError(
+          'UNAVAILABLE',
+          `recherche Vinted introuvable · ${attempts.join(' · ')} · page de recherche : ${learned.template ? 'même adresse' : `appels observés : ${learned.observed.join(' | ') || 'aucun'}`}`,
+        );
+        await logVintedError(err.code, err.message, 'catalog');
+        throw err;
       }
       await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: learned.template });
       json = await this.api(fillTemplate(learned.template, query.text));

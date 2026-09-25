@@ -10,6 +10,8 @@ test('visual QA screenshots', async ({ context, base }) => {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await loadDemo(page, base);
   await page.goto(`${base}#/today`);
+  await page.getByLabel('Montant de l’objectif').fill('2000');
+  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/01-today.png`, fullPage: true });
 

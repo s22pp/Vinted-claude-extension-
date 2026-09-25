@@ -16,6 +16,7 @@ export const PRIO: Record<TodayPriority['code'], { icon: IconName; tone: TileTon
   NICHE: { icon: 'trendUp', tone: 'emerald' },
   TO_LIST: { icon: 'upload', tone: 'violet' },
   REFUND_REASON: { icon: 'alert', tone: 'coral' },
+  NEW_FAVORITES: { icon: 'heart', tone: 'pink' },
 };
 
 /** Every priority opens exactly the items it counts. */
@@ -26,6 +27,8 @@ export function usePriorityTitle() {
   return (p: TodayPriority) =>
     p.code === 'CAPITAL_AGED'
       ? t('today.P_CAPITAL_AGED', { amount: p.amount && p.amount.status !== 'unknown' ? p.amount.value : null, n: p.count })
+      : p.code === 'NEW_FAVORITES'
+        ? t('today.P_NEW_FAVORITES', { n: p.count, k: p.itemIds.length })
       : p.code === 'TO_LIST' && p.amount && p.amount.status !== 'unknown' && p.amount.value > 0
         ? t('today.P_TO_LIST_amount', { n: p.count, amount: p.amount.value })
       : p.code === 'NICHE'

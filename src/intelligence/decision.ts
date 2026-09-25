@@ -7,7 +7,7 @@ import type { LearningSummary } from './learning';
 import type { ItemView } from './portfolio';
 import { type PricingResult, priceStrategies } from './pricing';
 import { type SegmentStats, type SellerModel, nicheKey, personalEvidence, rankNiches, velocityScore } from './seller-model';
-import type { Sensitivity } from './sensitivity';
+import type { LastDrop, Sensitivity } from './sensitivity';
 import { type StagnationDiagnosis, diagnoseStagnation } from './stagnation';
 
 export type ActionCode =
@@ -52,8 +52,15 @@ export interface ItemIntel {
   trap: CapitalTrap | null;
   /** Measured effect of price on views for this niche (never assumed). */
   sensitivity: Sensitivity;
+  /** The item's latest price decrease: no new decrease before its effect is measured. */
+  lastDrop: LastDrop | null;
+  /** Days since Vinted last showed the price ERA reasons on (a price changed on Vinted is seen at the next import). */
+  priceSeenDays: number | null;
   recommendation: Recommendation | null;
 }
+
+/** Days to wait after a price decrease before any new one: its effect on views must be observed first. */
+export const DROP_COOLDOWN_DAYS = 7;
 
 export const ANALYSIS_TTL_DAYS = 14;
 
@@ -65,6 +72,7 @@ export function computeItemIntel(
   capital: CapitalSummary | null,
   now: number,
   sensitivity: Sensitivity = { status: 'UNKNOWN', basis: 'NONE', n: 0, effect: null, scope: null },
+  lastDrop: LastDrop | null = null,
 ): ItemIntel {
   const personal = model ? personalEvidence(model, view.item) : null;
   const pricing = analysis
@@ -93,6 +101,8 @@ export function computeItemIntel(
     personal,
     trap,
     sensitivity,
+    lastDrop,
+    priceSeenDays: view.current?.lastObservedAt ? Math.max(0, Math.floor((now - view.current.lastObservedAt) / DAY)) : null,
     recommendation: null,
   };
   intel.recommendation = recommendFor(intel);
@@ -140,6 +150,9 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
   const floor = view.cost ?? 0; // never propose selling below what was paid
 
   const evidence: Coded[] = [];
+  // Which price ERA reasoned on, and when Vinted last showed it (a price changed on Vinted is seen at the next import).
+  if (price !== null && intel.priceSeenDays !== null)
+    evidence.push({ code: intel.priceSeenDays === 0 ? 'why.priceSeenToday' : 'why.priceSeen', params: { price, days: intel.priceSeenDays } });
   if (marketSolid) evidence.push({ code: 'why.marketEvidence', params: { n: kept, p25: d!.p25, p50: d!.p50, p75: d!.p75 } });
   if (personal && personal.sold >= 3 && personal.medianSaleCents !== null)
     evidence.push({ code: 'why.personalRealized', params: { n: personal.sold, realized: personal.medianSaleCents } });
@@ -153,6 +166,30 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
   const hold = (why: Coded[], alt: Coded | null, priority = 38): Recommendation =>
     base({ action: 'HOLD', actionParams: {}, why, confidence: marketSolid ? baseConf : 'LOW', impact: { code: 'impact.keepMargin', params: {} }, alternative: alt, tone: 'info', priority });
 
+  // A decrease was just made: measure it before proposing another one. And a decrease that did not
+  // bring more views says the price is not the lever for this article.
+  const ld = intel.lastDrop;
+  const dropBlock: Recommendation | null = !ld
+    ? null
+    : ld.daysSince < DROP_COOLDOWN_DAYS
+      ? base({
+          action: 'HOLD',
+          actionParams: {},
+          why: [{ code: 'why.recentDrop', params: { from: ld.from, to: ld.to, days: ld.daysSince, wait: DROP_COOLDOWN_DAYS - ld.daysSince } }, ...evidence],
+          confidence: 'HIGH',
+          impact: { code: 'impact.measureDrop', params: {} },
+          alternative: { code: 'alt.titleReference', params: {} },
+          tone: 'info',
+          priority: 30,
+        })
+      : ld.effect !== null && ld.effect <= 0.1
+        ? hold(
+            [{ code: 'why.dropNoEffect', params: { from: ld.from, to: ld.to, pct: `${ld.effect >= 0 ? '+' : '−'}${Math.abs(Math.round(ld.effect * 100))} %` } }, { code: 'why.priceNotLever', params: {} }, ...evidence],
+            { code: 'alt.titleReference', params: {} },
+            42,
+          )
+        : null;
+
   if (!settled && st?.stagnant && price !== null) {
     const over = Math.max(0, st.daysListed - st.thresholdDays);
     const common: Coded = { code: 'why.stagnant', params: { days: st.daysListed, views: st.views ?? 0, favorites: st.favorites ?? 0 } };
@@ -165,6 +202,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
         if (price < d!.p50) return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence], null);
         const target = euro(Math.max(price * 0.92, d!.p50, floor));
         if (target >= price) break;
+        if (dropBlock) return dropBlock;
         return base({
           action: 'SMALL_DROP',
           actionParams: { price: target, from: price },
@@ -184,6 +222,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
           return hold([common, { code: 'why.priceAlreadyMarket', params: { pct: Math.round(((price - d!.p50) / d!.p50) * 100) } }, ...evidence, sensLine], { code: 'alt.titleReference', params: {} });
         const target = euro(Math.max(st.state === 'LOW_DEMAND' ? option(pricing, 'FAST')!.range.max : bal.range.max, floor));
         if (target >= price) break;
+        if (dropBlock) return dropBlock;
         const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
         return base({
           action: 'SET_PRICE',
@@ -242,6 +281,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     const fast = option(pricing, 'FAST');
     const target = fast ? euro(Math.max(fast.range.max, floor)) : null;
     if (target !== null && target < price) {
+      if (dropBlock) return dropBlock;
       return base({
         action: 'FREE_CAPITAL',
         actionParams: { price: target, from: price },
@@ -260,6 +300,7 @@ export function recommendFor(intel: ItemIntel): Recommendation | null {
     if (!insensitive && pricing.currentVsRecommended === 'ABOVE' && price > d!.p75 * 1.05 && price > rec.range.max * 1.1) {
       const target = euro(Math.max(rec.range.max, floor));
       const below = analysis!.comparables.filter((c) => c.kept && c.candidate.priceCents < price).length;
+      if (target < price && dropBlock) return dropBlock;
       if (target < price)
         return base({
           action: 'SET_PRICE',
@@ -341,7 +382,8 @@ export interface TodayPriority {
     | 'NICHE'
     | 'NO_ANALYSIS'
     | 'TO_LIST'
-    | 'REFUND_REASON';
+    | 'REFUND_REASON'
+    | 'NEW_FAVORITES';
   tone: Recommendation['tone'];
   count: number;
   amount: MoneyMetric | null;

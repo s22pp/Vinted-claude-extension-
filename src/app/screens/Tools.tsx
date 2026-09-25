@@ -5,20 +5,22 @@ import { Modal } from '@/ui/components/overlays';
 import { Button, Field, Select } from '@/ui/components/primitives';
 import { ListingAssistant, OfferCalculator, ShieldChecker, useBulkAnalyze } from '../components/tools';
 import { PhotoCheck } from '../components/photo-check';
+import { Replies } from '../components/replies';
 import { go, useEra } from '../state';
 
-type ToolKey = 'today' | 'bulk' | 'offer' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
+type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
 const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] = [
   { key: 'today', icon: 'today', tone: 'violet', href: 'today' },
   { key: 'bulk', icon: 'market', tone: 'cobalt' },
   { key: 'offer', icon: 'scale', tone: 'amber' },
+  { key: 'replies', icon: 'book', tone: 'cyan' },
   { key: 'listing', icon: 'edit', tone: 'pink' },
   { key: 'shield', icon: 'alert', tone: 'coral' },
   { key: 'photo', icon: 'eye', tone: 'cyan' },
   { key: 'buy', icon: 'buy', tone: 'violet', href: 'buy' },
   { key: 'market', icon: 'target', tone: 'cyan', href: 'market' },
-  { key: 'capital', icon: 'trap', tone: 'amber', href: 'insights#capital' },
+  { key: 'capital', icon: 'trap', tone: 'amber', href: 'capital' },
   { key: 'learning', icon: 'scale', tone: 'pink', href: 'insights' },
   { key: 'niches', icon: 'trendUp', tone: 'emerald', href: 'insights' },
   { key: 'timing', icon: 'calendar', tone: 'cyan', href: 'insights' },
@@ -92,6 +94,10 @@ export function Tools() {
       <Modal open={open === 'offer'} onClose={() => setOpen(null)} title={t('offer.title')}>
         {picker}
         {intel && <OfferCalculator key={itemId} intel={intel} />}
+      </Modal>
+      <Modal open={open === 'replies'} onClose={() => setOpen(null)} title={t('replies.title')}>
+        {picker}
+        {intel && <Replies key={itemId} intel={intel} />}
       </Modal>
       <Modal open={open === 'listing'} onClose={() => setOpen(null)} title={t('listing.title')}>
         {picker}
