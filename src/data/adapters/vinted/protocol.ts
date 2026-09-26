@@ -131,6 +131,8 @@ export interface DraftInput {
   size: string | null;
   condition: import('@/domain/entities').Condition | null;
   packageSize: 'SMALL' | 'MEDIUM' | 'LARGE';
+  /** Relisting a similar article: its model's Vinted listing, whose own ids (category, brand, size) are reused. */
+  template?: { listingId: string; sameSize: boolean } | null;
 }
 
 export type DraftResult =

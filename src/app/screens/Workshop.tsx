@@ -163,7 +163,7 @@ function QueueRow({ v, active, prep, guards }: { v: ItemView; active: boolean; p
   const era = useEra();
   const title = draftTitle(v.item, prep);
   const intel = era.intelById.get(v.item.id);
-  const price = prep?.priceCents ?? suggestPrice(intel?.analysis ?? null, intel?.pricing ?? null, intel?.personal ?? null)?.cents ?? null;
+  const price = prep?.priceCents ?? suggestPrice(intel?.analysis ?? null, intel?.pricing ?? null, intel?.personal ?? null)?.cents ?? prep?.template?.soldCents ?? null;
   const r = readiness(v.item, prep, title, price, guards);
   const days = v.item.purchaseDate ? Math.floor((era.now - v.item.purchaseDate) / 86_400_000) : null;
   return (
@@ -207,7 +207,7 @@ function Step({ n, title, hint, children, done }: { n: number; title: string; hi
 }
 
 function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
-  const { t } = useI18n();
+  const { t, date } = useI18n();
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
@@ -221,7 +221,8 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
   const intel = era.intelById.get(item.id) ?? null;
   const personal = intel?.personal ?? personalEvidence(era.model, item);
   const suggestion = suggestPrice(intel && !intel.analysisStale ? intel.analysis : null, intel && !intel.analysisStale ? intel.pricing : null, personal);
-  const price = useMoneyField(prep.priceCents ?? suggestion?.cents ?? null);
+  // Copied from a similar article: its real sale price is the reference when nothing better exists.
+  const price = useMoneyField(prep.priceCents ?? suggestion?.cents ?? prep.template?.soldCents ?? null);
   const chosen = price.invalid ? null : price.cents;
   const title = draftTitle(item, prep);
   const description = draftDescription(item, prep, guards, (k) => t(`workshop.m.${k}`));
@@ -254,7 +255,8 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
     setDrafting(true);
     try {
       await repo.savePrep(item.id, { priceCents: chosen, packageSize: pkg });
-      const input: DraftInput = { itemId: item.id, title, description, priceCents: chosen, brand: item.brand, size: item.size, condition: item.condition, packageSize: pkg };
+      const tpl = prep.template?.listingId ? { listingId: prep.template.listingId, sameSize: (prep.template.size ?? '') === (item.size ?? '') } : null;
+      const input: DraftInput = { itemId: item.id, title, description, priceCents: chosen, brand: item.brand, size: item.size, condition: item.condition, packageSize: pkg, template: tpl };
       const res = (await browser.runtime.sendMessage({ type: 'era:draft:create', input } satisfies EraMessage)) as DraftResult;
       if (!res.ok) {
         errorToast(res);
@@ -455,6 +457,13 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
           {chosen !== null && v.cost !== null && (
             <p className="t-small" style={{ marginTop: 6 }}>
               {t('workshop.margin', { profit: chosen - v.cost })} {v.cost !== null && !v.costComplete ? <QualityTag quality="PARTIAL" text={t('cost.exShippingShort')} /> : null}
+            </p>
+          )}
+          {prep.template && (
+            <p className="t-small t-muted" data-testid="relist-ref">
+              {prep.template.soldCents !== null && prep.template.soldAt !== null
+                ? t('relist.priceRef', { price: prep.template.soldCents, date: date(prep.template.soldAt), title: prep.template.title })
+                : t('relist.from', { title: prep.template.title })}
             </p>
           )}
           <p className="t-small t-faint">{t('workshop.priceChallenge')}</p>

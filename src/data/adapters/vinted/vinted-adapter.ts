@@ -290,14 +290,27 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       json = await this.api(fillTemplate(learned.template, query.text));
       learnedUsed = true;
     }
+    // A search answers with a list of listings (`items`, even empty). Anything else is another endpoint: a learned
+    // address that was wrong is forgotten and the default form tried once — never "0 listings" read from the wrong reply.
+    let candidates = firstArray(json, ['items']).map(parseCatalogItem).filter((c) => c !== null);
+    const isSearch = (j: unknown) => typeof j === 'object' && j !== null && Array.isArray((j as { items?: unknown }).items);
+    if (!isSearch(json) && candidates.length === 0) {
+      const keys = typeof json === 'object' && json !== null ? Object.keys(json).slice(0, 12).join(', ') : typeof json;
+      if (learnedUsed) {
+        await db.settings.delete(SEARCH_TEMPLATE_KEY);
+        await logVintedError('UNAVAILABLE', `adresse de recherche apprise oubliée : réponse sans annonces (clés : ${keys})`, 'catalog');
+        json = await this.api(fillTemplate(DEFAULT_SEARCH_TEMPLATE, query.text));
+        learnedUsed = false;
+        candidates = firstArray(json, ['items']).map(parseCatalogItem).filter((c) => c !== null);
+      }
+      if (!isSearch(json) && candidates.length === 0) {
+        const err = new MarketplaceError('UNAVAILABLE', `recherche Vinted : réponse sans liste d’annonces (clés : ${keys})`);
+        await logVintedError(err.code, err.message, 'catalog');
+        throw err;
+      }
+    }
     const { total, capped } = parseTotalEntries(json);
-    return {
-      candidates: firstArray(json, ['items']).map(parseCatalogItem).filter((c) => c !== null),
-      totalEntries: total,
-      totalCapped: capped,
-      fetchedAt: Date.now(),
-      via: learnedUsed ? 'LEARNED' : null,
-    };
+    return { candidates, totalEntries: total, totalCapped: capped, fetchedAt: Date.now(), via: learnedUsed ? 'LEARNED' : null };
   }
 
 }

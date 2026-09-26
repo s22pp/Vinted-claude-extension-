@@ -83,8 +83,9 @@ export function articleOf(title: string, brand: string | null): string {
 /** The listing title without ERA's reference (E1C4G) — for {titre}. */
 export function cleanTitle(title: string): string {
   let out = title;
-  for (const k of skusInText(title)) out = out.replace(new RegExp(`\\s*\\b${k}\\b`, 'i'), '');
-  return out.replace(/\s{2,}/g, ' ').trim();
+  // The reference and the separator before it ("… · E1C4G", "… - E1C4G", "Réf. E1C4G").
+  for (const k of skusInText(title)) out = out.replace(new RegExp(`\\s*(?:[·|•\\-–—]|r[ée]f\\.?)?\\s*\\b${k}\\b`, 'i'), '');
+  return out.replace(/\s{2,}/g, ' ').replace(/[\s·|•\-–—]+$/, '').trim();
 }
 
 /** One of the chosen messages for this favourite: stable for a key, spread across members. */

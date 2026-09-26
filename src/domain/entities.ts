@@ -167,6 +167,14 @@ export const PrepSchema = z.object({
   publishedAt: z.number().nullable().default(null),
   /** The Vinted draft ERA created from this sheet (photos and publication stay with the seller). */
   vintedDraftId: z.string().nullable().optional(),
+  /**
+   * "Remettre en vente un similaire": the article this sheet was copied from. Its Vinted listing gives the draft
+   * Vinted's own ids; its sale price is a real reference. Measures, defects, colours, material: never copied.
+   */
+  template: z
+    .object({ itemId: z.string(), title: z.string(), listingId: z.string().nullable(), size: z.string().nullable(), soldCents: z.number().int().nullable(), soldAt: z.number().nullable() })
+    .nullable()
+    .optional(),
 });
 export type Prep = z.infer<typeof PrepSchema>;
 

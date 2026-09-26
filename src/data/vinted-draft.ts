@@ -1,4 +1,5 @@
-import { STATUS_ID_OF, pickBrandId, pickCatalogId, pickPackageId, pickSizeId } from '@/intelligence/vinted-ids';
+import { normalizeText } from '@/intelligence/normalize';
+import { STATUS_ID_OF, pickBrandId, pickCatalogId, pickPackageId, pickSizeId, repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import type { DraftInput, DraftResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
@@ -21,14 +22,27 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
   const filled: string[] = [];
   const missing: string[] = [];
   try {
-    // 1. Category first (on Vinted, changing it resets brand, size and condition): the one Vinted suggests.
-    const catalogId = pickCatalogId(await vintedWrite('POST', '/api/v2/item_upload/suggestions/categories', { title: input.title.slice(0, 200), description: input.description.slice(0, 1000) }, { spaced: false }).catch(() => null));
+    // 0. A similar article sold before: its own listing carries Vinted's ids for this very kind of article.
+    const tpl = input.template ? (repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${input.template.listingId}`).catch(() => null))?.fields ?? null) : null;
+    const tplId = (k: string) => (tpl && typeof tpl[k] === 'number' ? (tpl[k] as number) : null);
+    // 1. Category first (on Vinted, changing it resets brand, size and condition): the model's, else the one Vinted suggests.
+    const catalogId =
+      tplId('catalog_id') ??
+      pickCatalogId(await vintedWrite('POST', '/api/v2/item_upload/suggestions/categories', { title: input.title.slice(0, 200), description: input.description.slice(0, 1000) }, { spaced: false }).catch(() => null));
     (catalogId ? filled : missing).push('category');
-    // 2. Brand, by its exact name — an approximate brand gets a listing banned.
-    const brand = pickBrandId(await adapter.rawGet(`/api/v2/item_upload/brands?keyword=${encodeURIComponent(input.brand)}`).catch(() => null), input.brand);
+    // 2. Brand, by its exact name — an approximate brand gets a listing banned. The model's only if it is the same name.
+    const sameBrand = tplId('brand_id') !== null && typeof tpl?.brand === 'string' && normalizeText(tpl.brand) === normalizeText(input.brand);
+    const brand = sameBrand
+      ? { id: tplId('brand_id')!, title: tpl!.brand as string }
+      : pickBrandId(await adapter.rawGet(`/api/v2/item_upload/brands?keyword=${encodeURIComponent(input.brand)}`).catch(() => null), input.brand);
     (brand ? filled : missing).push('brand');
-    // 3. Size: only an exact match in this category's sizes.
-    const sizeId = catalogId && input.size ? pickSizeId(await adapter.rawGet(`/api/v2/item_upload/size_groups?catalog_ids=${catalogId}`).catch(() => null), input.size) : null;
+    // 3. Size: the model's when it is the same size in the same category, else an exact match in this category's sizes.
+    const sizeId =
+      input.template?.sameSize && tplId('size_id') && catalogId === tplId('catalog_id')
+        ? tplId('size_id')
+        : catalogId && input.size
+          ? pickSizeId(await adapter.rawGet(`/api/v2/item_upload/size_groups?catalog_ids=${catalogId}`).catch(() => null), input.size)
+          : null;
     (sizeId ? filled : missing).push('size');
     // 4. Package: the one the sheet chose, if the category allows it.
     const packageId = catalogId ? pickPackageId(await adapter.rawGet(`/api/v2/catalogs/${catalogId}/package_sizes`).catch(() => null), input.packageSize) : null;

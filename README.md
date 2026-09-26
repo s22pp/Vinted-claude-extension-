@@ -122,6 +122,19 @@ Nouvelle autorisation : `https://*.vinted.net/*` (serveurs d'images de Vinted), 
 - ERA **ne fabrique jamais** de bordereau : seul celui émis par Vinted porte un numéro de suivi et un envoi payé valables.
 - **Masquer / réafficher (EXPERIMENTAL)** depuis la fiche article, relu sur Vinted : le statut dans ERA suit ce que Vinted confirme.
 
+## Remettre en vente un similaire
+
+Fiche article → **« Remettre en vente un similaire »** : vous avez racheté le même genre d'article ? Indiquez combien, la taille, l'état et le coût : ERA crée les fiches dans l'Atelier, prêtes à compléter.
+
+- **Repris** : marque, modèle, catégorie, format du colis ; le **prix réellement encaissé** sur l'article modèle sert de référence de prix ; sur Vinted, le brouillon réutilise les **identifiants de l'ancienne annonce** (catégorie, marque, et la taille si c'est la même) au lieu de les redemander.
+- **Jamais repris** : mesures, défauts, couleurs, composition, photos, référence produit — c'est un autre article, ils se lisent sur lui.
+
+## Analyse de prix : quand la recherche ne trouve rien
+
+- Une réponse de Vinted **sans liste d'annonces** n'est plus lue comme « 0 annonce » : une adresse de recherche apprise qui se révèle fausse est oubliée et la forme normale est réessayée ; sinon, une erreur claire.
+- Moins de 8 annonces trouvées : la recherche est **élargie**, deux fois au plus (une requête chacune, dans le budget) — chaque côté d'une collaboration (« Uniqlo x KAWS » → « KAWS t-shirt », « UNIQLO KAWS »), les mots principaux du titre, la marque seule.
+- « Aucun comparable fiable » affiche désormais **les recherches faites et ce que chacune a renvoyé**.
+
 ## Liste de courses
 
 Buy → **Liste de courses** : à partir de **vos** ventes (jamais du marché seul), chaque niche vendue au moins 3 fois avec son prix encaissé médian, son délai, son profit par jour (si les coûts sont connus), le stock déjà détenu et le **prix maximal à payer** : prix encaissé médian − max(8 €, 40 %), traduit en prix affiché sur Vinted (protection acheteur 0,70 € + 5 % incluse, port en plus). « À éviter » : profit par vente trop faible, profit par jour très inférieur à l'habitude, ou lenteur quand le profit est inconnu. Une marque inconnue n'est jamais une niche.

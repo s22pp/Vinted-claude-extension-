@@ -134,11 +134,23 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       return json({});
     }
     if (url.pathname === '/api/v2/item_upload/items/101') return json({ item: { id: 101, price: prices['101'], is_hidden: state.hidden101 } });
+    // Test fixture only: the sold Carhartt's own upload data (Vinted's ids for that kind of article).
+    if (url.pathname === '/api/v2/item_upload/items/103') return json({ item: { id: 103, title: 'Veste Carhartt Detroit M', catalog_id: 2551, brand_id: 362, brand: 'Carhartt', size_id: 208, status_id: 2, package_size_id: 2, price: '80.0' } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
     if (url.pathname === '/api/v2/catalog/items' && (opts.searchMoved || opts.searchDead)) return json({ code: 404 }, 404);
     if (url.pathname === '/api/v2/catalog/items' && opts.sortRefused && url.searchParams.has('order')) return json({ code: 404 }, 404);
+    // Test fixture only: a collaboration found under its parts, never under "uniqlo x kaws"; an unknown brand found nowhere.
+    if (url.pathname === '/api/v2/catalog/items') {
+      const q = (url.searchParams.get('search_text') ?? '').toLowerCase();
+      if (/zorgblat/.test(q) || /uniqlo x kaws/.test(q)) return json({ items: [], pagination: { total_entries: 0 } });
+      if (/kaws/.test(q))
+        return json({
+          items: Array.from({ length: 10 }, (_, i) => ({ id: 700 + i, title: `T-shirt Uniqlo x Kaws blanc M ${i}`, price: String(14 + i), brand_title: 'UNIQLO', size_title: 'M' })),
+          pagination: { total_entries: 10 },
+        });
+    }
     // Test fixture only: a search for a brand ERA does not know yet returns listings sold under it.
     if (url.pathname === '/api/v2/catalog/items' && /bonobo/i.test(url.searchParams.get('search_text') ?? ''))
       return json({ items: [{ id: 31, title: 'Chemise Bonobo lin', price: '18.0', brand_title: 'Bonobo', size_title: 'L' }, { id: 32, title: 'Chemise en lin Bonobo', price: '22.0', brand_title: 'Bonobo', size_title: 'L' }], pagination: { total_entries: 40 } });
@@ -633,4 +645,62 @@ test('a label the browser cannot download is reported as not saved, never as sav
   });
   await page.getByTestId('to-ship').getByRole('button', { name: 'Obtenir le bordereau' }).click();
   await expect(page.getByText(/PDF non enregistré/)).toBeVisible({ timeout: 60_000 });
+});
+
+test('relist a similar article: from a sale to a workshop sheet to a Vinted draft with the model’s own ids', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/stock?filter=all`);
+  await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Carhartt Detroit M' }).click();
+  await page.getByRole('button', { name: 'Remettre en vente un similaire' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Taille (étiquette)').fill('L');
+  await dialog.getByLabel('Coût d’achat (chacun)').fill('20');
+  await dialog.getByRole('button', { name: 'Créer la fiche' }).click();
+  // Straight into the workshop sheet, the real sale price as reference.
+  await expect(page).toHaveURL(/#\/workshop\/item_/);
+  await expect(page.getByTestId('relist-ref')).toContainText('vendu 75');
+  await expect(page.getByLabel('Prix', { exact: true })).toHaveValue(/75/);
+  await page.evaluate(() => {
+    window.open = () => null;
+  });
+  const before = calls.length;
+  await page.getByRole('button', { name: 'Créer le brouillon sur Vinted' }).click();
+  await expect(page.getByText('Brouillon créé sur Vinted')).toBeVisible({ timeout: 40_000 });
+  // Category and brand from the sold listing itself: no category suggestion asked, no brand search.
+  const after = calls.slice(before);
+  expect(after.filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/item_upload/drafts']);
+  expect(after.some((c) => c.path.startsWith('/api/v2/item_upload/brands'))).toBe(false);
+  const draft = JSON.parse(after.find((c) => c.path === '/api/v2/item_upload/drafts')!.body!).draft;
+  // A different size (L): not the model's size id; the category's sizes are asked instead (none match in the fixture).
+  expect(draft).toMatchObject({ catalog_id: 2551, brand_id: 362, brand: 'Carhartt', size_id: null, price: '75.00' });
+});
+
+test('price analysis: a search that finds nothing is widened; when all find nothing, the searches are shown', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const tee = (id: number, title: string, brand: string) => ({ id, title, price: '35.0', view_count: 5, favourite_count: 0, brand_title: brand, size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [] });
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [tee(108, 'UNIQLO x KAWS T-shirt homme blanc motif graphique bleu – Taille M – Très bon état · ✓', 'UNIQLO x KAWS'), tee(109, 'T-shirt Zorgblat graphique M', 'Zorgblat')] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const analyze = async (title: string) => {
+    await page.goto(`${base}#/stock?filter=all`);
+    await page.locator('tbody tr[aria-rowindex]').filter({ hasText: title }).click();
+    await page.getByRole('button', { name: 'Analyser le marché' }).click();
+  };
+  await analyze('UNIQLO x KAWS');
+  await expect(page.getByText(/Analysé/).first()).toBeVisible({ timeout: 60_000 });
+  const searched = calls.filter((c) => c.path.startsWith('/api/v2/catalog/items')).map((c) => new URL(`https://x${c.path}`).searchParams.get('search_text'));
+  expect(searched).toEqual(['UNIQLO x KAWS t-shirt', 'KAWS t-shirt']);
+  await expect(page.getByText('Aucun comparable fiable')).toHaveCount(0);
+
+  await analyze('Zorgblat');
+  await expect(page.getByTestId('search-trace')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('search-trace')).toContainText('« Zorgblat t-shirt » → 0 annonces lues');
+  await expect(page.getByTestId('search-trace').locator('li')).toHaveCount(3);
 });

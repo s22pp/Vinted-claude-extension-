@@ -182,13 +182,15 @@ export function brandInTitle(title: string): string | null {
   return null;
 }
 
-const NOISE = new Set(['taille', 'tres', 'bon', 'etat', 'neuf', 'neuve', 'avec', 'sans', 'etiquette', 'etiquettes', 'homme', 'femme', 'mixte', 'unisexe', 'de', 'du', 'des', 'la', 'le', 'les', 'en', 'et', 'a', 'pour', 'tbe', 'be', 'ref']);
+// "x" joins a collaboration ("Uniqlo x KAWS"): not a word to search.
+const NOISE = new Set(['taille', 'tres', 'bon', 'etat', 'neuf', 'neuve', 'avec', 'sans', 'etiquette', 'etiquettes', 'homme', 'femme', 'mixte', 'unisexe', 'de', 'du', 'des', 'la', 'le', 'les', 'en', 'et', 'a', 'pour', 'tbe', 'be', 'ref', 'x']);
 // Sizes (M, W32, 42…) and ERA references (E1C4G); a 3-digit number is a model (501, 574), kept.
 const SIZE_TOKEN = /^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-5]xl|w\d{2}|l\d{2}|\d{2}|t\d|e(?=[a-z]*\d)[0-9a-z]{4})$/;
 
 /** The words of a title that describe the article: no sizes, no ERA reference, no condition filler. */
 export function titleKeywords(title: string, max = 5): string {
   const words = normalizeText(title)
+    .replace(/\b(t|tee) shirt\b/g, 't-shirt')
     .split(' ')
     .filter((w) => w && !NOISE.has(w) && !SIZE_TOKEN.test(w));
   return words.slice(0, max).join(' ');

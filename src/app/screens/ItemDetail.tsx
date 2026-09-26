@@ -20,6 +20,8 @@ import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
 import { RepostButton, RepostPending } from '../components/repost';
+import { RelistButton } from '../components/relist';
+import { SearchTrace } from '../components/search-trace';
 import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
@@ -185,6 +187,7 @@ export function ItemDetail({ id }: { id: string }) {
             {v.sale ? t('item.editSale') : t('item.completeSale')}
           </Button>
         )}
+        {!item.isDemo && <RelistButton v={v} />}
         {stage && <Stages stages={['COLLECTING', 'COMPARING', 'READY'] as Stage[]} current={stage} labelKey={(s) => t(`market.stage${s}`)} />}
       </div>
       {editCost && (
@@ -277,7 +280,10 @@ export function ItemDetail({ id }: { id: string }) {
                 </div>
               </div>
             ) : (
-              <EmptyState compact title={t('market.insufficient')} why={t('market.insufficientWhy')} />
+              <>
+                <EmptyState compact title={t('market.insufficient')} why={t('market.insufficientWhy')} />
+                <SearchTrace analysis={analysis} />
+              </>
             )}
           </Card>
 

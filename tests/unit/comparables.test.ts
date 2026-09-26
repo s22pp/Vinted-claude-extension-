@@ -1,5 +1,5 @@
 import type { MarketCandidate } from '@/domain/entities';
-import { type ComparableSubject, analyzeComparables, buildQueries } from '@/intelligence/comparables';
+import { type ComparableSubject, analyzeComparables, buildQueries, widerQueries } from '@/intelligence/comparables';
 import { brandKey, categoriesInTitle, normalizeText } from '@/intelligence/normalize';
 import { weightedQuantile } from '@/intelligence/stats';
 
@@ -135,5 +135,20 @@ describe('comparable engine', () => {
 describe('weighted quantile', () => {
   it('matches the plain median with equal weights', () => {
     expect(weightedQuantile([1, 2, 3, 4, 5].map((v) => ({ v, w: 1 })), 0.5)).toBe(3);
+  });
+});
+
+describe('a search that finds too little is widened, never padded', () => {
+  const kaws: ComparableSubject = { title: 'UNIQLO x KAWS T-shirt homme blanc motif graphique bleu – Taille M – Très bon état · ✓', brand: 'UNIQLO x KAWS', model: null, category: 'TSHIRT', gender: 'MEN', size: 'M', condition: 'VERY_GOOD', material: null, era: null, priceCents: 3500 };
+  it('splits a collaboration, then the title’s main words, then the brand alone — no repeats', () => {
+    const done = buildQueries(kaws).map((q) => q.text);
+    expect(done).toEqual(['UNIQLO x KAWS t-shirt']);
+    expect(widerQueries(kaws, done).map((q) => q.text)).toEqual(['KAWS t-shirt', 'UNIQLO KAWS', 'uniqlo kaws t-shirt', 'UNIQLO x KAWS']);
+  });
+  it('an unknown brand widens on the title’s words only', () => {
+    const s = { ...kaws, title: 'Chemise en lin rayée L', brand: 'Inconnue', category: 'SHIRT' as const };
+    const done = buildQueries(s).map((q) => q.text);
+    expect(done).toEqual(['chemise lin rayee']);
+    expect(widerQueries(s, done).map((q) => q.text)).toEqual(['chemise lin']);
   });
 });

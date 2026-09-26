@@ -17,8 +17,9 @@ import {
 import type { Cents } from '@/domain/money';
 import { DAY } from '@/domain/time';
 import { isLiveListing, listingStatusOf } from '@/domain/status';
-import { type ComparableAnalysis, type ComparableSubject, analyzeComparables, brandFromResults, buildQueries } from '@/intelligence/comparables';
+import { type ComparableAnalysis, type ComparableSubject, WIDEN_BELOW, analyzeComparables, brandFromResults, buildQueries, widerQueries } from '@/intelligence/comparables';
 import { isUnknownBrand } from '@/intelligence/normalize';
+import { relistTitle } from '@/intelligence/workshop';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
 import { type EraDatabase, type InvoiceRow, db as defaultDb, uid } from './db';
@@ -265,6 +266,22 @@ export class EraRepository {
     const queries = buildQueries(subject);
     const results: SearchResult[] = [];
     for (const q of queries) results.push(await adapter.searchComparables(q));
+    // Too little found: widen the search, at most twice (each is one call in the budget). A block stops everything.
+    const collected = () => new Set(results.flatMap((r) => r.candidates.map((c) => c.id))).size;
+    if (!adapter.isDemo && collected() < WIDEN_BELOW) {
+      for (const q of widerQueries(subject, queries.map((x) => x.text)).slice(0, 2)) {
+        try {
+          results.push(await adapter.searchComparables(q));
+          queries.push(q);
+        } catch (e) {
+          const code = (e as { code?: string }).code;
+          if (code === 'NETWORK_403' || code === 'RATE_LIMITED' || code === 'NOT_LOGGED_IN') throw e;
+          break;
+        }
+        if (collected() >= WIDEN_BELOW) break;
+      }
+    }
+    const queryStats = queries.map((q, i) => ({ text: q.text, returned: results[i]?.candidates.length ?? 0, total: results[i]?.totalEntries ?? null }));
     onStage?.('COMPARING');
     // Brand unknown: the results often say it (a brand sold on Vinted that the title names). Kept on the item.
     if (isUnknownBrand(subject.brand)) {
@@ -274,7 +291,7 @@ export class EraRepository {
         if (itemId) await this.setBrand(itemId, learned, 'INFERRED', now);
       }
     }
-    const analysis = analyzeComparables(subject, results, { queries: queries.map((q) => q.text), source: adapter.isDemo ? 'DEMO' : 'VINTED', now });
+    const analysis = analyzeComparables(subject, results, { queries: queries.map((q) => q.text), source: adapter.isDemo ? 'DEMO' : 'VINTED', now, queryStats });
     const item = itemId ? await this.db.items.get(itemId) : null;
     const isDemo = adapter.isDemo || !!item?.isDemo;
     if (itemId) {
@@ -403,6 +420,36 @@ export class EraRepository {
     const next = { ...cur, ...patch, itemId };
     await this.db.preps.put(next);
     return next;
+  }
+
+  /**
+   * "Remettre en vente un similaire": `count` new articles to list, copied from one already sold or on sale —
+   * brand, model, category, gender, era and parcel size. Size and condition are the seller's; measures, defects,
+   * colours, material, references and photos are never copied (another physical article). Returns the new ids.
+   */
+  async relistSimilar(
+    sourceId: string,
+    o: { count: number; size: string | null; condition: Condition | null; costCents: Cents | null; purchaseDate: number | null },
+    now = Date.now(),
+  ): Promise<string[]> {
+    const src = await this.db.items.get(sourceId);
+    if (!src) throw new Error(`Unknown item ${sourceId}`);
+    const vinted = (await this.db.listings.where('inventoryItemId').equals(sourceId).toArray()).filter((l) => /^\d+$/.test(l.platformListingId ?? '')).sort((a, b) => b.listedAt - a.listedAt)[0];
+    const sale = (await this.db.sales.where('inventoryItemId').equals(sourceId).toArray()).find((x) => x.status !== 'REFUNDED') ?? null;
+    const srcPrep = await this.db.preps.get(sourceId);
+    const title = relistTitle(src.title, src.size, o.size);
+    const template = { itemId: src.id, title: src.title, listingId: vinted?.platformListingId ?? null, size: src.size, soldCents: sale?.salePriceCents ?? null, soldAt: sale?.soldAt ?? null };
+    const ids: string[] = [];
+    for (let i = 0; i < Math.max(1, Math.min(20, Math.round(o.count))); i++) {
+      const id = await this.addItem(
+        { title, brand: src.brand, model: src.model, category: src.category, gender: src.gender, size: o.size, condition: o.condition, purchasePriceCents: o.costCents, purchaseDate: o.purchaseDate, purchaseSource: null, priceCents: null, listedAt: null, views: null, favorites: null, url: null, status: 'DRAFT' },
+        now + i,
+      );
+      if (src.era) await this.db.items.update(id, { era: src.era });
+      await this.savePrep(id, { packageSize: srcPrep?.packageSize ?? null, template }, now + i);
+      ids.push(id);
+    }
+    return ids;
   }
 
   /** Time with the sheet open (measured). Idle stretches are capped by the caller. */

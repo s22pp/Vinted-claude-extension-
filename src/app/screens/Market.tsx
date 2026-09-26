@@ -17,6 +17,7 @@ import { go, type Route, useEra } from '../state';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 const QUALITY_TONE = { HIGH: 'emerald', MEDIUM: 'cyan', LOW: 'amber', INSUFFICIENT: 'coral' } as const;
+import { SearchTrace } from '../components/search-trace';
 
 export function Market({ route }: { route: Route }) {
   const { t } = useI18n();
@@ -141,6 +142,7 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
       {insufficient ? (
         <Card>
           <EmptyState art={<IllustrationNoComparables />} title={t('market.insufficient')} why={t('market.insufficientWhy')} action={onRetry ? <Button onClick={onRetry}>{t('market.insufficientCta')}</Button> : null} />
+          <SearchTrace analysis={analysis} />
         </Card>
       ) : (
         <div className="grid-12">

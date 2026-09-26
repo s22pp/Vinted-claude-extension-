@@ -107,6 +107,8 @@ export interface ComparableAnalysis {
   notes: AnalysisNote[];
   /** Search endpoint learned at runtime (structure never verified on a real account). */
   via?: 'LEARNED' | null;
+  /** Each search run and what it brought back: when nothing comparable is found, the seller sees why. */
+  queryStats?: { text: string; returned: number; total: number | null }[];
 }
 
 const WEIGHTS: SimilarityBreakdown = {
@@ -144,6 +146,39 @@ export function buildQueries(subject: ComparableSubject): ComparableQuery[] {
   if (subject.model) texts.add(`${subject.brand} ${subject.model}`);
   texts.add(`${subject.brand} ${CATEGORY_QUERY_WORD[subject.category]}`.trim());
   return [...texts].map((text) => ({ ...base, text }));
+}
+
+/** Below this many listings collected, the search is widened (a real shortage stays a shortage: max 2 more). */
+export const WIDEN_BELOW = 8;
+
+/**
+ * Wider searches, tried in this order only when the first ones bring too little: each side of a collaboration
+ * ("Uniqlo x KAWS" → "kaws t-shirt", "uniqlo kaws"), the title's three main words, the brand alone.
+ */
+export function widerQueries(subject: ComparableSubject, done: readonly string[]): ComparableQuery[] {
+  const base = { brand: subject.brand, category: subject.category, gender: subject.gender, size: subject.size, condition: subject.condition };
+  const cat = CATEGORY_QUERY_WORD[subject.category];
+  const out: string[] = [];
+  const brand = isUnknownBrand(subject.brand) ? '' : subject.brand.trim();
+  const parts = brand.split(/\s+(?:x|×|&|feat\.?)\s+/i).map((x) => x.trim()).filter(Boolean);
+  if (parts.length >= 2) out.push(`${parts[1]} ${cat}`.trim(), `${parts[0]} ${parts[1]}`);
+  const words = titleKeywords(subject.title, 3);
+  if (words) out.push(words);
+  if (!brand) {
+    const two = titleKeywords(subject.title, 2);
+    if (two) out.push(two);
+  }
+  if (brand) out.push(brand);
+  const seen = new Set(done.map(normalizeText));
+  const texts: string[] = [];
+  for (const x of out) {
+    const k = normalizeText(x);
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      texts.push(x);
+    }
+  }
+  return texts.map((text) => ({ ...base, brand: isUnknownBrand(subject.brand) ? '' : subject.brand, text }));
 }
 
 const CATEGORY_QUERY_WORD: Record<Category, string> = {
@@ -206,7 +241,7 @@ function dedupeKey(c: MarketCandidate): string {
 export function analyzeComparables(
   subject: ComparableSubject,
   results: SearchResult[],
-  opts: { queries: string[]; source: 'DEMO' | 'VINTED'; now: number },
+  opts: { queries: string[]; source: 'DEMO' | 'VINTED'; now: number; queryStats?: ComparableAnalysis['queryStats'] },
 ): ComparableAnalysis {
   const subjBrand = isUnknownBrand(subject.brand) ? null : brandKey(subject.brand);
   const subjTokens = modelTokens(normalizeText(`${subject.model ?? ''} ${subject.title}`));
@@ -330,6 +365,7 @@ export function analyzeComparables(
     source: opts.source,
     subject,
     queries: opts.queries,
+    ...(opts.queryStats ? { queryStats: opts.queryStats } : {}),
     collected: all.length,
     totalEntries,
     totalCapped,

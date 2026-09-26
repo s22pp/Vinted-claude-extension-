@@ -6,7 +6,7 @@ import { DAY } from '@/domain/time';
 import { skuOf, skusInText } from '@/intelligence/listing';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { refundSummary } from '@/intelligence/refunds';
-import { draftDescription, draftTitle, measureFields, prepStats, readiness, suggestPrice, suggestedPackage, workshopQueue } from '@/intelligence/workshop';
+import { draftDescription, draftTitle, measureFields, prepStats, readiness, relistTitle, suggestPrice, suggestedPackage, workshopQueue } from '@/intelligence/workshop';
 
 const NOW = Date.UTC(2026, 8, 24);
 const item = (id: string, over: Partial<InventoryItem> = {}): InventoryItem => ({
@@ -168,5 +168,32 @@ describe('Vinted orders and wardrobe (fixtures: they prove our parsing, not the 
   });
   it('"Vérification en cours" is invisible to buyers', () => {
     expect(parseWardrobeItem({ id: 1, title: 'Veste', price: '20', item_alert_type: 'delayed_publication' })!.status).toBe('HIDDEN');
+  });
+});
+
+describe('relist a similar article', () => {
+  it('keeps the model’s words, drops ERA’s reference, swaps the size only where the title carries it', () => {
+    expect(relistTitle('Polo Ralph Lauren slim taille M · E1C4G', 'M', 'L')).toBe('Polo Ralph Lauren slim taille L');
+    expect(relistTitle('Polo Ralph Lauren M', 'M', 'XL')).toBe('Polo Ralph Lauren XL');
+    expect(relistTitle('Polo Ralph Lauren TM', 'M', 'S')).toBe('Polo Ralph Lauren TS');
+    expect(relistTitle('Polo Ralph Lauren Marine', 'M', 'L')).toBe('Polo Ralph Lauren Marine');
+    expect(relistTitle('Jean Levi’s 501 W32', 'W32', 'W32')).toBe('Jean Levi’s 501 W32');
+  });
+
+  it('creates new sheets from a sold article: its identity, never what belongs to the physical article', async () => {
+    const db = new EraDatabase(`t-${Math.random()}`);
+    const repo = new EraRepository(db);
+    await db.items.put(item('src', { title: 'Polo Ralph Lauren M', brand: 'Ralph Lauren', model: 'Custom Fit', category: 'POLO', size: 'M', condition: 'VERY_GOOD', material: '100 % coton', era: 'vintage', status: 'SOLD', photoUrl: 'https://images1.vinted.net/x.jpg' }));
+    await db.listings.put({ id: 'l1', inventoryItemId: 'src', platform: 'vinted', platformListingId: '4242', url: null, title: 'Polo Ralph Lauren M', priceCents: 3500, views: 80, favorites: 4, listedAt: NOW - 20 * DAY, removedAt: null, soldAt: NOW - 2 * DAY, status: 'SOLD', lastObservedAt: NOW, isDemo: false });
+    await db.sales.put({ id: 's1', inventoryItemId: 'src', listingId: 'l1', soldAt: NOW - 2 * DAY, salePriceCents: 3200, extraCostsCents: 0, status: 'COMPLETED', isDemo: false } as Sale);
+    await repo.savePrep('src', { measures: { length: '70' }, defects: 'petite tache', colors: 'Marine', material: '100 % coton', packageSize: 'SMALL', productRef: 'RL-123' });
+    const ids = await repo.relistSimilar('src', { count: 2, size: 'L', condition: 'GOOD', costCents: 800, purchaseDate: NOW }, NOW);
+    expect(ids).toHaveLength(2);
+    const [a] = await db.items.bulkGet(ids);
+    expect(a).toMatchObject({ title: 'Polo Ralph Lauren L', brand: 'Ralph Lauren', model: 'Custom Fit', category: 'POLO', size: 'L', condition: 'GOOD', era: 'vintage', status: 'DRAFT', purchasePriceCents: 800, material: null, photoUrl: null });
+    const p = (await db.preps.get(ids[0]!))!;
+    expect(p).toMatchObject({ measures: {}, defects: '', colors: '', material: '', productRef: '', packageSize: 'SMALL', template: { itemId: 'src', listingId: '4242', size: 'M', soldCents: 3200, soldAt: NOW - 2 * DAY } });
+    // No listing yet: it waits in the workshop.
+    expect(await db.listings.where('inventoryItemId').anyOf(ids).count()).toBe(0);
   });
 });

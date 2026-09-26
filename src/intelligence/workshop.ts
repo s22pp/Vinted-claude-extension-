@@ -8,6 +8,7 @@ import type { PricingResult } from './pricing';
 import type { RefundGuard } from './refunds';
 import type { SegmentStats } from './seller-model';
 import { median } from './stats';
+import { cleanTitle } from './fav-messages';
 
 /**
  * Atelier de mise en ligne: one sheet per article, in the exact order of the Vinted form.
@@ -179,4 +180,16 @@ export function prepStats(preps: readonly Prep[], now: number): PrepStats {
     medianMinutes: timed.length ? median(timed.map((p) => p.seconds)) / 60 : null,
     timed: timed.length,
   };
+}
+
+/**
+ * The working title of a copy: the model's title without ERA's reference, its size swapped for the new one
+ * when the title carries it ("… taille M", "… M"). The Vinted title itself is built by draftTitle.
+ */
+export function relistTitle(title: string, oldSize: string | null, newSize: string | null): string {
+  const base = cleanTitle(title);
+  if (!oldSize || !newSize || oldSize === newSize) return base;
+  const esc = oldSize.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(^|\\s)(taille\\s+|T)?${esc}(?=\\s*$)`, 'i');
+  return re.test(base) ? base.replace(re, (_m, sp: string, pre: string | undefined) => `${sp}${pre ?? ''}${newSize}`) : base;
 }
