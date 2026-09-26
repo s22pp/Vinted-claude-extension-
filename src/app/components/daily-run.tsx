@@ -1,4 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { repo } from '@/data/repo';
 import type { EraMessage, LabelResult } from '@/data/adapters/vinted/protocol';
 import { useI18n } from '@/i18n';
 import type { ItemView, SaleView } from '@/intelligence/portfolio';
@@ -8,6 +10,7 @@ import { type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
+import { BACKUP_REMIND_DAYS, LAST_BACKUP_KEY } from './backup';
 import { CostRow, missingCosts, usePendingPurchases } from './costs';
 import { RecommendationCard } from './domain';
 import { SaleModal } from './forms';
@@ -25,7 +28,8 @@ type Task =
   | { key: string; kind: 'RESERVED'; v: ItemView }
   | { key: string; kind: 'COST'; v: ItemView }
   | { key: string; kind: 'RECO'; v: ItemView }
-  | { key: string; kind: 'LIST'; v: ItemView };
+  | { key: string; kind: 'LIST'; v: ItemView }
+  | { key: string; kind: 'BACKUP'; last: number | null };
 
 const KIND: Record<Task['kind'], { icon: IconName; tone: TileTone }> = {
   SHIP: { icon: 'box', tone: 'coral' },
@@ -34,6 +38,7 @@ const KIND: Record<Task['kind'], { icon: IconName; tone: TileTone }> = {
   COST: { icon: 'edit', tone: 'cyan' },
   RECO: { icon: 'target', tone: 'amber' },
   LIST: { icon: 'upload', tone: 'violet' },
+  BACKUP: { icon: 'download', tone: 'emerald' },
 };
 
 const SKIP_KEY = 'era.run.skipped';
@@ -46,11 +51,13 @@ const readSkipped = (): string[] => {
 };
 
 export function DailyRun() {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
   const purchases = usePendingPurchases();
+  const lastBackup = useLiveQuery(() => repo.getSetting<number | null>(LAST_BACKUP_KEY, null), []);
   const [skipped, setSkipped] = useState<string[]>(readSkipped);
   const [saleFor, setSaleFor] = useState<ItemView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,8 +76,11 @@ export function DailyRun() {
       .sort((a, b) => b.recommendation!.priority - a.recommendation!.priority);
     for (const x of recos.slice(0, 10)) out.push({ key: `reco:${x.recommendation!.key}`, kind: 'RECO', v: x.view });
     for (const v of era.workshop.toList.slice(0, 5)) out.push({ key: `list:${v.item.id}`, kind: 'LIST', v });
+    // Real data never saved (or not for two weeks): a copy, last.
+    if (era.mode === 'real' && lastBackup !== undefined && (lastBackup === null || era.now - lastBackup > BACKUP_REMIND_DAYS * 86_400_000))
+      out.push({ key: `backup:${Math.floor(era.now / 86_400_000)}`, kind: 'BACKUP', last: lastBackup });
     return out;
-  }, [era.sales, era.views, era.intel, era.workshop, era.now]);
+  }, [era.sales, era.views, era.intel, era.workshop, era.now, era.mode, lastBackup]);
 
   const queue = tasks.filter((x) => !skipped.includes(x.key));
   const matches = useMemo(() => purchaseByItem(purchases, queue.filter((x) => x.kind === 'COST').map((x) => (x as { v: ItemView }).v.item)), [purchases, queue]);
@@ -166,6 +176,17 @@ export function DailyRun() {
           </div>
         );
       }
+      case 'BACKUP':
+        return (
+          <div className="stack" style={{ gap: 6 }}>
+            <span className="t-small">{x.last ? t('backup.last', { when: i18n.relative(x.last, era.now) }) : t('backup.never')}</span>
+            <div>
+              <Button size="sm" variant="primary" icon="download" onClick={() => go('settings')}>
+                {t('backup.download')}
+              </Button>
+            </div>
+          </div>
+        );
       case 'LIST':
         return (
           <Button size="sm" variant="primary" icon="upload" onClick={() => go(`workshop/${x.v.item.id}`)}>
@@ -174,8 +195,8 @@ export function DailyRun() {
         );
     }
   };
-  const title = (x: Task) => (x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.title : x.v.item.title);
-  const itemHref = (x: Task) => `item/${x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.id : x.v.item.id}`;
+  const title = (x: Task) => (x.kind === 'BACKUP' ? t('backup.title') : x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.title : x.v.item.title);
+  const itemHref = (x: Task) => (x.kind === 'BACKUP' ? 'settings' : `item/${x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.id : x.v.item.id}`);
 
   return (
     <Card

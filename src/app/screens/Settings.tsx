@@ -13,6 +13,8 @@ import { type SellerIdentity, db } from '@/data/db';
 import { type ThemeSetting, setTheme } from '../providers';
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
+import { BackupCard } from '../components/backup';
+import { RefreshSettings } from '../components/refresh-settings';
 import { go, useEra } from '../state';
 
 export function Settings() {
@@ -124,8 +126,10 @@ export function Settings() {
               <div>
                 <VintedImportButton variant="primary" onDone={() => void budgetStatus().then(setBudget)} />
               </div>
+              <RefreshSettings />
             </div>
           </Card>
+          <BackupCard />
           <IntegrationsCard />
           <SellerIdentityCard />
           <DiagnosticCard />

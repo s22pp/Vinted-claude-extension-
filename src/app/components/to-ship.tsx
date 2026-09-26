@@ -114,7 +114,7 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
         {orders.map((x) => {
           const done = saved[x.sale.id] ?? [];
           return (
-            <div key={x.sale.id} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div key={x.sale.id} className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
               <div className="row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontWeight: 600 }}>{x.item.title}</div>

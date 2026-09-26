@@ -20,6 +20,8 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
   { name: 'insights', icon: 'insights', tone: 'cyan' },
 ];
 
+import { CommandPalette } from './components/palette';
+
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
   const era = useEra();
@@ -70,6 +72,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
           {children}
         </main>
       </div>
+      <CommandPalette />
     </div>
   );
 }
@@ -116,6 +119,9 @@ function Topbar() {
         {era.mode === 'empty' ? t('data.stateEmpty') : t('data.stateLocal', { n: inStock })}
       </span>
       <span className="topbar__spacer" />
+      <button type="button" className="palette__open topbar__hide-sm" onClick={() => window.dispatchEvent(new Event('era:palette'))} aria-keyshortcuts="Control+K">
+        <Icon name="search" size={14} /> {t('palette.open')} <kbd className="palette__kbd">Ctrl K</kbd>
+      </button>
       <VintedImportButton size="sm" variant={era.mode === 'real' ? 'default' : 'primary'} label="short" />
       <span className="topbar__hide-sm">
         <Button size="sm" icon="buy" onClick={() => go('buy')}>

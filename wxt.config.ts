@@ -9,7 +9,8 @@ export default defineConfig({
     // scripting + activeTab: on your click only, read the product the open shop page publishes (sourcing).
     // alarms: the automations' schedule — off unless you switch it on, and only with a vinted.fr tab open.
     // downloads: the shipping labels Vinted issues, saved as PDF files (Téléchargements/ERA-bordereaux).
-    permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage', 'alarms', 'downloads'],
+    // notifications: only if you switch them on (a new order to ship, a new sale), after an import.
+    permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage', 'alarms', 'downloads', 'notifications'],
     // vinted.fr only: read the page you have open, call its API with your session — reads, plus the few
     // whitelisted writes of the automations you switch on (EXPERIMENTAL).
     // vinted.net: Vinted's image servers, read only to copy a listing's own photos into its repost draft.

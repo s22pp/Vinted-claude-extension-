@@ -7,6 +7,7 @@ import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-impor
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } from '@/data/vinted-actions';
+import { type SalesSnapshot, loadRefreshConfig, salesSnapshot, whatIsNew } from '@/data/refresh';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -15,16 +16,19 @@ import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } 
 
 let importing: Promise<ImportResult> | null = null;
 
-/** One import at a time. */
-function runImport(): Promise<ImportResult> {
+/** One import at a time. After it: the icon's count, and what is new (notification, if switched on). */
+function runImport(auto = false): Promise<ImportResult> {
   let reached = 'START';
-  importing ??= importFromVinted((stage) => {
+  if (importing) return importing;
+  const before = salesSnapshot().catch(() => null);
+  importing = importFromVinted((stage) => {
     reached = stage;
     void browser.runtime.sendMessage({ type: 'era:import:stage', stage } satisfies EraMessage).catch(() => undefined);
   })
-    .then((r): ImportResult => {
+    .then(async (r): Promise<ImportResult> => {
       // Purchases follow in the background; the stock is already usable.
       void importPurchasesFromVinted();
+      void afterImport(await before, auto);
       return { ok: true, ...r };
     })
     .catch((e): ImportResult => {
@@ -37,6 +41,49 @@ function runImport(): Promise<ImportResult> {
       importing = null;
     });
   return importing;
+}
+
+/** The toolbar icon shows how many orders wait to be shipped (nothing when none). */
+async function updateBadge(): Promise<void> {
+  const n = (await salesSnapshot()).toShip.size;
+  await browser.action.setBadgeBackgroundColor({ color: '#e8634f' }).catch(() => undefined);
+  await browser.action.setBadgeText({ text: n > 0 ? String(n) : '' }).catch(() => undefined);
+}
+
+async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise<void> {
+  await updateBadge();
+  // A notification only for what the seller did not watch arrive: the scheduled imports.
+  const cfg = await loadRefreshConfig();
+  if (!auto || !before || !cfg.notify) return;
+  const news = whatIsNew(before, await salesSnapshot());
+  const lines = [...news.toShip.map((title) => `À envoyer : ${title}`), ...(news.sold > news.toShip.length ? [`${news.sold} nouvelle(s) vente(s)`] : [])];
+  if (!lines.length) return;
+  await browser.notifications
+    .create(`era-news-${Date.now()}`, {
+      type: 'basic',
+      iconUrl: browser.runtime.getURL('/icon/128.png'),
+      title: news.toShip.length ? (news.toShip.length === 1 ? 'Nouvelle commande à envoyer' : `${news.toShip.length} commandes à envoyer`) : 'Nouvelle vente',
+      message: lines.slice(0, 4).join('\n'),
+      priority: 1,
+    })
+    .catch(() => undefined);
+}
+
+const REFRESH_ALARM = 'era-refresh';
+
+/** Read-only import every few hours, only if the seller switched it on. */
+async function scheduleRefresh(): Promise<void> {
+  const cfg = await loadRefreshConfig();
+  await browser.alarms.clear(REFRESH_ALARM);
+  if (cfg.enabled) await browser.alarms.create(REFRESH_ALARM, { periodInMinutes: Math.max(60, cfg.everyHours * 60) });
+}
+
+async function onRefreshAlarm(): Promise<void> {
+  if (!(await loadRefreshConfig()).enabled) return;
+  // Never opens Vinted by itself, never while blocked, never on top of another Vinted operation.
+  if ((await budget.status()).halted || !(await vintedTabOpen())) return;
+  if (importing || editing || autoRunning || reposting || labelling) return;
+  await runImport(true);
 }
 
 let editing: Promise<PriceEditResult> | null = null;
@@ -93,8 +140,15 @@ async function onAutoAlarm(): Promise<void> {
 export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((a) => {
     if (a.name === AUTO_ALARM) void onAutoAlarm();
+    if (a.name === REFRESH_ALARM) void onRefreshAlarm();
   });
   void scheduleAuto();
+  void scheduleRefresh();
+  void updateBadge().catch(() => undefined);
+  // A notification opens what it announces.
+  browser.notifications?.onClicked.addListener((id) => {
+    if (id.startsWith('era-news-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/sales?ship=1` });
+  });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
   });
@@ -165,6 +219,12 @@ export default defineBackground(() => {
         return true;
       case 'era:auto:schedule':
         void scheduleAuto().then(() => sendResponse({ ok: true }));
+        return true;
+      case 'era:refresh:schedule':
+        void scheduleRefresh().then(() => sendResponse({ ok: true }));
+        return true;
+      case 'era:badge:update':
+        void updateBadge().then(() => sendResponse({ ok: true }));
         return true;
       case 'era:price:edit':
         void runPriceEdit(msg.platformListingId, msg.cents, msg.itemId).then(sendResponse);

@@ -26,7 +26,7 @@ export function MessagePicker({ offer, value, onChange, example }: { offer: bool
   const id = offer ? 'msg-o' : 'msg-n';
 
   const row = (key: string, text: string, checked: boolean, tag: React.ReactNode, extra?: React.ReactNode) => (
-    <label key={key} htmlFor={`${id}-${key}`} className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--line)', background: checked ? 'var(--surface-2, transparent)' : 'transparent' }}>
+    <label key={key} htmlFor={`${id}-${key}`} className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border)', background: checked ? 'var(--surface-hover)' : 'transparent' }}>
       <input id={`${id}-${key}`} type="checkbox" className="checkbox" checked={checked} onChange={(e) => toggle(text, e.target.checked)} style={{ marginTop: 3 }} />
       <span className="stack" style={{ gap: 4, minWidth: 0 }}>
         <span className="t-small" style={{ overflowWrap: 'anywhere' }}>

@@ -259,3 +259,42 @@ test('daily run: one task at a time with its action; skipping moves on and can b
   await page.getByRole('button', { name: 'Reprendre la tâche passée' }).click();
   await expect(item).toHaveText(first);
 });
+
+test('backup: a full copy downloaded, then restored after confirmation', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/settings`);
+  const card = page.getByTestId('backup');
+  await expect(card).toContainText('Aucune sauvegarde');
+  const [download] = await Promise.all([page.waitForEvent('download'), card.getByRole('button', { name: 'Télécharger une sauvegarde' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^era-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
+  const file = await download.path();
+  await expect(card).toContainText('Dernière sauvegarde');
+  await card.getByLabel('Restaurer…').setInputFiles(file!);
+  await expect(page.getByRole('dialog')).toContainText('articles');
+  await page.getByRole('button', { name: 'Remplacer par cette sauvegarde' }).click();
+  await expect(page.getByText('Sauvegarde restaurée')).toBeVisible();
+});
+
+test('command palette: Ctrl+K, a few letters, Enter — an article, a screen or an action', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  await page.keyboard.press('Control+k');
+  const list = page.getByTestId('palette');
+  await expect(list).toBeVisible();
+  await expect(page.getByRole('dialog').locator('input')).toBeFocused();
+  await page.keyboard.type('carhartt');
+  await expect(list.getByRole('option').first()).toContainText(/Carhartt/i);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/item\//);
+  await page.keyboard.press('Control+k');
+  await expect(list).toBeVisible();
+  await expect(page.getByRole('dialog').locator('input')).toBeFocused();
+  await page.keyboard.type('ajouter un lot');
+  await expect(page.getByRole('dialog').locator('input')).toHaveValue('ajouter un lot');
+  await expect(list.getByRole('option').first()).toContainText('Ajouter un lot');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/stock\?lot=1/);
+  await expect(page.getByLabel('Articles (une ligne chacun)')).toBeVisible();
+});

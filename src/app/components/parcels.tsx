@@ -19,7 +19,7 @@ export function ParcelsCard() {
         {alerts.map((a) => {
           const x = byId.get(a.saleId)!;
           return (
-            <div key={a.saleId} className="row-between" style={{ gap: 12, flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <div key={a.saleId} className="row-between" style={{ gap: 12, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
               <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                 <a href={`#/item/${x.item.id}`} className="clamp-1" style={{ fontWeight: 600 }}>
                   {x.item.title}

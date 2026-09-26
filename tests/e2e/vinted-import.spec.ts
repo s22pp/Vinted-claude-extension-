@@ -806,3 +806,19 @@ test('parcels to watch: a parcel sent long ago and still not delivered is flagge
   await page.goto(`${base}#/today`);
   await expect(page.getByTestId('daily-run')).toContainText('Colis à surveiller');
 });
+
+test('icon badge counts the orders to ship; automatic refresh is scheduled only once switched on', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  expect(await sw.evaluate(async () => (await chrome.alarms.get('era-refresh')) ?? null)).toBeNull();
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await expect.poll(() => sw.evaluate(() => chrome.action.getBadgeText({})), { timeout: 10_000 }).toBe('1');
+  await page.getByLabel('Actualiser automatiquement').check();
+  await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh'))?.periodInMinutes ?? null), { timeout: 10_000 }).toBe(360);
+  await page.getByLabel('Actualiser automatiquement').uncheck();
+  await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh')) ?? null), { timeout: 10_000 }).toBeNull();
+});

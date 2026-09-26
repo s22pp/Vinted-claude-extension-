@@ -36,7 +36,7 @@ export function CostsDrawer({ open, onClose }: { open: boolean; onClose: () => v
         {done > 0 && <Badge tone="emerald">{t('costs.saved', { n: done })}</Badge>}
         {missing.length === 0 && <p className="t-pos">{t('costs.none')}</p>}
         {missing.map((v) => (
-          <div key={v.item.id} style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+          <div key={v.item.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
             <CostRow
               v={v}
               match={matches.get(v.item.id) ?? null}

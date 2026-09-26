@@ -75,6 +75,8 @@ export type EraMessage =
   | { type: 'era:write'; method: 'POST' | 'PUT'; path: string; body: unknown }
   | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
   | { type: 'era:auto:schedule' }
+  | { type: 'era:refresh:schedule' }
+  | { type: 'era:badge:update' }
   | { type: 'era:draft:create'; input: DraftInput }
   | { type: 'era:label:get'; conversationId: string; title: string; soldAt: number }
   | { type: 'era:label:all' }

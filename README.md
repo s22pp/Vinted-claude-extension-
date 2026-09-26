@@ -142,6 +142,12 @@ Aujourd'hui → **« coûts d'achat manquent »** ouvre la saisie rapide : les a
 
 Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi »** : une page imprimable (PDF) avec l'article tel que décrit (état, défauts, mesures), l'annonce, la vente, la conversation Vinted, le **contrôle avant envoi avec l'heure de chaque coche** (« non coché » sinon) et l'historique de l'annonce. Seulement ce qu'ERA a enregistré ; les photos restent sur Vinted et votre téléphone.
 
+## Sauvegarde, actualisation, notifications, recherche
+
+- **Sauvegarde** (Réglages) : un fichier JSON avec **toutes** vos données (articles, ventes, coûts, historique, fiches, réglages, journal). Restaurer **remplace** les données actuelles, après confirmation, tout ou rien. Vos données ne vivent que dans ce navigateur : un rappel apparaît dans la tournée si vous n'avez pas sauvegardé depuis 14 jours.
+- **Actualisation automatique** (Réglages, désactivée par défaut) : un import en lecture seule toutes les 3, 6, 12 ou 24 h, **seulement si un onglet vinted.fr est déjà ouvert** et jamais pendant un blocage. L'**icône d'ERA** affiche le nombre de colis à envoyer ; une **notification Chrome** (au choix) annonce une nouvelle commande à envoyer ou une vente trouvée par une actualisation automatique. Nouvelle autorisation : notifications.
+- **Recherche Ctrl+K / ⌘K** : un article (titre, marque, référence ERA), un écran ou une action (ajouter un lot, coûts manquants…), au clavier.
+
 ## Tournée du jour
 
 Aujourd'hui → **Tournée du jour** : tout ce qui vous attend, dans une seule file, **une tâche à la fois avec son bouton sur place** — colis à envoyer (bordereau, contrôle, dossier), colis à surveiller, ventes réservées à enregistrer, coûts inconnus (achat Vinted en un clic), conseils d'ERA (prix à appliquer sur Vinted, republication sans perte), fiches à mettre en ligne. « Passer » met une tâche de côté pour la session ; une tâche faite sort de la file toute seule.
