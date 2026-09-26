@@ -8,7 +8,7 @@ import { shippingChecklist } from '@/intelligence/shipping';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, Flag, Money } from '@/ui/components/primitives';
 import { VINTED_ORDERS_URL } from './priorities';
-import { useEra } from '../state';
+import { go, useEra } from '../state';
 
 /**
  * Orders Vinted says wait for the seller: a checklist before closing the parcel (learned from past refunds)
@@ -34,9 +34,17 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
 
   const toggle = (saleId: string, k: string) => {
     const cur = saved[saleId] ?? [];
-    const next = { ...saved, [saleId]: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] };
+    const on = !cur.includes(k);
+    const next = { ...saved, [saleId]: on ? [...cur, k] : cur.filter((x) => x !== k) };
     setLocal(next);
     void repo.setSetting('shipChecks', next);
+    // When each check was ticked: the dispute file shows it (unticking forgets the time).
+    void repo.getSetting<Record<string, Record<string, number>>>('shipChecksAt', {}).then((at) => {
+      const mine = { ...(at[saleId] ?? {}) };
+      if (on) mine[k] = Date.now();
+      else delete mine[k];
+      return repo.setSetting('shipChecksAt', { ...at, [saleId]: mine });
+    });
   };
   const label = async (x: SaleView) => {
     setBusy(x.sale.id);
@@ -123,6 +131,9 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
                   )}
                   <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(VINTED_ORDERS_URL, '_blank', 'noopener')}>
                     {t('ship.openVinted')}
+                  </Button>
+                  <Button size="sm" variant="ghost" icon="book" onClick={() => go(`dossier/${x.sale.id}`)}>
+                    {t('dossier.open')}
                   </Button>
                 </div>
               </div>

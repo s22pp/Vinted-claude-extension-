@@ -11,6 +11,8 @@ import { RecoChip, StatusBadge } from '../components/domain';
 import { VintedImportButton } from '../components/vinted-import';
 import { PurchasesBanner } from '../components/purchases';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
+import { LotDrawer } from '../components/lot';
+import { CostsDrawer } from '../components/costs';
 import { analyzeItem } from '../market-run';
 import { errorCode } from '@/data/adapters/marketplace';
 import { PageHead } from '../Shell';
@@ -340,6 +342,9 @@ export function Stock({ route }: { route: Route }) {
             <Button icon="rows" variant="ghost" onClick={() => downloadText(`era-stock-${new Date(era.now).toISOString().slice(0, 10)}.csv`, stockCsv(era.views.filter((v) => v.inStock)))}>
               {t('stock.exportCsv')}
             </Button>
+            <Button icon="layers" onClick={() => go('stock?lot=1')}>
+              {t('lot.button')}
+            </Button>
             <Button variant="primary" icon="plus" onClick={() => go('stock?add=1')}>
               {t('stock.add')}
             </Button>
@@ -502,6 +507,8 @@ export function Stock({ route }: { route: Route }) {
         </>
       )}
       <AddItemDrawer open={addOpen} onClose={() => go('stock')} />
+      <LotDrawer open={route.query.get('lot') === '1'} onClose={() => go('stock')} />
+      <CostsDrawer open={route.query.get('costs') === '1'} onClose={() => go('stock')} />
       <ImportCsvModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );

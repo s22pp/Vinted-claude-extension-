@@ -25,7 +25,7 @@ import { SearchTrace } from '../components/search-trace';
 import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
-import { useEra } from '../state';
+import { go, useEra } from '../state';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 
@@ -185,6 +185,11 @@ export function ItemDetail({ id }: { id: string }) {
         {item.status === 'SOLD' && (
           <Button variant={v.sale ? 'default' : 'primary'} icon={v.sale ? 'edit' : 'sales'} onClick={() => setSaleOpen(true)}>
             {v.sale ? t('item.editSale') : t('item.completeSale')}
+          </Button>
+        )}
+        {v.sale && (
+          <Button icon="book" onClick={() => go(`dossier/${v.sale!.id}`)}>
+            {t('dossier.open')}
           </Button>
         )}
         {!item.isDemo && <RelistButton v={v} />}

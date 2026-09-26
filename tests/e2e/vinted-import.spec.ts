@@ -704,3 +704,46 @@ test('price analysis: a search that finds nothing is widened; when all find noth
   await expect(page.getByTestId('search-trace')).toContainText('« Zorgblat t-shirt » → 0 annonces lues');
   await expect(page.getByTestId('search-trace').locator('li')).toHaveCount(3);
 });
+
+test('missing costs: the matching Vinted purchase in one click, the others typed one after the other', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/today`);
+  await page.getByRole('button', { name: /coûts d’achat manquent/ }).click();
+  const costs = page.getByTestId('costs');
+  await expect(costs).toContainText('Veste Harrington Ralph Lauren M');
+  // The Harrington was bought on Vinted (purchases are read right after the stock): 18 € + protection = 19,60 €.
+  await expect(costs.getByText('Achat Vinted trouvé')).toBeVisible({ timeout: 30_000 });
+  await expect(costs).toContainText('19,60');
+  await costs.getByRole('button', { name: 'Utiliser' }).click();
+  await expect(page.getByText('Coût repris de l’achat Vinted')).toBeVisible();
+  // The sold Carhartt comes first among the rest: type, Enter, the next field is focused.
+  const carhartt = costs.getByLabel('Coût d’achat de Veste Carhartt Detroit M');
+  await carhartt.fill('25');
+  await carhartt.press('Enter');
+  await expect(costs.getByLabel("Coût d’achat de Jean Levi's 501 W32")).toBeFocused();
+  await expect(costs.getByLabel('Coût d’achat de Veste Carhartt Detroit M')).toHaveCount(0);
+});
+
+test('dispute file: the article as described, the checks ticked with their time, the conversation — printable', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, brand_title: 'Nike', size_title: 'L', is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales?ship=1`);
+  const card = page.getByTestId('to-ship');
+  await card.getByLabel('Photo de l’article avant emballage (preuve d’état)').check();
+  await card.getByRole('button', { name: 'Dossier d’envoi' }).click();
+  const dossier = page.getByTestId('dossier');
+  await expect(dossier).toContainText('Sweat Nike vintage L');
+  await expect(dossier).toContainText('20/09/2026');
+  await expect(dossier).toContainText('https://www.vinted.fr/inbox/9200');
+  await expect(dossier.locator('li', { hasText: 'Photo de l’article avant emballage' })).toContainText('coché le');
+  await expect(dossier.locator('li', { hasText: 'Conforme aux photos et à la description' })).toContainText('non coché');
+});

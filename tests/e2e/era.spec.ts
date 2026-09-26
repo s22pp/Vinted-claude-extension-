@@ -219,3 +219,24 @@ test('deal scanner: one click searches the best niches and lists only what fits 
   for (let i = 0; i < n; i++) await expect(rows.nth(i)).toContainText('€');
   await expect(page.getByText('DÉMO').first()).toBeVisible();
 });
+
+test('a lot bought at once: one line per article, the price split to the cent, every line a sheet in the workshop', async ({ context, base }) => {
+  const page = await context.newPage();
+  // First run: skip the onboarding (no demo), then open the lot form.
+  await page.goto(`${base}#/onboarding`);
+  await page.getByRole('button', { name: 'Passer' }).click();
+  await page.goto(`${base}#/stock?lot=1`);
+  await page.getByLabel('Articles (une ligne chacun)').fill('Chemise Pierre Cardin L très bon état\nPull Lacoste M\nJean Levi’s 501 W32');
+  await page.getByLabel('Prix payé pour le lot').fill('20');
+  const preview = page.getByTestId('lot-preview');
+  await expect(preview.locator('tbody tr')).toHaveCount(3);
+  await expect(preview.locator('tbody tr').first()).toContainText('Pierre Cardin');
+  await expect(preview.locator('tbody tr').first()).toContainText('Très bon état');
+  // No sales yet: equal parts, 6,67 + 6,67 + 6,66 = 20 €.
+  await expect(page.getByText('Aucune vente comparable dans votre historique : parts égales.')).toBeVisible();
+  await expect(preview).toContainText('6,67');
+  await expect(preview).toContainText('6,66');
+  await page.getByRole('button', { name: 'Créer 3 fiches' }).click();
+  await expect(page).toHaveURL(/#\/workshop\/item_/);
+  await expect(page.locator('.wq__row')).toHaveCount(3);
+});

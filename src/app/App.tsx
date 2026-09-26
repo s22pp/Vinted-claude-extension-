@@ -16,6 +16,7 @@ const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default:
 const Stock = lazy(() => import('./screens/Stock').then((m) => ({ default: m.Stock })));
 const Accounting = lazy(() => import('./screens/Accounting').then((m) => ({ default: m.Accounting })));
 const Invoice = lazy(() => import('./screens/Invoice').then((m) => ({ default: m.Invoice })));
+const Dossier = lazy(() => import('./screens/Dossier').then((m) => ({ default: m.Dossier })));
 const Workshop = lazy(() => import('./screens/Workshop').then((m) => ({ default: m.Workshop })));
 const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
 const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
@@ -65,6 +66,12 @@ function Router() {
     return (
       <Suspense fallback={null}>
         <Invoice saleId={route.id ?? ''} />
+      </Suspense>
+    );
+  if (route.name === 'dossier')
+    return (
+      <Suspense fallback={null}>
+        <Dossier saleId={route.id ?? ''} />
       </Suspense>
     );
   let screen: React.ReactNode;

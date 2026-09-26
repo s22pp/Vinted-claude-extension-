@@ -120,7 +120,7 @@ describe('search endpoint learned from the page', () => {
 });
 
 import { ordersTemplateFromObserved } from '@/data/adapters/vinted/orders';
-import { suggestMatches, withBuyerProtection } from '@/intelligence/purchase-match';
+import { purchaseByItem, suggestMatches, withBuyerProtection } from '@/intelligence/purchase-match';
 
 describe('Vinted purchases', () => {
   it('learns the purchases list from what the page called, never the sold list', () => {
@@ -138,6 +138,20 @@ describe('Vinted purchases', () => {
     expect(r.sure).toBe(true);
     const vague = suggestMatches({ id: 'q', title: 'Ralph Lauren', date: null }, items);
     expect(vague.sure).toBe(false);
+  });
+
+  it('the other way round: each article without a cost gets the purchase that points to it, never a vague one', () => {
+    const mk = (id: string, title: string, brand: string, category: InventoryItem['category']) => ({ ...item(id, 'LISTED'), title, brand, category, createdAt: NOW, purchasePriceCents: null });
+    const items = [mk('a', 'Veste Harrington Ralph Lauren M', 'Ralph Lauren', 'JACKET'), mk('b', 'Chemise Oxford Ralph Lauren L', 'Ralph Lauren', 'SHIRT'), mk('c', "Jean Levi's 501", "Levi's", 'JEANS')];
+    const m = purchaseByItem(
+      [
+        { id: 'p1', title: 'Veste Harrington Ralph Lauren taille M', date: NOW - 10 * DAY, priceCents: 1800 },
+        { id: 'p2', title: 'Sac à main', date: NOW - 5 * DAY, priceCents: 900 },
+      ],
+      items,
+    );
+    expect([...m.keys()]).toEqual(['a']);
+    expect(m.get('a')).toMatchObject({ purchase: { id: 'p1' }, sure: true });
   });
 
   it('adds the verified buyer protection', () => {

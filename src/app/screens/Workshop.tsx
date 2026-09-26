@@ -82,7 +82,19 @@ export function Workshop({ route }: { route: Route }) {
 
   return (
     <>
-      <PageHead title={t('workshop.title')} sub={t('workshop.subtitle')} tabs={<StockTabs active="workshop" />} actions={<VintedImportButton />} />
+      <PageHead
+        title={t('workshop.title')}
+        sub={t('workshop.subtitle')}
+        tabs={<StockTabs active="workshop" />}
+        actions={
+          <>
+            <Button icon="layers" onClick={() => go('stock?lot=1')}>
+              {t('lot.button')}
+            </Button>
+            <VintedImportButton />
+          </>
+        }
+      />
       <div className="stack-4">
         <section className="kpi-strip" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }} aria-label={t('workshop.title')}>
           <div className="kpi">

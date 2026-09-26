@@ -42,3 +42,18 @@ export function suggestMatches(p: PurchaseLike, items: readonly InventoryItem[])
 export function withBuyerProtection(priceCents: number): number {
   return priceCents + 70 + Math.round(priceCents * 0.05);
 }
+
+/**
+ * The other way round, for "coût en un clic": for each article without a cost, the Vinted purchase whose best
+ * match it is (score ≥ 0.55). Two purchases pointing at one article: the stronger keeps it. Never a guess below.
+ */
+export function purchaseByItem<P extends PurchaseLike>(purchases: readonly P[], items: readonly InventoryItem[]): Map<string, { purchase: P; score: number; sure: boolean }> {
+  const out = new Map<string, { purchase: P; score: number; sure: boolean }>();
+  for (const p of purchases) {
+    const m = suggestMatches(p, items);
+    if (!m.best || m.best.score < 0.55) continue;
+    const cur = out.get(m.best.itemId);
+    if (!cur || cur.score < m.best.score) out.set(m.best.itemId, { purchase: p, score: m.best.score, sure: m.sure });
+  }
+  return out;
+}

@@ -20,6 +20,7 @@ import { isLiveListing, listingStatusOf } from '@/domain/status';
 import { type ComparableAnalysis, type ComparableSubject, WIDEN_BELOW, analyzeComparables, brandFromResults, buildQueries, widerQueries } from '@/intelligence/comparables';
 import { isUnknownBrand } from '@/intelligence/normalize';
 import { relistTitle } from '@/intelligence/workshop';
+import type { LotLine } from '@/intelligence/lot';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
 import { type EraDatabase, type InvoiceRow, db as defaultDb, uid } from './db';
@@ -420,6 +421,35 @@ export class EraRepository {
     const next = { ...cur, ...patch, itemId };
     await this.db.preps.put(next);
     return next;
+  }
+
+  /**
+   * A lot bought at once, split into articles to list (status DRAFT → the workshop). Each gets its share of the
+   * price paid (`costs`, from splitLot) — derived from the seller's total, so marked INFERRED, never OBSERVED.
+   */
+  async addLot(
+    lines: readonly LotLine[],
+    o: { costs: readonly (number | null)[]; purchaseDate: number | null; source: string | null; totalCents: number | null },
+    now = Date.now(),
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    const where = [o.source?.trim() || null, o.totalCents !== null ? `lot de ${lines.length} · ${(o.totalCents / 100).toFixed(2).replace('.', ',')} €` : `lot de ${lines.length}`].filter(Boolean).join(' · ');
+    for (const [i, l] of lines.entries()) {
+      const cost = o.costs[i] ?? null;
+      const id = await this.addItem(
+        { title: l.title, brand: l.brand, model: null, category: l.category, gender: null, size: l.size, condition: l.condition, purchasePriceCents: cost, purchaseDate: o.purchaseDate, purchaseSource: where, priceCents: null, listedAt: null, views: null, favorites: null, url: null, status: 'DRAFT' },
+        now + i,
+      );
+      const it = await this.db.items.get(id);
+      if (it) {
+        await this.db.items.put({
+          ...it,
+          meta: { ...it.meta, ...(cost !== null ? { purchasePriceCents: { p: 'INFERRED' as const, at: now } } : {}), brand: { p: l.brandKnown ? ('INFERRED' as const) : ('UNKNOWN' as const), at: now }, category: { p: 'INFERRED' as const, at: now } },
+        });
+      }
+      ids.push(id);
+    }
+    return ids;
   }
 
   /**

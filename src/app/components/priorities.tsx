@@ -25,7 +25,7 @@ export const VINTED_ORDERS_URL = 'https://www.vinted.fr/my_orders';
 
 /** Every priority opens exactly the items it counts. */
 export const priorityHref = (p: TodayPriority) =>
-  p.code === 'TO_LIST' ? 'workshop' : p.code === 'REFUND_REASON' ? 'sales?refunds=1' : p.code === 'ORDERS_TO_HANDLE' ? 'sales?ship=1' : `stock?focus=${p.code}`;
+  p.code === 'TO_LIST' ? 'workshop' : p.code === 'REFUND_REASON' ? 'sales?refunds=1' : p.code === 'ORDERS_TO_HANDLE' ? 'sales?ship=1' : p.code === 'MISSING_COST' ? 'stock?costs=1' : `stock?focus=${p.code}`;
 
 export function usePriorityTitle() {
   const { t } = useI18n();

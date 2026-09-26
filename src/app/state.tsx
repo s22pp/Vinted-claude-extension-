@@ -142,7 +142,7 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
 
 /* ── Hash router ─────────────────────────────────────────── */
 
-export type RouteName = 'today' | 'stock' | 'capital' | 'workshop' | 'accounting' | 'invoice' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'automations' | 'settings' | 'onboarding';
+export type RouteName = 'today' | 'stock' | 'capital' | 'workshop' | 'accounting' | 'invoice' | 'dossier' | 'item' | 'market' | 'buy' | 'sales' | 'insights' | 'tools' | 'automations' | 'settings' | 'onboarding';
 export interface Route {
   name: RouteName;
   id: string | null;
@@ -152,7 +152,7 @@ export interface Route {
 function parse(hash: string): Route {
   const [path = '', qs = ''] = hash.replace(/^#\/?/, '').split('#')[0]!.split('?');
   const [name, id] = path.split('/');
-  const known: RouteName[] = ['today', 'stock', 'capital', 'workshop', 'accounting', 'invoice', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'automations', 'settings', 'onboarding'];
+  const known: RouteName[] = ['today', 'stock', 'capital', 'workshop', 'accounting', 'invoice', 'dossier', 'item', 'market', 'buy', 'sales', 'insights', 'tools', 'automations', 'settings', 'onboarding'];
   return { name: known.includes(name as RouteName) ? (name as RouteName) : 'today', id: id ?? null, query: new URLSearchParams(qs) };
 }
 

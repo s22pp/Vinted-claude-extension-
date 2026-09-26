@@ -129,6 +129,18 @@ Fiche article → **« Remettre en vente un similaire »** : vous avez racheté 
 - **Repris** : marque, modèle, catégorie, format du colis ; le **prix réellement encaissé** sur l'article modèle sert de référence de prix ; sur Vinted, le brouillon réutilise les **identifiants de l'ancienne annonce** (catégorie, marque, et la taille si c'est la même) au lieu de les redemander.
 - **Jamais repris** : mesures, défauts, couleurs, composition, photos, référence produit — c'est un autre article, ils se lisent sur lui.
 
+## Ajouter un lot
+
+Stock (ou Atelier) → **« Ajouter un lot »** : une ligne par article, comme vous le diriez (« Chemise Pierre Cardin L très bon état »). ERA lit la marque, le type d'article, la taille et l'état dans la ligne (ce qui n'y est pas reste à compléter, une marque non lue reste « Inconnue ») et crée une fiche par ligne dans l'Atelier. Le prix payé est réparti **au centime près** : selon ce que ce genre d'article vous rapporte (vos ventes), ou à parts égales. Chaque part est marquée « déduite ».
+
+## Coûts manquants en un clic
+
+Aujourd'hui → **« coûts d'achat manquent »** ouvre la saisie rapide : les articles vendus d'abord (leur bénéfice est inconnu), puis les plus chers. Si un **achat Vinted** correspond à l'article, il est proposé (prix + protection acheteur, port à ajouter) : **« Utiliser »**. Sinon, tapez le montant, Entrée : le suivant est prêt. Un coût inconnu n'est jamais compté comme zéro.
+
+## Dossier d'envoi (litige)
+
+Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi »** : une page imprimable (PDF) avec l'article tel que décrit (état, défauts, mesures), l'annonce, la vente, la conversation Vinted, le **contrôle avant envoi avec l'heure de chaque coche** (« non coché » sinon) et l'historique de l'annonce. Seulement ce qu'ERA a enregistré ; les photos restent sur Vinted et votre téléphone.
+
 ## Analyse de prix : quand la recherche ne trouve rien
 
 - Une réponse de Vinted **sans liste d'annonces** n'est plus lue comme « 0 annonce » : une adresse de recherche apprise qui se révèle fausse est oubliée et la forme normale est réessayée ; sinon, une erreur claire.

@@ -1495,3 +1495,52 @@
   gap: 6px;
   word-break: break-word;
 }
+
+/* Dossier d'envoi (printable, on the invoice sheet) */
+.dossier__section {
+  margin-top: 22px;
+}
+.dossier__h {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.dossier__row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.dossier__pre {
+  white-space: pre-wrap;
+  font: 12px/1.5 var(--font-sans);
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 4px 0 0;
+}
+.dossier__checks,
+.dossier__events {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+.dossier__checks li,
+.dossier__events li {
+  padding: 3px 0;
+}
+.dossier__checks li:not(.is-done) {
+  color: #9a3412;
+}
+@media (max-width: 600px) {
+  .dossier__row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
