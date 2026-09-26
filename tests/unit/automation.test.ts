@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, FAV_PRESETS, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { DEFAULT_AUTO, type PendingOffer, decideOffer, favoriteOffer, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planFavorite, withDefaults } from '@/intelligence/automation';
 
 const NOW = Date.UTC(2026, 8, 25, 12);
@@ -40,10 +41,12 @@ describe('new favourites', () => {
   });
 
   it('fills the message, and a missing name leaves no hole', () => {
-    expect(fillTemplate(cfg.fav.template, { pseudo: 'alice', titre: 'Veste', prix: 5900, prixOffre: 5400 })).toBe(
-      'Bonjour alice ! Merci pour le favori sur « Veste ». Je peux vous le faire à 54 € au lieu de 59 € : l’offre est dans la conversation.',
+    expect(fillTemplate(FAV_PRESETS[0]!.text, { pseudo: 'alice', titre: 'Veste Harrington Ralph Lauren M', article: 'la veste Ralph Lauren', prix: 5900, prixOffre: 5400 })).toBe(
+      'Hello ! J’ai vu ton favori sur la veste Ralph Lauren 🙂 Je te fais 54 € au lieu de 59 €, l’offre t’attend dans la conversation.',
     );
     expect(fillTemplate('Bonjour {pseudo} ! {titre}', { pseudo: null, titre: 'Veste', prix: null, prixOffre: null })).toBe('Bonjour ! Veste');
+    // A sentence opened by a variable starts with a capital.
+    expect(fillTemplate('{article} : toujours dispo !', { pseudo: null, titre: 'x', article: 'les baskets Nike', prix: null, prixOffre: null })).toBe('Les baskets Nike : toujours dispo !');
   });
 });
 
@@ -74,5 +77,36 @@ describe('offers received', () => {
     expect(decideOffer(o(4600), 4800, cfg, true).action).toBe('SKIP');
     // A counter that would not beat their offer: their offer is accepted (it is above the floor).
     expect(decideOffer(o(4400, 4700), 3000, cfg, false)).toMatchObject({ action: 'ACCEPT' });
+  });
+});
+
+describe('favourite messages that read like a person', () => {
+  it('names the article the way people say it, never with the size or ERA’s reference', () => {
+    expect(articleOf('Veste Harrington Ralph Lauren M E1C4G', 'Ralph Lauren')).toBe('la veste Ralph Lauren');
+    expect(articleOf('Pull col roulé laine L', 'Inconnue')).toBe('le pull');
+    expect(articleOf('Écharpe cachemire', null)).toBe('l’écharpe');
+    expect(articleOf('Baskets Nike Air Max 42', 'Nike')).toBe('les baskets Nike');
+    expect(articleOf('Chemise Pierre Cardin L', 'Pierre Cardin')).toBe('la chemise Pierre Cardin');
+    expect(articleOf('Lot de 3 bidules', 'Zara')).toBe('l’article Zara');
+    expect(cleanTitle('Veste Harrington Ralph Lauren M E1C4G')).toBe('Veste Harrington Ralph Lauren M');
+  });
+  it('several messages chosen: each member gets one, always the same for a given favourite', () => {
+    const list = ['a', 'b', 'c'];
+    const got = new Set(Array.from({ length: 40 }, (_, i) => pickMessage(list, `fav-${i}`)));
+    expect(got).toEqual(new Set(list));
+    expect(pickMessage(list, 'fav-7')).toBe(pickMessage(list, 'fav-7'));
+    expect(pickMessage(['  ', ''], 'k')).toBeNull();
+  });
+  it('presets never make a verb or a pronoun agree with {article}', () => {
+    for (const p of FAV_PRESETS) {
+      expect(p.text).not.toMatch(/\{article\} (est|sont|te plait|t’intéresse)/);
+      expect(p.text).not.toMatch(/\b(te|vous) (le|la) (propose|fais)\b/);
+      expect(p.offer).toBe(p.text.includes('{prix_offre}'));
+    }
+  });
+  it('an old message the seller edited is kept; the old default is replaced by the new ones', () => {
+    expect(withDefaults({ fav: { template: 'Mon message {prix_offre}' } as never }).fav.templates).toEqual(['Mon message {prix_offre}']);
+    expect(withDefaults({ fav: { template: 'Bonjour {pseudo} ! Merci pour le favori sur « {titre} ». Je peux vous le faire à {prix_offre} au lieu de {prix} : l’offre est dans la conversation.' } as never }).fav.templates).toEqual(DEFAULT_FAV_OFFER);
+    expect(withDefaults(null).fav.templatesNoOffer).toEqual(DEFAULT_FAV_NO_OFFER);
   });
 });

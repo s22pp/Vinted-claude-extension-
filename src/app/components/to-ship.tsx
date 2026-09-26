@@ -1,18 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import type { EraMessage, LabelResult } from '@/data/adapters/vinted/protocol';
+import type { EraMessage, LabelBatchResult, LabelResult } from '@/data/adapters/vinted/protocol';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import type { SaleView } from '@/intelligence/portfolio';
 import { shippingChecklist } from '@/intelligence/shipping';
-import { useErrorToast, useToast } from '@/ui/components/overlays';
+import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, Flag, Money } from '@/ui/components/primitives';
 import { VINTED_ORDERS_URL } from './priorities';
 import { useEra } from '../state';
 
 /**
  * Orders Vinted says wait for the seller: a checklist before closing the parcel (learned from past refunds)
- * and the printable label in one click (EXPERIMENTAL), one order at a time.
+ * and the printable label Vinted issues (EXPERIMENTAL): for one order, or for all of them at once — each saved as a
+ * PDF in the downloads folder (ERA-bordereaux). ERA never makes a label itself: only Vinted's carries a valid parcel.
  */
 export function ToShipCard({ highlight }: { highlight: boolean }) {
   const { t, date } = useI18n();
@@ -24,7 +25,10 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
   const [local, setLocal] = useState<Record<string, string[]> | null>(null);
   const saved = local ?? stored ?? {};
   const [busy, setBusy] = useState<string | null>(null);
+  const [askAll, setAskAll] = useState(false);
+  const [batch, setBatch] = useState<LabelBatchResult | null>(null);
   const orders = era.sales.filter((x) => x.sale.needsAction && x.sale.status !== 'REFUNDED');
+  const withLabel = era.mode === 'real' ? orders.filter((x) => x.sale.vintedConversationId) : [];
   if (!orders.length) return null;
   const { checks, learned } = shippingChecklist(era.refunds.guards.map((g) => g.guard));
 
@@ -37,18 +41,68 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
   const label = async (x: SaleView) => {
     setBusy(x.sale.id);
     try {
-      const r = (await browser.runtime.sendMessage({ type: 'era:label:get', conversationId: x.sale.vintedConversationId!, title: x.item.title } satisfies EraMessage)) as LabelResult;
+      const r = (await browser.runtime.sendMessage({ type: 'era:label:get', conversationId: x.sale.vintedConversationId!, title: x.item.title, soldAt: x.sale.soldAt } satisfies EraMessage)) as LabelResult;
       if (!r.ok) return errorToast(r);
-      toast('success', t('ship.labelDone'), t(r.ordered ? 'ship.labelOrdered' : 'ship.labelReady'));
+      toast('success', t('ship.labelDone'), `${t(r.ordered ? 'ship.labelOrdered' : 'ship.labelReady')} ${r.file ? t('ship.saved', { file: r.file }) : t('ship.notSaved', { detail: r.saveError ?? '' })}`);
       window.open(r.url, '_blank', 'noopener');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const allLabels = async () => {
+    setBusy('all');
+    try {
+      const r = (await browser.runtime.sendMessage({ type: 'era:label:all' } satisfies EraMessage)) as LabelBatchResult;
+      setBatch(r);
+      setAskAll(false);
+      const saved = r.results.filter((x) => x.ok && x.file).length;
+      toast(saved === r.results.length && !r.stopped ? 'success' : 'warning', t('ship.allDone', { n: saved }), r.stopped ? t('ship.allStopped', { detail: r.stopped, n: r.left }) : undefined);
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <Card id="to-ship" className={highlight ? 'card--highlight' : ''} title={t('ship.title', { n: orders.length })} hint={t('ship.hint')} icon="box" tone="coral">
+    <Card
+      id="to-ship"
+      className={highlight ? 'card--highlight' : ''}
+      title={t('ship.title', { n: orders.length })}
+      hint={t('ship.hint')}
+      icon="box"
+      tone="coral"
+      actions={
+        withLabel.length > 1 ? (
+          <Button size="sm" icon="download" loading={busy === 'all'} disabled={busy !== null} onClick={() => setAskAll(true)}>
+            {t('ship.all', { n: withLabel.length })}
+          </Button>
+        ) : null
+      }
+    >
       <div className="stack-4" data-testid="to-ship">
+        {batch && (
+          <div className="stack" data-testid="labels-batch">
+            {batch.results.map((r) => (
+              <div key={r.saleId} className="row t-small" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <Badge tone={r.ok && r.file ? 'emerald' : r.ok ? 'amber' : 'coral'}>{t(r.ok && r.file ? 'ship.rSaved' : r.ok ? 'ship.rOpen' : 'ship.rFailed')}</Badge>
+                <span style={{ fontWeight: 600 }}>{r.title}</span>
+                <span className="t-muted">{r.ok ? (r.file ?? r.saveError) : (r.detail ?? r.code)}</span>
+                {r.ok && (
+                  <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(r.url, '_blank', 'noopener')}>
+                    {t('ship.openPdf')}
+                  </Button>
+                )}
+              </div>
+            ))}
+            {batch.stopped && <p className="t-small t-warn">{t('ship.allStopped', { detail: batch.stopped, n: batch.left })}</p>}
+            {batch.results.some((r) => r.ok && r.file) && (
+              <div>
+                <Button size="sm" variant="ghost" icon="external" onClick={() => void browser.downloads.showDefaultFolder()}>
+                  {t('ship.openFolder')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         {orders.map((x) => {
           const done = saved[x.sale.id] ?? [];
           return (
@@ -63,7 +117,7 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                   {era.mode === 'real' && x.sale.vintedConversationId && (
-                    <Button size="sm" variant="primary" icon="upload" loading={busy === x.sale.id} disabled={busy !== null} onClick={() => label(x)}>
+                    <Button size="sm" variant="primary" icon="download" loading={busy === x.sale.id} disabled={busy !== null} onClick={() => label(x)}>
                       {t('ship.label')}
                     </Button>
                   )}
@@ -88,6 +142,23 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
           <Flag kind="EXPERIMENTAL" /> {t('ship.note')}
         </p>
       </div>
+      <Modal open={askAll} onClose={() => busy === null && setAskAll(false)} title={t('ship.allTitle', { n: withLabel.length })}>
+        <ul className="t-small stack" style={{ margin: 0, paddingLeft: 18 }}>
+          {withLabel.map((x) => (
+            <li key={x.sale.id}>{x.item.title}</li>
+          ))}
+        </ul>
+        <p className="t-small">{t('ship.allBody')}</p>
+        <p className="t-small t-faint">{t('ship.allFolder')}</p>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setAskAll(false)} disabled={busy !== null}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" icon="download" loading={busy === 'all'} onClick={allLabels}>
+            {t('ship.allGo')}
+          </Button>
+        </div>
+      </Modal>
     </Card>
   );
 }

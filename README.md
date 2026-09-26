@@ -61,7 +61,7 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
 - ERA ne publie jamais une annonce, ne suit personne et ne change jamais un prix automatiquement. Il ne supprime qu'une **ancienne annonce republiée**, sans favoris, une fois la copie en ligne, après votre confirmation.
 - Modifier le prix d'une annonce depuis la fiche article : **EXPERIMENTAL**, un article à la fois, après confirmation explicite.
 - **Automatisations (EXPERIMENTAL, désactivées par défaut)** — Outils → Automatisations :
-  - *Favoris → message et offre* : à un nouveau favori, un message et (si le coût d'achat est connu) une offre, jamais sous coût + marge ;
+  - *Favoris → message et offre* : à un nouveau favori, un message et (si le coût d'achat est connu) une offre, jamais sous coût + marge. **Messages au choix** : une dizaine de messages naturels (tutoiement ou vouvoiement) qui parlent de « la veste Ralph Lauren » plutôt que du titre complet (taille, référence ERA) ; aperçu sur une de vos annonces ; vos propres messages en plus. Plusieurs cochés = chaque membre en reçoit un (toujours le même pour un favori donné) ;
   - *Offres reçues* : acceptée au-dessus d'un seuil, une contre-offre entre deux, refusée en dessous — jamais sous le plancher.
   - Écritures limitées à une **liste blanche** de routes (conversation, message, offre, réponse à une offre ; plus, sur votre clic seulement : brouillon, bordereau, masquer, suppression d'une ancienne annonce republiée, envoi d'une photo pour une copie) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
   - « Simuler » ne fait que lire ; chaque action (ou simulation) est écrite dans un **journal**. La planification ne tourne qu'avec un onglet vinted.fr déjà ouvert.
@@ -117,7 +117,9 @@ Nouvelle autorisation : `https://*.vinted.net/*` (serveurs d'images de Vinted), 
 ## À envoyer, bordereaux, masquer
 
 - **Ventes → À envoyer** : chaque commande que Vinted dit en attente du vendeur, avec un **contrôle avant envoi** (conformité, photo avant emballage, format du colis, ancien code-barre masqué) complété par ce qui aurait évité vos remboursements passés (défauts en photo, mesures, étiquettes, emballage protégé).
-- **Obtenir le bordereau (EXPERIMENTAL)** : comme le bouton de Vinted — un bordereau déjà prêt est récupéré ; sinon il est commandé en imprimable avec le dépôt proposé par Vinted et votre adresse par défaut, puis attendu ~25 s. Ouvert pour impression ; journalisé.
+- **Obtenir le bordereau (EXPERIMENTAL)** : comme le bouton de Vinted — un bordereau déjà prêt est récupéré ; sinon il est commandé en imprimable avec le dépôt proposé par Vinted et votre adresse par défaut, puis attendu ~25 s. Ouvert pour impression **et enregistré en PDF** dans `Téléchargements/ERA-bordereaux/` (date de vente + article, ex. `2026-09-20_sweat-nike-vintage-l.pdf`) ; journalisé avec l'hôte qui sert le PDF.
+- **Tous les bordereaux** (dès 2 commandes à envoyer) : après confirmation, une commande après l'autre, chaque PDF enregistré ; au premier blocage (403/429, déconnexion, budget), ERA s'arrête et dit combien restent. Un PDF que le navigateur n'a pas pu enregistrer est signalé « non enregistré », jamais comme enregistré.
+- ERA **ne fabrique jamais** de bordereau : seul celui émis par Vinted porte un numéro de suivi et un envoi payé valables.
 - **Masquer / réafficher (EXPERIMENTAL)** depuis la fiche article, relu sur Vinted : le statut dans ERA suit ce que Vinted confirme.
 
 ## Liste de courses

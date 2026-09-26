@@ -1,4 +1,5 @@
 import { type AutoConfig, type FavItem, decideOffer, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planFavorite, withDefaults } from '@/intelligence/automation';
+import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import { currentUserId, priceCents } from './adapters/vinted/parse';
 import type { AutoRunResult } from './adapters/vinted/protocol';
@@ -38,7 +39,19 @@ const eur = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} �
 async function itemsByVintedId(): Promise<Map<string, FavItem>> {
   const listings = await db.listings.filter((l) => !l.isDemo && l.platformListingId !== null && (l.status === 'ACTIVE' || l.status === 'RESERVED' || l.status === 'HIDDEN')).toArray();
   const items = new Map((await db.items.bulkGet(listings.map((l) => l.inventoryItemId))).filter((i) => !!i).map((i) => [i!.id, i!]));
-  return new Map(listings.map((l) => [l.platformListingId!, { title: l.title, priceCents: l.priceCents, costCents: items.get(l.inventoryItemId)?.purchasePriceCents ?? null }]));
+  return new Map(
+    listings.map((l) => {
+      const it = items.get(l.inventoryItemId);
+      return [l.platformListingId!, { title: l.title, priceCents: l.priceCents, costCents: it?.purchasePriceCents ?? null, brand: it?.brand ?? null }];
+    }),
+  );
+}
+
+/** One of the seller's chosen messages for this favourite, filled in. */
+function favText(cfg: AutoConfig, key: string, offerCents: number | null, v: { pseudo: string | null; title: string; brand: string | null; price: number | null }): string {
+  const list = offerCents === null ? cfg.fav.templatesNoOffer : cfg.fav.templates;
+  const tpl = pickMessage(list, key) ?? pickMessage(offerCents === null ? DEFAULT_FAV_NO_OFFER : DEFAULT_FAV_OFFER, key)!;
+  return fillTemplate(tpl, { pseudo: v.pseudo, titre: cleanTitle(v.title), article: articleOf(v.title, v.brand), prix: v.price, prixOffre: offerCents });
 }
 
 function stopReason(e: unknown): string | null {
@@ -84,7 +97,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       }
       const target = `${item?.title ?? `annonce ${n.itemId}`} → membre ${n.userId}`;
       if (dryRun) {
-        const text = fillTemplate(plan.offerCents === null ? cfg.fav.templateNoOffer : cfg.fav.template, { pseudo: 'pseudo', titre: item?.title ?? `annonce ${n.itemId}`, prix: item?.priceCents ?? null, prixOffre: plan.offerCents });
+        const text = favText(cfg, n.key, plan.offerCents, { pseudo: 'pseudo', title: item?.title ?? `annonce ${n.itemId}`, brand: item?.brand ?? null, price: item?.priceCents ?? null });
         await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `${plan.message ? `message : « ${text} »` : 'pas de message'}${plan.offerCents !== null ? ` · offre ${eur(plan.offerCents)}` : plan.note ? ` · ${plan.note}` : ''}` });
         out.done++;
         continue;
@@ -106,7 +119,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         const title = item?.title ?? (typeof tx.item_title === 'string' ? tx.item_title : `annonce ${n.itemId}`);
         const price = item?.priceCents ?? priceCents(tx.offer_price);
         if (plan.message) {
-          const text = fillTemplate(plan.offerCents === null ? cfg.fav.templateNoOffer : cfg.fav.template, { pseudo: login, titre: title, prix: price, prixOffre: plan.offerCents });
+          const text = favText(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price });
           await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
           await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
         }

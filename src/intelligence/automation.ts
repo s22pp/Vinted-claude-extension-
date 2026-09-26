@@ -1,4 +1,5 @@
 import { priceCents } from '@/data/adapters/vinted/parse';
+import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER } from './fav-messages';
 
 /**
  * Automations on the seller's own account — decisions only (pure, tested). What is sent to Vinted, and
@@ -17,9 +18,10 @@ export interface AutoConfig {
   fav: {
     enabled: boolean;
     mode: FavMode;
-    template: string;
+    /** Messages sent with an offer; several = one of them per member (see fav-messages.ts). */
+    templates: string[];
     /** Used when no offer can be made (cost unknown, floor reaches the price): never a message promising one. */
-    templateNoOffer: string;
+    templatesNoOffer: string[];
     /** % off the listed price for the offer sent to a new favourite. */
     discountPct: number;
     /** A favourite this recent is left alone (the buyer may still be browsing). */
@@ -46,8 +48,8 @@ export const DEFAULT_AUTO: AutoConfig = {
   fav: {
     enabled: false,
     mode: 'MESSAGE_OFFER',
-    template: 'Bonjour {pseudo} ! Merci pour le favori sur « {titre} ». Je peux vous le faire à {prix_offre} au lieu de {prix} : l’offre est dans la conversation.',
-    templateNoOffer: 'Bonjour {pseudo} ! Merci pour le favori sur « {titre} ». Une question sur l’article ? Je réponds vite.',
+    templates: DEFAULT_FAV_OFFER,
+    templatesNoOffer: DEFAULT_FAV_NO_OFFER,
     discountPct: 10,
     minDelayMin: 15,
     perDay: 15,
@@ -61,9 +63,25 @@ export const DEFAULT_AUTO: AutoConfig = {
   },
 };
 
-/** Stored config merged over the defaults: a new field never arrives undefined. */
-export function withDefaults(c: Partial<AutoConfig> | null | undefined): AutoConfig {
-  return { ...DEFAULT_AUTO, ...c, fav: { ...DEFAULT_AUTO.fav, ...c?.fav }, offers: { ...DEFAULT_AUTO.offers, ...c?.offers } };
+/** The single messages of versions ≤ 0.16, as they shipped (replaced by the new defaults when never edited). */
+const OLD_DEFAULTS = [
+  'Bonjour {pseudo} ! Merci pour le favori sur « {titre} ». Je peux vous le faire à {prix_offre} au lieu de {prix} : l’offre est dans la conversation.',
+  'Bonjour {pseudo} ! Merci pour le favori sur « {titre} ». Une question sur l’article ? Je réponds vite.',
+];
+type StoredFav = Partial<AutoConfig['fav']> & { template?: string; templateNoOffer?: string };
+
+/** Stored config merged over the defaults: a new field never arrives undefined; an edited old message is kept. */
+export function withDefaults(c: (Partial<Omit<AutoConfig, 'fav'>> & { fav?: StoredFav }) | null | undefined): AutoConfig {
+  const f = c?.fav ?? {};
+  const legacy = (one: string | undefined, fallback: string[]) => (one && !OLD_DEFAULTS.includes(one) ? [one] : fallback);
+  const { template, templateNoOffer, ...rest } = f;
+  const fav: AutoConfig['fav'] = {
+    ...DEFAULT_AUTO.fav,
+    ...rest,
+    templates: f.templates?.length ? f.templates : legacy(template, DEFAULT_FAV_OFFER),
+    templatesNoOffer: f.templatesNoOffer?.length ? f.templatesNoOffer : legacy(templateNoOffer, DEFAULT_FAV_NO_OFFER),
+  };
+  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers } };
 }
 
 type Json = Record<string, unknown>;
@@ -106,6 +124,8 @@ export interface FavItem {
   title: string;
   priceCents: number;
   costCents: number | null;
+  /** Known brand (for "la veste Ralph Lauren" in messages), null when unknown. */
+  brand?: string | null;
 }
 
 export type FavPlan =
@@ -203,14 +223,21 @@ export function decideOffer(o: PendingOffer, floorCents: number | null, cfg: Aut
 
 const eur = (cents: number | null) => (cents === null ? '' : `${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2).replace('.', ',')} €`);
 
-/** {pseudo} {titre} {prix} {prix_offre}; an empty variable leaves no dangling braces. */
-export function fillTemplate(template: string, v: { pseudo: string | null; titre: string; prix: number | null; prixOffre: number | null }): string {
+/**
+ * {article} ("la veste Ralph Lauren") {titre} {pseudo} {prix} {prix_offre}; an empty variable leaves no dangling
+ * space, and a sentence opened by a variable starts with a capital.
+ */
+export function fillTemplate(template: string, v: { pseudo: string | null; titre: string; article?: string; prix: number | null; prixOffre: number | null }): string {
   return template
     .replaceAll('{pseudo}', v.pseudo ?? '')
+    .replaceAll('{article}', v.article ?? v.titre)
     .replaceAll('{titre}', v.titre)
     .replaceAll('{prix_offre}', eur(v.prixOffre))
     .replaceAll('{prix}', eur(v.prix))
-    .replace(/\s+([!?.,])/g, ' $1')
-    .replace(/Bonjour\s+!/, 'Bonjour !')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([,.])/g, '$1')
+    .replace(/(\S)[ \t]*([!?])/g, '$1 $2')
+    .replace(/^\s*[,.]\s*/, '')
+    .replace(/(^|[.!?]\s+)(\p{Ll})/gu, (_m, a: string, b: string) => a + b.toUpperCase())
     .trim();
 }

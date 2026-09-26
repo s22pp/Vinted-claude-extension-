@@ -1,12 +1,12 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, EraMessage, ImportResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import type { AutoRunResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
-import { getShippingLabel, setListingHidden } from '@/data/vinted-actions';
+import { getAllLabels, getShippingLabel, setListingHidden } from '@/data/vinted-actions';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -60,10 +60,12 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
 let autoRunning: Promise<AutoRunResult> | null = null;
 /** A repost copies photos for a while: one at a time, and nothing else writes meanwhile. */
 let reposting: Promise<RepostResult | RepostFinishResult> | null = null;
+/** All labels at once: a few minutes at most, nothing else writes meanwhile. */
+let labelling: Promise<LabelBatchResult> | null = null;
 
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
-  if (autoRunning || importing || editing || reposting) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
+  if (autoRunning || importing || editing || reposting || labelling) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
   autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : runOffers(dryRun)).finally(() => {
     autoRunning = null;
   });
@@ -122,16 +124,26 @@ export default defineBackground(() => {
         return true;
       case 'era:label:get':
       case 'era:item:hide':
-        if (autoRunning || importing || editing || reposting) {
+        if (autoRunning || importing || editing || reposting || labelling) {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
           return undefined;
         }
-        void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
+        void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title, msg.soldAt) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
+        return true;
+      case 'era:label:all':
+        if (autoRunning || importing || editing || reposting || labelling) {
+          sendResponse({ results: [], stopped: 'une autre opération Vinted est en cours', left: 0 } satisfies LabelBatchResult);
+          return undefined;
+        }
+        labelling = getAllLabels().finally(() => {
+          labelling = null;
+        });
+        void labelling.then(sendResponse);
         return true;
       case 'era:draft:create':
       case 'era:repost:create':
       case 'era:repost:finish':
-        if (autoRunning || importing || editing || reposting) {
+        if (autoRunning || importing || editing || reposting || labelling) {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
           return undefined;
         }

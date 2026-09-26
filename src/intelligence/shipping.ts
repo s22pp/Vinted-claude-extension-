@@ -22,3 +22,24 @@ export function shippingChecklist(guards: readonly RefundGuard[]): { checks: Shi
   const learned = [...new Set(guards.map((g) => FROM_GUARD[g]).filter((c): c is ShipCheck => c !== null))];
   return { checks: [...BASE.slice(0, 2), ...learned, ...BASE.slice(2)], learned };
 }
+
+/** Folder, under the browser's downloads, where ERA saves the labels Vinted issues. */
+export const LABEL_FOLDER = 'ERA-bordereaux';
+
+/**
+ * The file name of a label: sale date then the article, readable and safe on every system
+ * ("ERA-bordereaux/2026-09-20_sweat-nike-vintage-l.pdf"). Two identical names are numbered by the browser.
+ */
+export function labelFileName(title: string, soldAt: number): string {
+  const day = new Date(soldAt).toISOString().slice(0, 10);
+  const slug =
+    title
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60)
+      .replace(/-+$/, '') || 'commande';
+  return `${LABEL_FOLDER}/${day}_${slug}.pdf`;
+}

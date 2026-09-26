@@ -1,5 +1,5 @@
 import type { BrowserContext } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
@@ -121,6 +121,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
     }
     // Test fixture only: an order's conversation, a label Vinted makes after it is ordered, a hide that reads back.
     if (url.pathname === '/api/v2/conversations/9200') return json({ conversation: { transaction: { id: 7200, shipment_id: 6200, shipment: { status: 1 } } } });
+    if (url.pathname === '/api/v2/conversations/9201') return json({ conversation: { transaction: { id: 7201, shipment_id: 6201 } } });
+    if (url.pathname === '/api/v2/shipments/6201/label_url') return json({ label_url: 'https://labels.example/6201.pdf', code: 0 });
     if (url.pathname === '/api/v2/shipments/6200/label_url') return json({ label_url: state.labelOrdered ? 'https://labels.example/6200.pdf' : null, code: 0 });
     if (url.pathname === '/api/v2/user_addresses/default_shipping_address') return json({ user_address: { id: 42 } });
     if (url.pathname === '/api/v2/transactions/7200/shipment/order' && method === 'PUT') {
@@ -423,6 +425,12 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
   await page.getByLabel('Activer pour les nouveaux favoris').check();
   await page.getByLabel('Activer le tri des offres reçues').check();
   const log = page.getByTestId('auto-log');
+  // Messages without an offer: the seller keeps only the "vous" one they like, shown on their own listing.
+  const noOffer = page.getByTestId('messages-no-offer');
+  await expect(noOffer).toContainText('la veste Ralph Lauren');
+  await noOffer.getByRole('checkbox').nth(0).uncheck();
+  await noOffer.getByRole('checkbox').nth(1).uncheck();
+  await noOffer.getByRole('checkbox').nth(3).check();
 
   // Simulation: reads only; the purchase cost is unknown, so no offer is planned.
   const before = calls.length;
@@ -432,11 +440,15 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
 
   // Real run on the new favourite: open the conversation, send the message — nothing else.
   await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
-  await expect(log).toContainText('Bonjour alice', { timeout: 60_000 });
+  const sent = 'Bonjour, merci pour votre favori ! Je reste disponible si vous avez des questions sur la veste Ralph Lauren.';
   const writes = () => calls.filter((c) => c.method !== 'GET');
+  // (The simulation already logged this text: wait for the real writes.)
+  await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
+  await expect(log).toContainText(sent);
   expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
+  expect(JSON.parse(writes()[1]!.body!).reply.body).toBe(sent);
   expect(JSON.parse(writes()[0]!.body!)).toEqual({ initiator: 'seller_enters_notification', item_id: 101, opposite_user_id: 555 });
-  expect(writes().every((w) => w.csrf === 't-123')).toBe(true);
+  expect(writes().map((w) => w.csrf)).toEqual(['t-123', 't-123']);
 
   // Offer received: 40 € on 59 € (68 %) → one counter-offer at 92 % → 55 €.
   await page.getByRole('button', { name: 'Lancer maintenant' }).nth(1).click();
@@ -568,4 +580,57 @@ test('repost refused when the listing has favourites: no button action, nothing 
   await importThenOpen(page, base);
   await expect(page.getByRole('button', { name: 'Republier sans rien perdre' })).toBeDisabled();
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
+});
+
+test('all labels at once: each order handled in turn, each PDF saved under a clear name', async ({ context, base }) => {
+  test.setTimeout(180_000);
+  const closeCarrier = await fakeLabelServer();
+  const sold = (id: number, title: string) => ({ id, title, price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] });
+  const calls = await fakeVinted(context, {
+    loggedIn: true,
+    extra: [sold(104, 'Sweat Nike vintage L'), sold(106, 'Polo Lacoste M')],
+    orders: [
+      { title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' },
+      { title: 'Polo Lacoste M', price: { amount: '30.0' }, date: '2026-09-21', status: 'Envoi à préparer', item_id: 106, conversation_id: 9201, transaction_user_status: 'needs_action' },
+    ],
+  });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales?ship=1`);
+  await page.getByRole('button', { name: 'Tous les bordereaux (2)' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Récupérer et enregistrer' }).click();
+  const batch = page.getByTestId('labels-batch');
+  await expect(batch).toContainText('Polo Lacoste M', { timeout: 120_000 });
+  // The ready label is only fetched; the other one is ordered, like Vinted's own button — nothing else is sent.
+  expect(calls.filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/transactions/7200/shipment/order']);
+  // Both PDFs really downloaded by the browser (names: see the unit test; under Playwright, Chrome renames files).
+  await expect(batch.getByText('Enregistré', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('2 bordereaux enregistrés')).toBeVisible();
+  const files = await page.evaluate(async () => {
+    const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string; state: string; mime: string }[]> } } }).chrome;
+    return (await c.downloads.search({})).map((d) => [d.url, d.state, d.mime]);
+  });
+  expect(files.sort()).toEqual([
+    ['https://labels.example/6200.pdf', 'complete', 'application/pdf'],
+    ['https://labels.example/6201.pdf', 'complete', 'application/pdf'],
+  ]);
+  await closeCarrier();
+});
+
+test('a label the browser cannot download is reported as not saved, never as saved', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  // No carrier server running: Vinted gives a label URL, the download fails.
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9201, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales?ship=1`);
+  await page.evaluate(() => {
+    window.open = () => null;
+  });
+  await page.getByTestId('to-ship').getByRole('button', { name: 'Obtenir le bordereau' }).click();
+  await expect(page.getByText(/PDF non enregistré/)).toBeVisible({ timeout: 60_000 });
 });

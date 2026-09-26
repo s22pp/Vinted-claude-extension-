@@ -9,11 +9,17 @@ import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, Field, Flag, Input, Segmented, Select } from '@/ui/components/primitives';
 import { useMoneyField } from '../components/forms';
 import { PageHead } from '../Shell';
+import { useEra } from '../state';
+import { type MessageExample, MessagePicker } from '../components/fav-messages';
+
+/** The offer shown in previews: the discount on the price, rounded up to the euro (the real one also respects the floor). */
+const favoriteOfferPreview = (price: number, pct: number) => Math.ceil((price * (1 - pct / 100)) / 100) * 100;
 
 /** Settings + manual runs + journal of the seller's automations. Everything is off until switched on. */
 export function Automations() {
   const { t } = useI18n();
   const toast = useToast();
+  const era = useEra();
   const stored = useLiveQuery(() => repo.getSetting<Partial<AutoConfig> | null>('automations', null), []);
   const [cfg, setCfg] = useState<AutoConfig | null>(null);
   const margin = useMoneyField(null);
@@ -30,6 +36,11 @@ export function Automations() {
 
   const log = useLiveQuery(() => db.autoLog.orderBy('at').reverse().limit(60).toArray(), []);
   if (!cfg) return null;
+  // Previews use one of the seller's own listings (the most favourited), else a plain example.
+  const listed = era.views.filter((v) => v.current && !v.item.isDemo).sort((a, b) => (b.current!.favorites ?? 0) - (a.current!.favorites ?? 0))[0];
+  const example: MessageExample = listed
+    ? { title: listed.item.title, brand: listed.item.brand, priceCents: listed.current!.priceCents, offerCents: favoriteOfferPreview(listed.current!.priceCents, cfg.fav.discountPct) }
+    : { title: 'Veste Harrington Ralph Lauren M', brand: 'Ralph Lauren', priceCents: 5900, offerCents: favoriteOfferPreview(5900, cfg.fav.discountPct) };
 
   const set = (patch: (c: AutoConfig) => AutoConfig) => {
     setCfg(patch(cfg));
@@ -121,13 +132,13 @@ export function Automations() {
                 <Input id="a-day" type="number" min={1} max={30} value={cfg.fav.perDay} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, perDay: num(e.target.value, 1, 30, 15) } }))} />
               </Field>
             </div>
-            <Field label={t('auto.fav.template')} htmlFor="a-tpl">
-              <textarea id="a-tpl" className="input" rows={3} style={{ height: 'auto', resize: 'vertical' }} value={cfg.fav.template} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, template: e.target.value } }))} />
-            </Field>
-            <Field label={t('auto.fav.templateNoOffer')} htmlFor="a-tpl2">
-              <textarea id="a-tpl2" className="input" rows={3} style={{ height: 'auto', resize: 'vertical' }} value={cfg.fav.templateNoOffer} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, templateNoOffer: e.target.value } }))} />
-            </Field>
-            <p className="t-small t-faint">{t('auto.vars')}</p>
+            {cfg.fav.mode !== 'OFFER' && (
+              <>
+                <MessagePicker offer value={cfg.fav.templates} onChange={(v) => set((c) => ({ ...c, fav: { ...c.fav, templates: v } }))} example={example} />
+                <MessagePicker offer={false} value={cfg.fav.templatesNoOffer} onChange={(v) => set((c) => ({ ...c, fav: { ...c.fav, templatesNoOffer: v } }))} example={example} />
+                <p className="t-small t-faint">{t('auto.vars')}</p>
+              </>
+            )}
             {runButtons('FAV', cfg.fav.enabled)}
           </div>
         </Card>

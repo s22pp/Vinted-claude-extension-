@@ -76,7 +76,8 @@ export type EraMessage =
   | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
   | { type: 'era:auto:schedule' }
   | { type: 'era:draft:create'; input: DraftInput }
-  | { type: 'era:label:get'; conversationId: string; title: string }
+  | { type: 'era:label:get'; conversationId: string; title: string; soldAt: number }
+  | { type: 'era:label:all' }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
   | { type: 'era:repost:create'; itemId: string }
@@ -136,7 +137,16 @@ export type DraftResult =
   | { ok: true; draftId: string; filled: string[]; missing: string[] }
   | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
-export type LabelResult = { ok: true; url: string; ordered: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+/** `file`: where the PDF was saved (downloads folder), null when saving failed (`saveError` says why). */
+export type LabelResult =
+  | { ok: true; url: string; ordered: boolean; file: string | null; saveError?: string }
+  | { ok: false; code: MarketplaceErrorCode; detail?: string };
+/** Every order waiting for the seller, one after the other; `stopped`: why the rest was not attempted. */
+export interface LabelBatchResult {
+  results: ({ saleId: string; title: string } & LabelResult)[];
+  stopped: string | null;
+  left: number;
+}
 export type HideResult = { ok: true; verified: boolean | null } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 /** A repost prepared as a draft copy: photos uploaded again, never published by ERA. */
