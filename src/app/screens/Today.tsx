@@ -9,6 +9,7 @@ import { Button, Card, Delta, EmptyState, MetricFootPartial, MetricValue, Money,
 import { ActivationProgress, ACTIVATION_STEPS, ItemCell, RecoChip, RecommendationCard } from '../components/domain';
 import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
+import { DailyRun } from '../components/daily-run';
 import { useBulkAnalyze } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { PageHead } from '../Shell';
@@ -181,6 +182,8 @@ export function Today() {
         </section>
 
         <GoalCard />
+
+        <DailyRun />
 
         <section aria-labelledby="prio-h">
           <div className="row-between" style={{ marginBottom: 10 }}>

@@ -1,12 +1,12 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import type { AutoRunResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
-import { getAllLabels, getShippingLabel, setListingHidden } from '@/data/vinted-actions';
+import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } from '@/data/vinted-actions';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -129,6 +129,13 @@ export default defineBackground(() => {
           return undefined;
         }
         void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title, msg.soldAt) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
+        return true;
+      case 'era:details:read':
+        if (autoRunning || importing || editing || reposting || labelling) {
+          sendResponse({ read: 0, stopped: 'une autre opération Vinted est en cours' } satisfies DetailsResult);
+          return undefined;
+        }
+        void readListingDetails(msg.ids).then(sendResponse);
         return true;
       case 'era:label:all':
         if (autoRunning || importing || editing || reposting || labelling) {

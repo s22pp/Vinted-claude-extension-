@@ -43,3 +43,38 @@ export function labelFileName(title: string, soldAt: number): string {
       .replace(/-+$/, '') || 'commande';
   return `${LABEL_FOLDER}/${day}_${slug}.pdf`;
 }
+
+/* ── Parcels on their way ───────────────────────────────── */
+
+export type ParcelState = 'SHIPPED' | 'DELIVERED';
+
+export interface ParcelAlert {
+  saleId: string;
+  state: ParcelState;
+  /** Days in this state: since ERA saw the status appear, else since the sale (a lower bound). */
+  days: number;
+  since: 'STATUS' | 'SALE';
+}
+
+/**
+ * Sales whose parcel seems stuck, read from Vinted's own status words (UNVERIFIED wording): sent and still not
+ * delivered after `shippedDays`, delivered and still not completed after `deliveredDays`.
+ */
+export function parcelAlerts(
+  sales: readonly { id: string; status: string; soldAt: number; vintedStatus?: string | null; vintedStatusSince?: number | null; needsAction?: boolean }[],
+  now: number,
+  o = { shippedDays: 7, deliveredDays: 3 },
+): ParcelAlert[] {
+  const out: ParcelAlert[] = [];
+  for (const s of sales) {
+    if (s.status === 'REFUNDED' || s.needsAction || !s.vintedStatus) continue;
+    const st = s.vintedStatus.toLowerCase();
+    if (/termin|complet|finalis|annul|rembours/.test(st)) continue;
+    const state: ParcelState | null = /livr|delivered|récupér|recuper/.test(st) ? 'DELIVERED' : /envoy|expédi|expedi|en route|transit|shipped|en cours de livraison|déposé|depose/.test(st) ? 'SHIPPED' : null;
+    if (!state) continue;
+    const from = s.vintedStatusSince ?? s.soldAt;
+    const days = Math.floor((now - from) / 86_400_000);
+    if (days >= (state === 'SHIPPED' ? o.shippedDays : o.deliveredDays)) out.push({ saleId: s.id, state, days, since: s.vintedStatusSince ? 'STATUS' : 'SALE' });
+  }
+  return out.sort((a, b) => b.days - a.days);
+}

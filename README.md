@@ -62,6 +62,7 @@ src/ui             design system : tokens, composants, graphiques SVG, illustrat
 - Modifier le prix d'une annonce depuis la fiche article : **EXPERIMENTAL**, un article à la fois, après confirmation explicite.
 - **Automatisations (EXPERIMENTAL, désactivées par défaut)** — Outils → Automatisations :
   - *Favoris → message et offre* : à un nouveau favori, un message et (si le coût d'achat est connu) une offre, jamais sous coût + marge. **Messages au choix** : une dizaine de messages naturels (tutoiement ou vouvoiement) qui parlent de « la veste Ralph Lauren » plutôt que du titre complet (taille, référence ERA) ; aperçu sur une de vos annonces ; vos propres messages en plus. Plusieurs cochés = chaque membre en reçoit un (toujours le même pour un favori donné) ;
+  - *Offre groupée* : un membre met **plusieurs** de vos articles en favori → **un seul** message pour le lot (« la veste Ralph Lauren et le pull Lacoste »), avec un prix de lot (remise réglable, 15 % par défaut) jamais sous la somme de vos planchers ; un coût inconnu → aucun prix promis ;
   - *Offres reçues* : acceptée au-dessus d'un seuil, une contre-offre entre deux, refusée en dessous — jamais sous le plancher.
   - Écritures limitées à une **liste blanche** de routes (conversation, message, offre, réponse à une offre ; plus, sur votre clic seulement : brouillon, bordereau, masquer, suppression d'une ancienne annonce republiée, envoi d'une photo pour une copie) ; 12 s minimum entre deux envois, 40 par jour, 5 par passage ; tout reste dans le budget de lecture ; 403/429, déconnexion ou budget épuisé = arrêt immédiat.
   - « Simuler » ne fait que lire ; chaque action (ou simulation) est écrite dans un **journal**. La planification ne tourne qu'avec un onglet vinted.fr déjà ouvert.
@@ -140,6 +141,18 @@ Aujourd'hui → **« coûts d'achat manquent »** ouvre la saisie rapide : les a
 ## Dossier d'envoi (litige)
 
 Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi »** : une page imprimable (PDF) avec l'article tel que décrit (état, défauts, mesures), l'annonce, la vente, la conversation Vinted, le **contrôle avant envoi avec l'heure de chaque coche** (« non coché » sinon) et l'historique de l'annonce. Seulement ce qu'ERA a enregistré ; les photos restent sur Vinted et votre téléphone.
+
+## Tournée du jour
+
+Aujourd'hui → **Tournée du jour** : tout ce qui vous attend, dans une seule file, **une tâche à la fois avec son bouton sur place** — colis à envoyer (bordereau, contrôle, dossier), colis à surveiller, ventes réservées à enregistrer, coûts inconnus (achat Vinted en un clic), conseils d'ERA (prix à appliquer sur Vinted, republication sans perte), fiches à mettre en ligne. « Passer » met une tâche de côté pour la session ; une tâche faite sort de la file toute seule.
+
+## Qualité des annonces
+
+Stock → **Qualité des annonces** : chaque annonce en ligne, classée par ce qui la freine × l'argent qui attend dessus — moins de 5 photos, étiquettes absentes, titre bloquant, description trop courte, aucune mesure pour un vêtement, prix au-dessus de la médiane, peu de vues, favoris sans vente. Le nombre de photos vient de la garde-robe (aucun appel en plus) ; les descriptions que la garde-robe ne renvoie pas se lisent à la demande (10 annonces au plus, dans le budget). Ce qui n'a pas été lu est signalé « non lu », jamais compté comme vide. Les seuils sont les règles de travail d'ERA, pas celles de Vinted.
+
+## Colis à surveiller
+
+Ventes → **Colis à surveiller** : un colis envoyé depuis plus de 7 jours et pas livré, ou livré depuis plus de 3 jours et pas finalisé, d'après le statut texte de vos commandes Vinted (formulation **NON VÉRIFIÉE**). La durée compte depuis le changement de statut vu par ERA, sinon depuis la vente (« au moins »). Lien vers la conversation et le dossier d'envoi.
 
 ## Analyse de prix : quand la recherche ne trouve rien
 

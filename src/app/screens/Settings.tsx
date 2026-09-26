@@ -289,7 +289,7 @@ function IntegrationsCard() {
       label: done('LABEL'),
       hide: done('HIDE', 'UNHIDE'),
       repost: done('REPOST', 'DELETE'),
-      auto: done('FAV_MESSAGE', 'FAV_OFFER', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'),
+      auto: done('FAV_MESSAGE', 'FAV_OFFER', 'FAV_BUNDLE', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'),
     };
   }, []);
   const rows: { key: string; n: number | null; flag?: 'EXPERIMENTAL' | 'UNVERIFIED' }[] = ev

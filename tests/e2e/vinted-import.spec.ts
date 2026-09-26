@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -53,7 +53,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
     // Test fixture only: a new favourite (member 555 on item 101, an hour ago), as the notifications feed shows it.
     if (url.pathname === '/web/api/notifications/notifications') {
       record();
-      return json({ code: 0, notifications: [{ entry_type: 20, link: 'vintedfr://member?id=555', subject_id: 101, updated_at: new Date(Date.now() - 3_600_000).toISOString() }] });
+      const fav = (subject: number) => ({ entry_type: 20, link: 'vintedfr://member?id=555', subject_id: subject, updated_at: new Date(Date.now() - 3_600_000).toISOString() });
+      return json({ code: 0, notifications: opts.bundleFavs ? [fav(101), fav(102)] : [fav(101)] });
     }
     // Test fixture only: pages carry a CSRF token like Vinted's, which API calls must echo.
     if (!url.pathname.startsWith('/api/')) return route.fulfill({ contentType: 'text/html', body: '<html><head><meta name="csrf-token" content="t-123"></head><body>vinted</body></html>' });
@@ -133,7 +134,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; ex
       state.hidden101 = JSON.parse(route.request().postData() ?? '{}').is_hidden === true;
       return json({});
     }
-    if (url.pathname === '/api/v2/item_upload/items/101') return json({ item: { id: 101, price: prices['101'], is_hidden: state.hidden101 } });
+    if (url.pathname === '/api/v2/item_upload/items/101')
+      return json({ item: { id: 101, title: 'Veste Harrington Ralph Lauren M', description: 'Veste Harrington, bon état.', photos: [{ full_size_url: 'https://images1.vinted.net/t/101/1.jpeg' }, { full_size_url: 'https://images1.vinted.net/t/101/2.jpeg' }], price: prices['101'], is_hidden: state.hidden101 } });
     // Test fixture only: the sold Carhartt's own upload data (Vinted's ids for that kind of article).
     if (url.pathname === '/api/v2/item_upload/items/103') return json({ item: { id: 103, title: 'Veste Carhartt Detroit M', catalog_id: 2551, brand_id: 362, brand: 'Carhartt', size_id: 208, status_id: 2, package_size_id: 2, price: '80.0' } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
@@ -746,4 +748,61 @@ test('dispute file: the article as described, the checks ticked with their time,
   await expect(dossier).toContainText('https://www.vinted.fr/inbox/9200');
   await expect(dossier.locator('li', { hasText: 'Photo de l’article avant emballage' })).toContainText('coché le');
   await expect(dossier.locator('li', { hasText: 'Conforme aux photos et à la description' })).toContainText('non coché');
+});
+
+test('listing quality: what holds each listing back, from what Vinted shows; descriptions read on demand', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/quality`);
+  const table = page.getByTestId('quality');
+  const row = table.locator('tr', { hasText: 'Veste Harrington Ralph Lauren M' });
+  // One photo in the wardrobe; the description is not returned there: said, not assumed.
+  await expect(row).toContainText('seulement 1 photos');
+  await expect(row).toContainText('non lu : description');
+  await page.getByRole('button', { name: /Lire \d+ descriptions? sur Vinted/ }).click();
+  await expect(page.getByText(/annonces? lues?/).first()).toBeVisible({ timeout: 40_000 });
+  await expect(row).toContainText('description très courte');
+  await expect(row).toContainText('aucune mesure à plat');
+  await expect(row).not.toContainText('non lu : description');
+});
+
+test('bundle offer: one member favourites two listings — one message for both, nothing else', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true, bundleFavs: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  await page.getByLabel('Activer pour les nouveaux favoris').check();
+  await expect(page.getByLabel('Offre groupée quand un membre met plusieurs de vos articles en favori')).toBeChecked();
+  await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
+  const writes = () => calls.filter((c) => c.method !== 'GET');
+  await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
+  expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
+  // Costs unknown: the bundle is proposed without a promised price.
+  expect(JSON.parse(writes()[1]!.body!).reply.body).toBe('Hello ! J’ai vu tes favoris sur la veste Ralph Lauren et le jean Levi’s 🙂 Si tu les prends ensemble en lot, je te fais un prix : dis-moi !');
+  await expect(page.getByTestId('auto-log')).toContainText('Offre groupée');
+});
+
+test('parcels to watch: a parcel sent long ago and still not delivered is flagged, with its conversation', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-10', status: 'Colis envoyé', item_id: 104, conversation_id: 9200 }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales`);
+  const card = page.getByTestId('parcels');
+  await expect(card).toContainText('Sweat Nike vintage L');
+  await expect(card).toContainText(/en route depuis \d+ j/);
+  await expect(card).toContainText('au moins');
+  // The finished Carhartt order is not flagged.
+  await expect(card).not.toContainText('Carhartt');
+  await page.goto(`${base}#/today`);
+  await expect(page.getByTestId('daily-run')).toContainText('Colis à surveiller');
 });

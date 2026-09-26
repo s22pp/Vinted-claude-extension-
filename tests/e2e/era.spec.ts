@@ -225,6 +225,8 @@ test('a lot bought at once: one line per article, the price split to the cent, e
   // First run: skip the onboarding (no demo), then open the lot form.
   await page.goto(`${base}#/onboarding`);
   await page.getByRole('button', { name: 'Passer' }).click();
+  // The app leaves the onboarding by itself: wait for it, or it would navigate away from the form.
+  await expect(page).not.toHaveURL(/onboarding/);
   await page.goto(`${base}#/stock?lot=1`);
   await page.getByLabel('Articles (une ligne chacun)').fill('Chemise Pierre Cardin L très bon état\nPull Lacoste M\nJean Levi’s 501 W32');
   await page.getByLabel('Prix payé pour le lot').fill('20');
@@ -239,4 +241,21 @@ test('a lot bought at once: one line per article, the price split to the cent, e
   await page.getByRole('button', { name: 'Créer 3 fiches' }).click();
   await expect(page).toHaveURL(/#\/workshop\/item_/);
   await expect(page.locator('.wq__row')).toHaveCount(3);
+});
+
+test('daily run: one task at a time with its action; skipping moves on and can be undone', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  const run = page.getByTestId('daily-run');
+  await expect(run).toBeVisible();
+  const item = run.getByTestId('run-item');
+  const first = await item.innerText();
+  const total = Number(await run.getByTestId('run-pos').getAttribute('data-n'));
+  expect(total).toBeGreaterThan(1);
+  await run.getByRole('button', { name: 'Passer' }).click();
+  await expect(run.getByTestId('run-pos')).toHaveAttribute('data-n', String(total - 1));
+  await expect(item).not.toHaveText(first);
+  await page.getByRole('button', { name: 'Reprendre la tâche passée' }).click();
+  await expect(item).toHaveText(first);
 });

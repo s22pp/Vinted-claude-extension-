@@ -96,3 +96,16 @@ export function pickMessage(list: readonly string[], key: string): string | null
   for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
   return usable[(h >>> 0) % usable.length]!;
 }
+
+/** "la veste Ralph Lauren et le pull Lacoste", "a, b et c". */
+export function articleList(items: readonly { title: string; brand: string | null }[]): string {
+  const names = items.map((i) => articleOf(i.title, i.brand));
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}`;
+}
+
+/** One message for a member who favourited several of your articles: the bundle, in their words. */
+export const BUNDLE_WITH_PRICE = [
+  'Hello ! J’ai vu tes favoris sur {articles} 🙂 Si tu les prends ensemble en lot, je te fais {prix_lot} au lieu de {prix_total}.',
+  'Salut ! Tu as mis {n} de mes articles en favori : {articles}. Ensemble, je te les laisse à {prix_lot} au lieu de {prix_total}, fais-moi un lot !',
+];
+export const BUNDLE_NO_PRICE = ['Hello ! J’ai vu tes favoris sur {articles} 🙂 Si tu les prends ensemble en lot, je te fais un prix : dis-moi !'];

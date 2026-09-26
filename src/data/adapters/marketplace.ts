@@ -36,6 +36,10 @@ export interface InventorySnapshotItem {
   status: SnapshotStatus;
   /** false when the marketplace response carried no reservation flag: "not reserved" is then unknown. */
   reservedKnown: boolean;
+  /** Photos on the listing (the wardrobe's `photos` array), null when absent. */
+  photoCount?: number | null;
+  /** The description when the wardrobe returns it, else null (not read, never "empty"). */
+  description?: string | null;
 }
 
 export interface ListingObservationSnapshot {

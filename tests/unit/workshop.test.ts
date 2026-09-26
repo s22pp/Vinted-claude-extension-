@@ -197,3 +197,18 @@ describe('relist a similar article', () => {
     expect(await db.listings.where('inventoryItemId').anyOf(ids).count()).toBe(0);
   });
 });
+
+describe('listing quality', () => {
+  it('flags only what was read, and ranks by what there is to gain', async () => {
+    const { listingQuality } = await import('@/intelligence/listing-quality');
+    const base = { analysis: null, analysisStale: false, pricing: null, stagnation: null, personal: null, trap: null, lastDrop: null, priceSeenDays: null, lastRepost: null, recommendation: null } as never;
+    const view = (over: object) => ({ item: item('q', { title: 'Veste Carhartt M', brand: 'Carhartt', category: 'JACKET' }), inStock: true, current: { id: 'l', platformListingId: '9', title: 'Veste Carhartt Detroit M', priceCents: 8000, photoCount: null, description: null, ...over } }) as never;
+    const unread = listingQuality({ ...(base as object), view: view({}) } as never)!;
+    expect(unread.issues).toEqual([]);
+    expect(unread.unread).toEqual(['photos', 'description']);
+    const bad = listingQuality({ ...(base as object), view: view({ photoCount: 2, description: 'Bon état.' }) } as never)!;
+    expect(bad.issues.map((i) => i.code)).toEqual(['FEW_PHOTOS', 'SHORT_DESC', 'NO_MEASURES']);
+    const good = listingQuality({ ...(base as object), view: view({ photoCount: 8, description: 'Veste Carhartt Detroit, très bon état, aucun défaut. Mesures à plat : aisselle à aisselle 58 cm, longueur 70 cm. 100 % coton.' }) } as never)!;
+    expect(good.issues).toEqual([]);
+  });
+});

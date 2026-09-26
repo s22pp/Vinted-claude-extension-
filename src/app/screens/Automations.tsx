@@ -133,6 +133,19 @@ export function Automations() {
               </Field>
             </div>
             {cfg.fav.mode !== 'OFFER' && (
+              <div className="stack" style={{ gap: 6 }}>
+                {check('a-bundle', cfg.fav.bundle, (v) => set((c) => ({ ...c, fav: { ...c.fav, bundle: v } })), t('auto.fav.bundle'))}
+                {cfg.fav.bundle && (
+                  <div className="row" style={{ gap: 8, paddingLeft: 28 }}>
+                    <Field label={t('auto.fav.bundlePct')} htmlFor="a-bpct">
+                      <Input id="a-bpct" type="number" min={1} max={50} value={cfg.fav.bundlePct} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, bundlePct: num(e.target.value, 1, 50, 15) } }))} style={{ width: 90 }} />
+                    </Field>
+                    <p className="t-small t-faint grow">{t('auto.fav.bundleHint')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {cfg.fav.mode !== 'OFFER' && (
               <>
                 <MessagePicker offer value={cfg.fav.templates} onChange={(v) => set((c) => ({ ...c, fav: { ...c.fav, templates: v } }))} example={example} />
                 <MessagePicker offer={false} value={cfg.fav.templatesNoOffer} onChange={(v) => set((c) => ({ ...c, fav: { ...c.fav, templatesNoOffer: v } }))} example={example} />

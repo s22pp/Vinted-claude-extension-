@@ -1,6 +1,7 @@
 import { labelFileName } from '@/intelligence/shipping';
+import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, type MarketplaceErrorCode, errorInfo } from './adapters/marketplace';
-import type { HideResult, LabelBatchResult, LabelResult } from './adapters/vinted/protocol';
+import type { DetailsResult, HideResult, LabelBatchResult, LabelResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db, uid } from './db';
 import { vintedWrite, waitAlive } from './vinted-write';
@@ -133,4 +134,26 @@ export async function getAllLabels(): Promise<LabelBatchResult> {
     if (!r.ok && HALT.has(r.code)) return { results, stopped: r.detail ?? r.code, left: sales.length - i - 1 };
   }
   return { results, stopped: null, left: 0 };
+}
+
+/**
+ * Read up to 10 of MY listings in full (their upload data, the route already used for drafts), to see their
+ * description and photo count when the wardrobe did not return them. Stops at the first block.
+ */
+export async function readListingDetails(ids: readonly string[]): Promise<DetailsResult> {
+  const adapter = new VintedTabAdapter();
+  let read = 0;
+  for (const id of ids.slice(0, 10)) {
+    try {
+      const src = repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${id}`));
+      if (!src) continue;
+      const description = typeof src.fields.description === 'string' ? src.fields.description : null;
+      await db.listings.filter((l) => l.platformListingId === id).modify({ description, photoCount: src.photoUrls.length });
+      read++;
+    } catch (e) {
+      const { code, detail } = errorInfo(e);
+      if (HALT.has(code)) return { read, stopped: detail ?? code };
+    }
+  }
+  return { read, stopped: null };
 }

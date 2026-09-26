@@ -24,6 +24,10 @@ export interface AutoConfig {
     templatesNoOffer: string[];
     /** % off the listed price for the offer sent to a new favourite. */
     discountPct: number;
+    /** Several of your articles favourited by one member: one message proposing the bundle (off = one each). */
+    bundle: boolean;
+    /** % off the bundle's total, never under the sum of the floors. */
+    bundlePct: number;
     /** A favourite this recent is left alone (the buyer may still be browsing). */
     minDelayMin: number;
     perDay: number;
@@ -51,6 +55,8 @@ export const DEFAULT_AUTO: AutoConfig = {
     templates: DEFAULT_FAV_OFFER,
     templatesNoOffer: DEFAULT_FAV_NO_OFFER,
     discountPct: 10,
+    bundle: true,
+    bundlePct: 15,
     minDelayMin: 15,
     perDay: 15,
   },
@@ -240,4 +246,47 @@ export function fillTemplate(template: string, v: { pseudo: string | null; titre
     .replace(/^\s*[,.]\s*/, '')
     .replace(/(^|[.!?]\s+)(\p{Ll})/gu, (_m, a: string, b: string) => a + b.toUpperCase())
     .trim();
+}
+
+/* ── Bundles ────────────────────────────────────────────── */
+
+export interface BundlePlan {
+  userId: string;
+  notices: FavoriteNotice[];
+  itemIds: string[];
+  totalCents: number;
+  /** null: a floor is unknown (a cost is missing) or the floors reach the total — no price is promised. */
+  bundleCents: number | null;
+}
+
+/**
+ * Members who favourited 2 articles or more (each one sendable now): one bundle each. The price is the total
+ * minus `bundlePct`, never under the sum of the floors; unknown if any article's cost is unknown.
+ */
+export function planBundles(notices: readonly FavoriteNotice[], items: ReadonlyMap<string, FavItem>, cfg: AutoConfig, ctx: { seen: ReadonlySet<string>; sentToday: number; now: number }): BundlePlan[] {
+  if (!cfg.fav.bundle || cfg.fav.mode === 'OFFER') return [];
+  const byUser = new Map<string, FavoriteNotice[]>();
+  for (const n of notices) {
+    const p = planFavorite(n, items.get(n.itemId) ?? null, cfg, { ...ctx, sentToday: 0 });
+    if (!p.send || !items.has(n.itemId)) continue;
+    const list = byUser.get(n.userId) ?? [];
+    if (!list.some((x) => x.itemId === n.itemId)) list.push(n);
+    byUser.set(n.userId, list);
+  }
+  const out: BundlePlan[] = [];
+  for (const [userId, list] of byUser) {
+    if (list.length < 2) continue;
+    const its = list.map((n) => items.get(n.itemId)!);
+    const total = its.reduce((a, i) => a + i.priceCents, 0);
+    const floors = its.map((i) => floorFor(i.costCents, cfg));
+    const floor = floors.every((f): f is number => f !== null) ? floors.reduce((a, b) => a + b, 0) : null;
+    const target = floor === null ? null : Math.max(ceilEuro(total * (1 - cfg.fav.bundlePct / 100)), ceilEuro(floor));
+    out.push({ userId, notices: list, itemIds: list.map((n) => n.itemId), totalCents: total, bundleCents: target !== null && target < total ? target : null });
+  }
+  return out;
+}
+
+/** {articles} {n} {prix_lot} {prix_total}. */
+export function fillBundle(template: string, v: { articles: string; n: number; lot: number | null; total: number }): string {
+  return fillTemplate(template.replaceAll('{articles}', v.articles).replaceAll('{n}', String(v.n)).replaceAll('{prix_lot}', eur(v.lot)).replaceAll('{prix_total}', eur(v.total)), { pseudo: null, titre: '', prix: null, prixOffre: null });
 }

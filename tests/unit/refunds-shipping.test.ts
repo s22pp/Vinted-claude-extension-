@@ -20,3 +20,28 @@ describe('label files', () => {
     expect(labelFileName('a'.repeat(200), at).length).toBeLessThanOrEqual('ERA-bordereaux/2026-09-20_'.length + 60 + 4);
   });
 });
+
+describe('parcels to watch', () => {
+  const now = Date.UTC(2026, 8, 26);
+  const day = 86_400_000;
+  it('sent and not delivered after a week, delivered and not completed after 3 days — from Vinted’s words', async () => {
+    const { parcelAlerts } = await import('@/intelligence/shipping');
+    const s = (id: string, vintedStatus: string, soldDaysAgo: number, sinceDaysAgo: number | null = null, extra = {}) => ({ id, status: 'COMPLETED', soldAt: now - soldDaysAgo * day, vintedStatus, vintedStatusSince: sinceDaysAgo === null ? null : now - sinceDaysAgo * day, ...extra });
+    const a = parcelAlerts(
+      [
+        s('a', 'Colis envoyé', 10),
+        s('b', 'Colis envoyé', 3),
+        s('c', 'Livré', 9, 4),
+        s('d', 'Livré', 9, 1),
+        s('e', 'Terminée', 30),
+        s('f', 'Envoi à préparer', 20, null, { needsAction: true }),
+        s('g', 'Colis envoyé', 20, null, { status: 'REFUNDED' }),
+      ],
+      now,
+    );
+    expect(a.map((x) => [x.saleId, x.state, x.days, x.since])).toEqual([
+      ['a', 'SHIPPED', 10, 'SALE'],
+      ['c', 'DELIVERED', 4, 'STATUS'],
+    ]);
+  });
+});

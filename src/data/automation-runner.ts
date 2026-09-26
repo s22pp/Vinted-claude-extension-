@@ -1,5 +1,5 @@
-import { type AutoConfig, type FavItem, decideOffer, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planFavorite, withDefaults } from '@/intelligence/automation';
-import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
+import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
+import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import { currentUserId, priceCents } from './adapters/vinted/parse';
 import type { AutoRunResult } from './adapters/vinted/protocol';
@@ -82,6 +82,47 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
     const notices = parseFavoriteNotifications(await adapter.rawGet('/web/api/notifications/notifications?page=1&per_page=50'));
     const items = await itemsByVintedId();
     let sentToday = await favToday(now);
+    // Several of your articles favourited by one member: one message for the bundle, not one per article.
+    for (const b of planBundles(notices, items, cfg, { seen, sentToday, now })) {
+      if (out.done >= PER_RUN || sentToday >= cfg.fav.perDay) break;
+      const its = b.itemIds.map((id) => items.get(id)!);
+      const articles = articleList(its.map((i) => ({ title: i.title, brand: i.brand ?? null })));
+      const tpl = pickMessage(b.bundleCents === null ? BUNDLE_NO_PRICE : BUNDLE_WITH_PRICE, b.userId)!;
+      const text = fillBundle(tpl, { articles, n: its.length, lot: b.bundleCents, total: b.totalCents });
+      const target = `${its.map((i) => i.title).join(' + ')} → membre ${b.userId}`;
+      if (dryRun) {
+        await log({ kind: 'FAV_BUNDLE', dryRun, ok: true, target, detail: `lot de ${its.length} : « ${text} »` });
+        for (const n of b.notices) seen.add(n.key);
+        out.done++;
+        continue;
+      }
+      try {
+        const conv = obj(obj(await write('POST', '/api/v2/conversations', { initiator: 'seller_enters_notification', item_id: Number(b.itemIds[0]), opposite_user_id: Number(b.userId) })).conversation);
+        const convId = idOf(conv.id);
+        if (!convId) throw new MarketplaceError('UNAVAILABLE', 'conversation sans identifiant');
+        const detail = obj(obj(await adapter.rawGet(`/api/v2/conversations/${convId}`)).conversation);
+        for (const n of b.notices) seen.add(n.key);
+        if (Array.isArray(detail.messages) && detail.messages.length > 0) {
+          out.skipped++;
+          await log({ kind: 'SKIP', dryRun, ok: true, target, detail: 'conversation déjà engagée : rien envoyé' });
+          continue;
+        }
+        await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
+        await log({ kind: 'FAV_BUNDLE', dryRun, ok: true, target, detail: `« ${text} »` });
+        sentToday++;
+        await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
+        out.done++;
+      } catch (e) {
+        out.failed++;
+        const { code, detail } = errorInfo(e);
+        await log({ kind: 'FAV_BUNDLE', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        const stop = stopReason(e);
+        if (stop) {
+          out.stopped = stop;
+          break;
+        }
+      }
+    }
     for (const n of notices) {
       if (out.done >= PER_RUN) break;
       const item = items.get(n.itemId) ?? null;

@@ -89,6 +89,9 @@ export const ListingSchema = z.object({
    * saw the listing, a bound, never a date to compute selling speed from. Missing on older imported rows.
    */
   listedAtKnown: z.boolean().optional(),
+  /** What the listing shows, as Vinted returned it (absent = not read): photo count, description. */
+  photoCount: z.number().int().nonnegative().nullable().optional(),
+  description: z.string().nullable().optional(),
   removedAt: ts.nullable(),
   soldAt: ts.nullable(),
   status: ListingStatusSchema,
@@ -126,6 +129,8 @@ export const SaleSchema = z.object({
   refundReason: z.enum(['SIZE', 'DEFECT', 'CONDITION', 'DESCRIPTION', 'AUTHENTICITY', 'SHIPPING', 'BUYER', 'OTHER']).nullable().optional(),
   /** Order status text as Vinted shows it, refreshed at each import (UNVERIFIED field). */
   vintedStatus: z.string().nullable().optional(),
+  /** When ERA first saw the current Vinted status (a change of status restarts it); absent = not seen change. */
+  vintedStatusSince: z.number().nullable().optional(),
   /** Vinted waits for the seller (e.g. to ship): `transaction_user_status: "needs_action"` (UNVERIFIED field). */
   needsAction: z.boolean().optional(),
   /** The Vinted order this sale came from (listing id, else title|date|price): re-imports update, never duplicate. */

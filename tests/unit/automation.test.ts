@@ -110,3 +110,38 @@ describe('favourite messages that read like a person', () => {
     expect(withDefaults(null).fav.templatesNoOffer).toEqual(DEFAULT_FAV_NO_OFFER);
   });
 });
+
+describe('bundle offer to a member who favourited several articles', () => {
+  const now = Date.UTC(2026, 8, 26, 12);
+  const n = (userId: string, itemId: string, minsAgo = 60) => ({ key: `${userId}:${itemId}`, userId, itemId, at: now - minsAgo * 60_000 });
+  const items = new Map([
+    ['1', { title: 'Veste Harrington Ralph Lauren M', priceCents: 5900, costCents: 1800, brand: 'Ralph Lauren' }],
+    ['2', { title: 'Pull Lacoste M', priceCents: 3000, costCents: 800, brand: 'Lacoste' }],
+    ['3', { title: 'Jean Levi’s 501', priceCents: 2500, costCents: null, brand: 'Levi’s' }],
+  ]);
+  const ctx = { seen: new Set<string>(), sentToday: 0, now };
+  it('one bundle per member with 2+ favourites; the price never under the sum of the floors', async () => {
+    const { planBundles } = await import('@/intelligence/automation');
+    const b = planBundles([n('9', '1'), n('9', '2'), n('8', '1')], items, cfg, ctx);
+    expect(b).toHaveLength(1);
+    // 89 € − 15 % = 75,65 → 76 €; floors 21 + 11 = 32 €.
+    expect(b[0]).toMatchObject({ userId: '9', itemIds: ['1', '2'], totalCents: 8900, bundleCents: 7600 });
+    const tight = planBundles([n('9', '1'), n('9', '2')], items, { ...cfg, minMarginCents: 3500 }, ctx);
+    // Floors 53 + 43 = 96 € ≥ 89 €: no price is promised.
+    expect(tight[0]!.bundleCents).toBeNull();
+    // A cost unknown: no price either.
+    expect(planBundles([n('9', '1'), n('9', '3')], items, cfg, ctx)[0]!.bundleCents).toBeNull();
+    // Too recent, seen, switched off: no bundle.
+    expect(planBundles([n('9', '1', 5), n('9', '2', 5)], items, cfg, ctx)).toEqual([]);
+    expect(planBundles([n('9', '1'), n('9', '2')], items, { ...cfg, fav: { ...cfg.fav, bundle: false } }, ctx)).toEqual([]);
+  });
+  it('names the articles the way people say it', async () => {
+    const { fillBundle } = await import('@/intelligence/automation');
+    const { BUNDLE_WITH_PRICE, articleList } = await import('@/intelligence/fav-messages');
+    const articles = articleList([...items.values()].slice(0, 2));
+    expect(articles).toBe('la veste Ralph Lauren et le pull Lacoste');
+    expect(fillBundle(BUNDLE_WITH_PRICE[0]!, { articles, n: 2, lot: 7600, total: 8900 })).toBe(
+      'Hello ! J’ai vu tes favoris sur la veste Ralph Lauren et le pull Lacoste 🙂 Si tu les prends ensemble en lot, je te fais 76 € au lieu de 89 €.',
+    );
+  });
+});

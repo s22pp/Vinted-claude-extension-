@@ -19,6 +19,7 @@ const Invoice = lazy(() => import('./screens/Invoice').then((m) => ({ default: m
 const Dossier = lazy(() => import('./screens/Dossier').then((m) => ({ default: m.Dossier })));
 const Workshop = lazy(() => import('./screens/Workshop').then((m) => ({ default: m.Workshop })));
 const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
+const Quality = lazy(() => import('./screens/Quality').then((m) => ({ default: m.Quality })));
 const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
 const Automations = lazy(() => import('./screens/Automations').then((m) => ({ default: m.Automations })));
 
@@ -51,7 +52,12 @@ function Router() {
   const onboardingDone = useLiveQuery(() => repo.getSetting('onboardingDone', false), []);
   useEffect(() => {
     // First run: nothing imported and onboarding never finished → onboarding. Never shows fake data by default.
-    if (era.ready && era.mode === 'empty' && onboardingDone === false && route.name !== 'onboarding' && route.name !== 'settings') go('onboarding');
+    // Read the setting again before redirecting: right after "Passer" the live value can still be the old one,
+    // which would send the seller straight back to the onboarding.
+    if (era.ready && era.mode === 'empty' && onboardingDone === false && route.name !== 'onboarding' && route.name !== 'settings')
+      void repo.getSetting('onboardingDone', false).then((done) => {
+        if (!done) go('onboarding');
+      });
   }, [era.ready, era.mode, route.name, onboardingDone]);
 
   if (route.name === 'onboarding')
@@ -87,6 +93,9 @@ function Router() {
       break;
     case 'capital':
       screen = <Capital />;
+      break;
+    case 'quality':
+      screen = <Quality />;
       break;
     case 'item':
       screen = <ItemDetail id={route.id ?? ''} />;

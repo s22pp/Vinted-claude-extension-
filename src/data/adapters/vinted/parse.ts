@@ -91,6 +91,8 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
     listedAt: photo.ts,
     status: closed ? 'SOLD' : it.is_draft === true ? 'DRAFT' : it.is_reserved === true ? 'RESERVED' : hidden ? 'HIDDEN' : 'ACTIVE',
     reservedKnown,
+    photoCount: Array.isArray(it.photos) ? it.photos.length : null,
+    description: typeof it.description === 'string' ? it.description : null,
   };
 }
 

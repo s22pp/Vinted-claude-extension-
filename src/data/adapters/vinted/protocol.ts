@@ -78,6 +78,7 @@ export type EraMessage =
   | { type: 'era:draft:create'; input: DraftInput }
   | { type: 'era:label:get'; conversationId: string; title: string; soldAt: number }
   | { type: 'era:label:all' }
+  | { type: 'era:details:read'; ids: string[] }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
   | { type: 'era:repost:create'; itemId: string }
@@ -169,3 +170,6 @@ export interface PendingRepost {
   /** The old listing's deletion was sent but not confirmed by the read-back. */
   deleteSentAt?: number;
 }
+
+/** Listings read in full (description, photos) for the quality check. */
+export type DetailsResult = { read: number; stopped: string | null };
