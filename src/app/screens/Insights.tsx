@@ -16,6 +16,8 @@ const CONF_TONE = { HIGH: 'emerald', MEDIUM: 'cyan', LOW: 'amber' } as const;
 
 type Tab = 'patterns' | 'you' | 'precision' | 'niches';
 
+import { HourlyCard } from '../components/hourly';
+
 export function Insights({ route }: { route: Route }) {
   const i = useI18n();
   const tab = (['patterns', 'you', 'precision', 'niches'].includes(route.query.get('tab') ?? '') ? route.query.get('tab') : 'patterns') as Tab;
@@ -72,6 +74,7 @@ export function Insights({ route }: { route: Route }) {
         {tab === 'you' && (
           <>
             <YouHighlights />
+            <HourlyCard />
             <MarketVsYou />
           </>
         )}

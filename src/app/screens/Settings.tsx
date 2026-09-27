@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
 import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
-import { type DiagStep, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
+import { ACCOUNT_CHECK_KEY, type AccountCheck, type DiagKey, type DiagStep, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
 import { type DataMode, repo } from '@/data/repo';
 import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
@@ -15,6 +15,7 @@ import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
 import { BackupCard } from '../components/backup';
 import { RefreshSettings } from '../components/refresh-settings';
+import { OverlaySettings } from '../components/overlay-settings';
 import { go, useEra } from '../state';
 
 export function Settings() {
@@ -127,6 +128,7 @@ export function Settings() {
                 <VintedImportButton variant="primary" onDone={() => void budgetStatus().then(setBudget)} />
               </div>
               <RefreshSettings />
+              <OverlaySettings />
             </div>
           </Card>
           <BackupCard />
@@ -218,6 +220,20 @@ function DiagnosticCard() {
         >
           {t('vinted.diagRun')}
         </Button>
+        <Button
+          icon="check"
+          loading={running}
+          onClick={async () => {
+            setRunning(true);
+            setSteps([]);
+            const all = await runVintedDiagnostic((s) => setSteps((xs) => [...xs, s]), true);
+            // What each read gave on THIS account, shown next to each integration.
+            await repo.setSetting(ACCOUNT_CHECK_KEY, { at: Date.now(), steps: all } satisfies AccountCheck);
+            setRunning(false);
+          }}
+        >
+          {t('vinted.checkRun')}
+        </Button>
         {(steps.length > 0 || lastError || journal.length > 0) && (
           <Button
             icon="layers"
@@ -271,7 +287,8 @@ function DiagnosticCard() {
  * Fixture tests prove ERA's logic; they never prove the real Vinted integration.
  */
 function IntegrationsCard() {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const ev = useLiveQuery(async () => {
     const listings = await db.listings.filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '')).count();
     const reserved = await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count();
@@ -311,6 +328,16 @@ function IntegrationsCard() {
         { key: 'auto', n: ev.auto, flag: 'EXPERIMENTAL' },
       ]
     : [];
+  const check = useLiveQuery(() => repo.getSetting<AccountCheck | null>(ACCOUNT_CHECK_KEY, null), []);
+  // Which read of the account check backs each integration.
+  const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'], reserved: ['wardrobe'], search: ['catalog'], purchases: ['purchases'], auto: ['notifications', 'inbox'], draft: ['listing'], repost: ['listing'] };
+  const probed = (key: string) => {
+    if (!check) return null;
+    const got = (PROBES[key] ?? []).map((k) => check.steps.find((x) => x.key === k)).filter((x): x is DiagStep => !!x);
+    if (!got.length) return null;
+    if (key === 'reserved') return { ok: got[0]!.ok && /is_reserved présent/.test(got[0]!.info), info: got[0]!.info };
+    return { ok: got.every((x) => x.ok), info: got.map((x) => x.info).join(' · ') };
+  };
   return (
     <Card title={t('integrations.title')} hint={t('integrations.hint')} icon="lock" tone="pink" id="integrations">
       <div className="integ">
@@ -319,6 +346,14 @@ function IntegrationsCard() {
             <div className="grow">
               <div className="integ__name">{t(`integrations.${r.key}`)}</div>
               <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
+              {(() => {
+                const p = probed(r.key);
+                return p && check ? (
+                  <div className={`t-small ${p.ok ? 't-pos' : 't-warn'}`} title={p.info} style={{ overflowWrap: 'anywhere' }}>
+                    {t(p.ok ? 'integrations.checkOk' : 'integrations.checkFail', { date: i18n.date(check.at) })}
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="integ__status">
               {r.n && r.n > 0 ? (

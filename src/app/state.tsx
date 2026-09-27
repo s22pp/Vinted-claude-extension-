@@ -11,6 +11,8 @@ import { type LearningSummary, summarizeLearning } from '@/intelligence/learning
 import { type ItemView, type SaleView, buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { type SellerModel, buildSellerModel } from '@/intelligence/seller-model';
 import { lastReposts } from '@/intelligence/repost';
+import { OVERLAY_KEY, overlayNiches } from '@/intelligence/overlay';
+import { shoppingList } from '@/intelligence/shopping';
 import { buildSensitivityIndex, lastDrops } from '@/intelligence/sensitivity';
 import { latestAnalyses } from '@/intelligence/market-vs-you';
 import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
@@ -136,6 +138,15 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       decisions: decisions ?? [],
     };
   }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, repostEvents, prepRows]);
+
+  // Your niches for ERA's marks on vinted.fr pages — real data only (demo niches never reach real Vinted pages).
+  useEffect(() => {
+    if (!value.ready) return;
+    const niches = value.mode === 'real' ? overlayNiches(shoppingList(value.model)) : [];
+    // Your own listings never get a mark (on your profile they are not deals for you).
+    const own = value.views.flatMap((v) => v.listings.map((l) => l.platformListingId)).filter((x): x is string => !!x && /^\d+$/.test(x));
+    void browser.storage.local.set({ [OVERLAY_KEY]: niches, eraOwnListings: own }).catch(() => undefined);
+  }, [value.ready, value.mode, value.model, value.views]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

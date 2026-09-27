@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import { type MonthlyGoal, goalProgress } from '@/intelligence/goal';
+import { type MonthlyGoal, goalPlan, goalProgress } from '@/intelligence/goal';
 import { IconTile } from '@/ui/components/icons';
 import { Button, Input, QualityTag, Segmented } from '@/ui/components/primitives';
 import { useMoneyField } from './forms';
@@ -17,6 +17,7 @@ export function GoalCard() {
   if (goal === undefined) return null;
   if (!goal || editing) return <GoalForm initial={goal} onDone={() => setEditing(false)} />;
   const g = goalProgress(goal, era.sales, era.views, era.now);
+  const plan = goalPlan(g, era.views, era.now);
   const waiting = era.workshop.toList.length;
   return (
     <section className="goal" aria-label={t('goal.title')}>
@@ -45,6 +46,40 @@ export function GoalCard() {
         )}
         {g.remainingCents === 0 && <span className="t-pos">{t('goal.reached')}</span>}
       </div>
+      {plan && (
+        <div className="goal__plan" data-testid="goal-plan">
+          <div className="t-caption">{t('goal.planTitle', { amount: goal.cents })}</div>
+          <table className="dt dt--compact">
+            <thead>
+              <tr>
+                <th />
+                <th className="num">{t('goal.planNeed')}</th>
+                <th className="num">{t('goal.planNow')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{t('goal.planSales')}</td>
+                <td className="num">{plan.salesPerMonth}</td>
+                <td className="num">{plan.current.sales30}</td>
+              </tr>
+              <tr>
+                <td>{t('goal.planListed')}</td>
+                <td className="num">{plan.listingsNeeded ?? '—'}</td>
+                <td className="num">{plan.current.listed}</td>
+              </tr>
+              <tr>
+                <td>{t('goal.planWeek')}</td>
+                <td className="num">{plan.perWeek}</td>
+                <td className="num">{plan.current.perWeek}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="t-small t-muted">
+            {plan.factor !== null && plan.factor > 1.2 ? t('goal.planFactor', { x: plan.factor }) : t('goal.planOk')} {t('goal.planCaveat', { per: money(g.perSale!.cents), n: g.perSale!.n })}
+          </p>
+        </div>
+      )}
       {g.salesGap !== null && g.salesGap > 0 && (
         <p className="goal__lever t-small">
           {g.extraListings !== null && g.listingsPerSale

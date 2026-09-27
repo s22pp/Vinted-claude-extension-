@@ -101,3 +101,14 @@ describe('reply templates', () => {
     expect(hasBlanks(c)).toBe(false);
   });
 });
+
+describe('goal plan', () => {
+  it('what the goal takes every month, against today', async () => {
+    const { goalPlan } = await import('@/intelligence/goal');
+    const g = { goal: { kind: 'REVENUE', cents: 200000 }, perSale: { cents: 3300, n: 40 }, listingsPerSale: { n: 6, sales30: 3, listed: 18 }, sales30: 3 } as never;
+    const now = Date.UTC(2026, 8, 27);
+    const views = [{ firstListedAt: now - 3 * 86_400_000 }, { firstListedAt: now - 10 * 86_400_000 }, { firstListedAt: now - 40 * 86_400_000 }] as never;
+    // 2 000 € at 33 € per sale = 61 sales; × 6 listings per sale = 366 online; 61 / (30/7) ≈ 15 a week; today 2 in 30 days.
+    expect(goalPlan(g, views, now)).toEqual({ salesPerMonth: 61, listingsNeeded: 366, perWeek: 15, current: { sales30: 3, listed: 18, perWeek: 0.5 }, factor: 20.3 });
+  });
+});

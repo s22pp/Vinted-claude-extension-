@@ -1624,3 +1624,11 @@
   font-size: 12px;
   cursor: pointer;
 }
+.goal__plan {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+.goal__plan table {
+  max-width: 460px;
+}

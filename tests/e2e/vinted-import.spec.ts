@@ -822,3 +822,60 @@ test('icon badge counts the orders to ship; automatic refresh is scheduled only 
   await page.getByLabel('Actualiser automatiquement').uncheck();
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh')) ?? null), { timeout: 10_000 }).toBeNull();
 });
+
+test('account check: every read ERA relies on, once each, read-only; the result shows on each integration', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: 'Vérification complète (8 lectures)' }).click();
+  const diag = page.locator('#diagnostic');
+  await expect(diag.getByText('Une de vos annonces en entier')).toBeVisible({ timeout: 60_000 });
+  await expect(diag.locator('li')).toHaveCount(10);
+  await expect(diag).toContainText('description lue');
+  expect(calls.every((c) => c.method === 'GET')).toBe(true);
+  expect(calls.length).toBeLessThanOrEqual(10);
+  const stock = page.locator('.integ__row', { hasText: 'Import du stock' });
+  await expect(stock).toContainText('lu sur votre compte');
+  // The fixture's wardrobe carries no reservation flag: said, not assumed.
+  await expect(page.locator('.integ__row', { hasText: 'Statut « réservé »' })).toContainText('échec');
+});
+
+test('marks on Vinted pages: your niche under your max, above it, not yours — from the page alone', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  // Test fixture only: a search page with listing cards (link titles carry title, brand, price).
+  const card = (id: number, title: string) => `<div class="feed-grid__item"><a href="/items/${id}-x" title="${title}">${title}</a></div>`;
+  await context.route('https://www.vinted.fr/catalog**', (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<html><body><div id="grid">${card(501, 'Chemise Oxford Ralph Lauren, taille: L, 11,00 €, 12,25 € inclus')}${card(502, 'Chemise Ralph Lauren slim, 25,00 €')}${card(503, 'Chemise Lacoste, 9,00 €')}${card(101, 'Chemise Ralph Lauren à moi, 10,00 €')}</div></body></html>`,
+    }),
+  );
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  // The onboarding tab opened at install publishes the (empty) niches of a fresh install: close it first.
+  await expect.poll(() => context.pages().some((p) => p.url().includes('dashboard.html')), { timeout: 10_000 }).toBe(true);
+  await context.pages().find((p) => p.url().includes('dashboard.html'))!.waitForTimeout(1500);
+  for (const p of context.pages().filter((x) => x.url().includes('dashboard.html'))) await p.close();
+  await sw.evaluate(() =>
+    chrome.storage.local.set({
+      eraOverlayNiches: [{ brand: 'ralph lauren', category: 'SHIRT', label: 'Ralph Lauren · Chemise', maxVintedPriceCents: 1200, medianSaleCents: 3000, sold: 9, avoid: false }],
+      eraOwnListings: ['101'],
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto('https://www.vinted.fr/catalog?search_text=chemise');
+  const mark = (id: number) => page.locator(`.feed-grid__item:has(a[href^="/items/${id}"]) [data-era-mark]`);
+  await expect(mark(501)).toHaveText('ERA ✓ marge ~17,75 €', { timeout: 15_000 });
+  await expect(mark(502)).toHaveText('ERA · votre max 12 €');
+  await expect(mark(503)).toHaveCount(0);
+  await expect(mark(101)).toHaveCount(0);
+  // More cards arrive (infinite scroll): marked too.
+  await page.evaluate(() => document.getElementById('grid')!.insertAdjacentHTML('beforeend', '<div class="feed-grid__item"><a href="/items/504-x" title="Chemise Polo Ralph Lauren, 8,00 €">x</a></div>'));
+  await expect(mark(504)).toHaveText(/ERA ✓/);
+  // Switched off in ERA: every mark goes.
+  await sw.evaluate(() => chrome.storage.local.set({ eraOverlayOn: false }));
+  await expect(page.locator('[data-era-mark]')).toHaveCount(0);
+  // Not a single request to Vinted's API for this.
+  expect(calls.filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+});

@@ -142,6 +142,22 @@ Aujourd'hui → **« coûts d'achat manquent »** ouvre la saisie rapide : les a
 
 Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi »** : une page imprimable (PDF) avec l'article tel que décrit (état, défauts, mesures), l'annonce, la vente, la conversation Vinted, le **contrôle avant envoi avec l'heure de chaque coche** (« non coché » sinon) et l'historique de l'annonce. Seulement ce qu'ERA a enregistré ; les photos restent sur Vinted et votre téléphone.
 
+## Repères ERA sur les pages Vinted (EXPERIMENTAL)
+
+Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de **vos niches** (liste de courses : 3 ventes et plus d'une même marque et d'un même type) porte un repère : **« ERA ✓ marge ~X € »** sous votre prix max, **« votre max X € »** au-dessus, **« ⚠ niche à éviter »** si elle se vend mal chez vous. ERA lit seulement ce que la page affiche (titre et prix du lien, données produit de l'annonce) : **aucune requête**, rien de cliqué ni de modifié sur Vinted. Vos propres annonces n'ont pas de repère. Réglages → désactivable. Dépend de la construction des pages Vinted : peut cesser de fonctionner si Vinted la change.
+
+## Vérification complète du compte
+
+Réglages → Diagnostic → **« Vérification complète (8 lectures) »** : chaque lecture dont ERA dépend est essayée une fois, en lecture seule (session, garde-robe, recherche, ventes, achats, notifications, messagerie, une annonce en entier) ; une erreur n'arrête pas les suivantes, sauf un blocage. Le résultat s'affiche à côté de chaque intégration (« Vérifié le … : lu sur votre compte » ou « échec »).
+
+## Objectif : le plan mensuel
+
+Avec un objectif, Aujourd'hui affiche ce qu'il faut **chaque mois** — ventes, annonces en ligne, mises en ligne par semaine — face à ce que vous faites aujourd'hui, calculé sur votre vente médiane et votre ratio annonces / ventes (en supposant qu'ils restent les mêmes avec plus de stock : une direction, pas une promesse).
+
+## Bénéfice par heure
+
+Insights → Vous : le bénéfice d'une heure de travail, au total et par niche — temps de fiche **mesuré** dans l'Atelier (votre médiane sinon), plus vos estimations d'envoi et de sourcing (modifiables). Seules les ventes au bénéfice connu comptent.
+
 ## Sauvegarde, actualisation, notifications, recherche
 
 - **Sauvegarde** (Réglages) : un fichier JSON avec **toutes** vos données (articles, ventes, coûts, historique, fiches, réglages, journal). Restaurer **remplace** les données actuelles, après confirmation, tout ou rien. Vos données ne vivent que dans ce navigateur : un rappel apparaît dans la tournée si vous n'avez pas sauvegardé depuis 14 jours.

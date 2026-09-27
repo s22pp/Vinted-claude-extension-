@@ -34,6 +34,8 @@ export interface GoalProgress {
   /** Listings online vs sales over 30 days: 1 sale per N listings. */
   listingsPerSale: { n: number; sales30: number; listed: number } | null;
   extraListings: number | null;
+  /** Sales over the last 30 days (refunds excluded). */
+  sales30: number;
 }
 
 export function goalProgress(goal: MonthlyGoal, sales: readonly SaleView[], views: readonly ItemView[], now: number): GoalProgress {
@@ -79,5 +81,37 @@ export function goalProgress(goal: MonthlyGoal, sales: readonly SaleView[], view
     salesGap,
     listingsPerSale,
     extraListings,
+    sales30,
+  };
+}
+
+export interface GoalPlan {
+  /** Sales per month the goal needs, at your median value per sale. */
+  salesPerMonth: number;
+  /** Listings online the goal needs, at your current listings-per-sale ratio. */
+  listingsNeeded: number | null;
+  /** New listings per week to replace what sells. */
+  perWeek: number;
+  current: { sales30: number; listed: number; perWeek: number };
+  /** How many times today's sales pace the goal is. */
+  factor: number | null;
+}
+
+/**
+ * What the goal takes every month, not just this one: sales per month, listings online, new listings per week —
+ * from your own median sale value and listings-per-sale ratio. It assumes those stay the same with more stock,
+ * which is not guaranteed (more of the same niche can sell slower): a direction, not a promise.
+ */
+export function goalPlan(g: GoalProgress, views: readonly ItemView[], now: number): GoalPlan | null {
+  if (!g.perSale || g.perSale.cents <= 0) return null;
+  const salesPerMonth = Math.ceil(g.goal.cents / g.perSale.cents);
+  const firstListed = views.map((v) => v.firstListedAt).filter((x): x is number => x !== null && x >= now - 30 * DAY).length;
+  const current = { sales30: g.sales30, listed: g.listingsPerSale?.listed ?? views.filter((v) => v.inStock && v.current).length, perWeek: Math.round((firstListed / (30 / 7)) * 10) / 10 };
+  return {
+    salesPerMonth,
+    listingsNeeded: g.listingsPerSale ? Math.ceil(salesPerMonth * g.listingsPerSale.n) : null,
+    perWeek: Math.ceil(salesPerMonth / (30 / 7)),
+    current,
+    factor: current.sales30 > 0 ? Math.round((salesPerMonth / current.sales30) * 10) / 10 : null,
   };
 }

@@ -91,6 +91,10 @@ test('monthly goal and reply templates: set a goal, copy a filled reply', async 
   await page.getByLabel('Montant de l’objectif').fill('2000');
   await page.getByRole('button', { name: 'Enregistrer' }).first().click();
   await expect(page.getByText(/Au rythme actuel : ≈/)).toBeVisible();
+  // What the goal takes every month, against today.
+  const plan = page.getByTestId('goal-plan');
+  await expect(plan).toContainText('Pour tenir 2 000 € chaque mois');
+  await expect(plan.locator('tr', { hasText: 'Ventes par mois' }).locator('td.num')).toHaveCount(2);
   await page.goto(`${base}#/stock?filter=listed`);
   await page.locator('tbody tr[aria-rowindex]').first().click();
   await expect(page.getByRole('heading', { name: 'Réponses types' })).toBeVisible();
@@ -297,4 +301,15 @@ test('command palette: Ctrl+K, a few letters, Enter — an article, a screen or 
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#\/stock\?lot=1/);
   await expect(page.getByLabel('Articles (une ligne chacun)')).toBeVisible();
+});
+
+test('profit per hour: a figure from your sales, your time estimates editable', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/insights?tab=you`);
+  const card = page.getByTestId('hourly');
+  await expect(card).toContainText('de bénéfice par heure');
+  const before = await card.locator('.t-h2').innerText();
+  await card.getByLabel('Sourcing par article').fill('90');
+  await expect(card.locator('.t-h2')).not.toHaveText(before);
 });
