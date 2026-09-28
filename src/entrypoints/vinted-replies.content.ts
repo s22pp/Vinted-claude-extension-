@@ -149,7 +149,11 @@ export default defineContentScript({
       if (area === 'local' && (REPLY_KIT_KEY in changes || REPLIES_ON_KEY in changes)) void load();
     });
     // Vinted's app changes pages without reloading: look again after each change, and keep the button in place.
-    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    // ERA's own button and menu never trigger another look.
+    const mine = (n: Node) => button.contains(n) || menu.contains(n);
+    new MutationObserver((records) => {
+      if (on && kit && records.some((r) => !mine(r.target) && [...r.addedNodes, ...r.removedNodes].some((n) => !mine(n)))) schedule();
+    }).observe(document.documentElement, { childList: true, subtree: true });
     addEventListener('scroll', place, true);
     addEventListener('resize', place);
   },

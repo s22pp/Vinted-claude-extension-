@@ -15,6 +15,8 @@ export default defineContentScript({
     let own = new Set<string>();
     let on = true;
     let timer: number | undefined;
+    // The item page read for the chip: its JSON-LD is parsed once per page and data, not at every change of the page.
+    let pageDone: string | null = null;
 
     const eur = (c: number) => `${(c / 100).toFixed(c % 100 === 0 ? 0 : 2).replace('.', ',')} €`;
     const label = (m: Mark) => (m.kind === 'DEAL' ? `ERA ✓ marge ~${eur(m.marginCents)}` : m.kind === 'AVOID' ? 'ERA ⚠ niche à éviter' : `ERA · votre max ${eur(m.maxVintedPriceCents)}`);
@@ -27,6 +29,7 @@ export default defineContentScript({
     const clear = () => {
       for (const el of document.querySelectorAll('[data-era-mark]')) el.remove();
       for (const el of document.querySelectorAll('[data-era-seen]')) el.removeAttribute('data-era-seen');
+      pageDone = null;
     };
 
     const scan = () => {
@@ -51,9 +54,14 @@ export default defineContentScript({
       }
       // The item page itself: a chip in the corner, from the page's own product data.
       const itemId = /^\/items\/(\d+)/.exec(location.pathname)?.[1];
-      if (itemId && !own.has(itemId) && !document.querySelector('[data-era-mark="PAGE"]')) {
+      const scripts = itemId ? [...document.querySelectorAll('script[type="application/ld+json"]')] : [];
+      // Same page, same product data: already read (Vinted changes pages without reloading, data can arrive late).
+      const sig = `${location.pathname}|${scripts.map((x) => x.textContent ?? '').join('')}`;
+      if (sig !== pageDone) document.querySelector('[data-era-mark="PAGE"]')?.remove();
+      if (itemId && !own.has(itemId) && scripts.length && sig !== pageDone) {
+        pageDone = sig;
         const blocks: unknown[] = [];
-        for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+        for (const s of scripts) {
           try {
             blocks.push(JSON.parse(s.textContent ?? ''));
           } catch {
@@ -76,6 +84,9 @@ export default defineContentScript({
       window.clearTimeout(timer);
       timer = window.setTimeout(scan, 250);
     };
+    // Only changes made by the page count: ERA's own labels never trigger another look.
+    const byPage = (records: MutationRecord[]) =>
+      records.some((r) => [...r.addedNodes].some((n) => !(n instanceof Element) || !n.hasAttribute('data-era-mark')));
 
     const load = async () => {
       const got = (await browser.storage.local.get([OVERLAY_KEY, OVERLAY_ON_KEY, 'eraOwnListings'])) as Record<string, unknown>;
@@ -90,6 +101,8 @@ export default defineContentScript({
       if (area === 'local' && (OVERLAY_KEY in changes || OVERLAY_ON_KEY in changes || 'eraOwnListings' in changes)) void load();
     });
     // Infinite scroll and page changes inside Vinted's app: look again, a little later.
-    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    new MutationObserver((records) => {
+      if (on && niches.length && byPage(records)) schedule();
+    }).observe(document.documentElement, { childList: true, subtree: true });
   },
 });

@@ -875,6 +875,20 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   // More cards arrive (infinite scroll): marked too.
   await page.evaluate(() => document.getElementById('grid')!.insertAdjacentHTML('beforeend', '<div class="feed-grid__item"><a href="/items/504-x" title="Chemise Polo Ralph Lauren, 8,00 €">x</a></div>'));
   await expect(mark(504)).toHaveText(/ERA ✓/);
+  // An item page: the chip comes from the page's product data; moving to another item inside Vinted's app
+  // (no reload) replaces it — never the previous item's chip left on the new page.
+  const ld = (name: string, price: string) => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name, brand: { name: 'Ralph Lauren' }, offers: { price } })}</script>`;
+  await context.route('https://www.vinted.fr/items/601**', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html><head>${ld('Chemise Oxford Ralph Lauren', '10.00')}</head><body>item</body></html>` }));
+  await page.goto('https://www.vinted.fr/items/601-chemise');
+  const chip = page.locator('[data-era-mark="PAGE"]');
+  await expect(chip).toHaveText('ERA ✓ marge ~18,80 €');
+  await page.evaluate((html) => {
+    history.pushState({}, '', '/items/602-chemise');
+    for (const x of document.querySelectorAll('script[type="application/ld+json"]')) x.remove();
+    document.head.insertAdjacentHTML('beforeend', html);
+  }, ld('Chemise Ralph Lauren slim', '25.00'));
+  await expect(chip).toHaveText('ERA · votre max 12 €');
+  await expect(chip).toHaveCount(1);
   // Switched off in ERA: every mark goes.
   await sw.evaluate(() => chrome.storage.local.set({ eraOverlayOn: false }));
   await expect(page.locator('[data-era-mark]')).toHaveCount(0);
