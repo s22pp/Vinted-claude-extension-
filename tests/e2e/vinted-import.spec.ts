@@ -980,3 +980,53 @@ test('replies in Vinted messaging: your templates filled for the conversation’
   await sw.evaluate(() => chrome.storage.local.set({ eraRepliesOn: false }));
   await expect(open).toBeHidden();
 });
+
+test('automatic backup and full CSV exports: a dated copy in Downloads once switched on, sales and articles as CSV', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const auto = page.getByTestId('auto-backup');
+  await auto.getByLabel('Sauvegarde automatique').check();
+  await expect(page.getByText('Sauvegarde enregistrée')).toBeVisible({ timeout: 20_000 });
+  await expect(auto.getByLabel('Fréquence de la sauvegarde automatique')).toHaveValue('7');
+  const files = await page.evaluate(async () => {
+    const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string; state: string; mime: string }[]> } } }).chrome;
+    return (await c.downloads.search({})).map((d) => [d.url.slice(0, 29), d.state, d.mime]);
+  });
+  expect(files).toEqual([['data:application/json;base64,', 'complete', 'application/json']]);
+  await expect(page.getByTestId('backup')).toContainText('Dernière sauvegarde');
+  // Full exports, one click each.
+  const [sales] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Mes ventes \(CSV/ }).click()]);
+  expect(sales.suggestedFilename()).toMatch(/^era-ventes-\d{4}-\d{2}-\d{2}\.csv$/);
+  const [items] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Mes articles \(CSV/ }).click()]);
+  expect(items.suggestedFilename()).toMatch(/^era-articles-\d{4}-\d{2}-\d{2}\.csv$/);
+  const text = await (await import('node:fs/promises')).readFile((await items.path())!, 'utf8');
+  expect(text).toContain('Veste Harrington Ralph Lauren M');
+});
+
+test('photo check: every photo of the live listings read from Vinted’s image servers, the ones to retake said — no API call, nothing modified', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const withPhotos = { id: 120, title: 'Chemise Oxford Ralph Lauren L', price: '35.0', view_count: 30, favourite_count: 2, brand_title: 'Ralph Lauren', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ full_size_url: 'https://images1.vinted.net/t/120/1.png' }, { full_size_url: 'https://images1.vinted.net/t/120/2.png' }] };
+  const calls = await fakeVinted(context, { loggedIn: true, extra: [withPhotos] });
+  // Test fixture only: a real small image (ERA's own 128 px icon) — too small for Vinted, so "to retake".
+  const png = (await import('node:fs')).readFileSync('.output/chrome-mv3/icon/128.png');
+  await context.route('https://images1.vinted.net/t/120/**', (route) => route.fulfill({ contentType: 'image/png', body: png }));
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const before = calls.length;
+  await page.goto(`${base}#/quality`);
+  const card = page.getByTestId('photo-audit');
+  await card.getByRole('button', { name: 'Contrôler 2 photos' }).click();
+  await expect(page.getByText('2 photos contrôlées', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(card).toContainText('Chemise Oxford Ralph Lauren L');
+  await expect(card).toContainText(/2 à (refaire|améliorer)/);
+  await expect(card).toContainText('basse résolution');
+  await expect(card.getByRole('button', { name: /Contrôler/ })).toHaveCount(0);
+  // Images only: not a single call to Vinted's API for this.
+  expect(calls.slice(before).filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+});

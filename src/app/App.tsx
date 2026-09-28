@@ -114,7 +114,18 @@ function Router() {
         </Suspense>
       </ErrorBoundary>
     );
-  if (!era.ready) return <div className="era-backdrop" aria-hidden="true" />;
+  if (!era.ready) {
+    // Data still loading: the menu and the page's outline right away, never a blank window.
+    if (route.name === 'invoice' || route.name === 'dossier') return <div className="era-backdrop" aria-hidden="true" />;
+    return (
+      <>
+        <div className="era-backdrop" aria-hidden="true" />
+        <Shell route={route.name}>
+          <PageSkeleton />
+        </Shell>
+      </>
+    );
+  }
   // A printable document: no app chrome around it.
   if (route.name === 'invoice')
     return (

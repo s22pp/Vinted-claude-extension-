@@ -7,8 +7,8 @@ import path from 'node:path';
 
 const EXT = path.resolve('.output/chrome-mv3');
 
-/** Port of the local HTTPS server standing in for the carrier's PDF host (labels.example) in tests. */
-export const LABEL_PORT = 47443;
+/** Port of the local HTTPS server standing in for the carrier's PDF host (labels.example): one per test worker. */
+export const LABEL_PORT = 47443 + Number(process.env.TEST_WORKER_INDEX ?? 0);
 
 /** Test fixture only: the fake carrier's self-signed certificate, made once, and its SPKI pin. */
 const LABEL_CERT = (() => {

@@ -11,7 +11,7 @@ import { personalEvidence } from '@/intelligence/seller-model';
 import { Ring } from '@/ui/charts/charts';
 import { Icon, IconTile } from '@/ui/components/icons';
 import { LogoMark } from '@/ui/components/Logo';
-import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages } from '@/ui/components/primitives';
+import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages, Skeleton } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, RecommendationCard, StatusBadge } from '../components/domain';
 import { OfferCalculator } from '../components/tools';
@@ -84,6 +84,20 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
 
   const own = ownItemId ? (era.intelById.get(ownItemId) ?? null) : null;
   const urgent = era.priorities.filter((p) => p.tone === 'risk' || p.tone === 'warning');
+
+  // Still loading: an outline, never the "import your stock" card a seller with data would briefly see.
+  if (!era.ready) {
+    return (
+      <div className={`compact-app ${mode === 'popup' ? 'popup' : ''}`} aria-busy="true">
+        <header className="row" style={{ gap: 10 }}>
+          <LogoMark size={28} />
+          <Skeleton w={120} h={18} />
+        </header>
+        <Skeleton h={92} r={14} />
+        <Skeleton h={140} r={14} />
+      </div>
+    );
+  }
 
   return (
     <div className={`compact-app ${mode === 'popup' ? 'popup' : ''}`}>

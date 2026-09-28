@@ -36,7 +36,7 @@ Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connect
 ```bash
 npm run dev            # WXT + rechargement à chaud
 npm test               # Vitest — moteurs (argent, comparables, pricing, stagnation, capital, deal score, offres, apprentissage)
-npm run e2e            # build + Playwright sur l'extension chargée
+npm run e2e            # build + Playwright sur l'extension chargée (3 navigateurs en parallèle ; PW_WORKERS=1 pour déboguer)
 npm run compile        # tsc strict (variables et paramètres inutilisés refusés)
 npm run lint           # ESLint : règles des hooks React et erreurs courantes
 npm run qa:screens     # build + captures pleine page des écrans clés (démo) → .output/screens
