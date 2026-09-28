@@ -1,19 +1,12 @@
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
-import { type PhotoReport, SHOT_CHECKLIST, analyzePhoto } from '@/intelligence/photo';
+import { type PhotoReport, SHOT_CHECKLIST } from '@/intelligence/photo';
+import { analyzeImageBlob } from '@/lib/photo-pixels';
 import { Ring } from '@/ui/charts/charts';
 import { Badge } from '@/ui/components/primitives';
 
 async function analyzeFile(f: File): Promise<{ url: string; name: string; report: PhotoReport }> {
-  const bmp = await createImageBitmap(f);
-  const scale = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * scale));
-  const h = Math.max(1, Math.round(bmp.height * scale));
-  const canvas = new OffscreenCanvas(w, h);
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(bmp, 0, 0, w, h);
-  const img = ctx.getImageData(0, 0, w, h);
-  return { url: URL.createObjectURL(f), name: f.name, report: analyzePhoto(img, Math.min(bmp.width, bmp.height)) };
+  return { url: URL.createObjectURL(f), name: f.name, report: await analyzeImageBlob(f) };
 }
 
 /** Local only: photos are read in the browser, never uploaded, never modified. */

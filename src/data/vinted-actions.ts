@@ -5,6 +5,7 @@ import type { DetailsResult, HideResult, LabelBatchResult, LabelResult } from '.
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db, uid } from './db';
 import { vintedWrite, waitAlive } from './vinted-write';
+import { saveFile } from './downloads';
 
 /**
  * Background-only, each from ONE click of the seller, each journalled. EXPERIMENTAL: routes as read in
@@ -85,39 +86,6 @@ export async function setListingHidden(platformListingId: string, itemId: string
     await log({ kind: hidden ? 'HIDE' : 'UNHIDE', ok: false, target: title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
     return { ok: false, code, detail: detail ?? undefined };
   }
-}
-
-type Saved = { ok: true; file: string } | { ok: false; detail: string };
-
-/** Download one file into the browser's downloads folder and wait (≤ 20 s) to know whether it was saved. */
-export async function saveFile(url: string, filename: string, timeoutMs = 20_000): Promise<Saved> {
-  let id: number;
-  try {
-    id = await browser.downloads.download({ url, filename, conflictAction: 'uniquify', saveAs: false });
-  } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
-  }
-  return new Promise<Saved>((resolve) => {
-    let over = false;
-    const finish = (r: Saved) => {
-      if (over) return;
-      over = true;
-      clearTimeout(timer);
-      browser.downloads.onChanged.removeListener(onChanged);
-      resolve(r);
-    };
-    const check = async () => {
-      const [d] = await browser.downloads.search({ id });
-      if (d?.state === 'complete') finish({ ok: true, file: d.filename.split(/[\\/]/).slice(-2).join('/') });
-      else if (d?.state === 'interrupted') finish({ ok: false, detail: `téléchargement interrompu (${d.error ?? 'inconnu'})` });
-    };
-    const onChanged = (delta: { id: number; state?: unknown }) => {
-      if (delta.id === id && delta.state) void check();
-    };
-    browser.downloads.onChanged.addListener(onChanged);
-    const timer = setTimeout(() => finish({ ok: false, detail: 'toujours en cours de téléchargement' }), timeoutMs);
-    void check();
-  });
 }
 
 /** Errors after which the next orders are not even tried (the account must rest, or the seller act). */

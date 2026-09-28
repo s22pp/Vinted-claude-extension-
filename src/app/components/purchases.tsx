@@ -47,7 +47,11 @@ export function PurchasesDrawer({ open, onClose }: { open: boolean; onClose: () 
   // Candidates: items still owned or sold, preferring those whose cost is unknown.
   const items = useMemo(() => era.views.map((v) => v.item).filter((i) => !i.isDemo), [era.views]);
   const suggestions = useMemo(
-    () => new Map(pending.map((p) => [p.id, suggestMatches(p, items.filter((i) => i.purchasePriceCents === null).length ? items.filter((i) => i.purchasePriceCents === null) : items)])),
+    () => {
+      // Articles still without a cost first: a purchase most likely belongs to one of them.
+      const unpriced = items.filter((i) => i.purchasePriceCents === null);
+      return new Map(pending.map((p) => [p.id, suggestMatches(p, unpriced.length ? unpriced : items)]));
+    },
     [pending, items],
   );
   const sure = pending.filter((p) => suggestions.get(p.id)?.sure);

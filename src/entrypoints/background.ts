@@ -8,6 +8,8 @@ import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/a
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, salesSnapshot, whatIsNew } from '@/data/refresh';
+import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
+import { recordError } from '@/data/error-journal';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
 import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
 import { repo } from '@/data/repo';
@@ -90,6 +92,15 @@ async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise
 }
 
 const REFRESH_ALARM = 'era-refresh';
+const BACKUP_ALARM = 'era-backup';
+
+/** Automatic backup: checked every 6 hours while on (a copy is written only when one is due). */
+async function scheduleBackup(): Promise<void> {
+  await browser.alarms.clear(BACKUP_ALARM);
+  if ((await loadAutoBackup()).enabled) {
+    await browser.alarms.create(BACKUP_ALARM, { delayInMinutes: 1, periodInMinutes: 360 });
+  }
+}
 
 /** Read-only import every few hours, only if the seller switched it on. */
 async function scheduleRefresh(): Promise<void> {
@@ -102,7 +113,7 @@ async function onRefreshAlarm(): Promise<void> {
   if (!(await loadRefreshConfig()).enabled) return;
   // Never opens Vinted by itself, never while blocked, never on top of another Vinted operation.
   if ((await budget.status()).halted || !(await vintedTabOpen())) return;
-  if (importing || editing || autoRunning || reposting || labelling) return;
+  if (vintedBusy()) return;
   await runImport(true);
 }
 
@@ -134,7 +145,7 @@ let exportingPhotos: Promise<PhotoExportResult> | null = null;
 
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
-  if (autoRunning || importing || editing || reposting || labelling) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
+  if (vintedBusy()) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
   autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : runOffers(dryRun)).finally(() => {
     autoRunning = null;
   });
@@ -159,13 +170,20 @@ async function onAutoAlarm(): Promise<void> {
   if (cfg.fav.enabled) await runAuto('FAV', false);
 }
 
+/** One Vinted operation at a time: an import, an automation run, a price edit, a repost or labels. */
+function vintedBusy(): boolean {
+  return !!(autoRunning || importing || editing || reposting || labelling);
+}
+
 export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((a) => {
     if (a.name === AUTO_ALARM) void onAutoAlarm();
     if (a.name === REFRESH_ALARM) void onRefreshAlarm();
+    if (a.name === BACKUP_ALARM) void runAutoBackup().catch(() => undefined);
   });
   void scheduleAuto();
   void scheduleRefresh();
+  void scheduleBackup();
   void updateBadge().catch(() => undefined);
   // A notification opens what it announces.
   browser.notifications?.onClicked.addListener((id) => {
@@ -178,97 +196,99 @@ export default defineBackground(() => {
   void browser.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: false }).catch(() => undefined);
 
   browser.runtime.onMessage.addListener((msg: EraMessage, _sender, sendResponse) => {
+    /**
+     * Answers with the operation's result — or, when it throws, with `failed(detail)` and a line in the local error
+     * journal: the page never waits on a closed channel, and the diagnostic report says what broke.
+     */
+    const answer = <T,>(p: Promise<T>, failed: (detail: string) => unknown): true => {
+      p.then(sendResponse, (e: unknown) => {
+        void recordError(`service-worker:${msg.type}`, e);
+        sendResponse(failed(e instanceof Error ? e.message : String(e)));
+      });
+      return true;
+    };
+    const unavailable = (detail: string) => ({ ok: false, code: 'UNAVAILABLE', detail });
+    const BUSY = 'une autre opération Vinted est en cours';
     switch (msg.type) {
       case 'era:budget:reserve':
-        void budget.reserve().then(sendResponse);
-        return true;
+        return answer(budget.reserve(), () => ({ ok: false, code: 'UNAVAILABLE' }));
       case 'era:budget:report':
-        void budget.report(msg.status).then(() => sendResponse({ ok: true }));
-        return true;
+        return answer(budget.report(msg.status).then(() => ({ ok: true })), unavailable);
       case 'era:budget:status':
-        void budget.status().then(sendResponse);
-        return true;
+        return answer(budget.status(), () => ({ remaining: 0, halted: 'UNAVAILABLE', haltedUntil: null }));
       case 'era:import':
         // Mid-repost, the fresh draft is not yet recorded as a copy: an import now would count it as a new article.
         if (reposting) {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'republication en cours : importez dans un instant' } satisfies ImportResult);
           return undefined;
         }
-        void runImport().then(sendResponse);
-        return true;
+        return answer(runImport(), unavailable);
       case 'era:auto:run':
-        void runAuto(msg.kind, msg.dryRun).then(sendResponse);
-        return true;
+        return answer(runAuto(msg.kind, msg.dryRun), (detail) => ({ ok: false, kind: msg.kind, dryRun: msg.dryRun, done: 0, skipped: 0, failed: 0, stopped: detail }));
       case 'era:label:get':
       case 'era:item:hide':
-        if (autoRunning || importing || editing || reposting || labelling) {
-          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+        if (vintedBusy()) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        void (msg.type === 'era:label:get' ? getShippingLabel(msg.conversationId, msg.title, msg.soldAt) : setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)).then(sendResponse);
-        return true;
+        if (msg.type === 'era:label:get') return answer(getShippingLabel(msg.conversationId, msg.title, msg.soldAt), unavailable);
+        return answer(setListingHidden(msg.platformListingId, msg.itemId, msg.hidden), unavailable);
       case 'era:details:read':
-        if (autoRunning || importing || editing || reposting || labelling) {
-          sendResponse({ read: 0, stopped: 'une autre opération Vinted est en cours' } satisfies DetailsResult);
+        if (vintedBusy()) {
+          sendResponse({ read: 0, stopped: BUSY } satisfies DetailsResult);
           return undefined;
         }
-        void readListingDetails(msg.ids).then(sendResponse);
-        return true;
+        return answer(readListingDetails(msg.ids), (detail) => ({ read: 0, stopped: detail }) satisfies DetailsResult);
       case 'era:label:all':
-        if (autoRunning || importing || editing || reposting || labelling) {
-          sendResponse({ results: [], stopped: 'une autre opération Vinted est en cours', left: 0 } satisfies LabelBatchResult);
+        if (vintedBusy()) {
+          sendResponse({ results: [], stopped: BUSY, left: 0 } satisfies LabelBatchResult);
           return undefined;
         }
         labelling = getAllLabels().finally(() => {
           labelling = null;
         });
-        void labelling.then(sendResponse);
-        return true;
+        return answer(labelling, (detail) => ({ results: [], stopped: detail, left: 0 }) satisfies LabelBatchResult);
       case 'era:draft:create':
       case 'era:repost:create':
       case 'era:repost:finish':
-        if (autoRunning || importing || editing || reposting || labelling) {
-          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+        if (vintedBusy()) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        if (msg.type === 'era:draft:create') {
-          void createVintedDraft(msg.input).then(sendResponse);
-          return true;
-        }
+        if (msg.type === 'era:draft:create') return answer(createVintedDraft(msg.input), unavailable);
         reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId) : finishRepost(msg.itemId)).finally(() => {
           reposting = null;
         });
-        void reposting.then(sendResponse);
-        return true;
+        return answer(reposting, unavailable);
       case 'era:auto:schedule':
-        void scheduleAuto().then(() => sendResponse({ ok: true }));
-        return true;
+        return answer(scheduleAuto().then(() => ({ ok: true })), unavailable);
       case 'era:refresh:schedule':
-        void scheduleRefresh().then(() => sendResponse({ ok: true }));
-        return true;
+        return answer(scheduleRefresh().then(() => ({ ok: true })), unavailable);
+      case 'era:backup:schedule':
+        // Switched on: the first copy is written now if one is due, then the alarm keeps it up to date.
+        return answer(
+          scheduleBackup().then(() => runAutoBackup()),
+          (detail) => ({ ok: false, reason: 'FAILED', detail }),
+        );
       case 'era:photos:export':
-        if (autoRunning || importing || editing || reposting || labelling || exportingPhotos) {
-          sendResponse({ listings: 0, photos: 0, missing: 0, stopped: 'une autre opération Vinted est en cours' } satisfies PhotoExportResult);
+        if (vintedBusy() || exportingPhotos) {
+          sendResponse({ listings: 0, photos: 0, missing: 0, stopped: BUSY } satisfies PhotoExportResult);
           return undefined;
         }
         exportingPhotos = exportPhotos(msg.scope, (done, total) => void browser.runtime.sendMessage({ type: 'era:photos:progress', done, total } satisfies EraMessage).catch(() => undefined)).finally(() => {
           exportingPhotos = null;
         });
-        void exportingPhotos.then(sendResponse);
-        return true;
+        return answer(exportingPhotos, (detail) => ({ listings: 0, photos: 0, missing: 0, stopped: detail }) satisfies PhotoExportResult);
       case 'era:alerts:run':
-        if (autoRunning || importing || editing || reposting || labelling) {
-          sendResponse({ deals: [], stopped: 'une autre opération Vinted est en cours' });
+        if (vintedBusy()) {
+          sendResponse({ deals: [], stopped: BUSY });
           return undefined;
         }
-        void runBuyAlerts().then(sendResponse);
-        return true;
+        return answer(runBuyAlerts(), (detail) => ({ deals: [], stopped: detail }));
       case 'era:badge:update':
-        void updateBadge().then(() => sendResponse({ ok: true }));
-        return true;
+        return answer(updateBadge().then(() => ({ ok: true })), unavailable);
       case 'era:price:edit':
-        void runPriceEdit(msg.platformListingId, msg.cents, msg.itemId).then(sendResponse);
-        return true;
+        return answer(runPriceEdit(msg.platformListingId, msg.cents, msg.itemId), unavailable);
       default:
         return undefined;
     }

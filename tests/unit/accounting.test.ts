@@ -1,7 +1,7 @@
 import { EraDatabase } from '@/data/db';
 import { EraRepository } from '@/data/repo';
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
-import { DAC7, expenseSummary, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
+import { DAC7, allSalesCsv, expenseSummary, itemsCsv, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 
 const Y = 2026;
@@ -101,6 +101,22 @@ describe('accounting', () => {
     expect(csv).toContain('"Veste ""Harrington""; M";12.5');
     const { sv } = world([{ id: 'a', soldAt: at(1, 9), cents: 2550 }]);
     expect(salesCsv(salesLedger(sv, Y))).toContain(';25,50;10,00;15,50;Vinted');
+  });
+
+  it('full exports: every sale (refunds said so, with their reason) and every article, with French labels', () => {
+    const { views, sv } = world([
+      { id: 'a', soldAt: at(1, 9), cents: 2550 },
+      { id: 'b', soldAt: at(0, 3), cents: 4000, status: 'REFUNDED' },
+    ]);
+    sv.find((x) => x.sale.id === 'sb')!.sale.refundReason = 'SIZE';
+    const labels = { category: (c: string) => `cat:${c}`, condition: (c: string) => `cond:${c}`, status: (x: string) => `st:${x}`, refund: (r: string) => `motif:${r}` };
+    const sales = allSalesCsv(sv, labels).split('\r\n');
+    expect(sales[0]).toContain('Date;Référence;Article');
+    expect(sales[1]).toMatch(/;40,00;.*;Remboursée;motif:SIZE$/);
+    expect(sales[2]).toMatch(/;25,50;10,00;15,50;Vendue;$/);
+    const items = itemsCsv(views, labels).split('\r\n');
+    expect(items).toHaveLength(4);
+    expect(items[1]).toContain(';cat:SWEATSHIRT;M;cond:VERY_GOOD;st:SOLD;');
   });
 
   it('invoice numbers are sequential per year and never reused', async () => {

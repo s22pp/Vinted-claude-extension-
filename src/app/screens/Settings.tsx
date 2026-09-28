@@ -202,8 +202,8 @@ function DiagnosticCard() {
       ...steps.map((s) => `${s.ok ? '✓' : '✗'} ${t(`vinted.diagStep.${s.key}`)} — ${s.info}`),
       lastError ? `Dernière erreur d’import (${new Date(lastError.at).toLocaleString()}) : ${lastError.code} · ${lastError.detail ?? ''}` : '',
       ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})`),
-      // Display errors (screens that failed), newest first: where, message, and the first lines of the stack.
-      ...uiErrors.slice(0, 5).map((e) => `Affichage ${new Date(e.at).toLocaleString()} · ${e.where} · ${e.message}\n${e.stack.split('\n').slice(0, 6).join('\n')}`),
+      // ERA's own errors (a screen that failed, a service worker operation that threw), newest first.
+      ...uiErrors.slice(0, 5).map((e) => `${e.where.startsWith('service-worker') ? 'Erreur interne' : 'Affichage'} ${new Date(e.at).toLocaleString()} · ${e.where} · ${e.message}\n${e.stack.split('\n').slice(0, 6).join('\n')}`),
     ]
       .filter(Boolean)
       .join('\n');

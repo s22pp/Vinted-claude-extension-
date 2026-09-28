@@ -194,3 +194,58 @@ export function expenseSummary(expenses: readonly { date: number; amountCents: n
   const net: MoneyMetric = grossMargin.status === 'unknown' ? grossMargin : { ...grossMargin, value: grossMargin.value - total };
   return { totalCents: total, count: inYear.length, byCategory, byMonth, net };
 }
+
+/* ── Full exports: every sale, every article ─────────────── */
+
+export interface CsvLabels {
+  category: (c: string) => string;
+  condition: (c: string) => string;
+  status: (s: string) => string;
+  refund: (r: string) => string;
+}
+
+/** Every sale ever recorded, oldest first — refunded ones included and said so. */
+export function allSalesCsv(sales: readonly SaleView[], l: CsvLabels): string {
+  return toCsv(
+    ['Date', 'Référence', 'Article', 'Marque', 'Catégorie', 'Taille', 'Prix de vente (€)', 'Coût (€)', 'Marge (€)', 'Statut', 'Motif du remboursement'],
+    [...sales]
+      .sort((a, b) => a.sale.soldAt - b.sale.soldAt)
+      .map((s) => [
+        day(s.sale.soldAt),
+        skuOf(s.item.id),
+        s.item.title,
+        s.item.brand,
+        l.category(s.item.category),
+        s.item.size,
+        euros(s.sale.salePriceCents),
+        euros(s.cost),
+        euros(s.profit),
+        s.sale.status === 'REFUNDED' ? 'Remboursée' : s.sale.status === 'PENDING' ? 'En cours' : 'Vendue',
+        s.sale.refundReason ? l.refund(s.sale.refundReason) : null,
+      ]),
+  );
+}
+
+/** Every article, in stock or sold: what it is, what it cost, where it stands. */
+export function itemsCsv(views: readonly ItemView[], l: CsvLabels): string {
+  return toCsv(
+    ['Référence', 'Article', 'Marque', 'Modèle', 'Catégorie', 'Taille', 'État', 'Statut', 'Date d’achat', 'Source', 'Coût (€)', 'Prix demandé (€)', 'Vues', 'Favoris', 'Lien Vinted'],
+    views.map((v) => [
+      skuOf(v.item.id),
+      v.item.title,
+      v.item.brand,
+      v.item.model,
+      l.category(v.item.category),
+      v.item.size,
+      v.item.condition ? l.condition(v.item.condition) : null,
+      l.status(v.item.status),
+      day(v.item.purchaseDate),
+      v.item.purchaseSource,
+      euros(v.cost),
+      euros(v.askPrice),
+      v.current?.views ?? null,
+      v.current?.favorites ?? null,
+      v.current?.url ?? null,
+    ]),
+  );
+}

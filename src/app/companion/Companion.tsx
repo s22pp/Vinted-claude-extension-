@@ -52,7 +52,8 @@ function usePageContext(): [Ctx, () => void] {
     void load();
     const on = () => void load();
     browser.tabs.onActivated.addListener(on);
-    const onUpd = (_id: number, info: { status?: string }) => info.status === 'complete' && on();
+    // Only the tab the seller is looking at: a page finishing to load in the background changes nothing here.
+    const onUpd = (_id: number, info: { status?: string }, tab: { active?: boolean }) => info.status === 'complete' && tab.active && on();
     browser.tabs.onUpdated.addListener(onUpd);
     return () => {
       browser.tabs.onActivated.removeListener(on);

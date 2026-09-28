@@ -76,6 +76,7 @@ export type EraMessage =
   | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
   | { type: 'era:auto:schedule' }
   | { type: 'era:refresh:schedule' }
+  | { type: 'era:backup:schedule' }
   | { type: 'era:badge:update' }
   | { type: 'era:alerts:run' }
   | { type: 'era:photos:export'; scope: 'LIVE' | 'ALL' }

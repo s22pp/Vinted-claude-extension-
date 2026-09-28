@@ -6,11 +6,15 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { downloadText } from '@/lib/download';
 import { Modal, useToast } from '@/ui/components/overlays';
-import { Button, Card } from '@/ui/components/primitives';
+import { Button, Card, Select } from '@/ui/components/primitives';
+import { AUTO_BACKUP_DEFAULTS, AUTO_BACKUP_KEY, type AutoBackupConfig, type AutoBackupResult } from '@/data/auto-backup';
+import type { EraMessage } from '@/data/adapters/vinted/protocol';
+import { type CsvLabels, allSalesCsv, itemsCsv } from '@/intelligence/accounting';
 import { useEra } from '../state';
 import { PhotoExport } from './photo-export';
 
-export const LAST_BACKUP_KEY = 'lastBackupAt';
+export { LAST_BACKUP_KEY } from '@/data/auto-backup';
+import { LAST_BACKUP_KEY } from '@/data/auto-backup';
 /** Past this, the daily run reminds the seller to save a copy. */
 export const BACKUP_REMIND_DAYS = 14;
 
@@ -23,6 +27,8 @@ export function BackupCard() {
   const file = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Backup | null>(null);
   const [busy, setBusy] = useState(false);
+  const day = new Date(era.now).toISOString().slice(0, 10);
+  const labels: CsvLabels = { category: (c) => t(`category.${c}`), condition: (c) => t(`condition.${c}`), status: (s) => t(`status.${s}`), refund: (r) => t(`refunds.r.${r}`) };
 
   const save = async () => {
     const now = Date.now();
@@ -63,6 +69,15 @@ export function BackupCard() {
           </Button>
           <input ref={file} type="file" accept="application/json,.json" hidden aria-label={t('backup.restore')} onChange={(e) => void pick(e.target.files?.[0])} />
         </div>
+        <AutoBackupSettings />
+        <div className="row wrap" style={{ gap: 8 }}>
+          <Button size="sm" variant="ghost" icon="sales" onClick={() => downloadText(`era-ventes-${day}.csv`, allSalesCsv(era.sales, labels))} disabled={!era.sales.length}>
+            {t('backup.salesCsv', { n: era.sales.length })}
+          </Button>
+          <Button size="sm" variant="ghost" icon="stock" onClick={() => downloadText(`era-articles-${day}.csv`, itemsCsv(era.views, labels))} disabled={!era.views.length}>
+            {t('backup.itemsCsv', { n: era.views.length })}
+          </Button>
+        </div>
         <PhotoExport />
       </div>
       <Modal open={!!pending} onClose={() => !busy && setPending(null)} title={t('backup.confirmTitle')}>
@@ -82,5 +97,51 @@ export function BackupCard() {
         )}
       </Modal>
     </Card>
+  );
+}
+
+/** Automatic copy, every day or every week, into Téléchargements/ERA-sauvegardes. Off until switched on. */
+function AutoBackupSettings() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const era = useEra();
+  const stored = useLiveQuery(() => repo.getSetting<Partial<AutoBackupConfig> | null>(AUTO_BACKUP_KEY, null), []);
+  // The box follows the click at once; the stored copy follows.
+  const [local, setLocal] = useState<AutoBackupConfig | null>(null);
+  if (stored === undefined) return null;
+  const cfg: AutoBackupConfig = local ?? { ...AUTO_BACKUP_DEFAULTS, ...stored };
+  const save = async (patch: Partial<AutoBackupConfig>) => {
+    const next = { ...cfg, ...patch };
+    setLocal(next);
+    await repo.setSetting(AUTO_BACKUP_KEY, next);
+    const r = (await browser.runtime.sendMessage({ type: 'era:backup:schedule' } satisfies EraMessage).catch(() => null)) as AutoBackupResult | null;
+    if (r?.ok) toast('success', t('backup.autoSaved'), r.file);
+    else if (r && r.reason === 'FAILED') toast('error', t('backup.autoFailed'), r.detail ?? '');
+  };
+  return (
+    <div className="stack" style={{ gap: 8 }} data-testid="auto-backup">
+      <label htmlFor="ab-on" className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+        <input id="ab-on" type="checkbox" className="checkbox" checked={cfg.enabled} onChange={(e) => void save({ enabled: e.target.checked })} style={{ marginTop: 2 }} />
+        <span>
+          <span style={{ fontWeight: 600 }}>{t('backup.auto')}</span>
+          <span className="t-small t-faint" style={{ display: 'block' }}>
+            {era.mode === 'real' ? t('backup.autoHint') : t('backup.autoDemo')}
+          </span>
+        </span>
+      </label>
+      {cfg.enabled && (
+        <div style={{ paddingLeft: 28 }}>
+          <Select
+            aria-label={t('backup.autoEvery')}
+            value={String(cfg.everyDays)}
+            onChange={(e) => void save({ everyDays: Number(e.target.value) === 1 ? 1 : 7 })}
+            options={[
+              { value: '1', label: t('backup.daily') },
+              { value: '7', label: t('backup.weekly') },
+            ]}
+          />
+        </div>
+      )}
+    </div>
   );
 }

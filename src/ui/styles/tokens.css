@@ -162,6 +162,18 @@
     --t-slow: 0ms;
   }
 }
+/* Reduced motion: every entrance animation and transition ends at once (a loading spinner still turns: it says
+   something is happening). */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.btn__spinner),
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 :root[data-motion='reduced'] {
   --t-fast: 0ms;
   --t-normal: 0ms;

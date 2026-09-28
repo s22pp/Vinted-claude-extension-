@@ -335,7 +335,7 @@ a {
   max-width: 1480px;
   margin: 0 auto;
   padding: var(--s-8) var(--s-8) var(--s-12);
-  animation: page-in var(--t-slow) var(--ease) both;
+  animation: page-in var(--t-normal) var(--ease) both;
 }
 @keyframes page-in {
   from {
@@ -1785,7 +1785,7 @@ a {
 .chart-draw {
   stroke-dasharray: var(--len, 2000);
   stroke-dashoffset: var(--len, 2000);
-  animation: draw 900ms var(--ease-in-out) forwards;
+  animation: draw 520ms var(--ease-in-out) forwards;
 }
 @keyframes draw {
   to {
@@ -1793,11 +1793,11 @@ a {
   }
 }
 .chart-fade {
-  animation: fade 700ms var(--ease) both;
+  animation: fade 360ms var(--ease) both;
 }
 .chart-bar {
   transform-box: fill-box;
-  animation: bar-grow 620ms var(--ease) both;
+  animation: bar-grow 420ms var(--ease) both;
 }
 .chart-bar--h {
   transform-origin: left center;
@@ -1820,7 +1820,7 @@ a {
   transition:
     r var(--t-fast) var(--ease),
     opacity var(--t-fast) var(--ease);
-  animation: dot-in 500ms var(--ease) both;
+  animation: dot-in 320ms var(--ease) both;
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -1876,7 +1876,7 @@ a {
   height: 100%;
   border-radius: 4px;
   transform-origin: left;
-  animation: grow-x-full 800ms var(--ease) both;
+  animation: grow-x-full 480ms var(--ease) both;
 }
 
 /* ── Strategy cards ───────────────────────────────────── */

@@ -160,6 +160,14 @@ Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de *
 
 Buy → Scanner → **Alertes d'achat** : après chaque actualisation automatique, vos 3 meilleures niches sont cherchées une fois chacune sur Vinted (lecture seule, dans le budget). Une annonce **sous votre prix max** qu'ERA ne vous a pas encore montrée est gardée et annoncée par une notification (si activée) ; jamais vos propres annonces, chaque annonce une seule fois. « Vérifier maintenant » lance la même recherche à la main.
 
+## Sauvegarde automatique, ventes et articles en CSV
+
+Réglages → Sauvegarde → **« Sauvegarde automatique »** (désactivée tant que vous ne l'activez pas) : chaque jour ou chaque semaine, une copie complète — articles, ventes, coûts, historique, réglages — datée dans `Téléchargements/ERA-sauvegardes/era-sauvegarde-AAAA-MM-JJ.json`, restaurable par « Restaurer… ». Vraies données seulement (jamais la démo), rien ne quitte l'ordinateur ; une deuxième copie le même jour remplace la première. Même carte : **« Mes ventes (CSV) »** (toutes les ventes, remboursements et motifs compris) et **« Mes articles (CSV) »** (chaque article : coût, statut, date d'achat, lien Vinted), pour Excel ou Google Sheets.
+
+## Contrôle des photos de mes annonces
+
+Stock → Qualité des annonces → **« Contrôle des photos »** : chaque photo de vos annonces en ligne est lue depuis les serveurs d'images de Vinted (aucun appel à l'API, une fois par photo) et mesurée dans votre navigateur — netteté, lumière, contraste, fond, résolution. ERA liste les photos **à refaire** et pourquoi. Il ne modifie, ne génère et n'envoie aucune image : Vinted exige des photos réelles, sans retouche, et l'écart entre la photo et l'article est la première cause de remboursement. Pas d'amélioration de photo par IA (ChatGPT ou autre) : c'est un choix délibéré.
+
 ## Télécharger toutes mes photos
 
 Réglages → Sauvegarde → **Photos de mes annonces** : toutes les photos de vos annonces (en ligne, ou toutes, vendues comprises), un dossier par annonce dans `Téléchargements/ERA-photos/<article>_<id>/01.jpg`, dans l'ordre de l'annonce, à la plus grande taille que Vinted fournit. Les adresses viennent du dernier import ; une annonce dont la garde-robe ne les donne pas est lue une fois (budget d'appels, arrêt propre s'il s'épuise). Une annonce supprimée n'a plus de photos chez Vinted. Exporter à nouveau **remplace** les fichiers du même article (mêmes noms) au lieu de créer des doublons.

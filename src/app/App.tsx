@@ -1,28 +1,71 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect } from 'react';
+import { type ComponentProps, type ComponentType, Suspense, createElement, lazy, useEffect } from 'react';
 import { repo } from '@/data/repo';
-import { Suspense, lazy } from 'react';
 import { Skeleton } from '@/ui/components/primitives';
 import { ErrorBoundary } from './components/error-boundary';
 import { Today } from './screens/Today';
 
-// Today is the landing screen and ships in the main chunk; the rest loads on first visit.
-const Onboarding = lazy(() => import('./screens/Onboarding').then((m) => ({ default: m.Onboarding })));
-const Buy = lazy(() => import('./screens/Buy').then((m) => ({ default: m.Buy })));
-const Insights = lazy(() => import('./screens/Insights').then((m) => ({ default: m.Insights })));
-const ItemDetail = lazy(() => import('./screens/ItemDetail').then((m) => ({ default: m.ItemDetail })));
-const Market = lazy(() => import('./screens/Market').then((m) => ({ default: m.Market })));
-const Sales = lazy(() => import('./screens/Sales').then((m) => ({ default: m.Sales })));
-const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })));
-const Stock = lazy(() => import('./screens/Stock').then((m) => ({ default: m.Stock })));
-const Accounting = lazy(() => import('./screens/Accounting').then((m) => ({ default: m.Accounting })));
-const Invoice = lazy(() => import('./screens/Invoice').then((m) => ({ default: m.Invoice })));
-const Dossier = lazy(() => import('./screens/Dossier').then((m) => ({ default: m.Dossier })));
-const Workshop = lazy(() => import('./screens/Workshop').then((m) => ({ default: m.Workshop })));
-const Capital = lazy(() => import('./screens/Capital').then((m) => ({ default: m.Capital })));
-const Quality = lazy(() => import('./screens/Quality').then((m) => ({ default: m.Quality })));
-const Tools = lazy(() => import('./screens/Tools').then((m) => ({ default: m.Tools })));
-const Automations = lazy(() => import('./screens/Automations').then((m) => ({ default: m.Automations })));
+/**
+ * A screen loaded on first visit — or before: once the dashboard has settled, every screen is fetched while the
+ * browser is idle, so the first click shows it at once (no skeleton). Rendered directly once loaded.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyScreen = ComponentType<any>;
+
+function lazyScreen<C extends AnyScreen>(load: () => Promise<C>) {
+  let Loaded: C | null = null;
+  let pending: Promise<C> | null = null;
+  const preload = () =>
+    (pending ??= load()
+      .then((c) => (Loaded = c))
+      .catch((e: unknown) => {
+        pending = null; // a failed fetch is retried on the next visit
+        throw e;
+      }));
+  const Lazy = lazy(() => preload().then((c) => ({ default: c })));
+  function Screen(props: ComponentProps<C>) {
+    return Loaded ? createElement(Loaded, props) : createElement(Lazy, props);
+  }
+  Screen.preload = preload;
+  return Screen;
+}
+
+const Onboarding = lazyScreen(() => import('./screens/Onboarding').then((m) => m.Onboarding));
+const Buy = lazyScreen(() => import('./screens/Buy').then((m) => m.Buy));
+const Insights = lazyScreen(() => import('./screens/Insights').then((m) => m.Insights));
+const ItemDetail = lazyScreen(() => import('./screens/ItemDetail').then((m) => m.ItemDetail));
+const Market = lazyScreen(() => import('./screens/Market').then((m) => m.Market));
+const Sales = lazyScreen(() => import('./screens/Sales').then((m) => m.Sales));
+const Settings = lazyScreen(() => import('./screens/Settings').then((m) => m.Settings));
+const Stock = lazyScreen(() => import('./screens/Stock').then((m) => m.Stock));
+const Accounting = lazyScreen(() => import('./screens/Accounting').then((m) => m.Accounting));
+const Invoice = lazyScreen(() => import('./screens/Invoice').then((m) => m.Invoice));
+const Dossier = lazyScreen(() => import('./screens/Dossier').then((m) => m.Dossier));
+const Workshop = lazyScreen(() => import('./screens/Workshop').then((m) => m.Workshop));
+const Capital = lazyScreen(() => import('./screens/Capital').then((m) => m.Capital));
+const Quality = lazyScreen(() => import('./screens/Quality').then((m) => m.Quality));
+const Tools = lazyScreen(() => import('./screens/Tools').then((m) => m.Tools));
+const Automations = lazyScreen(() => import('./screens/Automations').then((m) => m.Automations));
+
+// Most visited first.
+const PRELOAD = [Stock, ItemDetail, Sales, Workshop, Buy, Market, Insights, Settings, Accounting, Capital, Quality, Tools, Automations, Dossier, Invoice];
+
+function usePreloadScreens() {
+  useEffect(() => {
+    const idle = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 1500));
+    let cancelled = false;
+    const next = (i: number) => {
+      if (cancelled || i >= PRELOAD.length) return;
+      void PRELOAD[i]!.preload()
+        .catch(() => undefined)
+        .finally(() => idle(() => next(i + 1)));
+    };
+    idle(() => next(0));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+}
 
 function PageSkeleton() {
   return (
@@ -46,6 +89,7 @@ import { EraDataProvider, go, useEra, useRoute } from './state';
 function Router() {
   const route = useRoute();
   const era = useEra();
+  usePreloadScreens();
   useEffect(() => {
     void repo.track('extension_installed');
     void repo.track('dashboard_opened');

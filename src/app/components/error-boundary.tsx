@@ -1,37 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useI18n } from '@/i18n';
 import { Button, Card } from '@/ui/components/primitives';
+import { recordError } from '@/data/error-journal';
 
-/** The last display errors, kept in this browser only, for the diagnostic report the seller can copy. */
-export const UI_ERRORS_KEY = 'eraUiErrors';
-const KEEP = 20;
-
-export interface UiError {
-  at: number;
-  where: string;
-  message: string;
-  stack: string;
-}
-
-export async function recordUiError(where: string, error: unknown, info?: ErrorInfo): Promise<void> {
-  const e = error instanceof Error ? error : new Error(String(error));
-  const row: UiError = { at: Date.now(), where, message: e.message.slice(0, 300), stack: `${e.stack ?? ''}\n${info?.componentStack ?? ''}`.trim().slice(0, 1200) };
-  try {
-    const got = (await browser.storage.local.get(UI_ERRORS_KEY)) as { [UI_ERRORS_KEY]?: UiError[] };
-    await browser.storage.local.set({ [UI_ERRORS_KEY]: [row, ...(got[UI_ERRORS_KEY] ?? [])].slice(0, KEEP) });
-  } catch {
-    /* storage unavailable: the error is still shown on screen */
-  }
-}
-
-export async function readUiErrors(): Promise<UiError[]> {
-  try {
-    const got = (await browser.storage.local.get(UI_ERRORS_KEY)) as { [UI_ERRORS_KEY]?: UiError[] };
-    return got[UI_ERRORS_KEY] ?? [];
-  } catch {
-    return [];
-  }
-}
+export { ERROR_JOURNAL_KEY as UI_ERRORS_KEY, type JournalError as UiError, readErrors as readUiErrors } from '@/data/error-journal';
 
 interface Props {
   /** Where the error happened (a screen, a page of the extension): written in the report. */
@@ -55,7 +27,7 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
-    void recordUiError(this.props.where, error, info);
+    void recordError(this.props.where, error, info.componentStack ?? '');
   }
 
   override componentDidUpdate(prev: Props) {

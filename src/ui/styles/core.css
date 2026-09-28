@@ -114,7 +114,7 @@
   letter-spacing: -0.03em;
   line-height: 1.05;
   margin: 12px 0 6px;
-  animation: count-in 700ms var(--ease) both;
+  animation: count-in 420ms var(--ease) both;
 }
 @keyframes count-in {
   from {
@@ -181,7 +181,7 @@
   flex-basis: 0;
   min-width: 4px;
   transform-origin: left;
-  animation: grow-x 800ms var(--ease) both;
+  animation: grow-x 480ms var(--ease) both;
 }
 .cockpit__aged {
   display: grid;
@@ -374,7 +374,7 @@
   border-radius: var(--r-lg);
   border: 1px solid color-mix(in srgb, var(--violet) 35%, var(--border));
   background: linear-gradient(90deg, var(--violet-soft), transparent 70%), var(--surface);
-  animation: rise 380ms var(--ease) both;
+  animation: rise 300ms var(--ease) both;
   flex-wrap: wrap;
 }
 .focus-banner__title {
@@ -419,7 +419,7 @@
   height: 100%;
   border-radius: inherit;
   transform-origin: left;
-  animation: grow-x 700ms var(--ease) both;
+  animation: grow-x 420ms var(--ease) both;
 }
 @media (max-width: 760px) {
   .trap-row {
@@ -447,7 +447,7 @@
     radial-gradient(90% 120% at 0% 50%, color-mix(in srgb, var(--v) 18%, transparent) 0%, transparent 60%),
     var(--surface);
   box-shadow: var(--shadow-2);
-  animation: rise 420ms var(--ease) both;
+  animation: rise 320ms var(--ease) both;
 }
 .verdict--emerald {
   --v: var(--emerald);
@@ -498,7 +498,7 @@
   background: var(--surface);
   box-shadow: var(--shadow-1);
   min-width: 0;
-  animation: rise 420ms var(--ease) both;
+  animation: rise 320ms var(--ease) both;
 }
 .dtile:nth-child(2) {
   animation-delay: 40ms;
@@ -685,7 +685,7 @@
   border: 1px solid var(--border);
   border-left: 3px solid var(--p);
   background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
-  animation: rise 360ms var(--ease) both;
+  animation: rise 300ms var(--ease) both;
 }
 .pred--hit {
   --p: var(--emerald);
@@ -768,7 +768,7 @@
   border-radius: inherit;
   background: var(--brand-grad);
   transform-origin: left;
-  animation: grow-x 700ms var(--ease) both;
+  animation: grow-x 420ms var(--ease) both;
 }
 .calib__target {
   position: absolute;
@@ -841,7 +841,7 @@
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-1);
-  animation: rise 380ms var(--ease) both;
+  animation: rise 300ms var(--ease) both;
   min-width: 0;
 }
 .you-hl__label {
@@ -913,7 +913,7 @@
   color: var(--text);
 }
 .activation__step.is-new .activation__check {
-  animation: milestone-pop 900ms var(--ease) both;
+  animation: milestone-pop 600ms var(--ease) both;
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--emerald) 60%, transparent);
 }
 .activation__step.is-new {
@@ -1269,7 +1269,7 @@
   border-radius: inherit;
   background: var(--emerald);
   transform-origin: left;
-  animation: grow-x 700ms var(--ease) both;
+  animation: grow-x 420ms var(--ease) both;
 }
 .gauge__fill.is-near {
   background: var(--amber);
@@ -1442,7 +1442,7 @@
   border-radius: inherit;
   background: var(--brand-grad);
   transform-origin: left;
-  animation: grow-x 800ms var(--ease) both;
+  animation: grow-x 480ms var(--ease) both;
 }
 .goal__pace {
   position: absolute;

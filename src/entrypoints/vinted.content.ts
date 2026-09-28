@@ -15,6 +15,11 @@ export default defineContentScript({
   runAt: 'document_end',
   main() {
     browser.runtime.onMessage.addListener((msg: EraMessage, _sender, sendResponse) => {
+      // Always an answer, even when something throws: the extension never waits on a closed channel.
+      const reply = (p: Promise<unknown>) => {
+        p.then(sendResponse, (e: unknown) => sendResponse({ ok: false, code: 'UNAVAILABLE', detail: e instanceof Error ? e.message : String(e) }));
+        return true;
+      };
       if (msg.type === 'era:ping') {
         sendResponse({ ok: true });
         return;
@@ -39,22 +44,18 @@ export default defineContentScript({
           sendResponse({ ok: false, detail: `pas sur une page de modification (${location.pathname})` });
           return;
         }
-        void editPriceOnPage(msg.cents).then(sendResponse);
-        return true;
+        return reply(editPriceOnPage(msg.cents));
       }
       if (msg.type === 'era:api') {
-        void callApi(msg.path).then(sendResponse);
-        return true;
+        return reply(callApi(msg.path));
       }
       if (msg.type === 'era:write') {
         // Only from ERA's background, only whitelisted routes of an automation the seller switched on.
-        void callApi(msg.path, msg.method, msg.body).then(sendResponse);
-        return true;
+        return reply(callApi(msg.path, msg.method, msg.body));
       }
       if (msg.type === 'era:photo:upload') {
         // A photo of the seller's own listing, sent again for its draft copy (repost, on click).
-        void uploadPhoto(msg.base64, msg.mime, msg.tempUuid, msg.name).then(sendResponse);
-        return true;
+        return reply(uploadPhoto(msg.base64, msg.mime, msg.tempUuid, msg.name));
       }
     });
   },
@@ -77,7 +78,8 @@ function readPage(): PageResult {
 async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<ApiResult> {
   const allowed = method === 'GET' ? isAllowedApi(path) : isAllowedWrite(method, path);
   if (!allowed) return { ok: false, code: 'NOT_IMPLEMENTED', detail: `chemin refusé : ${method} ${path.split('?')[0]}` };
-  const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
+  // The budget is kept by the service worker: unreachable means no call (never a call outside the budget).
+  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
@@ -111,7 +113,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** POST one image to the upload route, as Vinted's form does (multipart). Same budget as any call. */
 async function uploadPhoto(base64: string, mime: string, tempUuid: string, name: string): Promise<ApiResult> {
   if (!/^image\/(jpeg|png|webp)$/.test(mime) || !UUID.test(tempUuid) || base64.length > 20_000_000) return { ok: false, code: 'NOT_IMPLEMENTED', detail: 'photo refusée (type, taille ou session)' };
-  const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
+  // The budget is kept by the service worker: unreachable means no call (never a call outside the budget).
+  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
