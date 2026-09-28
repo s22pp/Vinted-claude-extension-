@@ -5,14 +5,14 @@ import {
   type DomainEvent,
   type Gender,
   type InventoryItem,
-  InventoryItemSchema,
   type ItemStatus,
   type Listing,
   type PricePrediction,
   type Prep,
-  PrepSchema,
   type RefundReason,
   type Sale,
+  newPrep,
+  validItem,
 } from '@/domain/entities';
 import type { Cents } from '@/domain/money';
 import { DAY } from '@/domain/time';
@@ -128,7 +128,7 @@ export class EraRepository {
   }, now = Date.now()): Promise<string> {
     const id = uid('item');
     const status: ItemStatus = input.status ?? (input.priceCents !== null ? 'LISTED' : 'DRAFT');
-    const item: InventoryItem = InventoryItemSchema.parse({
+    const item: InventoryItem = validItem({
       id,
       title: input.title,
       brand: input.brand,
@@ -141,6 +141,7 @@ export class EraRepository {
       era: null,
       photoUrl: null,
       purchasePriceCents: input.purchasePriceCents,
+      costDetail: null,
       purchaseDate: input.purchaseDate,
       purchaseSource: input.purchaseSource,
       status,
@@ -413,7 +414,7 @@ export class EraRepository {
   }
 
   async getPrep(itemId: string, now = Date.now()): Promise<Prep> {
-    return (await this.db.preps.get(itemId)) ?? PrepSchema.parse({ itemId, startedAt: now });
+    return (await this.db.preps.get(itemId)) ?? newPrep(itemId, now);
   }
 
   async savePrep(itemId: string, patch: Partial<Omit<Prep, 'itemId' | 'startedAt'>>, now = Date.now()): Promise<Prep> {

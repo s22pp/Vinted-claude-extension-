@@ -1,7 +1,7 @@
 import { parseOrder, parseWardrobeItem } from '@/data/adapters/vinted/parse';
 import { EraDatabase } from '@/data/db';
 import { EraRepository } from '@/data/repo';
-import { type InventoryItem, type Listing, PrepSchema, type Sale } from '@/domain/entities';
+import { type InventoryItem, type Listing, type Prep, type Sale, newPrep } from '@/domain/entities';
 import { DAY } from '@/domain/time';
 import { skuOf, skusInText } from '@/intelligence/listing';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
@@ -50,7 +50,7 @@ const listing = (id: string, itemId: string, over: Partial<Listing> = {}): Listi
   isDemo: false,
   ...over,
 });
-const prep = (itemId: string, over: Partial<ReturnType<typeof PrepSchema.parse>> = {}) => ({ ...PrepSchema.parse({ itemId, startedAt: NOW }), ...over });
+const prep = (itemId: string, over: Partial<Prep> = {}) => newPrep(itemId, NOW, over);
 
 describe('listing workshop', () => {
   it('queues owned items that buyers cannot see, oldest capital first', () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PrepSchema } from '@/domain/entities';
+import { newPrep } from '@/domain/entities';
 import { hourlyReport } from '@/intelligence/hourly';
 
 const sale = (id: string, brand: string, category: string, profit: number | null, status = 'COMPLETED') => ({ sale: { id: `s${id}`, status }, item: { id, brand, category }, profit }) as never;
-const prep = (itemId: string, seconds: number) => PrepSchema.parse({ itemId, startedAt: 0, seconds });
+const prep = (itemId: string, seconds: number) => newPrep(itemId, 0, { seconds });
 
 describe('profit per hour of work', () => {
   it('measured listing time where it exists, your median elsewhere; your parcel and sourcing estimates on top', () => {

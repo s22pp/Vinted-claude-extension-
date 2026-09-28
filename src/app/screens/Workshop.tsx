@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Condition, Prep } from '@/domain/entities';
-import { PrepSchema } from '@/domain/entities';
+import { newPrep } from '@/domain/entities';
 import { errorCode } from '@/data/adapters/marketplace';
 import type { DraftInput, DraftResult, EraMessage } from '@/data/adapters/vinted/protocol';
 import { repo } from '@/data/repo';
@@ -228,7 +228,7 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
   const errorToast = useErrorToast();
   const item = v.item;
   const stored = era.preps.get(item.id) ?? null;
-  const prep = stored ?? PrepSchema.parse({ itemId: item.id, startedAt: era.now });
+  const prep = stored ?? newPrep(item.id, era.now);
   const live = usePrepTimer(item.id);
   const [analyzing, setAnalyzing] = useState(false);
   const [editTitle, setEditTitle] = useState(false);
