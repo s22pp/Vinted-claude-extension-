@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useI18n } from '@/i18n';
 import type { ItemIntel } from '@/intelligence/decision';
 import { TITLE_MAX } from '@/intelligence/listing';
@@ -28,7 +29,8 @@ export function TitleWords({
 }) {
   const { t, pct, date } = useI18n();
   const analysis = intel?.analysis ?? null;
-  if (!analysis) {
+  const r = useMemo(() => (analysis ? missingTitleWords(title, brand, analysis.comparables.filter((c) => c.kept).map((c) => c.candidate)) : null), [analysis, title, brand]);
+  if (!analysis || !r) {
     return (
       <div className="row wrap" style={{ gap: 8, alignItems: 'center' }} data-testid="title-words">
         <span className="t-small t-faint">{t('tw.noAnalysis')}</span>
@@ -40,8 +42,6 @@ export function TitleWords({
       </div>
     );
   }
-  const kept = analysis.comparables.filter((c) => c.kept).map((c) => c.candidate);
-  const r = missingTitleWords(title, brand, kept);
   return (
     <div className="stack" style={{ gap: 6 }} data-testid="title-words">
       <span className="t-small t-muted">{t('tw.label', { n: r.base, when: date(analysis.at) })}</span>

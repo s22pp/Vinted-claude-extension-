@@ -73,6 +73,18 @@ function usePrepTimer(itemId: string | null) {
   return live;
 }
 
+/** Time spent on the sheet: ticks every second on its own, so the sheet itself is not redrawn each second. */
+function PrepClock({ itemId, stored }: { itemId: string; stored: number }) {
+  const { t } = useI18n();
+  const live = usePrepTimer(itemId);
+  const total = stored + live;
+  return (
+    <span className="t-small t-faint num">
+      <Icon name="clock" size={12} /> {t('workshop.timer', { m: Math.floor(total / 60), s: String(total % 60).padStart(2, '0') })}
+    </span>
+  );
+}
+
 export function Workshop({ route }: { route: Route }) {
   const { t } = useI18n();
   const era = useEra();
@@ -229,7 +241,6 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
   const item = v.item;
   const stored = era.preps.get(item.id) ?? null;
   const prep = stored ?? newPrep(item.id, era.now);
-  const live = usePrepTimer(item.id);
   const [analyzing, setAnalyzing] = useState(false);
   const [editTitle, setEditTitle] = useState(false);
   const [editDesc, setEditDesc] = useState(false);
@@ -250,7 +261,6 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
   const save = (patch: Partial<Prep>) => repo.savePrep(item.id, patch);
   const toggle = (k: CheckKey) => save({ checks: prep.checks.includes(k) ? prep.checks.filter((x) => x !== k) : [...prep.checks, k] });
   const fields = measureFields(item.category);
-  const totalSeconds = (stored?.seconds ?? 0) + live;
 
   const analyze = async () => {
     setAnalyzing(true);
@@ -308,9 +318,7 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
               {t('workshop.ref')} {skuOf(item.id)}
             </Badge>
             {item.status === 'DRAFT' && v.current && <Badge tone="cobalt">{t('workshop.vintedDraft')}</Badge>}
-            <span className="t-small t-faint num">
-              <Icon name="clock" size={12} /> {t('workshop.timer', { m: Math.floor(totalSeconds / 60), s: String(totalSeconds % 60).padStart(2, '0') })}
-            </span>
+            <PrepClock itemId={item.id} stored={stored?.seconds ?? 0} />
           </div>
           <h2 className="t-h2 clamp-1" style={{ marginTop: 6 }}>
             {item.title}
