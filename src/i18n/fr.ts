@@ -2121,6 +2121,30 @@ export const fr = {
     listMin: 'Fiche (si non mesurée)',
     note: 'Le temps de fiche est mesuré dans l’Atelier (fenêtre ouverte et active) ; l’envoi et le sourcing sont vos estimations. Une niche lente mais chère peut rapporter moins par heure qu’une niche rapide à petit prix.',
   },
+  alerts: {
+    title: 'Alertes d’achat',
+    hint: 'Vos {n} meilleures niches cherchées sur Vinted après chaque actualisation automatique',
+    enable: 'M’alerter quand une annonce passe sous mon prix max',
+    needRefresh: 'Les alertes tournent après chaque actualisation automatique : activez-la dans les Réglages.',
+    checkNow: 'Vérifier maintenant',
+    checked: '{n} nouvelles affaires',
+    checked_one: '1 nouvelle affaire',
+    last: 'Dernières trouvées {when}',
+    margin: 'marge ~',
+  },
+  photos: {
+    title: 'Photos de mes annonces',
+    hint: 'Toutes les photos de vos annonces, un dossier par annonce dans Téléchargements/ERA-photos, dans l’ordre de l’annonce. Les adresses viennent du dernier import ; sinon l’annonce est lue une fois (budget d’appels). Une annonce supprimée n’a plus de photos chez Vinted.',
+    live: 'Annonces en ligne',
+    all: 'Toutes, vendues comprises',
+    go: 'Télécharger les photos',
+    progress: '{done} / {total} annonces…',
+    done: '{n} photos téléchargées',
+    done_one: '1 photo téléchargée',
+    result: '{n} photos de {k} annonces envoyées au téléchargement (liste dans chrome://downloads).',
+    missing: '{n} annonce(s) sans photo trouvée.',
+    stopped: 'Arrêt des lectures : {why} — réessayez plus tard pour le reste.',
+  },
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };

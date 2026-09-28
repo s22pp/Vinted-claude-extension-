@@ -146,6 +146,14 @@ Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi 
 
 Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de **vos niches** (liste de courses : 3 ventes et plus d'une même marque et d'un même type) porte un repère : **« ERA ✓ marge ~X € »** sous votre prix max, **« votre max X € »** au-dessus, **« ⚠ niche à éviter »** si elle se vend mal chez vous. ERA lit seulement ce que la page affiche (titre et prix du lien, données produit de l'annonce) : **aucune requête**, rien de cliqué ni de modifié sur Vinted. Vos propres annonces n'ont pas de repère. Réglages → désactivable. Dépend de la construction des pages Vinted : peut cesser de fonctionner si Vinted la change.
 
+## Alertes d'achat
+
+Buy → Scanner → **Alertes d'achat** : après chaque actualisation automatique, vos 3 meilleures niches sont cherchées une fois chacune sur Vinted (lecture seule, dans le budget). Une annonce **sous votre prix max** qu'ERA ne vous a pas encore montrée est gardée et annoncée par une notification (si activée) ; jamais vos propres annonces, chaque annonce une seule fois. « Vérifier maintenant » lance la même recherche à la main.
+
+## Télécharger toutes mes photos
+
+Réglages → Sauvegarde → **Photos de mes annonces** : toutes les photos de vos annonces (en ligne, ou toutes, vendues comprises), un dossier par annonce dans `Téléchargements/ERA-photos/<article>_<id>/01.jpg`, dans l'ordre de l'annonce, à la plus grande taille que Vinted fournit. Les adresses viennent du dernier import ; une annonce dont la garde-robe ne les donne pas est lue une fois (budget d'appels, arrêt propre s'il s'épuise). Une annonce supprimée n'a plus de photos chez Vinted.
+
 ## Vérification complète du compte
 
 Réglages → Diagnostic → **« Vérification complète (8 lectures) »** : chaque lecture dont ERA dépend est essayée une fois, en lecture seule (session, garde-robe, recherche, ventes, achats, notifications, messagerie, une annonce en entier) ; une erreur n'arrête pas les suivantes, sauf un blocage. Le résultat s'affiche à côté de chaque intégration (« Vérifié le … : lu sur votre compte » ou « échec »).

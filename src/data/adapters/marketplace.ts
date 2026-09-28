@@ -40,6 +40,8 @@ export interface InventorySnapshotItem {
   photoCount?: number | null;
   /** The description when the wardrobe returns it, else null (not read, never "empty"). */
   description?: string | null;
+  /** All photo URLs the wardrobe gives (Vinted's image servers only); empty when it gives none. */
+  photoUrls?: string[];
 }
 
 export interface ListingObservationSnapshot {

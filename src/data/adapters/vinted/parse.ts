@@ -1,3 +1,4 @@
+import { isVintedImageUrl } from './protocol';
 /**
  * Defensive parsers for Vinted JSON. Field names come ONLY from the verified API map
  * (wardrobe, catalog/items, my_orders, users/current, item page JSON-LD). Anything else is read
@@ -55,6 +56,12 @@ export function firstArray(json: unknown, preferred: string[]): Json[] {
   return [];
 }
 
+/** Every photo of a listing, largest size given (full_size_url, else url), only from Vinted's image servers. */
+export function photoUrlsOf(it: Json): string[] {
+  const photos = Array.isArray(it.photos) ? it.photos.filter(isObj) : [];
+  return photos.map((p) => str(p.full_size_url) ?? str(p.url)).filter((u): u is string => !!u && isVintedImageUrl(u));
+}
+
 function firstPhoto(it: Json): { url: string | null; ts: number | null } {
   const photos = Array.isArray(it.photos) ? it.photos.filter(isObj) : isObj(it.photo) ? [it.photo] : [];
   const p = photos.find((x) => x.is_main === true) ?? photos[0];
@@ -92,6 +99,7 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
     status: closed ? 'SOLD' : it.is_draft === true ? 'DRAFT' : it.is_reserved === true ? 'RESERVED' : hidden ? 'HIDDEN' : 'ACTIVE',
     reservedKnown,
     photoCount: Array.isArray(it.photos) ? it.photos.length : null,
+    photoUrls: photoUrlsOf(it),
     description: typeof it.description === 'string' ? it.description : null,
   };
 }

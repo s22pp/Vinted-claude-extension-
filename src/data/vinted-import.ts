@@ -189,6 +189,7 @@ export async function importFromVinted(
         // What the buyer sees: kept from an earlier read when this import did not return it.
         photoCount: s.photoCount ?? prev?.photoCount ?? null,
         description: s.description ?? prev?.description ?? null,
+        photoUrls: s.photoUrls?.length ? s.photoUrls : (prev?.photoUrls ?? []),
         removedAt: resolved.status === 'ARCHIVED' || resolved.status === 'DRAFT' ? (prev?.removedAt ?? now) : null,
         soldAt: resolved.status === 'SOLD' ? (prev?.soldAt ?? now) : null,
         status: listingStatusOf(resolved.status),

@@ -88,6 +88,8 @@ const SCAN_NICHES = 5;
  * One click: the best niches of the shopping list searched on Vinted (read-only, one search each, newest first),
  * and only the listings whose all-in cost stays under the niche's maximum.
  */
+import { BuyAlertsCard } from './buy-alerts';
+
 export function DealScanner() {
   const { t } = useI18n();
   const era = useEra();
@@ -128,6 +130,7 @@ export function DealScanner() {
 
   return (
     <div className="stack-4">
+      <BuyAlertsCard />
       <Card title={t('scanner.title')} hint={t('scanner.hint', { n: top.length })} icon="target" tone="cyan">
         <div className="stack">
           <p className="t-small t-muted">{top.map((l) => `${l.label} ≤ ${(l.maxVintedPriceCents / 100).toFixed(0)} €`).join(' · ')}</p>

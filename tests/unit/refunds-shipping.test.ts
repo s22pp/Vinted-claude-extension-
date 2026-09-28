@@ -45,3 +45,15 @@ describe('parcels to watch', () => {
     ]);
   });
 });
+
+describe('photos of your listings', () => {
+  it('every photo, largest size, only from Vinted’s image servers; one folder per listing, in order', async () => {
+    const { photoUrlsOf } = await import('@/data/adapters/vinted/parse');
+    const { photoFileName } = await import('@/intelligence/shipping');
+    expect(
+      photoUrlsOf({ photos: [{ url: 'https://images1.vinted.net/t/a/310x430/1.jpeg', full_size_url: 'https://images1.vinted.net/t/a/f800/1.jpeg' }, { url: 'https://images1.vinted.net/t/a/2.webp' }, { url: 'https://evil.example/3.jpg' }, { url: null }] }),
+    ).toEqual(['https://images1.vinted.net/t/a/f800/1.jpeg', 'https://images1.vinted.net/t/a/2.webp']);
+    expect(photoFileName('Chemise Oxford Ralph Lauren L', '4242', 0, 'https://images1.vinted.net/t/a/f800/1.jpeg')).toBe('ERA-photos/chemise-oxford-ralph-lauren-l_4242/01.jpg');
+    expect(photoFileName('Chemise', '1', 11, 'https://images1.vinted.net/x.webp?s=1')).toBe('ERA-photos/chemise_1/12.webp');
+  });
+});

@@ -31,17 +31,21 @@ export const LABEL_FOLDER = 'ERA-bordereaux';
  * ("ERA-bordereaux/2026-09-20_sweat-nike-vintage-l.pdf"). Two identical names are numbered by the browser.
  */
 export function labelFileName(title: string, soldAt: number): string {
-  const day = new Date(soldAt).toISOString().slice(0, 10);
-  const slug =
+  return `${LABEL_FOLDER}/${new Date(soldAt).toISOString().slice(0, 10)}_${fileSlug(title)}.pdf`;
+}
+
+/** A title as a file name part: plain letters, digits and dashes, 60 characters at most. */
+export function fileSlug(title: string): string {
+  return (
     title
       .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 60)
-      .replace(/-+$/, '') || 'commande';
-  return `${LABEL_FOLDER}/${day}_${slug}.pdf`;
+      .replace(/-+$/, '') || 'commande'
+  );
 }
 
 /* ── Parcels on their way ───────────────────────────────── */
@@ -77,4 +81,15 @@ export function parcelAlerts(
     if (days >= (state === 'SHIPPED' ? o.shippedDays : o.deliveredDays)) out.push({ saleId: s.id, state, days, since: s.vintedStatusSince ? 'STATUS' : 'SALE' });
   }
   return out.sort((a, b) => b.days - a.days);
+}
+
+/* ── Photos of your listings ────────────────────────────── */
+
+export const PHOTO_FOLDER = 'ERA-photos';
+
+/** "ERA-photos/chemise-oxford-ralph-lauren-l_4242/01.jpg": one folder per listing, photos in their order. */
+export function photoFileName(title: string, listingId: string, index: number, url: string): string {
+  const slug = fileSlug(title);
+  const ext = /\.(png|webp|jpe?g)(?:$|\?)/i.exec(url)?.[1]?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg';
+  return `${PHOTO_FOLDER}/${slug}_${listingId}/${String(index + 1).padStart(2, '0')}.${ext}`;
 }

@@ -92,6 +92,8 @@ export const ListingSchema = z.object({
   /** What the listing shows, as Vinted returned it (absent = not read): photo count, description. */
   photoCount: z.number().int().nonnegative().nullable().optional(),
   description: z.string().nullable().optional(),
+  /** Its photos on Vinted's image servers, as last read (for "download my photos"). */
+  photoUrls: z.array(z.string()).optional(),
   removedAt: ts.nullable(),
   soldAt: ts.nullable(),
   status: ListingStatusSchema,

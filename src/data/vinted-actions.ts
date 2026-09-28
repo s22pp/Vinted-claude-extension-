@@ -148,7 +148,7 @@ export async function readListingDetails(ids: readonly string[]): Promise<Detail
       const src = repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${id}`));
       if (!src) continue;
       const description = typeof src.fields.description === 'string' ? src.fields.description : null;
-      await db.listings.filter((l) => l.platformListingId === id).modify({ description, photoCount: src.photoUrls.length });
+      await db.listings.filter((l) => l.platformListingId === id).modify({ description, photoCount: src.photoUrls.length, photoUrls: src.photoUrls });
       read++;
     } catch (e) {
       const { code, detail } = errorInfo(e);

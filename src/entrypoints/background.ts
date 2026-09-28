@@ -8,6 +8,9 @@ import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/a
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, salesSnapshot, whatIsNew } from '@/data/refresh';
+import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
+import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
+import { repo } from '@/data/repo';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -52,6 +55,23 @@ async function updateBadge(): Promise<void> {
 
 async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise<void> {
   await updateBadge();
+  // Scheduled refresh: the buy alerts run right after, if switched on (a few budgeted searches).
+  if (auto && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && !(await budget.status()).halted) {
+    const { deals } = await runBuyAlerts();
+    if (deals.length && (await loadRefreshConfig()).notify)
+      await browser.notifications
+        .create(`era-deals-${Date.now()}`, {
+          type: 'basic',
+          iconUrl: browser.runtime.getURL('/icon/128.png'),
+          title: deals.length === 1 ? 'Une affaire dans vos niches' : `${deals.length} affaires dans vos niches`,
+          message: deals
+            .slice(0, 3)
+            .map((d) => `${d.title} · ${(d.priceCents / 100).toFixed(0)} € → marge ~${Math.round(d.marginCents / 100)} €`)
+            .join('\n'),
+          priority: 1,
+        })
+        .catch(() => undefined);
+  }
   // A notification only for what the seller did not watch arrive: the scheduled imports.
   const cfg = await loadRefreshConfig();
   if (!auto || !before || !cfg.notify) return;
@@ -109,6 +129,8 @@ let autoRunning: Promise<AutoRunResult> | null = null;
 let reposting: Promise<RepostResult | RepostFinishResult> | null = null;
 /** All labels at once: a few minutes at most, nothing else writes meanwhile. */
 let labelling: Promise<LabelBatchResult> | null = null;
+/** Photo export: downloads for a while; reads (if any) share the budget. */
+let exportingPhotos: Promise<PhotoExportResult> | null = null;
 
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
@@ -148,6 +170,7 @@ export default defineBackground(() => {
   // A notification opens what it announces.
   browser.notifications?.onClicked.addListener((id) => {
     if (id.startsWith('era-news-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/sales?ship=1` });
+    if (id.startsWith('era-deals-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/buy?tab=scan` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
@@ -222,6 +245,23 @@ export default defineBackground(() => {
         return true;
       case 'era:refresh:schedule':
         void scheduleRefresh().then(() => sendResponse({ ok: true }));
+        return true;
+      case 'era:photos:export':
+        if (autoRunning || importing || editing || reposting || labelling || exportingPhotos) {
+          sendResponse({ listings: 0, photos: 0, missing: 0, stopped: 'une autre opération Vinted est en cours' } satisfies PhotoExportResult);
+          return undefined;
+        }
+        exportingPhotos = exportPhotos(msg.scope, (done, total) => void browser.runtime.sendMessage({ type: 'era:photos:progress', done, total } satisfies EraMessage).catch(() => undefined)).finally(() => {
+          exportingPhotos = null;
+        });
+        void exportingPhotos.then(sendResponse);
+        return true;
+      case 'era:alerts:run':
+        if (autoRunning || importing || editing || reposting || labelling) {
+          sendResponse({ deals: [], stopped: 'une autre opération Vinted est en cours' });
+          return undefined;
+        }
+        void runBuyAlerts().then(sendResponse);
         return true;
       case 'era:badge:update':
         void updateBadge().then(() => sendResponse({ ok: true }));

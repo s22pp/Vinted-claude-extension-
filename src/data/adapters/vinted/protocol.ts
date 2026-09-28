@@ -77,6 +77,9 @@ export type EraMessage =
   | { type: 'era:auto:schedule' }
   | { type: 'era:refresh:schedule' }
   | { type: 'era:badge:update' }
+  | { type: 'era:alerts:run' }
+  | { type: 'era:photos:export'; scope: 'LIVE' | 'ALL' }
+  | { type: 'era:photos:progress'; done: number; total: number }
   | { type: 'era:draft:create'; input: DraftInput }
   | { type: 'era:label:get'; conversationId: string; title: string; soldAt: number }
   | { type: 'era:label:all' }

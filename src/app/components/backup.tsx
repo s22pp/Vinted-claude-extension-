@@ -8,6 +8,7 @@ import { downloadText } from '@/lib/download';
 import { Modal, useToast } from '@/ui/components/overlays';
 import { Button, Card } from '@/ui/components/primitives';
 import { useEra } from '../state';
+import { PhotoExport } from './photo-export';
 
 export const LAST_BACKUP_KEY = 'lastBackupAt';
 /** Past this, the daily run reminds the seller to save a copy. */
@@ -62,6 +63,7 @@ export function BackupCard() {
           </Button>
           <input ref={file} type="file" accept="application/json,.json" hidden aria-label={t('backup.restore')} onChange={(e) => void pick(e.target.files?.[0])} />
         </div>
+        <PhotoExport />
       </div>
       <Modal open={!!pending} onClose={() => !busy && setPending(null)} title={t('backup.confirmTitle')}>
         {pending && (

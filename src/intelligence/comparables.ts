@@ -181,7 +181,7 @@ export function widerQueries(subject: ComparableSubject, done: readonly string[]
   return texts.map((text) => ({ ...base, brand: isUnknownBrand(subject.brand) ? '' : subject.brand, text }));
 }
 
-const CATEGORY_QUERY_WORD: Record<Category, string> = {
+export const CATEGORY_QUERY_WORD: Record<Category, string> = {
   JACKET: 'veste',
   COAT: 'manteau',
   SWEATSHIRT: 'sweat',

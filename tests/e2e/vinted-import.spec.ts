@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -146,6 +146,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     // Test fixture only: a collaboration found under its parts, never under "uniqlo x kaws"; an unknown brand found nowhere.
     if (url.pathname === '/api/v2/catalog/items') {
       const q = (url.searchParams.get('search_text') ?? '').toLowerCase();
+      if (opts.shirtDeals && /chemise/.test(q))
+        return json({ items: [{ id: 601, title: 'Chemise Oxford Ralph Lauren L', price: '8.0', brand_title: 'Ralph Lauren', url: 'https://www.vinted.fr/items/601-x' }, { id: 602, title: 'Chemise Ralph Lauren slim', price: '40.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 2 } });
       if (/zorgblat/.test(q) || /uniqlo x kaws/.test(q)) return json({ items: [], pagination: { total_entries: 0 } });
       if (/kaws/.test(q))
         return json({
@@ -878,4 +880,45 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect(page.locator('[data-era-mark]')).toHaveCount(0);
   // Not a single request to Vinted's API for this.
   expect(calls.filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+});
+
+test('buy alerts: your niche searched, a listing under your max kept and shown once', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const sold = (id: number) => ({ id, title: `Chemise Ralph Lauren Oxford ${id}`, price: '30.0', view_count: 20, favourite_count: 2, brand_title: 'Ralph Lauren', is_draft: false, is_closed: true, is_hidden: false, photos: [] });
+  const order = (id: number, day: string) => ({ title: `Chemise Ralph Lauren Oxford ${id}`, price: { amount: '30.0' }, date: day, status: 'Terminée', item_id: id });
+  await fakeVinted(context, { loggedIn: true, shirtDeals: true, extra: [sold(301), sold(302), sold(303)], orders: [order(301, '2026-09-01'), order(302, '2026-09-08'), order(303, '2026-09-15')] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/6 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/buy?tab=scan`);
+  const card = page.getByTestId('buy-alerts');
+  await card.getByLabel('M’alerter quand une annonce passe sous mon prix max').check();
+  await card.getByRole('button', { name: 'Vérifier maintenant' }).click();
+  await expect(page.getByText('1 nouvelle affaire')).toBeVisible({ timeout: 40_000 });
+  await expect(card).toContainText('Chemise Oxford Ralph Lauren L');
+  await expect(card).not.toContainText('slim');
+  // Already shown: not announced again.
+  await card.getByRole('button', { name: 'Vérifier maintenant' }).click();
+  await expect(page.getByText('0 nouvelles affaires')).toBeVisible({ timeout: 40_000 });
+});
+
+test('download my photos: every photo of each live listing, a folder per listing; addresses read once when unknown', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const box = page.getByTestId('photo-export');
+  await box.getByRole('button', { name: 'Télécharger les photos' }).click();
+  // The Harrington's addresses were not in the wardrobe: read once; the Levi's has none anywhere.
+  await expect(page.getByTestId('photo-result')).toContainText('2 photos de 2 annonces', { timeout: 60_000 });
+  await expect(page.getByTestId('photo-result')).toContainText('1 annonce(s) sans photo');
+  expect(calls.filter((c) => c.path.startsWith('/api/v2/item_upload/items/')).map((c) => c.path).sort()).toEqual(['/api/v2/item_upload/items/101', '/api/v2/item_upload/items/102']);
+  const urls = await page.evaluate(async () => {
+    const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string }[]> } } }).chrome;
+    return (await c.downloads.search({})).map((d) => d.url).sort();
+  });
+  expect(urls).toEqual(['https://images1.vinted.net/t/101/1.jpeg', 'https://images1.vinted.net/t/101/2.jpeg']);
 });
