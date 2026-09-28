@@ -1,7 +1,7 @@
-import type { InventoryItem, Listing, ListingObservation, Sale } from '@/domain/entities';
+import type { InventoryItem, Listing, Sale } from '@/domain/entities';
 import { type Cents, type MaybeCents, type MoneyMetric, subKnown, sumMetric } from '@/domain/money';
 import { isInStock, isLiveListing } from '@/domain/status';
-import { DAY, addMonths, daysBetween, monthKey, startOfMonth } from '@/domain/time';
+import { addMonths, daysBetween, monthKey, startOfMonth } from '@/domain/time';
 import { median } from './stats';
 
 /** Everything the engines need to know about one physical item, pre-joined. */
@@ -190,12 +190,4 @@ export function salesSummary(views: readonly ItemView[], sv: readonly SaleView[]
     refundRate: all.length ? (all.length - done.length) / all.length : null,
     capitalReturned: period.cost,
   };
-}
-
-export function lastNDays(now: number, n: number): [number, number] {
-  return [now - n * DAY, now + 1];
-}
-
-export function observationsFor(obs: readonly ListingObservation[], itemId: string): ListingObservation[] {
-  return obs.filter((o) => o.inventoryItemId === itemId).sort((a, b) => a.at - b.at);
 }

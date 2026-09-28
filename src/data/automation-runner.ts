@@ -7,6 +7,7 @@ import { VintedTabAdapter, findVintedTab, ping } from './adapters/vinted/vinted-
 import { type AutoLogRow, db, uid } from './db';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
+import { eurText } from '@/domain/money';
 
 /**
  * Background-only. Runs ONE automation pass on the seller's own account: reads through the whitelisted GET
@@ -33,7 +34,7 @@ const write = (method: 'POST' | 'PUT', path: string, body: unknown) => vintedWri
 type Json = Record<string, unknown>;
 const obj = (x: unknown): Json => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Json) : {});
 const idOf = (x: unknown): string | null => (typeof x === 'number' ? String(x) : typeof x === 'string' && /^\d+$/.test(x) ? x : null);
-const eur = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+const eur = (cents: number) => eurText(cents, 2);
 
 /** ERA's view of the seller's live listings, by Vinted id: title, price and known cost (for the floor). */
 async function itemsByVintedId(): Promise<Map<string, FavItem>> {

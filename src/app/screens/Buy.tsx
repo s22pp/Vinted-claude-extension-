@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { Category, Condition } from '@/domain/entities';
-import { errorCode } from '@/data/adapters/marketplace';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type BuyAnalysis, analyzeBuy, buySubject } from '@/intelligence/buy';
@@ -89,7 +88,6 @@ function BuyAnalyzer({ route }: { route: Route }) {
       await repo.track('first_buy_analysis');
     } catch (err) {
       setStage(null);
-      const code = errorCode(err);
       setError(err);
     }
   };

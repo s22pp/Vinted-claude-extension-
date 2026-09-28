@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { type ExpenseRow, db, uid } from '@/data/db';
 import { useI18n } from '@/i18n';
 import { EXPENSE_CATEGORIES, type ExpenseCategory, expenseSummary, yearOf } from '@/intelligence/accounting';
-import type { MoneyMetric } from '@/domain/money';
+import { type MoneyMetric, eurNumber } from '@/domain/money';
 import { downloadText } from '@/lib/download';
 import { Button, Card, Field, Input, MetricValue, Money, Select } from '@/ui/components/primitives';
 import { useMoneyField } from './forms';
@@ -30,7 +30,7 @@ export function ExpensesCard({ year, grossMargin }: { year: number; grossMargin:
   const csv = () =>
     downloadText(
       `era-depenses-${year}.csv`,
-      ['date;categorie;montant;note', ...rows.map((r) => [new Date(r.date).toISOString().slice(0, 10), t(`expenses.c.${r.category}`), (r.amountCents / 100).toFixed(2).replace('.', ','), `"${r.note.replaceAll('"', '""')}"`].join(';'))].join('\n'),
+      ['date;categorie;montant;note', ...rows.map((r) => [new Date(r.date).toISOString().slice(0, 10), t(`expenses.c.${r.category}`), eurNumber(r.amountCents), `"${r.note.replaceAll('"', '""')}"`].join(';'))].join('\n'),
     );
 
   return (

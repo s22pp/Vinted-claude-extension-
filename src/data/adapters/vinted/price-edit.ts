@@ -4,6 +4,7 @@ import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
 import type { EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
 import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
+import { eurText } from '@/domain/money';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -54,7 +55,7 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
     if (after !== cents) {
       keepOpen = true; // let the seller see what Vinted shows
       await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
-      throw new MarketplaceError('NOT_APPLIED', after === null ? 'prix introuvable à la relecture' : `Vinted affiche toujours ${(after / 100).toFixed(2).replace('.', ',')} €`);
+      throw new MarketplaceError('NOT_APPLIED', after === null ? 'prix introuvable à la relecture' : `Vinted affiche toujours ${eurText(after, 2)}`);
     }
     await repo.updatePrice(itemId, cents, Date.now(), 'OBSERVED');
     onStage('DONE');

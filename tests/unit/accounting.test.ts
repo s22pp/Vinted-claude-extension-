@@ -1,7 +1,6 @@
 import { EraDatabase } from '@/data/db';
 import { EraRepository } from '@/data/repo';
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
-import { DAY } from '@/domain/time';
 import { DAC7, expenseSummary, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 

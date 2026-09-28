@@ -1,6 +1,6 @@
 import { useI18n } from '@/i18n';
 import { rankNiches, velocityScore } from '@/intelligence/seller-model';
-import { BarChart, LineChart, ScatterChart } from '@/ui/charts/charts';
+import { BarChart, ScatterChart } from '@/ui/charts/charts';
 import { IconTile } from '@/ui/components/icons';
 import { Badge, Card, EmptyState, Metric, Money, Sample } from '@/ui/components/primitives';
 import { IllustrationDone } from '@/ui/components/illustrations';
@@ -21,9 +21,8 @@ import { HourlyCard } from '../components/hourly';
 export function Insights({ route }: { route: Route }) {
   const i = useI18n();
   const tab = (['patterns', 'you', 'precision', 'niches'].includes(route.query.get('tab') ?? '') ? route.query.get('tab') : 'patterns') as Tab;
-  const { t, money, pct, date } = i;
+  const { t, money, pct } = i;
   const era = useEra();
-  const L = era.learning;
   const niches = rankNiches(era.model, 3).slice(0, 8);
   const brands = era.model.byBrand
     .filter((b) => b.sold >= 2 && b.avgProfitCents !== null)

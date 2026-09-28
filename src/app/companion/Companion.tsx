@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorCode } from '@/data/adapters/marketplace';
 import type { PageItem } from '@/data/adapters/vinted/parse';
 import { readPageContext } from '@/data/adapters/vinted/vinted-adapter';
 import { db } from '@/data/db';

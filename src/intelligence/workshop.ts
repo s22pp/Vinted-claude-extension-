@@ -9,6 +9,7 @@ import type { RefundGuard } from './refunds';
 import type { SegmentStats } from './seller-model';
 import { median } from './stats';
 import { cleanTitle } from './fav-messages';
+import { normalizeText } from './normalize';
 
 /**
  * Atelier de mise en ligne: one sheet per article, in the exact order of the Vinted form.
@@ -16,10 +17,6 @@ import { cleanTitle } from './fav-messages';
  */
 
 export type PackageSize = 'SMALL' | 'MEDIUM' | 'LARGE';
-
-/** The Vinted form order. Changing the category first resets brand, size, condition and price. */
-export const FORM_STEPS = ['category', 'brand', 'size', 'measures', 'condition', 'colors', 'material', 'title', 'description', 'price', 'package'] as const;
-export type FormStep = (typeof FORM_STEPS)[number];
 
 const TOPS: Category[] = ['JACKET', 'COAT', 'SWEATSHIRT', 'KNIT', 'SHIRT', 'POLO', 'TSHIRT'];
 
@@ -161,7 +158,8 @@ export const STARTER_TEMPLATE = [
   'Réf. {ref}',
 ].join('\n');
 
-const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+// Brands and placeholders compared without case, accents or apostrophes ({état} = {etat}, Levi’s = levis).
+const plain = (s: string) => normalizeText(s);
 
 /** The most specific template for an article: category + brand, then category, then brand, then one for everything. */
 export function matchTemplate(templates: readonly DescTemplate[], item: Pick<DraftItem, 'category' | 'brand'>): DescTemplate | null {

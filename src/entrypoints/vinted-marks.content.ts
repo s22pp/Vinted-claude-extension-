@@ -1,5 +1,6 @@
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { type Mark, OVERLAY_KEY, OVERLAY_ON_KEY, type OverlayNiche, markFor, priceFromText } from '@/intelligence/overlay';
+import { eurText } from '@/domain/money';
 
 /**
  * ERA's marks on vinted.fr pages (EXPERIMENTAL: depends on how Vinted builds its pages). For each listing card the
@@ -18,7 +19,7 @@ export default defineContentScript({
     // The item page read for the chip: its JSON-LD is parsed once per page and data, not at every change of the page.
     let pageDone: string | null = null;
 
-    const eur = (c: number) => `${(c / 100).toFixed(c % 100 === 0 ? 0 : 2).replace('.', ',')} €`;
+    const eur = (c: number) => eurText(c);
     const label = (m: Mark) => (m.kind === 'DEAL' ? `ERA ✓ marge ~${eur(m.marginCents)}` : m.kind === 'AVOID' ? 'ERA ⚠ niche à éviter' : `ERA · votre max ${eur(m.maxVintedPriceCents)}`);
     const tip = (m: Mark) =>
       `ERA — ${m.niche} : vendu ${m.sold} fois par vous. Coût tout compris ~${eur(m.landedCents)} (protection acheteur incluse, port en plus). Prix max conseillé ${eur(m.maxVintedPriceCents)}.${m.kind === 'AVOID' ? ' Cette niche se vend mal pour vous.' : ''}`;

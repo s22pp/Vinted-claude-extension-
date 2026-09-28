@@ -88,15 +88,3 @@ export function IconTile({ name, tone, size = 'md', label }: { name: IconName; t
     </span>
   );
 }
-
-/** Section → tone mapping, shared by nav, cards and priorities. */
-export const SECTION_TONE = {
-  today: 'violet',
-  stock: 'cobalt',
-  market: 'cobalt',
-  buy: 'violet',
-  sales: 'emerald',
-  insights: 'cyan',
-  capital: 'amber',
-  warning: 'coral',
-} as const satisfies Record<string, TileTone>;

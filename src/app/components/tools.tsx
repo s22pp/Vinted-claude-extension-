@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { errorCode } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import type { ItemIntel } from '@/intelligence/decision';
 import { buildDescription, buildTitle, type ShieldIssue, shieldCheck, skuOf, titleIssues } from '@/intelligence/listing';
@@ -197,7 +196,6 @@ export function useBulkAnalyze() {
       }
       toast('success', t('bulk.done', { n }));
     } catch (e) {
-      const code = errorCode(e);
       errorToast(e);
     } finally {
       setBusy(null);

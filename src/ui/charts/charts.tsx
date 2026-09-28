@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/i18n';
 
 /* ── helpers ─────────────────────────────────────────────── */

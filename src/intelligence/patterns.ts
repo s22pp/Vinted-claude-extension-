@@ -1,5 +1,5 @@
 import type { Condition, Confidence } from '@/domain/entities';
-import type { Cents } from '@/domain/money';
+import { type Cents, eurText } from '@/domain/money';
 import { brandKey } from './normalize';
 import type { ItemView, SaleView } from './portfolio';
 import { priceBandOf } from './seller-model';
@@ -66,7 +66,7 @@ const CONDITION_LABEL: Record<Condition, string> = {
 };
 
 /** Per-day money as a ready string (cents → "5,33 €"), so it can never be misread as cents or days. */
-const eurDay = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+const eurDay = (cents: number) => eurText(cents, 2);
 const eur = (cents: number) => `${Math.round(cents / 100)} €`;
 
 const knownBrand = (r: Row): string | null => {

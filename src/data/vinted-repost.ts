@@ -179,8 +179,3 @@ export async function finishRepost(itemId: string, now = Date.now()): Promise<Re
     return { ok: false, code, detail: detail ?? undefined };
   }
 }
-
-/** Forget a draft copy (nothing is sent to Vinted: the draft, if any, stays there for the seller). */
-export async function dropPendingRepost(itemId: string): Promise<void> {
-  await savePending((await pendingReposts()).filter((p) => p.itemId !== itemId));
-}

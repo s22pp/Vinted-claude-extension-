@@ -14,7 +14,7 @@ import {
   newPrep,
   validItem,
 } from '@/domain/entities';
-import type { Cents } from '@/domain/money';
+import { type Cents, eurText } from '@/domain/money';
 import { DAY } from '@/domain/time';
 import { isLiveListing, listingStatusOf } from '@/domain/status';
 import { type ComparableAnalysis, type ComparableSubject, WIDEN_BELOW, analyzeComparables, brandFromResults, buildQueries, widerQueries } from '@/intelligence/comparables';
@@ -434,7 +434,7 @@ export class EraRepository {
     now = Date.now(),
   ): Promise<string[]> {
     const ids: string[] = [];
-    const where = [o.source?.trim() || null, o.totalCents !== null ? `lot de ${lines.length} · ${(o.totalCents / 100).toFixed(2).replace('.', ',')} €` : `lot de ${lines.length}`].filter(Boolean).join(' · ');
+    const where = [o.source?.trim() || null, o.totalCents !== null ? `lot de ${lines.length} · ${eurText(o.totalCents, 2)}` : `lot de ${lines.length}`].filter(Boolean).join(' · ');
     for (const [i, l] of lines.entries()) {
       const cost = o.costs[i] ?? null;
       const id = await this.addItem(

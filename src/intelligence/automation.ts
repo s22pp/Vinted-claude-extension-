@@ -1,5 +1,6 @@
 import { priceCents } from '@/data/adapters/vinted/parse';
 import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER } from './fav-messages';
+import { eurText } from '@/domain/money';
 
 /**
  * Automations on the seller's own account — decisions only (pure, tested). What is sent to Vinted, and
@@ -227,7 +228,7 @@ export function decideOffer(o: PendingOffer, floorCents: number | null, cfg: Aut
 
 /* ── Messages ───────────────────────────────────────────── */
 
-const eur = (cents: number | null) => (cents === null ? '' : `${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2).replace('.', ',')} €`);
+const eur = (cents: number | null) => (cents === null ? '' : eurText(cents));
 
 /**
  * {article} ("la veste Ralph Lauren") {titre} {pseudo} {prix} {prix_offre}; an empty variable leaves no dangling

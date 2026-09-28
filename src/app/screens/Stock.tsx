@@ -5,7 +5,7 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
+import { Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, StatusBadge } from '../components/domain';
 import { VintedImportButton } from '../components/vinted-import';
@@ -14,7 +14,6 @@ import { AddItemDrawer, ImportCsvModal } from '../components/forms';
 import { LotDrawer } from '../components/lot';
 import { CostsDrawer } from '../components/costs';
 import { analyzeItem } from '../market-run';
-import { errorCode } from '@/data/adapters/marketplace';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 import type { CapitalPosition } from '@/intelligence/capital';
@@ -227,7 +226,6 @@ export function Stock({ route }: { route: Route }) {
       }
       toast('success', t('bulk.done', { n }));
     } catch (e) {
-      const code = errorCode(e);
       errorToast(e);
     } finally {
       setBulkBusy(false);

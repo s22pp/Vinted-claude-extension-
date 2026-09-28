@@ -1,4 +1,4 @@
-import { type MoneyMetric, sumMetric } from '@/domain/money';
+import { type MoneyMetric, sumMetric, eurNumber } from '@/domain/money';
 import { skuOf } from './listing';
 import type { ItemView, SaleView } from './portfolio';
 
@@ -138,7 +138,7 @@ export function ledgerYears(sales: readonly SaleView[], views: readonly ItemView
 
 export type Cell = string | number | null;
 
-const euros = (c: number | null) => (c === null ? '' : (c / 100).toFixed(2).replace('.', ','));
+const euros = (c: number | null) => (c === null ? '' : eurNumber(c));
 const day = (ts: number | null) => (ts === null ? '' : new Date(ts).toISOString().slice(0, 10));
 
 export function toCsv(head: string[], rows: Cell[][]): string {

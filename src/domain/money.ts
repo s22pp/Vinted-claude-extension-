@@ -5,17 +5,21 @@
 export type Cents = number;
 export type MaybeCents = Cents | null;
 
-export function assertCents(value: number): Cents {
-  if (!Number.isInteger(value)) throw new Error(`Money must be integer cents, got ${value}`);
-  return value;
-}
-
 export function euros(amount: number): Cents {
   return Math.round(amount * 100);
 }
 
-export function toEuros(cents: Cents): number {
-  return cents / 100;
+/**
+ * Plain-text euros for messages, file names and pages outside the app: "12 €", "12,50 €"; with `decimals: 2`
+ * always two decimals ("12,00 €"). The app's own screens use the i18n money formatter.
+ */
+export function eurText(cents: Cents, decimals: 'auto' | 2 = 'auto'): string {
+  return `${eurNumber(cents, decimals === 2 || cents % 100 !== 0 ? 2 : 0)} €`;
+}
+
+/** A decimal-comma amount for French spreadsheets and texts: "12,50". */
+export function eurNumber(cents: Cents, decimals: 0 | 2 = 2): string {
+  return (cents / 100).toFixed(decimals).replace('.', ',');
 }
 
 /** Parse a user-typed amount ("18", "18,5", "18.50 €", "1 250,00") into cents. Empty → null (unknown). */
@@ -24,10 +28,6 @@ export function parseMoneyInput(raw: string): MaybeCents | undefined {
   if (cleaned === '') return null;
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return undefined; // invalid
   return Math.round(Number(cleaned) * 100);
-}
-
-export function addKnown(a: MaybeCents, b: MaybeCents): MaybeCents {
-  return a === null || b === null ? null : a + b;
 }
 
 export function subKnown(a: MaybeCents, b: MaybeCents): MaybeCents {
@@ -71,15 +71,7 @@ export function sumMetric(values: readonly MaybeCents[]): MoneyMetric {
   return { status: 'known', value, count };
 }
 
-export function metricValue(m: MoneyMetric): Cents | null {
-  return m.status === 'unknown' ? null : m.value;
-}
-
 export interface MoneyRange {
   min: Cents;
   max: Cents;
-}
-
-export function rangeMid(r: MoneyRange): Cents {
-  return Math.round((r.min + r.max) / 2);
 }

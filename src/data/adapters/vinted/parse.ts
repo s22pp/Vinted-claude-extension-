@@ -104,10 +104,6 @@ export function parseWardrobeItem(it: Json): InventorySnapshotItem | null {
   };
 }
 
-export function isDraft(it: Json): boolean {
-  return it.is_draft === true;
-}
-
 export function parseCatalogItem(it: Json): MarketCandidate | null {
   const id = str(it.id);
   const title = str(it.title);

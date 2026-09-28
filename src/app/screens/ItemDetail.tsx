@@ -1,6 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import { errorCode } from '@/data/adapters/marketplace';
 import { db } from '@/data/db';
 import { qualityOf } from '@/domain/provenance';
 import { useI18n } from '@/i18n';
@@ -65,7 +64,6 @@ export function ItemDetail({ id }: { id: string }) {
       setTimeout(() => setStage(null), 900);
     } catch (e) {
       setStage(null);
-      const code = errorCode(e);
       setError(e);
       errorToast(e);
     }

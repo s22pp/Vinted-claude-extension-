@@ -1,4 +1,4 @@
-import { parseMoneyInput, roi, subKnown, sumMetric } from '@/domain/money';
+import { parseMoneyInput, roi, subKnown, sumMetric, eurNumber, eurText } from '@/domain/money';
 
 describe('money', () => {
   it('parses user input to integer cents, empty = unknown', () => {
@@ -18,5 +18,15 @@ describe('money', () => {
     expect(sumMetric([1000, null, 500])).toEqual({ status: 'partial', value: 1500, count: 2, missing: 1 });
     expect(sumMetric([1000, 0])).toEqual({ status: 'known', value: 1000, count: 2 });
     expect(sumMetric([])).toEqual({ status: 'unknown', missing: 0 });
+  });
+});
+
+describe('plain-text euros', () => {
+  it('whole euros without decimals unless asked; decimal comma', () => {
+    expect(eurText(1200)).toBe('12 €');
+    expect(eurText(1250)).toBe('12,50 €');
+    expect(eurText(1200, 2)).toBe('12,00 €');
+    expect(eurNumber(1250)).toBe('12,50');
+    expect(eurNumber(-305)).toBe('-3,05');
   });
 });

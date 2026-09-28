@@ -74,8 +74,3 @@ export async function recordAutoWrite(now = Date.now()): Promise<void> {
   const w = eraAuto && eraAuto.day === dayKey(now) ? eraAuto : { day: dayKey(now), count: 0, last: 0 };
   await browser.storage.local.set({ eraAuto: { day: w.day, count: w.count + 1, last: now } });
 }
-
-export async function autoWritesToday(now = Date.now()): Promise<number> {
-  const { eraAuto } = (await browser.storage.local.get('eraAuto')) as { eraAuto?: { day: string; count: number } };
-  return eraAuto && eraAuto.day === dayKey(now) ? eraAuto.count : 0;
-}

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { errorCode } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import type { ComparableAnalysis } from '@/intelligence/comparables';
 import type { PricingResult } from '@/intelligence/pricing';
@@ -7,7 +6,7 @@ import { DistributionStrip, Legend } from '@/ui/charts/charts';
 import { DualDistribution } from '@/ui/charts/dual';
 import { realizedFor } from '@/intelligence/seller-model';
 import { IllustrationAnalysis, IllustrationNoComparables } from '@/ui/components/illustrations';
-import { useErrorToast, useToast } from '@/ui/components/overlays';
+import { useErrorToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Flag, Metric, Select, Stages, Tabs } from '@/ui/components/primitives';
 import { StrategyCards } from '../components/domain';
 import { analyzeItem } from '../market-run';
@@ -22,7 +21,6 @@ import { SearchTrace } from '../components/search-trace';
 export function Market({ route }: { route: Route }) {
   const { t } = useI18n();
   const era = useEra();
-  const toast = useToast();
   const errorToast = useErrorToast();
   const candidates = era.intel.filter((x) => x.view.current).sort((a, b) => (b.recommendation?.priority ?? 0) - (a.recommendation?.priority ?? 0));
   const itemId = route.query.get('item') ?? candidates.find((c) => c.analysis)?.view.item.id ?? candidates[0]?.view.item.id ?? null;
@@ -39,7 +37,6 @@ export function Market({ route }: { route: Route }) {
       setTimeout(() => setStage(null), 900);
     } catch (e) {
       setStage(null);
-      const code = errorCode(e);
       setError(e);
       errorToast(e);
     }
