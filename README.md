@@ -40,7 +40,11 @@ npm run e2e            # build + Playwright sur l'extension chargée
 npm run compile        # tsc strict
 npm run qa:screens     # build + captures pleine page des écrans clés (démo) → .output/screens
 npm run icons          # régénère les PNG depuis assets/era-mark.svg
+npm run perf           # temps de calcul des moteurs sur un gros compte synthétique (700 articles, 26 500 observations)
+npm run analyze        # build avec source maps : octets par module dans chaque fichier livré
 ```
+
+Le calcul du tableau de bord est découpé en trois couches pures (`src/app/era-data.ts`), recalculées chacune seulement quand ses données changent : enregistrer une fiche d'atelier ou écarter un conseil ne refait que la dernière (≈ 1 ms sur un gros compte, contre 134 ms en v0.24).
 
 ## Architecture
 
