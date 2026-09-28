@@ -1,8 +1,12 @@
 import { defineConfig } from 'wxt';
 
+// `npm run analyze` builds with source maps into .output-analyze to measure what each chunk carries.
+const analyze = process.env.ERA_ANALYZE === '1';
+
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  ...(analyze ? { outDir: '.output-analyze', vite: () => ({ build: { sourcemap: true } }) } : {}),
   manifest: {
     name: 'ERA Intelligence',
     description: 'Cockpit de décision pour revendeurs Vinted : stock, capital, marché, achats, apprentissage.',

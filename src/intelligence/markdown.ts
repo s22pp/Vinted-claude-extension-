@@ -89,14 +89,31 @@ export function markdownPlan(x: MarkdownInput, steps: readonly MarkdownStep[]): 
 }
 
 /**
- * A listing's starting price: the first price ERA saw on it (observations), else the "from" of its first
- * price change, else its price today.
+ * Every listing's starting price, in one pass over the rows: the first price ERA saw on it (observations), else
+ * the "from" of its first price change. A listing absent from the map starts at its price today.
  */
+export function startPrices(observations: readonly ListingObservation[], priceEvents: readonly DomainEvent[]): Map<string, number> {
+  const first = new Map<string, { at: number; cents: number }>();
+  for (const o of observations) {
+    const f = first.get(o.listingId);
+    if (!f || o.at < f.at) first.set(o.listingId, { at: o.at, cents: o.priceCents });
+  }
+  const fromEvent = new Map<string, { at: number; cents: number }>();
+  for (const e of priceEvents) {
+    if (e.type !== 'PRICE_CHANGED' || !e.listingId || typeof e.data.from !== 'number' || first.has(e.listingId)) continue;
+    const f = fromEvent.get(e.listingId);
+    if (!f || e.at < f.at) fromEvent.set(e.listingId, { at: e.at, cents: e.data.from });
+  }
+  const out = new Map<string, number>();
+  for (const [id, f] of first) out.set(id, f.cents);
+  for (const [id, f] of fromEvent) out.set(id, f.cents);
+  return out;
+}
+
+/** One listing's starting price (see startPrices). */
 export function startPriceOf(l: Listing, observations: readonly ListingObservation[], priceEvents: readonly DomainEvent[]): number {
-  let first: ListingObservation | null = null;
-  for (const o of observations) if (o.listingId === l.id && (!first || o.at < first.at)) first = o;
-  if (first) return first.priceCents;
-  let ev: DomainEvent | null = null;
-  for (const e of priceEvents) if (e.type === 'PRICE_CHANGED' && e.listingId === l.id && typeof e.data.from === 'number' && (!ev || e.at < ev.at)) ev = e;
-  return ev ? (ev.data.from as number) : l.priceCents;
+  return startPrices(
+    observations.filter((o) => o.listingId === l.id),
+    priceEvents.filter((e) => e.listingId === l.id),
+  ).get(l.id) ?? l.priceCents;
 }
