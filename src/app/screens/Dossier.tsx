@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n';
 import { skuOf } from '@/intelligence/listing';
 import { shippingChecklist } from '@/intelligence/shipping';
 import { draftDescription, measureFields } from '@/intelligence/workshop';
+import { useDescTemplates } from '../components/desc-templates';
 import { Button } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
 
@@ -23,6 +24,7 @@ export function Dossier({ saleId }: { saleId: string }) {
   const checks = useLiveQuery(() => repo.getSetting<Record<string, string[]>>('shipChecks', {}), []);
   const checksAt = useLiveQuery(() => repo.getSetting<Record<string, Record<string, number>>>('shipChecksAt', {}), []);
   const events = useLiveQuery(async (): Promise<DomainEvent[]> => (sv ? db.events.where('inventoryItemId').equals(sv.item.id).sortBy('at') : []), [sv?.item.id]);
+  const templates = useDescTemplates();
   if (checks === undefined || checksAt === undefined || events === undefined) return null;
   if (!sv) {
     return (
@@ -43,7 +45,7 @@ export function Dossier({ saleId }: { saleId: string }) {
   const measures = measureFields(item.category)
     .map((k) => ({ k, v: prep?.measures[k]?.trim() ?? '' }))
     .filter((m) => m.v);
-  const description = prep ? draftDescription(item, prep, guards, (k) => t(`workshop.m.${k}`)) : null;
+  const description = prep ? draftDescription(item, prep, guards, (k) => t(`workshop.m.${k}`), templates) : null;
 
   // What a dispute is about: the listing's life and the sale — not ERA's own predictions or analyses.
   const facts = events.filter((e) => ['LISTING_PUBLISHED', 'PRICE_CHANGED', 'LISTING_REMOVED', 'LISTING_REPUBLISHED', 'ITEM_SOLD', 'SALE_REFUNDED', 'STATUS_CHANGED'].includes(e.type));

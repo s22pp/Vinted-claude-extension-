@@ -11,6 +11,7 @@ import { Badge, Button, Field, Input, Money } from '@/ui/components/primitives';
 import { analyzeItem } from '../market-run';
 import { useEra } from '../state';
 import { useMoneyField } from './forms';
+import { TitleWords } from './title-words';
 
 /* ── Offer calculator ─────────────────────────────────────── */
 
@@ -146,6 +147,10 @@ export function ListingAssistant({ intel }: { intel: ItemIntel }) {
           {t('listing.shield')} · <span className="t-faint">« {current} »</span>
         </span>
         <ShieldIssues issues={issues} />
+      </div>
+      <div className="stack" style={{ gap: 6 }}>
+        <span className="field__label">{t('tw.title')}</span>
+        <TitleWords intel={intel} title={current} brand={item.brand} />
       </div>
     </div>
   );

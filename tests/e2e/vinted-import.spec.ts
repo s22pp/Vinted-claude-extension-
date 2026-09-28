@@ -922,3 +922,47 @@ test('download my photos: every photo of each live listing, a folder per listing
   });
   expect(urls).toEqual(['https://images1.vinted.net/t/101/1.jpeg', 'https://images1.vinted.net/t/101/2.jpeg']);
 });
+
+test('replies in Vinted messaging: your templates filled for the conversation’s listing, written in the box, never sent', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  // Test fixture only: a conversation page linking its listing, with a message box that records how it is typed into.
+  await context.route('https://www.vinted.fr/inbox/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<html><body><header><a href="/items/101-veste">Veste Harrington Ralph Lauren M</a></header>
+        <div style="margin-top:400px"><textarea id="msg" rows="3" style="width:500px"></textarea>
+        <button type="button" onclick="fetch('/fake/click?b=send',{method:'POST'})">Envoyer</button></div>
+        <script>window.__inputs=[];document.getElementById('msg').addEventListener('input',(e)=>window.__inputs.push(e.inputType));</script></body></html>`,
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByTestId('replies-settings')).toBeVisible();
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await expect.poll(() => sw.evaluate(async () => Object.keys(((await chrome.storage.local.get('eraReplyKit')).eraReplyKit as { items?: object } | undefined)?.items ?? {})), { timeout: 15_000 }).toContain('101');
+
+  const inbox = await context.newPage();
+  await inbox.goto('https://www.vinted.fr/inbox/9100');
+  const open = inbox.locator('[data-era-replies="button"]');
+  await expect(open).toBeVisible({ timeout: 15_000 });
+  await open.click();
+  const menu = inbox.locator('[data-era-replies="menu"]');
+  await expect(menu).toContainText('ERA · Veste Harrington Ralph Lauren M');
+  await menu.locator('[data-era-reply="OFFER_COUNTER"]').click();
+  const box = inbox.locator('#msg');
+  await expect(box).toHaveValue(/^Bonjour, merci pour votre offre ! Je peux vous le laisser à \d+\s€, c’est mon meilleur prix\.$/);
+  expect(await inbox.evaluate(() => (window as unknown as { __inputs: string[] }).__inputs)).toContain('insertText');
+  // A second reply is added after the first, never replacing what is typed.
+  await open.click();
+  await menu.locator('[data-era-reply="SHIPPING"]').click();
+  await expect(box).toHaveValue(/meilleur prix\. Bonjour, j’envoie sous 1 à 2 jours/);
+  // Written, never sent: no click on "Envoyer", no message request.
+  expect(calls.clicked).not.toContain('send');
+  expect(calls.filter((c) => c.method !== 'GET')).toHaveLength(0);
+  // Switched off in ERA: the button goes.
+  await sw.evaluate(() => chrome.storage.local.set({ eraRepliesOn: false }));
+  await expect(open).toBeHidden();
+});

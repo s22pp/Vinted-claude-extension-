@@ -6,7 +6,7 @@ import { DAY } from '@/domain/time';
 import { skuOf, skusInText } from '@/intelligence/listing';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { refundSummary } from '@/intelligence/refunds';
-import { draftDescription, draftTitle, measureFields, prepStats, readiness, relistTitle, suggestPrice, suggestedPackage, workshopQueue } from '@/intelligence/workshop';
+import { type DescTemplate, chosenTemplate, draftDescription, draftTitle, matchTemplate, measureFields, prepStats, readiness, relistTitle, suggestPrice, suggestedPackage, workshopQueue } from '@/intelligence/workshop';
 
 const NOW = Date.UTC(2026, 8, 24);
 const item = (id: string, over: Partial<InventoryItem> = {}): InventoryItem => ({
@@ -78,6 +78,28 @@ describe('listing workshop', () => {
     expect(d).toContain('length __');
     expect(d).toContain('__ (lire l’étiquette');
     expect(d).toContain(`Réf. ${skuOf('a')}`);
+  });
+
+  it('your own description templates: the most precise one applies, filled from the sheet, blanks kept, reference always there', () => {
+    const tpl = (id: string, category: DescTemplate['category'], brand: string | null, text = `{type} {marque} — {taille}. État : {état}. {mesures}`): DescTemplate => ({ id, name: id, category, brand, text });
+    const all = [tpl('any', null, null), tpl('jeans', 'JEANS', null), tpl('levis', 'JEANS', 'levi’s'), tpl('nike', null, 'Nike')];
+    expect(matchTemplate(all, item('a'))?.id).toBe('levis');
+    expect(matchTemplate(all, item('a', { brand: 'Lee' }))?.id).toBe('jeans');
+    expect(matchTemplate(all, item('a', { category: 'SWEATSHIRT', brand: 'Nike' }))?.id).toBe('nike');
+    expect(matchTemplate(all, item('a', { category: 'SWEATSHIRT', brand: 'Adidas' }))?.id).toBe('any');
+    expect(chosenTemplate(all, item('a'), { descTemplateId: 'ERA' })).toBeNull();
+    expect(chosenTemplate(all, item('a'), { descTemplateId: 'jeans' })?.id).toBe('jeans');
+    expect(chosenTemplate(all, item('a'), { descTemplateId: 'deleted' })?.id).toBe('levis');
+
+    const d = draftDescription(item('a'), prep('a', { measures: { waist: '41' } }), [], (k) => k, all);
+    expect(d.split('\n')[0]).toBe('Jean Levi’s — W32. État : Très bon état, peu porté. waist 41 cm · inseam __ · length __');
+    // The template forgot {ref}: the reference that links the listing back is added.
+    expect(d.endsWith(`Réf. ${skuOf('a')}`)).toBe(true);
+    // Refund rule on measures: its sentence is kept in your text too.
+    expect(draftDescription(item('a'), prep('a'), ['MEASURES_REQUIRED'], (k) => k, all)).toContain('Comparez ces mesures');
+    // Unknown placeholders stay as typed; a hand-written description still wins.
+    expect(draftDescription(item('a'), prep('a', { descTemplateId: 'x' }), [], (k) => k, [tpl('x', null, null, '{inconnu} {ref}')])).toBe(`{inconnu} ${skuOf('a')}`);
+    expect(draftDescription(item('a'), prep('a', { descriptionOverride: 'À la main' }), [], (k) => k, all)).toBe('À la main');
   });
 
   it('refund rules tighten readiness: all measures become mandatory', () => {

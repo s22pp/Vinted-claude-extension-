@@ -15,6 +15,8 @@ import { CostRow, missingCosts, usePendingPurchases } from './costs';
 import { RecommendationCard } from './domain';
 import { SaleModal } from './forms';
 import { RepostButton } from './repost';
+import { StepLine, dueStep } from './markdown';
+import type { PlannedStep } from '@/intelligence/markdown';
 import { PriceOnVintedButton } from './vinted-price';
 
 /**
@@ -28,6 +30,7 @@ type Task =
   | { key: string; kind: 'RESERVED'; v: ItemView }
   | { key: string; kind: 'COST'; v: ItemView }
   | { key: string; kind: 'RECO'; v: ItemView }
+  | { key: string; kind: 'MARKDOWN'; v: ItemView; step: PlannedStep }
   | { key: string; kind: 'LIST'; v: ItemView }
   | { key: string; kind: 'BACKUP'; last: number | null };
 
@@ -37,6 +40,7 @@ const KIND: Record<Task['kind'], { icon: IconName; tone: TileTone }> = {
   RESERVED: { icon: 'check', tone: 'emerald' },
   COST: { icon: 'edit', tone: 'cyan' },
   RECO: { icon: 'target', tone: 'amber' },
+  MARKDOWN: { icon: 'price', tone: 'coral' },
   LIST: { icon: 'upload', tone: 'violet' },
   BACKUP: { icon: 'download', tone: 'emerald' },
 };
@@ -75,12 +79,18 @@ export function DailyRun() {
       .filter((x) => x.recommendation && !['HOLD', 'ADD_COST'].includes(x.recommendation.action) && x.recommendation.priority >= 50 && x.view.inStock)
       .sort((a, b) => b.recommendation!.priority - a.recommendation!.priority);
     for (const x of recos.slice(0, 10)) out.push({ key: `reco:${x.recommendation!.key}`, kind: 'RECO', v: x.view });
+    // Plan de baisse: the steps due today (an item already in ERA's advice above is not asked twice).
+    const advised = new Set(recos.slice(0, 10).map((x) => x.view.item.id));
+    for (const v of era.views) {
+      const step = dueStep(era.markdown.get(v.item.id));
+      if (step && !advised.has(v.item.id)) out.push({ key: `md:${v.item.id}:${step.day}`, kind: 'MARKDOWN', v, step });
+    }
     for (const v of era.workshop.toList.slice(0, 5)) out.push({ key: `list:${v.item.id}`, kind: 'LIST', v });
     // Real data never saved (or not for two weeks): a copy, last.
     if (era.mode === 'real' && lastBackup !== undefined && (lastBackup === null || era.now - lastBackup > BACKUP_REMIND_DAYS * 86_400_000))
       out.push({ key: `backup:${Math.floor(era.now / 86_400_000)}`, kind: 'BACKUP', last: lastBackup });
     return out;
-  }, [era.sales, era.views, era.intel, era.workshop, era.now, era.mode, lastBackup]);
+  }, [era.sales, era.views, era.intel, era.workshop, era.now, era.mode, era.markdown, lastBackup]);
 
   const queue = tasks.filter((x) => !skipped.includes(x.key));
   const matches = useMemo(() => purchaseByItem(purchases, queue.filter((x) => x.kind === 'COST').map((x) => (x as { v: ItemView }).v.item)), [purchases, queue]);
@@ -176,6 +186,17 @@ export function DailyRun() {
           </div>
         );
       }
+      case 'MARKDOWN':
+        return (
+          <div className="stack" style={{ gap: 6 }}>
+            <span className="t-small">
+              <StepLine s={x.step} /> · {t('markdown.from', { price: i18n.money(x.v.askPrice ?? 0) })}
+            </span>
+            <div>
+              <PriceOnVintedButton v={x.v} suggested={x.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: i18n.money(x.step.targetCents) })} />
+            </div>
+          </div>
+        );
       case 'BACKUP':
         return (
           <div className="stack" style={{ gap: 6 }}>

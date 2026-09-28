@@ -165,6 +165,8 @@ export const PrepSchema = z.object({
   checks: z.array(z.string()).default([]),
   titleOverride: z.string().nullable().default(null),
   descriptionOverride: z.string().nullable().default(null),
+  /** The seller's description template for this sheet: absent/null = the best match, 'ERA' = ERA's standard one. */
+  descTemplateId: z.string().nullable().optional(),
   priceCents: z.number().int().nonnegative().nullable().default(null),
   startedAt: z.number(),
   /** Seconds with the sheet open and the window visible (measured, idle capped). */

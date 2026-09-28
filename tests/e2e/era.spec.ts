@@ -313,3 +313,87 @@ test('profit per hour: a figure from your sales, your time estimates editable', 
   await card.getByLabel('Sourcing par article').fill('90');
   await expect(card.locator('.t-h2')).not.toHaveText(before);
 });
+
+test('expenses: an expense of the year comes off the margin, with its line and a CSV', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/accounting`);
+  const card = page.getByTestId('expenses');
+  const net = card.getByTestId('net-profit');
+  await expect(net).toBeVisible();
+  const before = await net.innerText();
+  await card.getByLabel('Catégorie').selectOption('BOOST');
+  await card.getByLabel('Montant').fill('12,50');
+  await card.getByLabel('Note').fill('vitrine 7 jours');
+  await card.getByRole('button', { name: 'Ajouter' }).click();
+  await expect(card.locator('tr', { hasText: 'vitrine 7 jours' })).toContainText('Boost / vitrine');
+  await expect(net).not.toHaveText(before);
+  await expect(card).toContainText('12,50 €');
+  await card.getByRole('button', { name: 'Supprimer cette dépense' }).click();
+  await expect(card.locator('tr', { hasText: 'vitrine 7 jours' })).toHaveCount(0);
+  await expect(net).toHaveText(before);
+});
+
+test('plan de baisse: the step due today with its price, never below the floor, one calendar for all', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/stock?filter=markdown`);
+  await page.locator('tbody tr[aria-rowindex]').first().click();
+  const md = page.getByTestId('markdown');
+  await expect(md.locator('tr[data-state="due"]').first()).toBeVisible();
+  await expect(md).toContainText('À faire maintenant');
+  // Demo listings are not on Vinted: the apply button is there, switched off.
+  await expect(md.getByRole('button', { name: /^Passer à .+ sur Vinted$/ })).toBeDisabled();
+  // The calendar is the seller's: one step only, then none (plan off).
+  await md.getByRole('button', { name: 'Régler le calendrier' }).click();
+  const ed = page.getByTestId('markdown-editor');
+  await ed.getByRole('button', { name: 'Retirer l’étape' }).last().click();
+  await ed.getByLabel('Jours de l’étape 1').fill('300');
+  await ed.getByRole('button', { name: 'Enregistrer (1 étape)' }).click();
+  await expect(md.locator('tr')).toHaveCount(1);
+  await expect(md.locator('tr')).toContainText(/J\+300\s*−5 %/);
+  await md.getByRole('button', { name: 'Régler le calendrier' }).click();
+  await ed.getByRole('button', { name: 'Retirer l’étape' }).click();
+  await ed.getByRole('button', { name: 'Désactiver le plan' }).click();
+  await expect(md).toContainText('Plan de baisse désactivé.');
+  await page.goto(`${base}#/stock`);
+  await expect(page.getByRole('button', { name: /Baisse à faire/ })).toHaveCount(0);
+});
+
+test('description templates: written once, applied to the sheet, the standard one still a click away', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/workshop`);
+  const desc = page.locator('pre.wdesc');
+  await expect(desc).toBeVisible();
+  const standard = await desc.innerText();
+  await page.getByTestId('desc-templates').getByRole('button', { name: 'Créer mon modèle de description' }).click();
+  const modal = page.getByTestId('desc-templates-modal');
+  await modal.getByLabel('Catégorie').selectOption('');
+  await modal.getByLabel('Marque').fill('');
+  await modal.getByLabel('Texte').fill('Belle pièce {marque}, taille {taille}.\nMesures : {mesures}\nMa boutique : envoi le jour même.');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(modal.getByText('Toutes catégories · Toutes marques')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(desc).toContainText('Belle pièce');
+  await expect(desc).toContainText('Ma boutique : envoi le jour même.');
+  await expect(desc).toContainText(/Réf\. E[0-9A-Z]{4}$/);
+  await page.getByLabel('Modèle de description').selectOption({ label: 'Description ERA standard' });
+  await expect(desc).toHaveText(standard);
+});
+
+test('title words: what comparable listings write and your title lacks, added before the reference in one click', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/workshop`);
+  const tw = page.getByTestId('title-words');
+  await expect(tw).toContainText('Analysez le marché');
+  await tw.getByRole('button', { name: 'Analyser le marché' }).click();
+  await expect(tw).toContainText('Utilisés par les', { timeout: 20_000 });
+  const add = tw.getByRole('button', { name: /^Ajouter « .+ » au titre$/ }).first();
+  const label = (await add.getAttribute('aria-label'))!;
+  const word = /« (.+) »/.exec(label)![1]!;
+  await add.click();
+  await expect(page.locator('.wcopy__text')).toContainText(new RegExp(`${word} · E[0-9A-Z]{4}$`));
+  await expect(tw.getByRole('button', { name: label })).toHaveCount(0);
+});

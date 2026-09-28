@@ -169,3 +169,28 @@ export function stockCsv(views: readonly ItemView[]): string {
     views.map((v) => [skuOf(v.item.id), v.item.title, v.item.brand, v.item.size, v.item.status, euros(v.cost), euros(v.askPrice), euros(v.potentialProfit), v.daysHeld, v.current?.views ?? null, v.current?.favorites ?? null]),
   );
 }
+
+/* ── Expenses ───────────────────────────────────────────── */
+
+export const EXPENSE_CATEGORIES = ['PACKAGING', 'SHIPPING', 'BOOST', 'TRAVEL', 'SUBSCRIPTION', 'OTHER'] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export interface ExpenseSummary {
+  totalCents: number;
+  count: number;
+  byCategory: { category: ExpenseCategory; cents: number }[];
+  byMonth: number[];
+  /** Gross margin of the year's sales minus the year's expenses (partial when some costs are unknown). */
+  net: MoneyMetric;
+}
+
+export function expenseSummary(expenses: readonly { date: number; amountCents: number; category: ExpenseCategory }[], year: number, grossMargin: MoneyMetric): ExpenseSummary {
+  const inYear = expenses.filter((e) => yearOf(e.date) === year);
+  const total = inYear.reduce((a, e) => a + e.amountCents, 0);
+  const byCategory = EXPENSE_CATEGORIES.map((category) => ({ category, cents: inYear.filter((e) => e.category === category).reduce((a, e) => a + e.amountCents, 0) }))
+    .filter((c) => c.cents > 0)
+    .sort((a, b) => b.cents - a.cents);
+  const byMonth = Array.from({ length: 12 }, (_, m) => inYear.filter((e) => new Date(e.date).getMonth() === m).reduce((a, e) => a + e.amountCents, 0));
+  const net: MoneyMetric = grossMargin.status === 'unknown' ? grossMargin : { ...grossMargin, value: grossMargin.value - total };
+  return { totalCents: total, count: inYear.length, byCategory, byMonth, net };
+}

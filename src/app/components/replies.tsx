@@ -1,15 +1,12 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import type { ItemIntel } from '@/intelligence/decision';
-import { stagnationThreshold } from '@/intelligence/stagnation';
-import { offerLadder } from '@/intelligence/offer';
 import { DEFAULT_REPLIES, REPLY_KEYS, type ReplyKey, fillReply, hasBlanks } from '@/intelligence/replies';
-import { measureFields } from '@/intelligence/workshop';
 import { Button, Select } from '@/ui/components/primitives';
 import { CopyButton } from './tools';
 import { useEra } from '../state';
+import { replyContextOf, useCustomReplies } from '../reply-kit';
 
 /** Answer a buyer in seconds: pick a template, ERA fills what it knows, you copy it into Vinted. */
 export function Replies({ intel }: { intel: ItemIntel }) {
@@ -17,26 +14,9 @@ export function Replies({ intel }: { intel: ItemIntel }) {
   const era = useEra();
   const [key, setKey] = useState<ReplyKey>('MEASURES');
   const [editing, setEditing] = useState(false);
-  const custom = useLiveQuery(() => repo.getSetting<Partial<Record<ReplyKey, string>>>('replyTemplates', {}), []) ?? {};
-  const v = intel.view;
-  const prep = era.preps.get(v.item.id);
-  const measures = prep
-    ? measureFields(v.item.category)
-        .filter((k) => prep.measures[k]?.trim())
-        .map((k) => `${t(`workshop.m.${k}`).toLowerCase()} ${prep.measures[k]!.trim()} cm`)
-        .join(' · ') || null
-    : null;
-  const ladder = v.askPrice !== null ? offerLadder({ ask: v.askPrice, cost: v.cost, pricing: intel.pricing, daysListed: v.daysListed, favorites: v.current?.favorites ?? null, thresholdDays: stagnationThreshold(era.model) }) : null;
+  const custom = useCustomReplies() ?? {};
   const template = custom[key] ?? DEFAULT_REPLIES[key];
-  const text = fillReply(template, {
-    title: v.item.title,
-    size: v.item.size,
-    condition: v.item.condition ? t(`condition.${v.item.condition}`).toLowerCase() : null,
-    defects: prep?.defects.trim() || null,
-    measures,
-    price: v.askPrice !== null ? money(v.askPrice) : null,
-    counter: ladder ? money(ladder.acceptFrom) : null,
-  });
+  const text = fillReply(template, replyContextOf(intel, era.preps, era.model, { t, money }));
   const [draft, setDraft] = useState(template);
   return (
     <div className="stack-3">

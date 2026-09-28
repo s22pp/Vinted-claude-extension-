@@ -10,7 +10,7 @@ export const BACKUP_FORMAT = 'era-intelligence-backup';
 export const BACKUP_VERSION = 1;
 
 /** Every table, in the order they are restored. */
-export const BACKUP_TABLES = ['items', 'listings', 'observations', 'sales', 'events', 'analyses', 'predictions', 'decisions', 'activation', 'settings', 'purchases', 'preps', 'invoices', 'autoLog'] as const;
+export const BACKUP_TABLES = ['items', 'listings', 'observations', 'sales', 'events', 'analyses', 'predictions', 'decisions', 'activation', 'settings', 'purchases', 'preps', 'invoices', 'autoLog', 'expenses'] as const;
 type TableName = (typeof BACKUP_TABLES)[number];
 
 export interface Backup {

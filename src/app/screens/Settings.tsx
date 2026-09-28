@@ -15,7 +15,7 @@ import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
 import { BackupCard } from '../components/backup';
 import { RefreshSettings } from '../components/refresh-settings';
-import { OverlaySettings } from '../components/overlay-settings';
+import { OverlaySettings, RepliesSettings } from '../components/overlay-settings';
 import { go, useEra } from '../state';
 
 export function Settings() {
@@ -129,6 +129,7 @@ export function Settings() {
               </div>
               <RefreshSettings />
               <OverlaySettings />
+              <RepliesSettings />
             </div>
           </Card>
           <BackupCard />

@@ -51,7 +51,8 @@ export async function exportPhotos(scope: PhotoScope, onProgress: (done: number,
       continue;
     }
     for (const [n, url] of urls.entries()) {
-      await browser.downloads.download({ url, filename: photoFileName(l.title, l.platformListingId!, n, url), conflictAction: 'uniquify', saveAs: false }).catch(() => undefined);
+      // Same article, same file name: exporting again replaces the copy instead of piling up « 01 (1).jpg ».
+      await browser.downloads.download({ url, filename: photoFileName(l.title, l.platformListingId!, n, url), conflictAction: 'overwrite', saveAs: false }).catch(() => undefined);
       photos++;
       // Gentle on the image servers.
       await new Promise((r) => setTimeout(r, 150));

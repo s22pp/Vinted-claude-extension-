@@ -29,6 +29,9 @@ import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Input, Metric, MetricValue, Money, QualityTag, Segmented } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { sumMetric } from '@/domain/money';
+import { DescTemplatePicker, useDescTemplates } from '../components/desc-templates';
+import { TitleWords } from '../components/title-words';
+import { withWord } from '@/intelligence/title-words';
 import { CategorySelect, ConditionSelect, useMoneyField } from '../components/forms';
 import { CopyButton } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
@@ -237,7 +240,8 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
   const price = useMoneyField(prep.priceCents ?? suggestion?.cents ?? prep.template?.soldCents ?? null);
   const chosen = price.invalid ? null : price.cents;
   const title = draftTitle(item, prep);
-  const description = draftDescription(item, prep, guards, (k) => t(`workshop.m.${k}`));
+  const templates = useDescTemplates();
+  const description = draftDescription(item, prep, guards, (k) => t(`workshop.m.${k}`), templates);
   const issues = titleIssues(title, item.brand);
   const warn = brandWarning(item.brand, item.title);
   const pkg: PackageSize = prep.packageSize ?? suggestedPackage(item.category);
@@ -398,6 +402,9 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
             </div>
           )}
           {prep.titleOverride && !title.includes(skuOf(item.id)) && <p className="t-small t-warn">{t('workshop.refMissing', { ref: skuOf(item.id) })}</p>}
+          <div style={{ marginTop: 8 }}>
+            <TitleWords intel={intel} title={title} brand={item.brand} withWordFn={(w) => withWord(title, w, skuOf(item.id))} onAdd={(w) => void save({ titleOverride: withWord(title, w, skuOf(item.id)) })} onAnalyze={() => void analyze()} analyzing={analyzing} />
+          </div>
           {issues.length > 0 && (
             <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
               {issues.map((x) => (
@@ -410,13 +417,14 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
         </Step>
 
         <Step n={9} title={t('workshop.s.description')} hint={description.includes('__') ? t('workshop.h.descriptionBlanks') : undefined} done={!description.includes('__')}>
+          <DescTemplatePicker item={item} prep={prep} description={description} templates={templates} onPick={(id) => void save({ descTemplateId: id })} />
           {editDesc ? (
             <textarea
               className="input wdesc"
               defaultValue={description}
               rows={12}
               onBlur={(e) => {
-                void save({ descriptionOverride: e.target.value === draftDescription(item, { ...prep, descriptionOverride: null }, guards, (k) => t(`workshop.m.${k}`)) ? null : e.target.value });
+                void save({ descriptionOverride: e.target.value === draftDescription(item, { ...prep, descriptionOverride: null }, guards, (k) => t(`workshop.m.${k}`), templates) ? null : e.target.value });
                 setEditDesc(false);
               }}
               autoFocus

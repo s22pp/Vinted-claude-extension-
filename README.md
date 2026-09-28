@@ -90,6 +90,7 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Brouillon pré-rempli (`item_upload/suggestions/categories`, `item_upload/brands`, `item_upload/size_groups`, `catalogs/{id}/package_sizes`, `item_upload/drafts`) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Bordereau (`conversations/{id}`, `shipments/{id}/label_url`, `transactions/{id}/shipment/order`), masquer (`items/{id}/is_hidden`) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Republication sans perte (`item_upload/items/{id}`, `POST /api/v2/photos`, `item_upload/drafts`, `POST items/{id}/delete`) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Repères sur les pages vinted.fr, bouton « Réponses ERA » dans la messagerie (lecture de la page, aucun appel) | EXPERIMENTAL · NON VÉRIFIÉ |
 
 Réglages → *Intégrations Vinted* compte aussi, pour chaque écriture, les envois que Vinted a **acceptés sur cet appareil** (d'après le journal) : c'est la seule preuve qu'une route fonctionne sur votre compte.
 
@@ -152,7 +153,27 @@ Buy → Scanner → **Alertes d'achat** : après chaque actualisation automatiqu
 
 ## Télécharger toutes mes photos
 
-Réglages → Sauvegarde → **Photos de mes annonces** : toutes les photos de vos annonces (en ligne, ou toutes, vendues comprises), un dossier par annonce dans `Téléchargements/ERA-photos/<article>_<id>/01.jpg`, dans l'ordre de l'annonce, à la plus grande taille que Vinted fournit. Les adresses viennent du dernier import ; une annonce dont la garde-robe ne les donne pas est lue une fois (budget d'appels, arrêt propre s'il s'épuise). Une annonce supprimée n'a plus de photos chez Vinted.
+Réglages → Sauvegarde → **Photos de mes annonces** : toutes les photos de vos annonces (en ligne, ou toutes, vendues comprises), un dossier par annonce dans `Téléchargements/ERA-photos/<article>_<id>/01.jpg`, dans l'ordre de l'annonce, à la plus grande taille que Vinted fournit. Les adresses viennent du dernier import ; une annonce dont la garde-robe ne les donne pas est lue une fois (budget d'appels, arrêt propre s'il s'épuise). Une annonce supprimée n'a plus de photos chez Vinted. Exporter à nouveau **remplace** les fichiers du même article (mêmes noms) au lieu de créer des doublons.
+
+## Plan de baisse
+
+Chaque annonce en ligne suit un calendrier de prix que vous réglez une fois (par défaut **−5 % après 14 jours en ligne, −10 % après 30**, jusqu'à 4 étapes), compté depuis son **prix de départ** (le premier prix vu par ERA ; pas de baisses en cascade) et **jamais sous le plancher** (coût d'achat + marge minimale réglée dans Automatisations). La fiche de l'article montre les étapes et leur date ; une étape due apparaît dans la Tournée du jour et dans Stock → « Baisse à faire ». ERA ne baisse rien seul : « Passer à 42 € sur Vinted » ouvre la confirmation habituelle (une annonce, un clic, relue ensuite). Coût inconnu = plancher inconnu : l'étape est montrée, jamais proposée à appliquer.
+
+## Réponses ERA dans la messagerie Vinted (EXPERIMENTAL)
+
+Sur une conversation vinted.fr (`/inbox/…`), un petit bouton **« Réponses ERA »** flotte au-dessus de la zone de message : vos réponses types (mesures, disponibilité, état, délai, lot, contre-offre, offre trop basse, remerciement), remplies avec ce qu'ERA sait de l'annonce liée par la conversation (fiche de l'atelier, prix, contre-offre de l'échelle d'offres). Un clic **écrit** le texte dans la zone ; ce qu'ERA ne sait pas reste « [à compléter] » (sélectionné, pour le taper). **ERA n'envoie jamais** : aucun appel, aucun clic sur « Envoyer ». Données réelles seulement (jamais la démo). Désactivable dans Réglages. Dépend de la façon dont Vinted construit sa page : non vérifié sur un vrai compte.
+
+## Mes modèles de description
+
+Atelier → étape Description → **« Créer mon modèle de description »** : votre texte, écrit une fois, pour une catégorie et/ou une marque, avec des mots entre accolades (`{marque}`, `{taille}`, `{état}`, `{défauts}`, `{matière}`, `{mesures}`, `{ref}`…). Le modèle le plus précis s'applique tout seul (catégorie + marque, puis catégorie, puis marque, puis « tout ») ; un autre ou la description ERA standard se choisissent par fiche. Ce qui n'est pas encore lu ou mesuré reste « __ ». La référence ERA est ajoutée si le modèle l'oublie (c'est elle qui relie l'annonce à l'article).
+
+## Mots du titre
+
+Atelier (étape Titre) et fiche d'un article en ligne : les mots que les annonces **comparables retenues** par la dernière analyse de marché mettent dans leur titre (au moins 3 annonces et 20 %), absents du vôtre — sans marques, tailles, remplissage ni vos propres mots. Couleurs et mentions (« vintage », « rare »…) sont signalées « seulement si c'est vrai ». C'est ce qu'écrit la concurrence, pas une preuve de vente. Dans l'atelier, un clic ajoute le mot avant la référence ERA ; ERA ne modifie jamais un titre sur Vinted.
+
+## Dépenses et bénéfice net
+
+Ventes → Comptabilité → **Dépenses** : emballages, envois, boosts, trajets, abonnements… saisis à la main, par date et catégorie, retirés de la marge de l'année pour un **bénéfice net** (partiel si des coûts d'achat manquent, inconnu s'ils le sont tous). Export CSV ; inclus dans la sauvegarde.
 
 ## Vérification complète du compte
 

@@ -187,6 +187,8 @@ const NOISE = new Set(['taille', 'tres', 'bon', 'etat', 'neuf', 'neuve', 'avec',
 // Sizes (M, W32, 42…) and ERA references (E1C4G); a 3-digit number is a model (501, 574), kept.
 const SIZE_TOKEN = /^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-5]xl|w\d{2}|l\d{2}|\d{2}|t\d|e(?=[a-z]*\d)[0-9a-z]{4})$/;
 
+export const isSizeToken = (w: string) => SIZE_TOKEN.test(w);
+
 /** The words of a title that describe the article: no sizes, no ERA reference, no condition filler. */
 export function titleKeywords(title: string, max = 5): string {
   const words = normalizeText(title)
@@ -290,7 +292,7 @@ export function genderFromTitle(normTitle: string): Gender | null {
   return null;
 }
 
-const COLOURS = new Set(
+export const COLOURS = new Set(
   'noir black blanc white bleu blue marine navy rouge red vert green gris grey gray beige kaki khaki marron brown jaune yellow orange rose pink violet purple bordeaux camel creme ecru turquoise multicolore ciel fonce clair'.split(
     ' ',
   ),

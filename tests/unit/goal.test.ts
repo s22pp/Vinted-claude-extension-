@@ -3,7 +3,7 @@ import { DAY } from '@/domain/time';
 import { favoriteGains } from '@/intelligence/favorites';
 import { goalProgress } from '@/intelligence/goal';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
-import { DEFAULT_REPLIES, fillReply, hasBlanks } from '@/intelligence/replies';
+import { DEFAULT_REPLIES, type ReplyKit, conversationItem, fillReply, hasBlanks, kitReplies } from '@/intelligence/replies';
 
 // 15 September 2026, noon: half of a 30-day month has elapsed.
 const NOW = Date.UTC(2026, 8, 15, 12);
@@ -110,5 +110,28 @@ describe('goal plan', () => {
     const views = [{ firstListedAt: now - 3 * 86_400_000 }, { firstListedAt: now - 10 * 86_400_000 }, { firstListedAt: now - 40 * 86_400_000 }] as never;
     // 2 000 € at 33 € per sale = 61 sales; × 6 listings per sale = 366 online; 61 / (30/7) ≈ 15 a week; today 2 in 30 days.
     expect(goalPlan(g, views, now)).toEqual({ salesPerMonth: 61, listingsNeeded: 366, perWeek: 15, current: { sales30: 3, listed: 18, perWeek: 0.5 }, factor: 20.3 });
+  });
+});
+
+describe('replies inside Vinted messaging', () => {
+  const kit: ReplyKit = {
+    templates: [
+      { key: 'AVAILABLE', label: 'Disponible', text: DEFAULT_REPLIES.AVAILABLE },
+      { key: 'OFFER_COUNTER', label: 'Contre-offre', text: DEFAULT_REPLIES.OFFER_COUNTER },
+    ],
+    items: { '101': { title: 'Veste Harrington M', size: 'M', condition: null, defects: null, measures: null, price: '59 €', counter: '54 €' } },
+  };
+  it('the conversation’s listing is the first linked one ERA knows', () => {
+    expect(conversationItem(kit, ['999', '101', '102'])).toBe('101');
+    expect(conversationItem(kit, ['999'])).toBeNull();
+  });
+  it('filled for that listing; an unknown listing keeps visible blanks, never an invented price', () => {
+    const known = kitReplies(kit, '101');
+    expect(known[1]).toMatchObject({ key: 'OFFER_COUNTER', blanks: false });
+    expect(known[1]!.text).toContain('54 €');
+    const unknown = kitReplies(kit, null);
+    expect(unknown[0]!.blanks).toBe(false);
+    expect(unknown[1]).toMatchObject({ blanks: true });
+    expect(unknown[1]!.text).toContain('[à compléter]');
   });
 });

@@ -99,8 +99,16 @@ export function draftTitle(item: DraftItem, prep: Pick<Prep, 'titleOverride' | '
 
 const cm = (v: string | undefined) => (v && v.trim() ? (/^\d+([.,]\d+)?$/.test(v.trim()) ? `${v.trim()} cm` : v.trim()) : '__');
 
-export function draftDescription(item: DraftItem & { material: string | null }, prep: Prep | null, guards: readonly RefundGuard[], measureLabel: (k: string) => string): string {
+export function draftDescription(
+  item: DraftItem & { material: string | null },
+  prep: Prep | null,
+  guards: readonly RefundGuard[],
+  measureLabel: (k: string) => string,
+  templates: readonly DescTemplate[] = [],
+): string {
   if (prep?.descriptionOverride) return prep.descriptionOverride;
+  const own = chosenTemplate(templates, item, prep);
+  if (own) return fillDescTemplate(own.text, item, prep, guards, measureLabel);
   const m = prep?.measures ?? {};
   const defects = prep?.defects.trim();
   const material = prep?.material.trim() || item.material || '';
@@ -117,9 +125,98 @@ export function draftDescription(item: DraftItem & { material: string | null }, 
       .map((k) => `${measureLabel(k)} ${cm(m[k])}`)
       .join(' · ')}`,
   ];
-  if (guards.includes('MEASURES_REQUIRED')) lines.push('Comparez ces mesures à un vêtement que vous portez : la taille d’étiquette varie selon les marques.');
+  if (guards.includes('MEASURES_REQUIRED')) lines.push(MEASURES_NOTE);
   lines.push('', 'Envoi rapide et soigné. Photos non retouchées : l’article est tel que photographié.', `Réf. ${skuOf(item.id)}`);
   return lines.join('\n');
+}
+
+const MEASURES_NOTE = 'Comparez ces mesures à un vêtement que vous portez : la taille d’étiquette varie selon les marques.';
+
+/* ── The seller's own description templates ─────────────── */
+
+export const DESC_TEMPLATES_KEY = 'descTemplates';
+
+/** A description written once by the seller, for a category and/or a brand (null = any), with {placeholders}. */
+export interface DescTemplate {
+  id: string;
+  name: string;
+  category: Category | null;
+  brand: string | null;
+  text: string;
+}
+
+/** Placeholders a template may use (accents optional: {état} = {etat}). */
+export const DESC_VARS = ['type', 'marque', 'modele', 'taille', 'etat', 'defauts', 'couleur', 'matiere', 'reference', 'mesures', 'ref'] as const;
+
+export const STARTER_TEMPLATE = [
+  '{type} {marque} {modele}',
+  '',
+  '• Taille : {taille}',
+  '• État : {etat}',
+  '• Défauts : {defauts}',
+  '• Composition : {matiere}',
+  '• Mesures à plat : {mesures}',
+  '',
+  'Envoi rapide et soigné. Photos non retouchées : l’article est tel que photographié.',
+  'Réf. {ref}',
+].join('\n');
+
+const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** The most specific template for an article: category + brand, then category, then brand, then one for everything. */
+export function matchTemplate(templates: readonly DescTemplate[], item: Pick<DraftItem, 'category' | 'brand'>): DescTemplate | null {
+  let best: DescTemplate | null = null;
+  let score = -1;
+  for (const x of templates) {
+    if (x.category && x.category !== item.category) continue;
+    if (x.brand && plain(x.brand) !== plain(item.brand)) continue;
+    const s = (x.category ? 2 : 0) + (x.brand ? 1 : 0);
+    if (s >= score) {
+      best = x;
+      score = s;
+    }
+  }
+  return best;
+}
+
+/** The sheet's choice: 'ERA' = the standard description, an id = that template (if it still exists), else the best match. */
+export function chosenTemplate(templates: readonly DescTemplate[], item: Pick<DraftItem, 'category' | 'brand'>, prep: Pick<Prep, 'descTemplateId'> | null): DescTemplate | null {
+  const id = prep?.descTemplateId ?? null;
+  if (id === 'ERA') return null;
+  return (id ? templates.find((x) => x.id === id) : undefined) ?? matchTemplate(templates, item);
+}
+
+/** Fills a template with what the sheet knows; what is not known yet stays « __ » (the sheet is not done until filled). */
+export function fillDescTemplate(text: string, item: DraftItem & { material: string | null }, prep: Prep | null, guards: readonly RefundGuard[], measureLabel: (k: string) => string): string {
+  const m = prep?.measures ?? {};
+  const values: Record<(typeof DESC_VARS)[number], string> = {
+    type: TITLE_WORD[item.category],
+    marque: item.brand || '__',
+    modele: item.model ?? '',
+    taille: item.size ?? '__',
+    etat: item.condition ? CONDITION_TEXT[item.condition] : '__',
+    defauts: prep?.defects.trim() || (prep?.checks.includes('photoDefects') ? 'aucun défaut visible' : '__'),
+    couleur: prep?.colors.trim() || '__',
+    matiere: prep?.material.trim() || item.material || '__',
+    reference: prep?.productRef.trim() ?? '',
+    mesures: measureFields(item.category)
+      .map((k) => `${measureLabel(k)} ${cm(m[k])}`)
+      .join(' · '),
+    ref: skuOf(item.id),
+  };
+  let out = text
+    .replace(/\{([^{}\n]{1,20})\}/g, (all, k: string) => {
+      const key = plain(k) as (typeof DESC_VARS)[number];
+      return key in values ? values[key] : all;
+    })
+    .split('\n')
+    .map((l) => l.replace(/[ \t]{2,}/g, ' ').replace(/\s+$/, ''))
+    .join('\n')
+    .trim();
+  if (guards.includes('MEASURES_REQUIRED') && !out.includes(MEASURES_NOTE)) out += `\n${MEASURES_NOTE}`;
+  // The reference links the listing back to this article: kept even when the template forgets it.
+  if (!out.includes(skuOf(item.id))) out += `\nRéf. ${skuOf(item.id)}`;
+  return out;
 }
 
 export interface ReadinessItem {

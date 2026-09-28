@@ -59,6 +59,15 @@ export interface SettingRow {
   value: unknown;
 }
 
+/** A business expense entered by the seller: packaging, shipping supplies, boosts, sourcing trips… */
+export interface ExpenseRow {
+  id: string;
+  date: number;
+  amountCents: number;
+  category: 'PACKAGING' | 'BOOST' | 'TRAVEL' | 'SUBSCRIPTION' | 'SHIPPING' | 'OTHER';
+  note: string;
+}
+
 /** One line per automated action (or simulated one): what, when, on what, and what Vinted answered. */
 export interface AutoLogRow {
   id: string;
@@ -85,6 +94,7 @@ export class EraDatabase extends Dexie {
   preps!: EntityTable<Prep, 'itemId'>;
   invoices!: EntityTable<InvoiceRow, 'saleId'>;
   autoLog!: EntityTable<AutoLogRow, 'id'>;
+  expenses!: EntityTable<ExpenseRow, 'id'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -104,6 +114,7 @@ export class EraDatabase extends Dexie {
     this.version(3).stores({ preps: 'itemId, publishedAt' });
     this.version(4).stores({ invoices: 'saleId, year, seq' });
     this.version(5).stores({ autoLog: 'id, at, kind' });
+    this.version(6).stores({ expenses: 'id, date, category' });
   }
 }
 

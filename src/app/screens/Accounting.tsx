@@ -10,6 +10,8 @@ import { Badge, Button, Card, Metric, MetricFootPartial, MetricValue, Money, Qua
 import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
 
+import { ExpensesCard } from '../components/expenses';
+
 export function SalesTabs({ active }: { active: 'sales' | 'accounting' }) {
   const { t } = useI18n();
   return (
@@ -99,6 +101,8 @@ export function Accounting() {
             />
           </Card>
         </div>
+
+        <ExpensesCard year={year} grossMargin={sum.grossMargin} />
 
         <Card
           title={t('accounting.ledger')}

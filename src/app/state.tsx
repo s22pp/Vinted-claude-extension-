@@ -19,6 +19,9 @@ import { type PrecisionRow, precisionRows } from '@/intelligence/precision';
 import { type RefundSummary, refundSummary } from '@/intelligence/refunds';
 import { workshopQueue } from '@/intelligence/workshop';
 import { favoriteGains } from '@/intelligence/favorites';
+import { useReplyKitPublisher } from './reply-kit';
+import { type AutoConfig, floorFor, withDefaults } from '@/intelligence/automation';
+import { DEFAULT_MARKDOWN, MARKDOWN_KEY, type MarkdownPlan, type MarkdownStep, markdownPlan, normalizeSteps, startPriceOf } from '@/intelligence/markdown';
 import { sumMetric } from '@/domain/money';
 
 export interface EraData {
@@ -44,6 +47,9 @@ export interface EraData {
   predictions: PricePrediction[];
   activation: Set<ActivationEventName>;
   decisions: Decision[];
+  /** Plan de baisse of each live listing (price calendar, never below the floor). */
+  markdown: Map<string, MarkdownPlan>;
+  markdownSteps: MarkdownStep[];
 }
 
 const Ctx = createContext<EraData | null>(null);
@@ -55,7 +61,7 @@ export function useEra(): EraData {
 }
 
 export function EraDataProvider({ children }: { children: ReactNode }) {
-  const { t } = useI18n();
+  const { t, money } = useI18n();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 10 * 60_000);
@@ -74,6 +80,8 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
   const repostEvents = useLiveQuery(() => db.events.where('type').equals('LISTING_REPUBLISHED').toArray(), []);
   const mode = useLiveQuery(() => repo.getSetting<DataMode>('dataMode', 'empty'), []);
   const prepRows = useLiveQuery(() => db.preps.toArray(), []);
+  const mdSteps = useLiveQuery(() => repo.getSetting<MarkdownStep[] | null>(MARKDOWN_KEY, null), []);
+  const autoCfg = useLiveQuery(() => repo.getSetting<Partial<AutoConfig> | null>('automations', null), []);
 
   const value = useMemo<EraData>(() => {
     const ready = !!(items && listings && sales && analyses && predictions && activation && decisions && mode && prepRows);
@@ -114,6 +122,17 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       const ids = saleViews.filter((x) => refunds.missingReason.includes(x.sale.id)).map((x) => x.item.id);
       priorities.push({ code: 'REFUND_REASON', tone: 'info', count: ids.length, amount: null, label: null, itemIds: ids });
     }
+    const markdownSteps = normalizeSteps(mdSteps ?? DEFAULT_MARKDOWN);
+    const minMargin = { minMarginCents: withDefaults(autoCfg).minMarginCents };
+    const markdown = new Map<string, MarkdownPlan>();
+    for (const v of views) {
+      if (!v.inStock || v.current?.status !== 'ACTIVE') continue;
+      const plan = markdownPlan(
+        { askCents: v.askPrice, startCents: startPriceOf(v.current, observations ?? [], priceEvents ?? []), listedAt: v.current.listedAt, floorCents: floorFor(v.cost, minMargin), now },
+        markdownSteps,
+      );
+      if (plan.status !== 'NONE') markdown.set(v.item.id, plan);
+    }
     return {
       ready,
       now,
@@ -136,8 +155,10 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
       predictions: predictions ?? [],
       activation: new Set((activation ?? []).map((a) => a.name)),
       decisions: decisions ?? [],
+      markdown,
+      markdownSteps,
     };
-  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, repostEvents, prepRows]);
+  }, [items, listings, sales, analyses, predictions, activation, decisions, mode, now, t, observations, priceEvents, repostEvents, prepRows, mdSteps, autoCfg]);
 
   // Your niches for ERA's marks on vinted.fr pages — real data only (demo niches never reach real Vinted pages).
   useEffect(() => {
@@ -147,6 +168,9 @@ export function EraDataProvider({ children }: { children: ReactNode }) {
     const own = value.views.flatMap((v) => v.listings.map((l) => l.platformListingId)).filter((x): x is string => !!x && /^\d+$/.test(x));
     void browser.storage.local.set({ [OVERLAY_KEY]: niches, eraOwnListings: own }).catch(() => undefined);
   }, [value.ready, value.mode, value.model, value.views]);
+
+  // Your templates (and, real data only, each live listing's context) for the "Réponses ERA" button on vinted.fr.
+  useReplyKitPublisher({ ready: value.ready, real: value.mode === 'real', intel: value.intel, preps: value.preps, model: value.model }, { t, money });
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

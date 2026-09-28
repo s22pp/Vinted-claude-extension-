@@ -17,7 +17,7 @@ export const DEFAULT_REPLIES: Record<ReplyKey, string> = {
 };
 
 export interface ReplyContext {
-  title: string;
+  title: string | null;
   size: string | null;
   condition: string | null;
   defects: string | null;
@@ -51,4 +51,40 @@ export function fillReply(template: string, c: ReplyContext): string {
 
 export function hasBlanks(text: string): boolean {
   return text.includes(MISSING);
+}
+
+/* ── Replies inside Vinted's messaging (EXPERIMENTAL) ───── */
+
+/** What the dashboard publishes for the vinted.fr pages: your templates, and what ERA knows of each live listing. */
+export const REPLY_KIT_KEY = 'eraReplyKit';
+/** Off switch for the "Réponses ERA" button in Vinted's messaging (on unless switched off). */
+export const REPLIES_ON_KEY = 'eraRepliesOn';
+
+export interface ReplyKit {
+  templates: { key: ReplyKey; label: string; text: string }[];
+  /** By Vinted listing id: the context to fill the templates with (real data only). */
+  items: Record<string, ReplyContext>;
+}
+
+export interface KitReply {
+  key: ReplyKey;
+  label: string;
+  text: string;
+  blanks: boolean;
+}
+
+const UNKNOWN: ReplyContext = { title: null, size: null, condition: null, defects: null, measures: null, price: null, counter: null };
+
+/** The conversation's listing among those the page links to: the first one ERA knows. */
+export function conversationItem(kit: ReplyKit, linkedIds: readonly string[]): string | null {
+  return linkedIds.find((id) => id in kit.items) ?? null;
+}
+
+/** Every template, filled for this listing (or left visibly blank when ERA does not know it). */
+export function kitReplies(kit: ReplyKit, itemId: string | null): KitReply[] {
+  const c = (itemId && kit.items[itemId]) || UNKNOWN;
+  return kit.templates.map((x) => {
+    const text = fillReply(x.text, c);
+    return { key: x.key, label: x.label, text, blanks: hasBlanks(text) };
+  });
 }

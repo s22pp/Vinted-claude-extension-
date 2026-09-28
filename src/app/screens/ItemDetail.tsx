@@ -20,6 +20,7 @@ import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
 import { RepostButton, RepostPending } from '../components/repost';
+import { MarkdownPlanView } from '../components/markdown';
 import { RelistButton } from '../components/relist';
 import { SearchTrace } from '../components/search-trace';
 import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
@@ -385,6 +386,12 @@ export function ItemDetail({ id }: { id: string }) {
           {intel && v.askPrice !== null && v.inStock && (
             <Card title={t('offer.title')} hint={t('offer.hint')} icon="scale" tone="amber">
               <OfferCalculator intel={intel} compact />
+            </Card>
+          )}
+
+          {v.inStock && v.current?.status === 'ACTIVE' && (
+            <Card title={t('markdown.title')} hint={t('markdown.hint')} icon="price" tone="coral">
+              <MarkdownPlanView v={v} onAddCost={() => setEditCost(true)} />
             </Card>
           )}
 

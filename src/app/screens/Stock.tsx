@@ -25,7 +25,7 @@ import { downloadText } from '@/lib/download';
 import { IconTile } from '@/ui/components/icons';
 import { PRIO, usePriorityTitle } from '../components/priorities';
 
-type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost';
+type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost' | 'markdown';
 type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
 type SortKey = 'title' | ColKey;
 
@@ -153,8 +153,9 @@ export function Stock({ route }: { route: Route }) {
       sold: rows.filter((r) => r.v.item.status === 'SOLD').length,
       attention: rows.filter((r) => r.intel?.recommendation && r.intel.recommendation.tone !== 'info').length,
       nocost: rows.filter((r) => r.v.inStock && r.v.cost === null).length,
+      markdown: rows.filter((r) => era.markdown.get(r.v.item.id)?.status === 'DUE').length,
     }),
-    [rows],
+    [rows, era.markdown],
   );
 
   const visible = useMemo(() => {
@@ -169,6 +170,7 @@ export function Stock({ route }: { route: Route }) {
       if (filter === 'sold' && s !== 'SOLD') return false;
       if (filter === 'attention' && !(r.intel?.recommendation && r.intel.recommendation.tone !== 'info')) return false;
       if (filter === 'nocost' && !(r.v.inStock && r.v.cost === null)) return false;
+      if (filter === 'markdown' && era.markdown.get(r.v.item.id)?.status !== 'DUE') return false;
       if (needle && !`${r.v.item.title} ${r.v.item.brand} ${r.v.item.model ?? ''}`.toLowerCase().includes(needle)) return false;
       return true;
     });
@@ -181,7 +183,7 @@ export function Stock({ route }: { route: Route }) {
       if (y === null) return -1;
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
     });
-  }, [rows, filter, q, sort, focusSet, positions]);
+  }, [rows, filter, q, sort, focusSet, positions, era.markdown]);
 
   // Virtualisation: fixed row height, only the visible window is rendered.
   const rowH = density === 'compact' ? 42 : 58;
@@ -323,6 +325,7 @@ export function Stock({ route }: { route: Route }) {
     ...(counts.hidden > 0 || filter === 'hidden' ? [{ value: 'hidden' as Filter, label: t('stock.filterHidden') }] : []),
     { value: 'attention', label: t('stock.filterAttention') },
     { value: 'nocost', label: t('stock.filterNoCost') },
+    ...(counts.markdown > 0 || filter === 'markdown' ? [{ value: 'markdown' as Filter, label: t('markdown.filter') }] : []),
   ];
 
   const inStock = rows.filter((r) => r.v.inStock).length;

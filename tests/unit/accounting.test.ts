@@ -2,7 +2,7 @@ import { EraDatabase } from '@/data/db';
 import { EraRepository } from '@/data/repo';
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
 import { DAY } from '@/domain/time';
-import { DAC7, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
+import { DAC7, expenseSummary, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 
 const Y = 2026;
@@ -112,5 +112,25 @@ describe('accounting', () => {
     expect((await repo.issueInvoice('sa')).number).toBe(`${Y}-0002`);
     expect((await repo.issueInvoice('sb')).number).toBe(`${Y}-0001`); // same sale → same invoice
     expect((await repo.issueInvoice('sc')).number).toBe(`${Y + 1}-0001`);
+  });
+  it('expenses: summed for the year, by category and month, taken off the margin (unknown stays unknown)', () => {
+    const ex = [
+      { date: at(0, 10), amountCents: 1250, category: 'PACKAGING' as const },
+      { date: at(0, 20), amountCents: 300, category: 'BOOST' as const },
+      { date: at(4, 2), amountCents: 2000, category: 'PACKAGING' as const },
+      { date: Date.UTC(Y - 1, 11, 1, 12), amountCents: 9999, category: 'TRAVEL' as const },
+    ];
+    const s = expenseSummary(ex, Y, { status: 'known', value: 10000, count: 3 });
+    expect(s.totalCents).toBe(3550);
+    expect(s.count).toBe(3);
+    expect(s.byCategory).toEqual([
+      { category: 'PACKAGING', cents: 3250 },
+      { category: 'BOOST', cents: 300 },
+    ]);
+    expect(s.byMonth[0]).toBe(1550);
+    expect(s.byMonth[4]).toBe(2000);
+    expect(s.net).toEqual({ status: 'known', value: 6450, count: 3 });
+    expect(expenseSummary(ex, Y, { status: 'partial', value: 5000, count: 2, missing: 1 }).net).toEqual({ status: 'partial', value: 1450, count: 2, missing: 1 });
+    expect(expenseSummary(ex, Y, { status: 'unknown', missing: 2 }).net).toEqual({ status: 'unknown', missing: 2 });
   });
 });
