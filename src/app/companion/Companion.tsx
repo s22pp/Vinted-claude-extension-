@@ -287,7 +287,7 @@ function BuyQuick({ item, mode }: { item: PageItem; mode: 'popup' | 'panel' }) {
     setErr(null);
     try {
       const input = { title: item.title, brand, model: null, category, gender: null, size: null, condition: item.condition, purchasePriceCents: cost, url: item.url };
-      const analysis = await repo.analyzeMarket(marketAdapter(era.mode, false), buySubject(input), null, setStage);
+      const analysis = await repo.analyzeMarket(await marketAdapter(era.mode, false), buySubject(input), null, setStage);
       const personal = personalEvidence(era.model, { brand, model: null, category });
       setRes(analyzeBuy(input, analysis, era.model, personal, era.learning.priceCorrection));
       await repo.track('first_buy_analysis');

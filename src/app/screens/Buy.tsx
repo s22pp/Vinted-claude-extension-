@@ -82,7 +82,7 @@ function BuyAnalyzer({ route }: { route: Route }) {
     setSaved(false);
     try {
       const input = { title: title.trim(), brand: brand.trim(), model: model.trim() || null, category, gender: null, size: size.trim() || null, condition: condition || null, purchasePriceCents: cost!, url: sourceUrl };
-      const adapter = marketAdapter(era.mode, false);
+      const adapter = await marketAdapter(era.mode, false);
       const analysis = await repo.analyzeMarket(adapter, buySubject(input), null, setStage);
       const personal = personalEvidence(era.model, { brand: input.brand, model: input.model, category });
       setResult(analyzeBuy(input, analysis, era.model, personal, era.learning.priceCorrection));

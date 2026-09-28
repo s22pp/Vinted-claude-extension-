@@ -102,7 +102,7 @@ export function DealScanner() {
   const scan = async () => {
     setError(null);
     setDeals(null);
-    const adapter = marketAdapter(era.mode, false);
+    const adapter = await marketAdapter(era.mode, false);
     setDemo(adapter.isDemo);
     const own = new Set(era.views.flatMap((v) => v.listings.map((l) => l.platformListingId).filter((x): x is string => !!x)));
     const found: Deal[] = [];

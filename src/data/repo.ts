@@ -24,8 +24,6 @@ import type { LotLine } from '@/intelligence/lot';
 import { resolvePrediction } from '@/intelligence/learning';
 import type { MarketplaceAdapter, SearchResult } from './adapters/marketplace';
 import { type EraDatabase, type InvoiceRow, db as defaultDb, uid } from './db';
-import { generateDemoDataset } from './fixtures/demo';
-import { DemoMarketplaceAdapter } from './adapters/demo-adapter';
 
 export type DataMode = 'empty' | 'demo' | 'real';
 
@@ -59,6 +57,8 @@ export class EraRepository {
   }
 
   async loadDemo(now = Date.now()): Promise<void> {
+    // Demo fixtures are loaded only when the demo is asked for.
+    const [{ generateDemoDataset }, { DemoMarketplaceAdapter }] = await Promise.all([import('./fixtures/demo'), import('./adapters/demo-adapter')]);
     const ds = generateDemoDataset(now);
     await this.db.transaction('rw', [this.db.items, this.db.listings, this.db.observations, this.db.sales, this.db.events, this.db.predictions], async () => {
       await this.db.items.bulkPut(ds.items);

@@ -1,7 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type ReactNode, useEffect, useMemo } from 'react';
-import '@fontsource-variable/geist';
-import '@fontsource/instrument-serif/400-italic.css';
+import '@/ui/styles/fonts.css';
 import '@/ui/styles/base.css';
 import '@/ui/styles/core.css';
 import { repo } from '@/data/repo';

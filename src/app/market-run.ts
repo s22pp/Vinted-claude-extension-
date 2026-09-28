@@ -1,4 +1,3 @@
-import { DemoMarketplaceAdapter } from '@/data/adapters/demo-adapter';
 import type { MarketplaceAdapter } from '@/data/adapters/marketplace';
 import { VintedTabAdapter } from '@/data/adapters/vinted/vinted-adapter';
 import type { DataMode } from '@/data/repo';
@@ -30,8 +29,12 @@ export function itemSubject(v: ItemView): ComparableSubject {
  * Demo data is analysed against the demo market; real data only ever against the real marketplace.
  * A real item is never priced with fixtures.
  */
-export function marketAdapter(mode: DataMode, isDemoItem: boolean, quick = false): MarketplaceAdapter {
-  if (mode === 'demo' || isDemoItem) return new DemoMarketplaceAdapter(quick ? 0 : 380);
+export async function marketAdapter(mode: DataMode, isDemoItem: boolean, quick = false): Promise<MarketplaceAdapter> {
+  if (mode === 'demo' || isDemoItem) {
+    // The demo market generator is loaded only when the demo is used.
+    const { DemoMarketplaceAdapter } = await import('@/data/adapters/demo-adapter');
+    return new DemoMarketplaceAdapter(quick ? 0 : 380);
+  }
   return new VintedTabAdapter();
 }
 
@@ -43,7 +46,7 @@ export async function analyzeItem(
   onStage?: (s: 'COLLECTING' | 'COMPARING' | 'READY') => void,
   quick = false,
 ): Promise<ComparableAnalysis> {
-  const adapter = marketAdapter(mode, v.item.isDemo, quick);
+  const adapter = await marketAdapter(mode, v.item.isDemo, quick);
   const subject = itemSubject(v);
   // Brand unknown on a real listing: read the listing itself on Vinted (one verified GET) before searching.
   const vintedId = v.current?.platformListingId;
