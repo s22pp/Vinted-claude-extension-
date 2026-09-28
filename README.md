@@ -37,7 +37,8 @@ Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connect
 npm run dev            # WXT + rechargement à chaud
 npm test               # Vitest — moteurs (argent, comparables, pricing, stagnation, capital, deal score, offres, apprentissage)
 npm run e2e            # build + Playwright sur l'extension chargée
-npm run compile        # tsc strict
+npm run compile        # tsc strict (variables et paramètres inutilisés refusés)
+npm run lint           # ESLint : règles des hooks React et erreurs courantes
 npm run qa:screens     # build + captures pleine page des écrans clés (démo) → .output/screens
 npm run icons          # régénère les PNG depuis assets/era-mark.svg
 npm run perf           # temps de calcul des moteurs sur un gros compte synthétique (700 articles, 26 500 observations)
@@ -57,6 +58,10 @@ src/app            écrans React (Today, Stock + Mise en ligne + Capital, Item, 
                    Insights, Outils, Réglages), facture imprimable, popup, side panel
 src/ui             design system : tokens, composants, graphiques SVG, illustrations, logo
 ```
+
+## Quand un écran plante
+
+Chaque écran est isolé : une erreur d'affichage montre ce qui s'est passé avec « Réessayer », « Aller à Aujourd'hui » et « Recharger », le menu et les autres écrans restent utilisables, et vos données ne sont pas touchées. L'erreur est gardée dans ce navigateur (les 20 dernières), jamais envoyée : Réglages → Diagnostic → « Copier le rapport » l'inclut, pour me la transmettre.
 
 ## Garde-fous Vinted
 

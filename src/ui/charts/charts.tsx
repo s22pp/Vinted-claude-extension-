@@ -160,6 +160,7 @@ export function LineChart({
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
+  const allKey = all.join(',');
   const pad = { l: 52, r: 16, t: 12, b: 28 };
   const w = Math.max(0, width - pad.l - pad.r);
   const h = height - pad.t - pad.b;
@@ -180,7 +181,9 @@ export function LineChart({
     const x = (i: number) => (n <= 1 ? w / 2 : (i / (n - 1)) * w);
     const y = (v: number) => h - ((v - y0) / (y1 - y0 || 1)) * h;
     return { ticks, x, y };
-  }, [all.join(','), w, h, labels.length, zeroBased, minPoints]);
+    // Keyed on the values, not the array (a new one each render): the geometry is redone only when a value changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allKey, w, h, labels.length, zeroBased, minPoints]);
 
   if (!geo) return <ChartEmpty height={height} text={all.length === 0 ? t('charts.noData') : t('charts.insufficient')} />;
   const { ticks, x, y } = geo;

@@ -42,10 +42,10 @@ export interface Mark {
 
 /** Price as a page shows it: "45,00 €", "€45.00", "45 €" — the first amount. */
 export function priceFromText(text: string): number | null {
-  const m = /(\d{1,5}(?:[  .]\d{3})*(?:[.,]\d{1,2})?)\s?€|€\s?(\d{1,5}(?:[.,]\d{1,2})?)/.exec(text);
+  const m = /(\d{1,5}(?:[ \u00a0\u202f.]\d{3})*(?:[.,]\d{1,2})?)\s?€|€\s?(\d{1,5}(?:[.,]\d{1,2})?)/.exec(text);
   const raw = m?.[1] ?? m?.[2];
   if (!raw) return null;
-  const n = Number(raw.replace(/[  ]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  const n = Number(raw.replace(/[ \u00a0\u202f]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }
 

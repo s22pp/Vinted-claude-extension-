@@ -146,7 +146,7 @@ export function toCsv(head: string[], rows: Cell[][]): string {
     const s = v === null ? '' : String(v);
     return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return `﻿${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
+  return `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
 }
 
 export function salesCsv(rows: readonly LedgerSale[]): string {

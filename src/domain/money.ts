@@ -24,7 +24,7 @@ export function eurNumber(cents: Cents, decimals: 0 | 2 = 2): string {
 
 /** Parse a user-typed amount ("18", "18,5", "18.50 €", "1 250,00") into cents. Empty → null (unknown). */
 export function parseMoneyInput(raw: string): MaybeCents | undefined {
-  const cleaned = raw.replace(/[€\s  ]/g, '').replace(',', '.');
+  const cleaned = raw.replace(/[€\s\u00a0\u202f]/g, '').replace(',', '.');
   if (cleaned === '') return null;
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return undefined; // invalid
   return Math.round(Number(cleaned) * 100);

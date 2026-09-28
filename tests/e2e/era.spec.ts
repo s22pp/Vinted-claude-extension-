@@ -397,3 +397,34 @@ test('title words: what comparable listings write and your title lacks, added be
   await expect(page.locator('.wcopy__text')).toContainText(new RegExp(`${word} · E[0-9A-Z]{4}$`));
   await expect(tw.getByRole('button', { name: label })).toHaveCount(0);
 });
+
+test('a screen that fails stays contained: it says so, the menu and the other screens keep working, the report keeps it', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  // Test only: a reply template stored with a wrong type makes the item page's reply card fail to render.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('era-intelligence');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('settings', 'readwrite');
+          tx.objectStore('settings').put({ key: 'replyTemplates', value: { MEASURES: 123 } });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+        req.onerror = () => reject(req.error);
+      }),
+  );
+  await page.goto(`${base}#/stock?filter=listed`);
+  await page.reload();
+  await page.locator('tbody tr[aria-rowindex]').first().click();
+  const boundary = page.getByTestId('error-boundary');
+  await expect(boundary).toContainText('Cet écran a rencontré une erreur');
+  await expect(page.locator('.sidebar')).toBeVisible();
+  await boundary.getByRole('button', { name: 'Aller à Aujourd’hui' }).click();
+  await expect(page.getByTestId('error-boundary')).toHaveCount(0);
+  await expect(page.getByTestId('daily-run')).toBeVisible();
+  // Kept in this browser for the diagnostic report.
+  await page.goto(`${base}#/settings`);
+  await expect(page.getByRole('button', { name: 'Copier le rapport' })).toBeVisible();
+});

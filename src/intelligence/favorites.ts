@@ -19,6 +19,9 @@ export function favoriteGains(views: readonly ItemView[], observations: readonly
   const out: FavoriteGain[] = [];
   for (const v of views) {
     if (!v.inStock || !v.current) continue;
+    // The latest import found nothing new (no observation stored since): no favourite gained since then.
+    const l = v.current;
+    if (l.lastObservationAt != null && l.lastObservedAt !== null && l.lastObservedAt > l.lastObservationAt) continue;
     const obs = (byListing.get(v.current.id) ?? []).filter((o) => o.favorites !== null).sort((a, b) => a.at - b.at);
     if (obs.length < 2) continue;
     const last = obs[obs.length - 1]!;

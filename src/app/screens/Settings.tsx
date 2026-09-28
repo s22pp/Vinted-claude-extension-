@@ -17,6 +17,7 @@ import { BackupCard } from '../components/backup';
 import { RefreshSettings } from '../components/refresh-settings';
 import { OverlaySettings, RepliesSettings } from '../components/overlay-settings';
 import { go, useEra } from '../state';
+import { type UiError, readUiErrors } from '../components/error-boundary';
 
 export function Settings() {
   const i = useI18n();
@@ -190,8 +191,10 @@ function DiagnosticCard() {
   const [running, setRunning] = useState(false);
   const [lastError, setLastError] = useState<{ code: string; detail?: string; at: number } | null>(null);
   const journal = useLiveQuery(() => repo.getSetting<VintedErrorEntry[]>(ERROR_LOG_KEY, []), []) ?? [];
+  const [uiErrors, setUiErrors] = useState<UiError[]>([]);
   useEffect(() => {
     void browser.storage.local.get('eraLastImportError').then((r) => setLastError((r.eraLastImportError as typeof lastError) ?? null));
+    void readUiErrors().then(setUiErrors);
   }, [running]);
   const report = () =>
     [
@@ -199,6 +202,8 @@ function DiagnosticCard() {
       ...steps.map((s) => `${s.ok ? '✓' : '✗'} ${t(`vinted.diagStep.${s.key}`)} — ${s.info}`),
       lastError ? `Dernière erreur d’import (${new Date(lastError.at).toLocaleString()}) : ${lastError.code} · ${lastError.detail ?? ''}` : '',
       ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})`),
+      // Display errors (screens that failed), newest first: where, message, and the first lines of the stack.
+      ...uiErrors.slice(0, 5).map((e) => `Affichage ${new Date(e.at).toLocaleString()} · ${e.where} · ${e.message}\n${e.stack.split('\n').slice(0, 6).join('\n')}`),
     ]
       .filter(Boolean)
       .join('\n');
@@ -235,7 +240,7 @@ function DiagnosticCard() {
         >
           {t('vinted.checkRun')}
         </Button>
-        {(steps.length > 0 || lastError || journal.length > 0) && (
+        {(steps.length > 0 || lastError || journal.length > 0 || uiErrors.length > 0) && (
           <Button
             icon="layers"
             onClick={async () => {

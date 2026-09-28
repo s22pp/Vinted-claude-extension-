@@ -7,6 +7,7 @@ import { MarketplaceError } from './adapters/marketplace';
 import type { ImportStage } from './adapters/vinted/protocol';
 import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
 import { isInStock, isLiveListing, listingStatusOf, resolveImportedStatus } from '@/domain/status';
+import { shouldObserve } from '@/domain/observe';
 import { fetchPurchases } from './adapters/vinted/orders';
 import { db, uid } from './db';
 import { repo } from './repo';
@@ -15,10 +16,12 @@ import { PENDING_REPOSTS_KEY, pendingReposts } from './vinted-repost';
 /**
  * Import the seller's own wardrobe + sold orders from Vinted (≤ 5 budgeted GET calls).
  * - Items are matched by platform listing id: re-importing updates, never duplicates.
- * - Each import stores an observation (views/favourites), which builds engagement history over time.
+ * - Imports store observations (price/views/favourites) when they change, and a live listing at least once a day:
+ *   the engagement history, without identical rows from frequent automatic refreshes.
  * - Sold orders only carry a title: they are matched by exact normalized title, unmatched ones are skipped.
  * - Purchase cost is never guessed: it stays UNKNOWN until the seller enters it.
  */
+
 export async function importFromVinted(
   onStage: (s: ImportStage) => void = () => undefined,
   now = Date.now(),
@@ -196,10 +199,10 @@ export async function importFromVinted(
         lastObservedAt: now,
         isDemo: false,
       };
+      const observe = shouldObserve(prev, s, isLiveListing(listing.status), now);
+      listing.lastObservationAt = observe ? now : (prev?.lastObservationAt ?? null);
       await db.listings.put(listing);
-      // A closed announcement no longer moves: once it stops changing, no new observation per import.
-      const moved = !prev || prev.priceCents !== s.priceCents || prev.views !== s.views || prev.favorites !== s.favorites;
-      if (moved || isLiveListing(listing.status))
+      if (observe)
         await db.observations.put({ id: uid('obs'), listingId, inventoryItemId: itemId, at: now, priceCents: s.priceCents, views: s.views, favorites: s.favorites, provenance: 'OBSERVED' });
       if (!prev && repost) {
         // The same article, published again: the old announcement is closed, what Vinted reset is kept.

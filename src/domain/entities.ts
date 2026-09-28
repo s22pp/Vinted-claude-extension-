@@ -74,7 +74,13 @@ export interface Listing {
   removedAt: number | null;
   soldAt: number | null;
   status: ListingStatus;
+  /** The last import that read this listing. */
   lastObservedAt: number | null;
+  /**
+   * When its last observation was stored. An import that finds nothing changed stores none (at most one a day
+   * then): lastObservedAt later than this means the latest import saw no change. Absent on older rows.
+   */
+  lastObservationAt?: number | null;
   isDemo: boolean;
 }
 

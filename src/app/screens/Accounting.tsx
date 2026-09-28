@@ -31,8 +31,8 @@ export function Accounting() {
   const era = useEra();
   const years = useMemo(() => ledgerYears(era.sales, era.views, era.now), [era.sales, era.views, era.now]);
   const [year, setYear] = useState<number>(years[0]!);
-  const invoices = useLiveQuery(() => db.invoices.toArray(), []) ?? [];
-  const invoiceBySale = useMemo(() => new Map(invoices.map((r) => [r.saleId, r.number])), [invoices]);
+  const invoices = useLiveQuery(() => db.invoices.toArray(), []);
+  const invoiceBySale = useMemo(() => new Map((invoices ?? []).map((r) => [r.saleId, r.number])), [invoices]);
   const sum = useMemo(() => yearSummary(era.sales, era.views, year), [era.sales, era.views, year]);
   const ledger = useMemo(() => salesLedger(era.sales, year, invoiceBySale), [era.sales, year, invoiceBySale]);
   const register = useMemo(() => purchasesRegister(era.views, year), [era.views, year]);

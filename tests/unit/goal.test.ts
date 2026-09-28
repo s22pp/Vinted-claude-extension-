@@ -1,6 +1,7 @@
 import type { InventoryItem, Listing, ListingObservation, Sale } from '@/domain/entities';
 import { DAY } from '@/domain/time';
 import { favoriteGains } from '@/intelligence/favorites';
+import { shouldObserve } from '@/domain/observe';
 import { goalProgress } from '@/intelligence/goal';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { DEFAULT_REPLIES, type ReplyKit, conversationItem, fillReply, hasBlanks, kitReplies } from '@/intelligence/replies';
@@ -87,6 +88,27 @@ describe('favourites gained since the previous import', () => {
       NOW,
     );
     expect(g).toEqual([{ itemId: 'a', gained: 3, now: 5, since: NOW - 3 * DAY }]);
+  });
+
+  it('an import that found nothing new (no observation stored since) means no favourite gained since the previous import', () => {
+    const obs = (at: number, favorites: number): ListingObservation => ({ id: `o${at}`, listingId: 'la', inventoryItemId: 'a', at, priceCents: 4000, views: 10, favorites, provenance: 'OBSERVED' });
+    const rows = [obs(NOW - 2 * DAY, 2), obs(NOW - DAY, 5)];
+    const seen = (lastObservedAt: number) => buildItemViews([item('a')], [{ ...listing('la', 'a'), lastObservedAt, lastObservationAt: NOW - DAY }], [], NOW);
+    expect(favoriteGains(seen(NOW - DAY), rows, NOW)).toHaveLength(1);
+    expect(favoriteGains(seen(NOW - 3 * 3_600_000), rows, NOW)).toEqual([]);
+  });
+});
+
+describe('observations stored by an import', () => {
+  const prev = { priceCents: 4000, views: 10, favorites: 1, lastObservationAt: NOW - 3 * 3_600_000 };
+  it('a change or a new listing: always; nothing moved: a live listing once a day, a closed one never', () => {
+    expect(shouldObserve(undefined, { priceCents: 4000, views: 10, favorites: 1 }, true, NOW)).toBe(true);
+    expect(shouldObserve(prev, { priceCents: 4000, views: 11, favorites: 1 }, true, NOW)).toBe(true);
+    expect(shouldObserve(prev, { priceCents: 4000, views: 10, favorites: 1 }, true, NOW)).toBe(false);
+    expect(shouldObserve({ ...prev, lastObservationAt: NOW - 21 * 3_600_000 }, { priceCents: 4000, views: 10, favorites: 1 }, true, NOW)).toBe(true);
+    expect(shouldObserve({ ...prev, lastObservationAt: undefined }, { priceCents: 4000, views: 10, favorites: 1 }, true, NOW)).toBe(true);
+    expect(shouldObserve({ ...prev, lastObservationAt: NOW - 30 * DAY }, { priceCents: 4000, views: 10, favorites: 1 }, false, NOW)).toBe(false);
+    expect(shouldObserve(prev, { priceCents: 3500, views: 10, favorites: 1 }, false, NOW)).toBe(true);
   });
 });
 

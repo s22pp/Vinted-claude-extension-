@@ -11,6 +11,8 @@ describe('ERA marks on Vinted pages', () => {
     expect(priceFromText('Chemise Ralph Lauren, taille: L, 11,00 €, 12,25 € inclus')).toBe(1100);
     expect(priceFromText('€9.50')).toBe(950);
     expect(priceFromText('1 250,00 €')).toBe(125000);
+    // French number formatting: a narrow no-break space between thousands, a no-break space before the euro.
+    expect(priceFromText('1\u202f250,00\u00a0€')).toBe(125000);
     expect(priceFromText('sans prix')).toBeNull();
   });
   it('a listing in one of your niches: a deal under your max, a note above it, a warning on a niche to avoid', () => {

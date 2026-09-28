@@ -109,10 +109,10 @@ export function Stock({ route }: { route: Route }) {
 
   useEffect(() => savePref('era.stock.density', density), [density]);
   useEffect(() => savePref('era.stock.cols.v3', cols), [cols]);
+  const filterParam = route.query.get('filter') as Filter | null;
   useEffect(() => {
-    const f = route.query.get('filter') as Filter | null;
-    if (f) setFilter(f);
-  }, [route.query.get('filter')]);
+    if (filterParam) setFilter(filterParam);
+  }, [filterParam]);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {

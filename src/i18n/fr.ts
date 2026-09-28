@@ -2259,6 +2259,16 @@ export const fr = {
     onlyTrue: 'Ce que la concurrence écrit, pas une preuve de vente. N’ajoutez un mot que s’il est vrai pour votre article.',
     onlyTrueLive: 'Ce que la concurrence écrit, pas une preuve de vente. Un mot vrai pour votre article se change sur Vinted : ERA ne modifie pas vos titres.',
   },
+  boundary: {
+    title: 'Cet écran a rencontré une erreur',
+    hint: 'Le reste d’ERA fonctionne : réessayez, ou passez à un autre écran. Vos données ne sont pas touchées.',
+    page: 'ERA n’a pas pu s’afficher. Vos données ne sont pas touchées : rechargez la page.',
+    chunk: 'ERA vient sans doute d’être mis à jour : rechargez la page pour charger la nouvelle version de cet écran.',
+    retry: 'Réessayer',
+    home: 'Aller à Aujourd’hui',
+    reload: 'Recharger',
+    report: 'L’erreur est gardée dans ce navigateur : Réglages → Diagnostic → « Copier le rapport » l’inclut, pour me la transmettre.',
+  },
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };

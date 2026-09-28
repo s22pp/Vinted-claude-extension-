@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { repo } from '@/data/repo';
 import { Suspense, lazy } from 'react';
 import { Skeleton } from '@/ui/components/primitives';
+import { ErrorBoundary } from './components/error-boundary';
 import { Today } from './screens/Today';
 
 // Today is the landing screen and ships in the main chunk; the rest loads on first visit.
@@ -60,25 +61,32 @@ function Router() {
       });
   }, [era.ready, era.mode, route.name, onboardingDone]);
 
+  const key = `${route.name}/${route.id ?? ''}`;
   if (route.name === 'onboarding')
     return (
-      <Suspense fallback={<div className="era-backdrop" aria-hidden="true" />}>
-        <Onboarding />
-      </Suspense>
+      <ErrorBoundary where="onboarding" resetKey={key}>
+        <Suspense fallback={<div className="era-backdrop" aria-hidden="true" />}>
+          <Onboarding />
+        </Suspense>
+      </ErrorBoundary>
     );
   if (!era.ready) return <div className="era-backdrop" aria-hidden="true" />;
   // A printable document: no app chrome around it.
   if (route.name === 'invoice')
     return (
-      <Suspense fallback={null}>
-        <Invoice saleId={route.id ?? ''} />
-      </Suspense>
+      <ErrorBoundary where="invoice" resetKey={key}>
+        <Suspense fallback={null}>
+          <Invoice saleId={route.id ?? ''} />
+        </Suspense>
+      </ErrorBoundary>
     );
   if (route.name === 'dossier')
     return (
-      <Suspense fallback={null}>
-        <Dossier saleId={route.id ?? ''} />
-      </Suspense>
+      <ErrorBoundary where="dossier" resetKey={key}>
+        <Suspense fallback={null}>
+          <Dossier saleId={route.id ?? ''} />
+        </Suspense>
+      </ErrorBoundary>
     );
   let screen: React.ReactNode;
   switch (route.name) {
@@ -128,7 +136,10 @@ function Router() {
     <>
       <div className="era-backdrop" aria-hidden="true" />
       <Shell route={route.name}>
-        <Suspense fallback={<PageSkeleton />}>{screen}</Suspense>
+        {/* A screen that fails shows why and how to go on; the menu and the other screens keep working. */}
+        <ErrorBoundary where={route.name} resetKey={key}>
+          <Suspense fallback={<PageSkeleton />}>{screen}</Suspense>
+        </ErrorBoundary>
       </Shell>
     </>
   );
