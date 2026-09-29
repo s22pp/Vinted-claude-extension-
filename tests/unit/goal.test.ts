@@ -157,3 +157,20 @@ describe('replies inside Vinted messaging', () => {
     expect(unknown[1]!.text).toContain('[à compléter]');
   });
 });
+
+describe('buying plan', () => {
+  it('turns the new listings a week into articles to buy, a weekly budget and the capital tied up', async () => {
+    const { buyingPlan } = await import('@/intelligence/goal');
+    const plan = { salesPerMonth: 20, listingsNeeded: 100, perWeek: 5, current: { sales30: 4, listed: 20, perWeek: 1 }, factor: 5 };
+    const sv = (cost: number | null, daysAgo: number, status: Sale['status'] = 'COMPLETED') =>
+      ({ sale: { status, soldAt: NOW - daysAgo * DAY }, cost }) as unknown as import('@/intelligence/portfolio').SaleView;
+    const b = buyingPlan(plan, [sv(800, 10), sv(1200, 20), sv(1000, 30), sv(null, 5), sv(5000, 300), sv(9000, 3, 'REFUNDED')], NOW);
+    // Median of the known costs over 180 days, refunds and old sales left out.
+    expect(b.medianCost).toEqual({ cents: 1000, n: 3 });
+    expect(b.perWeek).toBe(5);
+    expect(b.budgetPerWeekCents).toBe(5000);
+    expect(b.capitalNeededCents).toBe(100000);
+    // Fewer than 3 known costs: no budget invented.
+    expect(buyingPlan(plan, [sv(800, 10)], NOW).budgetPerWeekCents).toBeNull();
+  });
+});

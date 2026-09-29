@@ -115,3 +115,30 @@ export function goalPlan(g: GoalProgress, views: readonly ItemView[], now: numbe
     factor: current.sales30 > 0 ? Math.round((salesPerMonth / current.sales30) * 10) / 10 : null,
   };
 }
+
+export interface BuyingPlan {
+  /** Articles to buy each week: each new listing the goal needs is an article bought first. */
+  perWeek: number;
+  /** What a sold article cost you (median of the known costs over 180 days), and on how many sales. */
+  medianCost: { cents: number; n: number } | null;
+  /** Buying budget per week and stock capital the goal ties up, at that median cost. */
+  budgetPerWeekCents: number | null;
+  capitalNeededCents: number | null;
+}
+
+/**
+ * The goal's plan turned into buying: how many articles a week, the weekly budget and the capital in stock it takes,
+ * at what your sold articles cost you. Same caveat as the plan: it assumes costs and selling pace hold with more stock.
+ */
+export function buyingPlan(plan: GoalPlan, sales: readonly SaleView[], now: number): BuyingPlan {
+  const costs = sales
+    .filter((s) => s.sale.status !== 'REFUNDED' && s.sale.soldAt >= now - 180 * DAY && s.cost !== null && s.cost > 0)
+    .map((s) => s.cost!);
+  const medianCost = costs.length >= 3 ? { cents: Math.round(median(costs)), n: costs.length } : null;
+  return {
+    perWeek: plan.perWeek,
+    medianCost,
+    budgetPerWeekCents: medianCost ? Math.round((plan.perWeek * medianCost.cents) / 100) * 100 : null,
+    capitalNeededCents: medianCost && plan.listingsNeeded !== null ? Math.round((plan.listingsNeeded * medianCost.cents) / 100) * 100 : null,
+  };
+}

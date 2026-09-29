@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, loadDemo, test } from './fixtures';
 
 test('first run shows onboarding, never fake data', async ({ context, base }) => {
@@ -432,4 +433,31 @@ test('a screen that fails stays contained: it says so, the menu and the other sc
   // Kept in this browser for the diagnostic report.
   await page.goto(`${base}#/settings`);
   await expect(page.getByRole('button', { name: 'Copier le rapport' })).toBeVisible();
+});
+
+test('pilotage: the last 30 days against the 30 before, a year month by month, exported as CSV', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/insights`);
+  const review = page.getByTestId('business-review');
+  await expect(review).toBeVisible();
+  await expect(review).toContainText('Chiffre d’affaires · 30 j');
+  await expect(review).toContainText(/vs .* les 30 j d’avant|pareil que les 30 j d’avant/);
+  // Twelve months, the current one marked as running, one row per indicator.
+  await expect(review.locator('.review-table thead th')).toHaveCount(13);
+  await expect(review.locator('.review-table thead')).toContainText('(en cours)');
+  await expect(review.locator('.review-table tbody tr')).toHaveCount(8);
+  const [download] = await Promise.all([page.waitForEvent('download'), review.getByRole('button', { name: 'Exporter (CSV)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^era-pilotage-\d{4}-\d{2}-\d{2}\.csv$/);
+  const text = readFileSync((await download.path())!, 'utf8');
+  expect(text.split('\r\n').filter(Boolean)).toHaveLength(13);
+  expect(text).toContain('Mois;Ventes;Chiffre d’affaires (€)');
+  // A monthly goal turns into buying: articles a week, a weekly budget, the capital it ties up, niches to buy first.
+  await review.getByLabel('Montant de l’objectif').fill('2000');
+  await review.getByRole('button', { name: 'Enregistrer' }).click();
+  const plan = page.getByTestId('buying-plan');
+  await expect(plan).toContainText('Plan d’achat pour 2 000');
+  await expect(plan).toContainText('Articles à acheter par semaine');
+  await expect(plan).toContainText('Budget d’achat par semaine');
+  await expect(plan).toContainText(/max .* sur Vinted/);
 });

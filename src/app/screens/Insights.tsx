@@ -14,13 +14,14 @@ import { Icon } from '@/ui/components/icons';
 
 const CONF_TONE = { HIGH: 'emerald', MEDIUM: 'cyan', LOW: 'amber' } as const;
 
-type Tab = 'patterns' | 'you' | 'precision' | 'niches';
+type Tab = 'review' | 'patterns' | 'you' | 'precision' | 'niches';
 
 import { HourlyCard } from '../components/hourly';
+import { BusinessReview } from '../components/business-review';
 
 export function Insights({ route }: { route: Route }) {
   const i = useI18n();
-  const tab = (['patterns', 'you', 'precision', 'niches'].includes(route.query.get('tab') ?? '') ? route.query.get('tab') : 'patterns') as Tab;
+  const tab = (['review', 'patterns', 'you', 'precision', 'niches'].includes(route.query.get('tab') ?? '') ? route.query.get('tab') : 'review') as Tab;
   const { t, money, pct } = i;
   const era = useEra();
   const niches = rankNiches(era.model, 3).slice(0, 8);
@@ -45,7 +46,8 @@ export function Insights({ route }: { route: Route }) {
     );
   }
 
-  const tabs: { value: Tab; icon: 'insights' | 'compare' | 'target' | 'layers'; label: string }[] = [
+  const tabs: { value: Tab; icon: 'insights' | 'compare' | 'target' | 'layers' | 'calendar'; label: string }[] = [
+    { value: 'review', icon: 'calendar', label: t('review.tab') },
     { value: 'patterns', icon: 'insights', label: t('insights.tabPatterns') },
     { value: 'you', icon: 'compare', label: t('insights.tabYou') },
     { value: 'precision', icon: 'target', label: t('insights.tabPrecision') },
@@ -69,6 +71,7 @@ export function Insights({ route }: { route: Route }) {
         }
       />
       <div className="stack-4">
+        {tab === 'review' && <BusinessReview />}
         {tab === 'patterns' && <PatternsCard />}
         {tab === 'you' && (
           <>

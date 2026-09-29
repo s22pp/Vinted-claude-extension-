@@ -1694,3 +1694,25 @@
     height: 300px;
   }
 }
+
+/* ── Pilotage: a year month by month ─────────────────── */
+.review-table td,
+.review-table th {
+  white-space: nowrap;
+}
+/* The indicator's name stays in view while the months scroll sideways. */
+.review-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--surface-solid);
+}
+.review-table tbody th[scope='row'] {
+  top: auto;
+  z-index: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-2);
+}
