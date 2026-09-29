@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type ComponentProps, type ComponentType, Suspense, createElement, lazy, useEffect } from 'react';
-import { repo } from '@/data/repo';
+import { type DataMode, repo } from '@/data/repo';
 import { Skeleton } from '@/ui/components/primitives';
 import { ErrorBoundary } from './components/error-boundary';
 import { Today } from './screens/Today';
@@ -98,11 +98,12 @@ function Router() {
   const onboardingDone = useLiveQuery(() => repo.getSetting('onboardingDone', false), []);
   useEffect(() => {
     // First run: nothing imported and onboarding never finished → onboarding. Never shows fake data by default.
-    // Read the setting again before redirecting: right after "Passer" the live value can still be the old one,
-    // which would send the seller straight back to the onboarding.
+    // Read both settings again before redirecting: the live values can lag behind the database by a moment — right
+    // after "Passer", or right after a first import (items shown, data mode not yet "real") — which would send the
+    // seller back to the onboarding.
     if (era.ready && era.mode === 'empty' && onboardingDone === false && route.name !== 'onboarding' && route.name !== 'settings')
-      void repo.getSetting('onboardingDone', false).then((done) => {
-        if (!done) go('onboarding');
+      void Promise.all([repo.getSetting('onboardingDone', false), repo.getSetting<DataMode>('dataMode', 'empty')]).then(([done, mode]) => {
+        if (!done && mode === 'empty') go('onboarding');
       });
   }, [era.ready, era.mode, route.name, onboardingDone]);
 
