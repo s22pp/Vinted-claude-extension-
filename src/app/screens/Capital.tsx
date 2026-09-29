@@ -252,7 +252,8 @@ export function Capital() {
             />
           }
         >
-          <div className="table-wrap" style={{ border: 0, borderRadius: 0, maxHeight: 520 }}>
+          {/* Below the fold when Capital opens: laid out when it nears the screen, not in the opening frame. */}
+          <div className="table-wrap cv-auto" style={{ border: 0, borderRadius: 0, maxHeight: 520 }}>
             <table className="dt dt--compact">
               <thead>
                 <tr>

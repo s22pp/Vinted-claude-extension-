@@ -108,7 +108,7 @@ export function Accounting() {
               {t('accounting.identityMissing')} <a href="#/settings">{t('nav.settings')} →</a>
             </p>
           )}
-          <div className="table-wrap" tabIndex={0} style={{ border: 0, borderRadius: 0, maxHeight: 460 }}>
+          <div className="table-wrap cv-auto" tabIndex={0} style={{ border: 0, borderRadius: 0, maxHeight: 460 }}>
             <table className="dt dt--compact">
               <thead>
                 <tr>
@@ -178,7 +178,7 @@ export function Accounting() {
             </Button>
           }
         >
-          <div className="table-wrap" tabIndex={0} style={{ border: 0, borderRadius: 0, maxHeight: 420 }}>
+          <div className="table-wrap cv-auto" tabIndex={0} style={{ border: 0, borderRadius: 0, maxHeight: 420 }}>
             <table className="dt dt--compact">
               <thead>
                 <tr>

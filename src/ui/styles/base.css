@@ -1314,6 +1314,12 @@ textarea.input {
   outline: 2px solid var(--violet);
   outline-offset: 2px;
 }
+/* A heavy block usually below the fold: skipped by layout and paint until it nears the screen (its last size is
+   remembered, so the page does not jump). */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
 .table-wrap {
   position: relative;
   overflow: auto;
