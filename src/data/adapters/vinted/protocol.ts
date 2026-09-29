@@ -84,6 +84,7 @@ export type EraMessage =
   | { type: 'era:draft:create'; input: DraftInput }
   | { type: 'era:label:get'; conversationId: string; title: string; soldAt: number }
   | { type: 'era:label:all' }
+  | { type: 'era:parcel:locate'; conversationId: string }
   | { type: 'era:details:read'; ids: string[] }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
@@ -179,3 +180,6 @@ export interface PendingRepost {
 
 /** Listings read in full (description, photos) for the quality check. */
 export type DetailsResult = { read: number; stopped: string | null };
+
+/** "Localiser" a parcel: the places and tracking code the order's conversation carries (EXPERIMENTAL). */
+export type LocateResult = { ok: true; info: import('@/intelligence/parcels').ParcelInfo } | { ok: false; code: MarketplaceErrorCode; detail?: string };

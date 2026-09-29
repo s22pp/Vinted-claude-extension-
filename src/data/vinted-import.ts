@@ -406,7 +406,19 @@ export async function importPurchasesFromVinted(now = Date.now()): Promise<numbe
     for (const p of purchases) {
       const id = `pur_${orderKey(p.title, p.date, p.priceCents)}`;
       const prev = await db.purchases.get(id);
-      await db.purchases.put({ id, title: p.title, priceCents: p.priceCents, date: p.date, status: p.status, linkedItemId: prev?.linkedItemId ?? null, dismissed: prev?.dismissed ?? false, importedAt: now });
+      await db.purchases.put({
+        id,
+        title: p.title,
+        priceCents: p.priceCents,
+        date: p.date,
+        status: p.status,
+        linkedItemId: prev?.linkedItemId ?? null,
+        dismissed: prev?.dismissed ?? false,
+        importedAt: now,
+        // A new status restarts the clock of the parcel's step (first seen: unknown, never "now").
+        statusSince: prev ? (p.status !== prev.status ? now : (prev.statusSince ?? null)) : null,
+        conversationId: p.conversationId ?? prev?.conversationId ?? null,
+      });
     }
     await repo.setSetting('purchasesError', null);
     return purchases.length;

@@ -39,6 +39,7 @@ const Sales = lazyScreen(() => import('./screens/Sales').then((m) => m.Sales));
 const Settings = lazyScreen(() => import('./screens/Settings').then((m) => m.Settings));
 const Stock = lazyScreen(() => import('./screens/Stock').then((m) => m.Stock));
 const Accounting = lazyScreen(() => import('./screens/Accounting').then((m) => m.Accounting));
+const Parcels = lazyScreen(() => import('./screens/Parcels').then((m) => m.Parcels));
 const Invoice = lazyScreen(() => import('./screens/Invoice').then((m) => m.Invoice));
 const Dossier = lazyScreen(() => import('./screens/Dossier').then((m) => m.Dossier));
 const Workshop = lazyScreen(() => import('./screens/Workshop').then((m) => m.Workshop));
@@ -48,7 +49,7 @@ const Tools = lazyScreen(() => import('./screens/Tools').then((m) => m.Tools));
 const Automations = lazyScreen(() => import('./screens/Automations').then((m) => m.Automations));
 
 // Most visited first.
-const PRELOAD = [Stock, ItemDetail, Sales, Workshop, Buy, Market, Insights, Settings, Accounting, Capital, Quality, Tools, Automations, Dossier, Invoice];
+const PRELOAD = [Stock, ItemDetail, Sales, Workshop, Buy, Market, Insights, Settings, Accounting, Parcels, Capital, Quality, Tools, Automations, Dossier, Invoice];
 
 function usePreloadScreens() {
   useEffect(() => {
@@ -150,6 +151,9 @@ function Router() {
       break;
     case 'accounting':
       screen = <Accounting />;
+      break;
+    case 'parcels':
+      screen = <Parcels />;
       break;
     case 'workshop':
       screen = <Workshop route={route} />;

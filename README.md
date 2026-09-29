@@ -100,6 +100,7 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Bordereau (`conversations/{id}`, `shipments/{id}/label_url`, `transactions/{id}/shipment/order`), masquer (`items/{id}/is_hidden`) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Republication sans perte (`item_upload/items/{id}`, `POST /api/v2/photos`, `item_upload/drafts`, `POST items/{id}/delete`) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Repères sur les pages vinted.fr, bouton « Réponses ERA » dans la messagerie (lecture de la page, aucun appel) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Colis : lieux et code de suivi lus dans la conversation de la commande (`conversations/{id}`, champs à coordonnées) | EXPERIMENTAL · NON VÉRIFIÉ |
 
 Réglages → *Intégrations Vinted* compte aussi, pour chaque écriture, les envois que Vinted a **acceptés sur cet appareil** (d'après le journal) : c'est la seule preuve qu'une route fonctionne sur votre compte.
 
@@ -159,6 +160,10 @@ Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de *
 ## Alertes d'achat
 
 Buy → Scanner → **Alertes d'achat** : après chaque actualisation automatique, vos 3 meilleures niches sont cherchées une fois chacune sur Vinted (lecture seule, dans le budget). Une annonce **sous votre prix max** qu'ERA ne vous a pas encore montrée est gardée et annoncée par une notification (si activée) ; jamais vos propres annonces, chaque annonce une seule fois. « Vérifier maintenant » lance la même recherche à la main.
+
+## Colis : carte autour de chez vous (Roanne)
+
+Ventes → **Colis** : les colis qui **arrivent chez vous** (vos achats Vinted) et ceux **partis de chez vous** (vos ventes), chacun avec son étape lue dans le statut Vinted (à envoyer, envoyé, en route, au point relais, livré), le nombre de jours à cette étape et une alerte quand ça traîne — un colis qui attend au point relais repart au bout de quelques jours : il apparaît aussi dans la Tournée du jour. La carte est centrée sur Roanne (« Déplacer chez moi » pour la placer ailleurs d'un clic). **« Localiser »** (EXPERIMENTAL, une lecture budgétée de la commande) place le point relais ou la destination **seulement si Vinted les donne**, avec la distance depuis chez vous et le code de suivi s'il existe. Vinted ne donne pas la position d'un colis en route : ERA ne l'invente pas — le suivi du transporteur reste dans la conversation Vinted (bouton « Suivi dans Vinted »). Fond de carte © OpenStreetMap (bibliothèque Leaflet), chargé depuis internet pour la seule zone affichée.
 
 ## Sauvegarde automatique, ventes et articles en CSV
 

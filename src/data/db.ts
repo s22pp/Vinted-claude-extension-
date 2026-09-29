@@ -52,6 +52,10 @@ export interface PurchaseRow {
   linkedItemId: string | null;
   dismissed: boolean;
   importedAt: number;
+  /** When ERA first saw the current status (parcel tracking); absent on older rows. */
+  statusSince?: number | null;
+  /** The order's Vinted conversation, when the order carries it (UNVERIFIED field): where the parcel is followed. */
+  conversationId?: string | null;
 }
 
 export interface SettingRow {

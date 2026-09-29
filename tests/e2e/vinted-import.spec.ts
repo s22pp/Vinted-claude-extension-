@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -40,7 +40,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       // Test fixture only: the purchases page calls an orders endpoint ERA learns by observation.
       return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20')</script></body></html>` });
     if (url.pathname === '/api/v2/my_orders' && (url.searchParams.get('era_test') === 'purchased' || url.searchParams.get('type') === 'purchased'))
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: opts.purchases ?? [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
     if (url.pathname === '/catalog' && opts.searchMoved)
       // Test fixture only: the search page calls an endpoint ERA does not know yet.
       return route.fulfill({
@@ -1029,4 +1029,52 @@ test('photo check: every photo of the live listings read from Vinted’s image s
   await expect(card.getByRole('button', { name: /Contrôler/ })).toHaveCount(0);
   // Images only: not a single call to Vinted's API for this.
   expect(calls.slice(before).filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+});
+
+test('parcels on a map around home (Roanne): steps from Vinted statuses, the pickup point placed only once Vinted gives it', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const day = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+  const calls = await fakeVinted(context, { loggedIn: true, purchases: [{ title: 'Chemise Oxford Ralph Lauren L', price: { amount: '12.0' }, date: day, status: 'Colis disponible au point relais', conversation_id: 9301 }] });
+  // Test fixture only: the order's conversation carries a pickup point with coordinates (shape assumed, UNVERIFIED).
+  await context.route('https://www.vinted.fr/api/v2/conversations/9301', (route) => {
+    calls.push({ method: 'GET', path: '/api/v2/conversations/9301', csrf: null });
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ conversation: { transaction: { id: 7301, shipment: { id: 8301, tracking_code: 'MR123', carrier: { name: 'Mondial Relay' }, pickup_point: { name: 'Relais Tabac de la Gare', address_line: '12 rue Jean Jaurès', postal_code: '42300', city: 'Roanne', latitude: 46.0405, longitude: 4.0762 } } }, opposite_user: { id: 1, city: 'Ailleurs', latitude: 48.85, longitude: 2.35 } } }),
+    });
+  });
+  // Test fixture only: map tiles served locally (the real ones come from OpenStreetMap).
+  const png = (await import('node:fs')).readFileSync('.output/chrome-mv3/icon/128.png');
+  await context.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ contentType: 'image/png', body: png }));
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The parcel waiting at the pickup point is in the daily run (purchases are read right after the stock).
+  await page.goto(`${base}#/today`);
+  await expect(page.getByTestId('daily-run')).toContainText('Chemise Oxford Ralph Lauren L', { timeout: 40_000 });
+  await page.goto(`${base}#/sales`);
+  await page.getByRole('link', { name: 'Colis' }).click();
+  await expect(page).toHaveURL(/#\/parcels/);
+  const parcel = page.getByTestId('parcel').filter({ hasText: 'Chemise Oxford Ralph Lauren L' });
+  await expect(parcel.locator('li.is-now')).toHaveText('Au point relais', { timeout: 20_000 });
+  await expect(parcel).toContainText('au moins 3 j');
+  await expect(page.locator('.pmap-home')).toBeVisible();
+  // Nothing placed before Vinted says where: no parcel marker on the map.
+  await expect(page.locator('.pmap path.leaflet-interactive')).toHaveCount(0);
+  const before = calls.length;
+  await parcel.getByRole('button', { name: 'Localiser' }).click();
+  await expect(page.getByText('1 lieu trouvé dans la commande')).toBeVisible({ timeout: 20_000 });
+  await expect(parcel).toContainText('Point relais : Relais Tabac de la Gare · 12 rue Jean Jaurès · 42300 Roanne');
+  await expect(parcel).toContainText(/à 0,\d km de chez vous/);
+  await expect(parcel).toContainText('Mondial Relay · MR123');
+  await expect(page.locator('.pmap path.leaflet-interactive')).toHaveCount(1);
+  // One read, of that order only (the other member's location is never used).
+  expect(calls.slice(before).map((c) => c.path)).toEqual(['/api/v2/conversations/9301']);
+  // Home can be moved on the map, and put back.
+  await page.getByRole('button', { name: 'Déplacer chez moi' }).click();
+  await page.getByTestId('parcel-map').click({ position: { x: 60, y: 60 } });
+  await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toBeVisible();
+  await page.getByRole('button', { name: 'Revenir à Roanne' }).click();
+  await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toHaveCount(0);
 });

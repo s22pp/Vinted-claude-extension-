@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { repo } from '@/data/repo';
+import { db } from '@/data/db';
+import { PARCEL_INFO_KEY, type ParcelInfo, parcelsInProgress } from '@/intelligence/parcels';
 import type { EraMessage, LabelResult } from '@/data/adapters/vinted/protocol';
 import { useI18n } from '@/i18n';
 import type { ItemView, SaleView } from '@/intelligence/portfolio';
@@ -27,6 +29,7 @@ import { PriceOnVintedButton } from './vinted-price';
 type Task =
   | { key: string; kind: 'SHIP'; s: SaleView }
   | { key: string; kind: 'PARCEL'; s: SaleView; days: number; state: 'SHIPPED' | 'DELIVERED' }
+  | { key: string; kind: 'PICKUP'; title: string; days: number | null; place: string | null; conversationId: string | null }
   | { key: string; kind: 'RESERVED'; v: ItemView }
   | { key: string; kind: 'COST'; v: ItemView }
   | { key: string; kind: 'RECO'; v: ItemView }
@@ -37,6 +40,7 @@ type Task =
 const KIND: Record<Task['kind'], { icon: IconName; tone: TileTone }> = {
   SHIP: { icon: 'box', tone: 'coral' },
   PARCEL: { icon: 'clock', tone: 'amber' },
+  PICKUP: { icon: 'download', tone: 'emerald' },
   RESERVED: { icon: 'check', tone: 'emerald' },
   COST: { icon: 'edit', tone: 'cyan' },
   RECO: { icon: 'target', tone: 'amber' },
@@ -62,6 +66,8 @@ export function DailyRun() {
   const errorToast = useErrorToast();
   const purchases = usePendingPurchases();
   const lastBackup = useLiveQuery(() => repo.getSetting<number | null>(LAST_BACKUP_KEY, null), []);
+  const allPurchases = useLiveQuery(() => db.purchases.toArray(), []);
+  const parcelInfo = useLiveQuery(() => repo.getSetting<Record<string, ParcelInfo>>(PARCEL_INFO_KEY, {}), []);
   const [skipped, setSkipped] = useState<string[]>(readSkipped);
   const [saleFor, setSaleFor] = useState<ItemView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,6 +77,12 @@ export function DailyRun() {
     for (const s of era.sales) if (s.sale.needsAction && s.sale.status !== 'REFUNDED') out.push({ key: `ship:${s.sale.id}`, kind: 'SHIP', s });
     const byId = new Map(era.sales.map((x) => [x.sale.id, x]));
     for (const a of parcelAlerts(era.sales.map((x) => x.sale), era.now)) out.push({ key: `parcel:${a.saleId}:${a.state}`, kind: 'PARCEL', s: byId.get(a.saleId)!, days: a.days, state: a.state });
+    // A parcel waiting for the seller at a pickup point goes back after a few days: collect it.
+    for (const p of parcelsInProgress([], allPurchases ?? [], era.now))
+      if (p.stage === 'AT_PICKUP') {
+        const place = (p.conversationId && parcelInfo?.[p.conversationId]?.points.find((x) => x.kind === 'PICKUP')?.label) || null;
+        out.push({ key: `pickup:${p.refId}`, kind: 'PICKUP', title: p.title, days: p.days, place, conversationId: p.conversationId });
+      }
     for (const v of era.views) if (v.item.status === 'RESERVED') out.push({ key: `res:${v.item.id}`, kind: 'RESERVED', v });
     // Unknown costs: every sold one, and the five dearest in stock (the rest waits in "Coûts manquants").
     const costs = missingCosts(era.views);
@@ -90,7 +102,7 @@ export function DailyRun() {
     if (era.mode === 'real' && lastBackup !== undefined && (lastBackup === null || era.now - lastBackup > BACKUP_REMIND_DAYS * 86_400_000))
       out.push({ key: `backup:${Math.floor(era.now / 86_400_000)}`, kind: 'BACKUP', last: lastBackup });
     return out;
-  }, [era.sales, era.views, era.intel, era.workshop, era.now, era.mode, era.markdown, lastBackup]);
+  }, [era.sales, era.views, era.intel, era.workshop, era.now, era.mode, era.markdown, lastBackup, allPurchases, parcelInfo]);
 
   const queue = tasks.filter((x) => !skipped.includes(x.key));
   const matches = useMemo(() => purchaseByItem(purchases, queue.filter((x) => x.kind === 'COST').map((x) => (x as { v: ItemView }).v.item)), [purchases, queue]);
@@ -162,6 +174,25 @@ export function DailyRun() {
             </div>
           </div>
         );
+      case 'PICKUP':
+        return (
+          <div className="stack" style={{ gap: 6 }}>
+            <span className="t-small">
+              {x.place ?? t('parcelmap.step.AT_PICKUP')}
+              {x.days !== null && ` · ${t('parcelmap.atLeast', { n: x.days })}`}
+            </span>
+            <div className="row wrap" style={{ gap: 8 }}>
+              <Button size="sm" variant="primary" icon="target" onClick={() => go('parcels')}>
+                {t('run.onMap')}
+              </Button>
+              {x.conversationId && (
+                <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/inbox/${x.conversationId}`, '_blank', 'noopener')}>
+                  {t('parcelmap.conversation')}
+                </Button>
+              )}
+            </div>
+          </div>
+        );
       case 'RESERVED':
         return (
           <Button size="sm" variant="primary" icon="sales" onClick={() => setSaleFor(x.v)}>
@@ -216,8 +247,8 @@ export function DailyRun() {
         );
     }
   };
-  const title = (x: Task) => (x.kind === 'BACKUP' ? t('backup.title') : x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.title : x.v.item.title);
-  const itemHref = (x: Task) => (x.kind === 'BACKUP' ? 'settings' : `item/${x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.id : x.v.item.id}`);
+  const title = (x: Task) => (x.kind === 'BACKUP' ? t('backup.title') : x.kind === 'PICKUP' ? x.title : x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.title : x.v.item.title);
+  const itemHref = (x: Task) => (x.kind === 'BACKUP' ? 'settings' : x.kind === 'PICKUP' ? 'parcels' : `item/${x.kind === 'SHIP' || x.kind === 'PARCEL' ? x.s.item.id : x.v.item.id}`);
 
   return (
     <Card

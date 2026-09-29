@@ -12,12 +12,15 @@ import { go, useEra } from '../state';
 
 import { ExpensesCard } from '../components/expenses';
 
-export function SalesTabs({ active }: { active: 'sales' | 'accounting' }) {
+export function SalesTabs({ active }: { active: 'sales' | 'accounting' | 'parcels' }) {
   const { t } = useI18n();
   return (
     <nav className="subtabs" aria-label={t('sales.title')}>
       <a href="#/sales" aria-current={active === 'sales' ? 'page' : undefined}>
         {t('sales.title')}
+      </a>
+      <a href="#/parcels" aria-current={active === 'parcels' ? 'page' : undefined}>
+        {t('parcelmap.title')}
       </a>
       <a href="#/accounting" aria-current={active === 'accounting' ? 'page' : undefined}>
         {t('accounting.title')}

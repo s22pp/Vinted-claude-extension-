@@ -1,7 +1,8 @@
 import { labelFileName } from '@/intelligence/shipping';
+import { PARCEL_INFO_KEY, type ParcelInfo, pointsIn, trackingIn } from '@/intelligence/parcels';
 import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, type MarketplaceErrorCode, errorInfo } from './adapters/marketplace';
-import type { DetailsResult, HideResult, LabelBatchResult, LabelResult } from './adapters/vinted/protocol';
+import type { DetailsResult, HideResult, LabelBatchResult, LabelResult, LocateResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db, uid } from './db';
 import { vintedWrite, waitAlive } from './vinted-write';
@@ -124,4 +125,26 @@ export async function readListingDetails(ids: readonly string[]): Promise<Detail
     }
   }
   return { read, stopped: null };
+}
+
+/**
+ * "Localiser" (EXPERIMENTAL, one budgeted read, on the seller's click): the order's conversation, where Vinted keeps
+ * the shipment. The places it carries with coordinates (a pickup point, a destination) and the tracking code are
+ * kept; nothing found means nothing is shown — a parcel's position is never guessed.
+ */
+export async function locateParcel(conversationId: string): Promise<LocateResult> {
+  if (!/^\d+$/.test(conversationId)) return { ok: false, code: 'NOT_APPLIED', detail: 'conversation inconnue' };
+  try {
+    const adapter = new VintedTabAdapter();
+    const conv = obj(obj(await adapter.rawGet(`/api/v2/conversations/${conversationId}`)).conversation);
+    // Only the order itself (transaction and its shipment): never the other member's profile.
+    const tx = conv.transaction ?? null;
+    const info: ParcelInfo = { at: Date.now(), points: pointsIn(tx), tracking: trackingIn(tx) };
+    const all = ((await db.settings.get(PARCEL_INFO_KEY))?.value as Record<string, ParcelInfo> | undefined) ?? {};
+    await db.settings.put({ key: PARCEL_INFO_KEY, value: { ...all, [conversationId]: info } });
+    return { ok: true, info };
+  } catch (e) {
+    const { code, detail } = errorInfo(e);
+    return { ok: false, code, detail: detail ?? undefined };
+  }
 }

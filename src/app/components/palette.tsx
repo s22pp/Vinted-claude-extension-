@@ -29,6 +29,7 @@ const PLACES: { key: string; href: string; icon: IconName }[] = [
   { key: 'ship', href: 'sales?ship=1', icon: 'box' },
   { key: 'sales', href: 'sales', icon: 'sales' },
   { key: 'accounting', href: 'accounting', icon: 'book' },
+  { key: 'parcels', href: 'parcels', icon: 'target' },
   { key: 'market', href: 'market', icon: 'market' },
   { key: 'buy', href: 'buy', icon: 'buy' },
   { key: 'shopping', href: 'buy?tab=list', icon: 'tag' },

@@ -6,7 +6,7 @@ import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
-import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden } from '@/data/vinted-actions';
+import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
 import { recordError } from '@/data/error-journal';
@@ -279,6 +279,13 @@ export default defineBackground(() => {
           exportingPhotos = null;
         });
         return answer(exportingPhotos, (detail) => ({ listings: 0, photos: 0, missing: 0, stopped: detail }) satisfies PhotoExportResult);
+      case 'era:parcel:locate':
+        // One read of the order's conversation, on a click; never while another Vinted operation runs.
+        if (vintedBusy()) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
+          return undefined;
+        }
+        return answer(locateParcel(msg.conversationId), unavailable);
       case 'era:alerts:run':
         if (vintedBusy()) {
           sendResponse({ deals: [], stopped: BUSY });
