@@ -402,8 +402,8 @@ export function Stock({ route }: { route: Route }) {
               value={density}
               onChange={setDensity}
               options={[
-                { value: 'compact', label: <Icon name="rows" size={14} aria-label={t('stock.compact')} /> },
-                { value: 'comfortable', label: <Icon name="layers" size={14} aria-label={t('stock.comfortable')} /> },
+                { value: 'compact', label: <Icon name="rows" size={14} />, ariaLabel: t('stock.compact') },
+                { value: 'comfortable', label: <Icon name="layers" size={14} />, ariaLabel: t('stock.comfortable') },
               ]}
             />
             <div style={{ position: 'relative' }}>

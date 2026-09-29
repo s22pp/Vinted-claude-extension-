@@ -123,7 +123,7 @@ export function MarketVsYou() {
           ]}
         />
       </div>
-      <div className="table-wrap" style={{ maxHeight: 460 }}>
+      <div className="table-wrap" tabIndex={0} style={{ maxHeight: 460 }}>
         <table className="dt dt--compact mvy-table">
           <thead>
             <tr className="mvy-table__groups">

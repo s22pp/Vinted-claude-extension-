@@ -14,16 +14,17 @@ export function useMoneyField(initial: number | null) {
   return { raw, setRaw, cents: parsed === undefined ? null : parsed, invalid: parsed === undefined };
 }
 
-export function CategorySelect({ value, onChange, id }: { value: Category; onChange: (c: Category) => void; id?: string }) {
+export function CategorySelect({ value, onChange, id, 'aria-label': ariaLabel }: { value: Category; onChange: (c: Category) => void; id?: string; 'aria-label'?: string }) {
   const { t } = useI18n();
-  return <Select id={id} value={value} onChange={(e) => onChange(e.target.value as Category)} options={CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))} />;
+  return <Select id={id} aria-label={ariaLabel} value={value} onChange={(e) => onChange(e.target.value as Category)} options={CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))} />;
 }
 
-export function ConditionSelect({ value, onChange, id }: { value: Condition | ''; onChange: (c: Condition | '') => void; id?: string }) {
+export function ConditionSelect({ value, onChange, id, 'aria-label': ariaLabel }: { value: Condition | ''; onChange: (c: Condition | '') => void; id?: string; 'aria-label'?: string }) {
   const { t } = useI18n();
   return (
     <Select
       id={id}
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value as Condition | '')}
       options={[{ value: '', label: '—' }, ...CONDITIONS.map((c) => ({ value: c, label: t(`condition.${c}`) }))]}

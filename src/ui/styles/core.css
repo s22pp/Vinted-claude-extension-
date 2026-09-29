@@ -725,10 +725,10 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--violet);
+  color: color-mix(in srgb, var(--violet) 70%, var(--text));
 }
 .pred__side--real .pred__tag {
-  color: var(--emerald);
+  color: color-mix(in srgb, var(--emerald) 70%, var(--text));
 }
 .pred__v {
   font-size: 20px;

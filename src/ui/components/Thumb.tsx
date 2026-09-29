@@ -40,7 +40,7 @@ export function Thumb({ photoUrl, category, size = 'md', alt }: { photoUrl: stri
   const glyph = GLYPHS[kind ?? CATEGORY_GLYPH[category] ?? 'default'] ?? GLYPHS.default!;
   const hue = HUES[Number(v ?? 0) % HUES.length]!;
   return (
-    <span className={cls} role="img" aria-label={alt}>
+    <span className={cls} {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}>
       <svg viewBox="0 0 64 64">
         <rect width="64" height="64" fill={`hsl(${hue} 45% 50% / .12)`} />
         <path d={glyph} fill={`hsl(${hue} 55% 62% / .22)`} stroke={`hsl(${hue} 70% 72%)`} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />

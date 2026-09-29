@@ -243,7 +243,7 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
             { value: 'excluded', label: t('market.excludedTab', { n: excluded.length }) },
           ]}
         />
-        <div className="table-wrap" style={{ maxHeight: 420, boxShadow: 'none' }}>
+        <div className="table-wrap" tabIndex={0} style={{ maxHeight: 420, boxShadow: 'none' }}>
           <table className="dt dt--compact">
             <thead>
               <tr>

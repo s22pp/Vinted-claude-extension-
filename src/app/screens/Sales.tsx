@@ -139,7 +139,7 @@ export function Sales({ route }: { route?: Route }) {
         <RefundsCard highlight={focusRefunds} />
 
         <Card title={t('sales.recent')} icon="calendar" tone="neutral" hint={unknownProfit ? t('sales.unknownProfit', { n: unknownProfit }) : undefined} flush>
-          <div className="table-wrap" style={{ border: 0, boxShadow: 'none', borderRadius: 0, maxHeight: 480 }}>
+          <div className="table-wrap" tabIndex={0} style={{ border: 0, boxShadow: 'none', borderRadius: 0, maxHeight: 480 }}>
             <table className="dt dt--compact">
               <thead>
                 <tr>

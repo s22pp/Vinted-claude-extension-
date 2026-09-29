@@ -857,7 +857,8 @@ textarea.input {
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
-  color: var(--b);
+  /* The tone, lifted towards the text colour so it stays readable (AA) on its own tinted background. */
+  color: color-mix(in srgb, var(--b) 70%, var(--text));
   background: color-mix(in srgb, var(--b) 13%, transparent);
   border: 1px solid color-mix(in srgb, var(--b) 20%, transparent);
 }
@@ -1290,6 +1291,11 @@ textarea.input {
 }
 
 /* ── Table ────────────────────────────────────────────── */
+/* A scrollable table is reached with the keyboard (Tab, then the arrows): it shows it has the focus. */
+.table-wrap:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
 .table-wrap {
   position: relative;
   overflow: auto;

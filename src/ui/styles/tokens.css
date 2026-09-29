@@ -134,11 +134,12 @@
   --violet-soft: rgba(91, 61, 245, 0.1);
   --cobalt: #2553e0;
   --cobalt-soft: rgba(37, 83, 224, 0.1);
-  --emerald: #07845a;
+  /* Darker than on the dark theme: text in these tones stays readable (AA) on light, tinted surfaces. */
+  --emerald: #04704c;
   --emerald-soft: rgba(7, 132, 90, 0.1);
   --cyan: #0a7ea4;
   --cyan-soft: rgba(10, 126, 164, 0.1);
-  --amber: #a65c00;
+  --amber: #8f4f00;
   --amber-soft: rgba(196, 116, 0, 0.12);
   --coral: #d61f45;
   --coral-soft: rgba(214, 31, 69, 0.09);

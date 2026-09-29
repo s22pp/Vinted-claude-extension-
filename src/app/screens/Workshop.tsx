@@ -340,12 +340,12 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
 
       <div className="wsteps">
         <Step n={1} title={t('workshop.s.category')} hint={t('workshop.h.category')} done={done('category')}>
-          <CategorySelect value={item.category} onChange={(c) => repo.updateItemFacts(item.id, { category: c })} />
+          <CategorySelect aria-label={t('workshop.s.category')} value={item.category} onChange={(c) => repo.updateItemFacts(item.id, { category: c })} />
         </Step>
 
         <Step n={2} title={t('workshop.s.brand')} hint={t('workshop.h.brand')} done={done('brand')}>
           <div className="row wrap" style={{ gap: 8 }}>
-            <FactInput value={item.brand} onSave={(x) => repo.updateItemFacts(item.id, { brand: x })} width={200} />
+            <FactInput value={item.brand} label={t('workshop.s.brand')} onSave={(x) => repo.updateItemFacts(item.id, { brand: x })} width={200} />
             <CopyButton text={item.brand} />
           </div>
           {warn && <p className="t-small t-neg">{t(`workshop.sensitive.${warn.note}`, { brand: warn.brand })}</p>}
@@ -353,7 +353,7 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
         </Step>
 
         <Step n={3} title={t('workshop.s.size')} hint={t('workshop.h.size')} done={done('size') && prep.checks.includes('sizeLabel')}>
-          <FactInput value={item.size ?? ''} placeholder="M" onSave={(x) => repo.updateItemFacts(item.id, { size: x || null })} width={120} />
+          <FactInput value={item.size ?? ''} label={t('workshop.s.size')} placeholder="M" onSave={(x) => repo.updateItemFacts(item.id, { size: x || null })} width={120} />
           <Check k="sizeLabel" prep={prep} onToggle={toggle} />
         </Step>
 
@@ -363,7 +363,7 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
               <label key={k} className="wmeasure">
                 <span className="t-small t-muted">{t(`workshop.m.${k}`)}</span>
                 <span className="row" style={{ gap: 4 }}>
-                  <MeasureInput value={prep.measures[k] ?? ''} onSave={(x) => save({ measures: { ...prep.measures, [k]: x } })} />
+                  <MeasureInput value={prep.measures[k] ?? ''} label={t(`workshop.m.${k}`)} onSave={(x) => save({ measures: { ...prep.measures, [k]: x } })} />
                   <span className="t-small t-faint">cm</span>
                 </span>
               </label>
@@ -373,21 +373,21 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
         </Step>
 
         <Step n={5} title={t('workshop.s.condition')} done={!!item.condition}>
-          <ConditionSelect value={item.condition ?? ''} onChange={(c) => repo.updateItemFacts(item.id, { condition: (c || null) as Condition | null })} />
+          <ConditionSelect aria-label={t('workshop.s.condition')} value={item.condition ?? ''} onChange={(c) => repo.updateItemFacts(item.id, { condition: (c || null) as Condition | null })} />
           <div style={{ marginTop: 8 }}>
-            <FactInput value={prep.defects} placeholder={t('workshop.defectsPh')} onSave={(x) => save({ defects: x })} width={360} />
+            <FactInput value={prep.defects} label={t('workshop.s.condition')} placeholder={t('workshop.defectsPh')} onSave={(x) => save({ defects: x })} width={360} />
           </div>
           <Check k="photoDefects" prep={prep} onToggle={toggle} />
         </Step>
 
         <Step n={6} title={t('workshop.s.colors')} hint={t('workshop.h.colors')} done={!!prep.colors.trim()}>
-          <FactInput value={prep.colors} placeholder={t('workshop.colorsPh')} onSave={(x) => save({ colors: x })} width={220} />
+          <FactInput value={prep.colors} label={t('workshop.s.colors')} placeholder={t('workshop.colorsPh')} onSave={(x) => save({ colors: x })} width={220} />
           {guards.includes('DESCRIPTION_CHECK') && <Check k="colorDaylight" prep={prep} onToggle={toggle} />}
         </Step>
 
         <Step n={7} title={t('workshop.s.material')} hint={t('workshop.h.material')} done={!!(prep.material.trim() || item.material)}>
           <div className="row wrap" style={{ gap: 8 }}>
-            <FactInput value={prep.material || item.material || ''} placeholder="100 % coton" onSave={(x) => save({ material: x })} width={220} />
+            <FactInput value={prep.material || item.material || ''} label={t('workshop.s.material')} placeholder="100 % coton" onSave={(x) => save({ material: x })} width={220} />
             <Button size="sm" variant="ghost" onClick={() => save({ material: t('workshop.unreadable') })}>
               {t('workshop.unreadable')}
             </Button>
@@ -397,10 +397,10 @@ function Sheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
         <Step n={8} title={t('workshop.s.title')} hint={t('workshop.h.title')} done={done('title')}>
           <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
             <span className="t-small t-muted">{t('workshop.productRef')}</span>
-            <FactInput value={prep.productRef} placeholder="FZ6700-121" onSave={(x) => save({ productRef: x })} width={180} />
+            <FactInput value={prep.productRef} label={t('workshop.productRef')} placeholder="FZ6700-121" onSave={(x) => save({ productRef: x })} width={180} />
           </div>
           {editTitle ? (
-            <FactInput value={title} onSave={(x) => { void save({ titleOverride: x || null }); setEditTitle(false); }} width="100%" autoFocus />
+            <FactInput value={title} label={t('workshop.s.title')} onSave={(x) => { void save({ titleOverride: x || null }); setEditTitle(false); }} width="100%" autoFocus />
           ) : (
             <div className="wcopy">
               <span className="wcopy__text">{title}</span>
@@ -564,12 +564,13 @@ function Check({ k, prep, onToggle }: { k: CheckKey; prep: Prep; onToggle: (k: C
 }
 
 /** Saves on blur / Enter: no save per keystroke. */
-function FactInput({ value, onSave, placeholder, width, autoFocus }: { value: string; onSave: (v: string) => void; placeholder?: string; width?: number | string; autoFocus?: boolean }) {
+function FactInput({ value, onSave, placeholder, width, autoFocus, label }: { value: string; onSave: (v: string) => void; placeholder?: string; width?: number | string; autoFocus?: boolean; label: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
     <Input
       value={v}
+      aria-label={label}
       placeholder={placeholder}
       autoFocus={autoFocus}
       style={{ width, maxWidth: '100%' }}
@@ -582,6 +583,6 @@ function FactInput({ value, onSave, placeholder, width, autoFocus }: { value: st
   );
 }
 
-function MeasureInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
-  return <FactInput value={value} onSave={onSave} placeholder="—" width={72} />;
+function MeasureInput({ value, onSave, label }: { value: string; onSave: (v: string) => void; label: string }) {
+  return <FactInput value={value} onSave={onSave} placeholder="—" width={72} label={label} />;
 }

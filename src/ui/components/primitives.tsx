@@ -114,7 +114,7 @@ export function SearchInput({ value, onChange, placeholder, inputRef }: { value:
 }
 
 /** Segmented control with a sliding thumb. */
-export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; label: string }) {
+export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode; ariaLabel?: string }[]; label: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
@@ -125,7 +125,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
     <div className="seg" role="group" aria-label={label} ref={ref}>
       {thumb && <span className="seg__thumb" style={{ transform: `translateX(${thumb.x - 3}px)`, width: thumb.w, left: 3 }} />}
       {options.map((o) => (
-        <button key={o.value} type="button" className="seg__btn" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
+        <button key={o.value} type="button" className="seg__btn" aria-pressed={o.value === value} aria-label={o.ariaLabel} onClick={() => onChange(o.value)}>
           {o.label}
         </button>
       ))}
@@ -246,7 +246,7 @@ export function Metric({ label, icon, tone, value, foot, small, help }: { label:
         {label}
         {help && (
           <Tooltip content={help}>
-            <span tabIndex={0} aria-label={help} style={{ display: 'inline-flex', color: 'var(--text-3)' }}>
+            <span tabIndex={0} role="img" aria-label={help} style={{ display: 'inline-flex', color: 'var(--text-3)' }}>
               <Icon name="info" size={13} />
             </span>
           </Tooltip>
