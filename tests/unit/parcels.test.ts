@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_HOME, distanceKm, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
+import { DEFAULT_HOME, arrivedAtPickup, distanceKm, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
 
 const NOW = Date.UTC(2026, 8, 29, 12);
 const DAY = 86_400_000;
@@ -62,5 +62,27 @@ describe('parcels on their way', () => {
     // From Roanne town centre to that relay point: under a kilometre; to Lyon: about 70 km.
     expect(distanceKm(DEFAULT_HOME, pts[0]!)).toBeLessThan(1);
     expect(Math.round(distanceKm(DEFAULT_HOME, pts[1]!))).toBeGreaterThan(60);
+  });
+});
+
+describe('a parcel that just reached its pickup point', () => {
+  const row = (id: string, status: string | null, dismissed = false) => ({ id, title: `Achat ${id}`, date: 0, status, dismissed });
+
+  it('is announced once: known before at another step, now waiting at the pickup point', () => {
+    const before = new Map([
+      ['a', 'IN_TRANSIT' as const],
+      ['b', 'AT_PICKUP' as const],
+      ['c', 'SENT' as const],
+    ]);
+    const after = [row('a', 'Disponible au point relais'), row('b', 'Disponible au point relais'), row('c', 'En transit')];
+    // b was already waiting: no second announcement; c has not arrived.
+    expect(arrivedAtPickup(before, after)).toEqual(['Achat a']);
+  });
+
+  it('never for a purchase seen for the first time, nor a dismissed one', () => {
+    const before = new Map([['d', 'SENT' as const]]);
+    expect(arrivedAtPickup(before, [row('new', 'Disponible au point relais'), row('d', 'Disponible au point relais', true)])).toEqual([]);
+    // First purchases import ever: nothing is announced.
+    expect(arrivedAtPickup(new Map(), [row('a', 'Disponible au point relais')])).toEqual([]);
   });
 });

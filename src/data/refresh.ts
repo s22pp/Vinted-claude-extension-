@@ -1,3 +1,4 @@
+import { type ParcelStage, parcelStage } from '@/intelligence/parcels';
 import { db } from './db';
 import { repo } from './repo';
 
@@ -5,7 +6,7 @@ import { repo } from './repo';
  * Keeping ERA up to date without a click: a read-only import every few hours, only while a vinted.fr tab is
  * already open (ERA never opens Vinted by itself for this), never while Vinted blocks. After every import, the
  * toolbar icon shows the orders waiting to be shipped, and — if the seller switched it on — a notification says
- * what is new (an order to ship, a sale).
+ * what is new (an order to ship, a sale, a parcel waiting at its pickup point).
  */
 
 export const REFRESH_KEY = 'autoRefresh';
@@ -40,4 +41,10 @@ export function whatIsNew(before: SalesSnapshot, after: SalesSnapshot): { toShip
   const toShip = [...after.toShip].filter(([id]) => !before.toShip.has(id)).map(([, title]) => title);
   const sold = [...after.sales].filter((id) => !before.sales.has(id)).length;
   return { toShip, sold };
+}
+
+/** The step of each purchase (its parcel), before a purchases import: to tell which one just reached a pickup point. */
+export async function purchaseStages(): Promise<Map<string, ParcelStage>> {
+  const rows = await db.purchases.toArray();
+  return new Map(rows.map((p) => [p.id, parcelStage(p.status)]));
 }

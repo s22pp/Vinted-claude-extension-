@@ -96,6 +96,20 @@ export function parcelsInProgress(sales: readonly SaleLike[], purchases: readonl
   return out.sort((a, b) => order(a) - order(b) || (b.days ?? 0) - (a.days ?? 0));
 }
 
+/**
+ * Purchases that reached a pickup point since the previous look: each one already known then, at another step.
+ * A purchase seen for the first time is not "arrived" (a first import would otherwise announce every old parcel).
+ */
+export function arrivedAtPickup(before: ReadonlyMap<string, ParcelStage>, after: readonly PurchaseLike[]): string[] {
+  return after
+    .filter((p) => !p.dismissed && parcelStage(p.status) === 'AT_PICKUP')
+    .filter((p) => {
+      const was = before.get(p.id);
+      return was !== undefined && was !== 'AT_PICKUP';
+    })
+    .map((p) => p.title);
+}
+
 /* ── Places given by Vinted ─────────────────────────────── */
 
 export interface Place {

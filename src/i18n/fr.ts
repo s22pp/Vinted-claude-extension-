@@ -2081,7 +2081,7 @@ export const fr = {
     hint: 'Un import en lecture seule (≤ 5 requêtes) à intervalle régulier, seulement si un onglet vinted.fr est déjà ouvert, jamais pendant un blocage. L’icône d’ERA affiche les colis à envoyer.',
     every: 'Fréquence',
     hours: 'toutes les {n} h',
-    notify: 'Me notifier d’une nouvelle commande à envoyer ou d’une vente',
+    notify: 'Me notifier d’une nouvelle commande à envoyer, d’une vente ou d’un colis arrivé au point relais',
   },
   palette: {
     title: 'Aller à…',

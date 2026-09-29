@@ -7,7 +7,9 @@ import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-impor
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
-import { type SalesSnapshot, loadRefreshConfig, salesSnapshot, whatIsNew } from '@/data/refresh';
+import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
+import { type ParcelStage, arrivedAtPickup } from '@/intelligence/parcels';
+import { db } from '@/data/db';
 import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
 import { recordError } from '@/data/error-journal';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
@@ -26,13 +28,14 @@ function runImport(auto = false): Promise<ImportResult> {
   let reached = 'START';
   if (importing) return importing;
   const before = salesSnapshot().catch(() => null);
+  const stagesBefore = purchaseStages().catch(() => null);
   importing = importFromVinted((stage) => {
     reached = stage;
     void browser.runtime.sendMessage({ type: 'era:import:stage', stage } satisfies EraMessage).catch(() => undefined);
   })
     .then(async (r): Promise<ImportResult> => {
       // Purchases follow in the background; the stock is already usable.
-      void importPurchasesFromVinted();
+      void importPurchasesFromVinted().then(async () => afterPurchases(await stagesBefore, auto));
       void afterImport(await before, auto);
       return { ok: true, ...r };
     })
@@ -86,6 +89,22 @@ async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise
       iconUrl: browser.runtime.getURL('/icon/128.png'),
       title: news.toShip.length ? (news.toShip.length === 1 ? 'Nouvelle commande à envoyer' : `${news.toShip.length} commandes à envoyer`) : 'Nouvelle vente',
       message: lines.slice(0, 4).join('\n'),
+      priority: 1,
+    })
+    .catch(() => undefined);
+}
+
+/** A scheduled import found a purchase waiting at its pickup point: said once, if notifications are on. */
+async function afterPurchases(before: Map<string, ParcelStage> | null, auto: boolean): Promise<void> {
+  if (!auto || !before || !(await loadRefreshConfig()).notify) return;
+  const arrived = arrivedAtPickup(before, await db.purchases.toArray());
+  if (!arrived.length) return;
+  await browser.notifications
+    .create(`era-parcel-${Date.now()}`, {
+      type: 'basic',
+      iconUrl: browser.runtime.getURL('/icon/128.png'),
+      title: arrived.length === 1 ? 'Colis à retirer' : `${arrived.length} colis à retirer`,
+      message: arrived.slice(0, 4).join('\n'),
       priority: 1,
     })
     .catch(() => undefined);
@@ -189,6 +208,7 @@ export default defineBackground(() => {
   browser.notifications?.onClicked.addListener((id) => {
     if (id.startsWith('era-news-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/sales?ship=1` });
     if (id.startsWith('era-deals-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/buy?tab=scan` });
+    if (id.startsWith('era-parcel-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/parcels` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
