@@ -1298,6 +1298,8 @@ export const fr = {
     title: 'Intégrations Vinted',
     hint: 'Ce qui a réellement fonctionné sur cet appareil, et ce qui n’est pas vérifié',
     verified: 'Vérifié ici · {n}',
+    verifiedShort: 'Vérifié ici',
+    verifiedHint: 'Vinted a accepté et montré le résultat de cette action sur cet appareil (journal des automatisations). Vinted peut changer : un échec futur sera signalé.',
     partial: 'Partiel · {ok}/{of}',
     partialHint: 'Une partie a fonctionné ici, pas le reste : ce qui n’a jamais été vu fonctionner reste à vérifier.',
     fieldRead: 'Champ lu',

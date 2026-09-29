@@ -3,9 +3,10 @@ import type { DescEditResult, EraMessage } from '@/data/adapters/vinted/protocol
 import { useI18n } from '@/i18n';
 import { completeDescription } from '@/intelligence/listing-quality';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
-import { Button, Flag } from '@/ui/components/primitives';
+import { Button } from '@/ui/components/primitives';
 import { useEra } from '../state';
 import { CopyButton } from './tools';
+import { RouteFlag } from './route-flag';
 
 /**
  * Complete a live listing's description: the seller's text kept as it is, what is missing added below from what ERA
@@ -107,7 +108,7 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
             </Button>
           ) : (
             <Button variant="primary" icon="upload" disabled={!canSend} onClick={() => setConfirming(true)}>
-              {t('describe.replace')} <Flag kind="EXPERIMENTAL" />
+              {t('describe.replace')} <RouteFlag kinds={['DESCRIPTION']} />
             </Button>
           ))}
       </div>

@@ -6,9 +6,10 @@ import { useI18n } from '@/i18n';
 import type { SaleView } from '@/intelligence/portfolio';
 import { shippingChecklist } from '@/intelligence/shipping';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, Flag, Money } from '@/ui/components/primitives';
+import { Badge, Button, Card, Money } from '@/ui/components/primitives';
 import { VINTED_ORDERS_URL } from './priorities';
 import { go, useEra } from '../state';
+import { RouteFlag } from './route-flag';
 
 /**
  * Orders Vinted says wait for the seller: a checklist before closing the parcel (learned from past refunds)
@@ -150,7 +151,7 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
           );
         })}
         <p className="t-small t-faint row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <Flag kind="EXPERIMENTAL" /> {t('ship.note')}
+          <RouteFlag kinds={['LABEL']} /> {t('ship.note')}
         </p>
       </div>
       <Modal open={askAll} onClose={() => busy === null && setAskAll(false)} title={t('ship.allTitle', { n: withLabel.length })}>

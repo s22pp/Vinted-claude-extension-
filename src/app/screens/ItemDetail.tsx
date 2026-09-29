@@ -26,6 +26,7 @@ import type { EraMessage, HideResult } from '@/data/adapters/vinted/protocol';
 import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
 import { go, useEra } from '../state';
+import { RouteFlag } from '../components/route-flag';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 
@@ -408,7 +409,7 @@ export function ItemDetail({ id }: { id: string }) {
               title={t('vintedPrice.sectionTitle')}
               icon="flask"
               tone="pink"
-              actions={<Flag kind="EXPERIMENTAL" />}
+              actions={<RouteFlag kinds={['PRICE']} />}
               className="card--quiet"
             >
               <p className="t-small t-muted">{t('vintedPrice.sectionHint')}</p>

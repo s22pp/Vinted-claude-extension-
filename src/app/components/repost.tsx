@@ -7,8 +7,9 @@ import { isLiveListing } from '@/domain/status';
 import { useI18n } from '@/i18n';
 import type { ItemView } from '@/intelligence/portfolio';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
-import { Button, Card, Flag } from '@/ui/components/primitives';
+import { Button, Card } from '@/ui/components/primitives';
 import { vintedIdOf } from './vinted-price';
+import { RouteFlag } from './route-flag';
 
 /** Same key as the background's (vinted-repost.ts); read here without pulling the Vinted write code in. */
 const PENDING_KEY = 'pendingReposts';
@@ -47,7 +48,7 @@ export function RepostButton({ v }: { v: ItemView }) {
         </ol>
         <p className="t-small t-faint">{t('repost.budget')}</p>
         <p className="t-small t-faint row" style={{ gap: 6 }}>
-          <Flag kind="EXPERIMENTAL" /> {t('repost.experimental')}
+          <RouteFlag kinds={['REPOST', 'DELETE']} /> {t('repost.experimental')}
         </p>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
@@ -97,7 +98,7 @@ export function RepostPending({ v }: { v: ItemView }) {
   const live = v.listings.some((l) => l.platformListingId === pending.draftId && isLiveListing(l.status));
   const text = pending.deleteSentAt ? t('repost.pendingSent') : live ? t('repost.pendingLive') : t('repost.pendingDraft', { date: date(pending.at) });
   return (
-    <Card title={t('repost.pendingTitle')} icon="repost" tone="cobalt" actions={<Flag kind="EXPERIMENTAL" />}>
+    <Card title={t('repost.pendingTitle')} icon="repost" tone="cobalt" actions={<RouteFlag kinds={['REPOST', 'DELETE']} />}>
       <div className="stack-3" data-testid="repost-pending">
         <p className="t-small">{text}</p>
         <div className="row wrap" style={{ gap: 8 }}>

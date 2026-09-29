@@ -479,6 +479,8 @@ test('price edit on Vinted: only the price, saved, then verified on Vinted', asy
   expect(fake.prices['101']).toBe('49');
   expect(fake.clicked).toEqual([]); // never delete, never boost
   await expect(page.locator('header').getByText('49 €')).toBeVisible();
+  // Next to the action, the route is no longer "experimental" once seen working here.
+  await expect(page.locator('.card', { hasText: 'Prix sur Vinted' }).getByText('Vérifié ici')).toBeVisible();
   // Journaled like every write, so the integration shows what was seen working (here: the fake, not the real account).
   await page.goto(`${base}#/settings`);
   const row = page.locator('.integ__row', { hasText: 'Modification de prix' });
