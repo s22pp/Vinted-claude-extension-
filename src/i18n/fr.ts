@@ -876,6 +876,8 @@ export const fr = {
     lastImport: 'Dernier import {when}',
     refresh: 'Actualiser depuis Vinted',
     budget: '{n} requêtes restantes cette session',
+    budgetUsed: 'utilisées : {list}',
+    use: { IMPORT: 'import', ORDERS: 'commandes', SEARCH: 'recherche', AUTO: 'automatisations', LISTING: 'annonces lues', WRITE: 'modifications', OTHER: 'autres' },
     diagnostic: 'Diagnostic du dernier import',
     diagTitle: 'Diagnostic de connexion Vinted',
     diagHint: 'Teste chaque maillon — extension, onglet Vinted, session, dressing, recherche — et s’arrête au premier problème. 3 requêtes maximum.',

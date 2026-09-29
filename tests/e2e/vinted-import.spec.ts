@@ -940,6 +940,9 @@ test('integrations card: one click checks the reads; the search seen working tur
   await expect(page.locator('.integ__row', { hasText: 'Import du stock' })).toContainText('lu sur votre compte', { timeout: 60_000 });
   await expect(page.getByTestId('integ-summary')).toContainText('sur 12 vérifiées sur cet appareil');
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
+  // Where the session's budget went, by use.
+  await expect(page.getByTestId('budget-uses')).toContainText('recherche');
+  await expect(page.getByTestId('budget-uses')).toContainText('import');
 });
 
 test('account check: every read ERA relies on, once each, read-only; the result shows on each integration', async ({ context, base }) => {

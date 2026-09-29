@@ -23,7 +23,7 @@ export function ordersTemplateFromObserved(urls: string[]): string | null {
  * "Mes commandes → Achats" page (background tab, Resource Timing, read-only), never by guessing.
  */
 export async function discoverPurchasesTemplate(): Promise<{ template: string | null; observed: string[] }> {
-  const r = await reserve();
+  const r = await reserve('ORDERS');
   if (!r.ok) return { template: null, observed: [] };
   const url = 'https://www.vinted.fr/my_orders?order_type=purchased';
   const tab = await browser.tabs.create({ url, active: false });

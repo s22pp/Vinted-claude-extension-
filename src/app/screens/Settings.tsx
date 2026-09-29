@@ -33,6 +33,14 @@ export function Settings() {
   useEffect(() => {
     void budgetStatus().then(setBudget);
   }, [busy]);
+  // Calls made elsewhere (a check, a search, the scheduled refresh) move the budget too: follow it.
+  useEffect(() => {
+    const onChange = (changes: Record<string, unknown>, area: string) => {
+      if (area === 'session' && 'eraBudget' in changes) void budgetStatus().then(setBudget);
+    };
+    browser.storage.onChanged.addListener(onChange);
+    return () => browser.storage.onChanged.removeListener(onChange);
+  }, []);
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -141,6 +149,17 @@ export function Settings() {
                   {budget.halted && budget.haltedUntil
                     ? t('vinted.halted', { time: new Date(budget.haltedUntil).toLocaleTimeString(i.locale) })
                     : t('vinted.budget', { n: budget.remaining })}
+                  {budget.uses && Object.keys(budget.uses).length > 0 && (
+                    <span className="t-faint" data-testid="budget-uses">
+                      {' · '}
+                      {t('vinted.budgetUsed', {
+                        list: Object.entries(budget.uses)
+                          .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+                          .map(([k, n]) => `${t(`vinted.use.${k}`)} ${n}`)
+                          .join(' · '),
+                      })}
+                    </span>
+                  )}
                 </p>
               )}
               {lastImport ? <p className="t-small t-faint">{t('vinted.lastImport', { when: i.relative(lastImport, era.now) })}</p> : null}

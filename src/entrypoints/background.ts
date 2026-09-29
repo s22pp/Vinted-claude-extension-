@@ -263,7 +263,7 @@ export default defineBackground(() => {
     const BUSY = 'une autre opération Vinted est en cours';
     switch (msg.type) {
       case 'era:budget:reserve':
-        return answer(budget.reserve(), () => ({ ok: false, code: 'UNAVAILABLE' }));
+        return answer(budget.reserve(budget.useOf(msg.path, msg.method)), () => ({ ok: false, code: 'UNAVAILABLE' }));
       case 'era:budget:report':
         return answer(budget.report(msg.status).then(() => ({ ok: true })), unavailable);
       case 'era:budget:status':

@@ -15,11 +15,34 @@ export async function loadBudget(): Promise<{ budget: RequestBudget; haltedUntil
   return { budget, haltedUntil: eraHalt && eraHalt.until > Date.now() ? eraHalt.until : null };
 }
 
-export async function reserve(): Promise<ReserveResult> {
+/** What a call was for, from its path: only to say where the session's budget went (never to allow or refuse). */
+export type BudgetUse = 'IMPORT' | 'ORDERS' | 'SEARCH' | 'AUTO' | 'LISTING' | 'WRITE' | 'OTHER';
+
+export function useOf(path: string | undefined, method = 'GET'): BudgetUse {
+  if (!path) return 'OTHER';
+  const p = path.split('?')[0]!;
+  if (p === '/catalog' || p.startsWith('/api/v2/catalog') || /[?&]search_text=/.test(path)) return 'SEARCH';
+  if (/notifications|\/inbox|\/conversations|\/offers|offer_requests/.test(p)) return 'AUTO';
+  if (method !== 'GET') return 'WRITE';
+  if (p.startsWith('/api/v2/wardrobe') || p === '/api/v2/users/current') return 'IMPORT';
+  if (/order/i.test(p)) return 'ORDERS';
+  if (p.startsWith('/api/v2/item_upload/items') || /^\/items\/\d+/.test(p)) return 'LISTING';
+  return 'OTHER';
+}
+
+const USE_KEY = 'eraBudgetUse';
+
+/** Calls reserved this browser session, by use. */
+export async function uses(): Promise<Partial<Record<BudgetUse, number>>> {
+  return (((await browser.storage.session.get(USE_KEY)) as Record<string, Partial<Record<BudgetUse, number>> | undefined>)[USE_KEY] ?? {});
+}
+
+export async function reserve(use: BudgetUse = 'OTHER'): Promise<ReserveResult> {
   const { budget } = await loadBudget();
   try {
     const wait = budget.reserve();
-    await browser.storage.session.set({ eraBudget: budget.toJSON() });
+    const u = await uses();
+    await browser.storage.session.set({ eraBudget: budget.toJSON(), [USE_KEY]: { ...u, [use]: (u[use] ?? 0) + 1 } });
     return { ok: true, wait };
   } catch (e) {
     return { ok: false, code: e instanceof MarketplaceError ? e.code : 'BUDGET_EXHAUSTED' };
@@ -36,7 +59,7 @@ export async function report(status: number): Promise<void> {
 
 export async function status(): Promise<BudgetStatus> {
   const { budget, haltedUntil } = await loadBudget();
-  return { remaining: budget.remaining, halted: budget.halted, haltedUntil };
+  return { remaining: budget.remaining, halted: budget.halted, haltedUntil, uses: await uses() };
 }
 
 /** Writes are rarer than reads: ≥ 20 s apart and ≤ 15 per browser session, whatever the read budget. */

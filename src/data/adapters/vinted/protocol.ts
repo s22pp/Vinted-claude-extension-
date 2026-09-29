@@ -91,7 +91,8 @@ export type EraMessage =
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
   | { type: 'era:repost:create'; itemId: string }
   | { type: 'era:repost:finish'; itemId: string }
-  | { type: 'era:budget:reserve' }
+  /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
+  | { type: 'era:budget:reserve'; path?: string; method?: string }
   | { type: 'era:budget:report'; status: number }
   | { type: 'era:budget:status' }
   | { type: 'era:import' }
@@ -131,6 +132,8 @@ export interface BudgetStatus {
   remaining: number;
   halted: MarketplaceErrorCode | null;
   haltedUntil: number | null;
+  /** Calls reserved this session, by use (import, search, automations…). */
+  uses?: Partial<Record<import('./budget-store').BudgetUse, number>>;
 }
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
 

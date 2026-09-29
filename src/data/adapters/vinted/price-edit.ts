@@ -18,7 +18,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function applyPriceOnVinted(platformListingId: string, cents: number, itemId: string, onStage: (s: PriceStage) => void): Promise<PriceEditResult> {
   if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
   await reserveWrite();
-  const r = await reserve();
+  const r = await reserve('WRITE');
   if (!r.ok) throw new MarketplaceError(r.code);
 
   onStage('OPENING');
@@ -93,7 +93,7 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
   if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
   if (!text.trim() || text.includes('__')) throw new MarketplaceError('EDIT_FORM', 'description vide ou avec des « __ » à remplir : rien envoyé');
   await reserveWrite();
-  const r = await reserve();
+  const r = await reserve('WRITE');
   if (!r.ok) throw new MarketplaceError(r.code);
   const tabId = await openEditTab(platformListingId);
   let keepOpen = false;

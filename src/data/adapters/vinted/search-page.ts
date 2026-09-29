@@ -55,7 +55,7 @@ export function visitInWorker(q: string): Promise<SearchPageVisit> {
 }
 
 async function visit(q: string): Promise<SearchPageVisit> {
-  const r: ReserveResult = await budget.reserve();
+  const r: ReserveResult = await budget.reserve('SEARCH');
   if (!r.ok) throw new MarketplaceError(r.code);
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   const url = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(q)}&order=newest_first`;

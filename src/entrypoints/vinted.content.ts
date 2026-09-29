@@ -116,7 +116,7 @@ async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', bod
   const allowed = method === 'GET' ? isAllowedApi(path) : isAllowedWrite(method, path);
   if (!allowed) return { ok: false, code: 'NOT_IMPLEMENTED', detail: `chemin refusé : ${method} ${path.split('?')[0]}` };
   // The budget is kept by the service worker: unreachable means no call (never a call outside the budget).
-  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
+  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve', path, method } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
@@ -151,7 +151,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function uploadPhoto(base64: string, mime: string, tempUuid: string, name: string): Promise<ApiResult> {
   if (!/^image\/(jpeg|png|webp)$/.test(mime) || !UUID.test(tempUuid) || base64.length > 20_000_000) return { ok: false, code: 'NOT_IMPLEMENTED', detail: 'photo refusée (type, taille ou session)' };
   // The budget is kept by the service worker: unreachable means no call (never a call outside the budget).
-  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
+  const r = ((await browser.runtime.sendMessage({ type: 'era:budget:reserve', path: PHOTO_UPLOAD_PATH, method: 'POST' } satisfies EraMessage).catch(() => null)) as ReserveResult | null) ?? { ok: false as const, code: 'UNAVAILABLE' as const };
   if (!r.ok) return r;
   if (r.wait > 0) await new Promise((res) => setTimeout(res, r.wait));
   try {
