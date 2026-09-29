@@ -1170,3 +1170,26 @@ test('after a real import: every screen and tab opens with zero errors', async (
   }
   expect(errors).toEqual([]);
 });
+
+test('Monday’s digest: off by default, switched on in Pilotage → a weekly alarm; its text previewed from the real data', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  expect(await sw.evaluate(async () => (await chrome.alarms.get('era-digest')) ?? null)).toBeNull();
+  await page.goto(`${base}#/insights?tab=review`);
+  const card = page.getByTestId('digest');
+  await expect(card).toContainText(/Semaine : /);
+  await expect(card).toContainText('Mises en ligne :');
+  await card.getByLabel('M’envoyer le bilan chaque lundi').check();
+  await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-digest'))?.periodInMinutes ?? null), { timeout: 10_000 }).toBe(7 * 24 * 60);
+  // The alarm is set for a Monday, 9:00.
+  const when = await sw.evaluate(async () => (await chrome.alarms.get('era-digest'))!.scheduledTime);
+  expect(new Date(when).getDay()).toBe(1);
+  expect(new Date(when).getHours()).toBe(9);
+  await card.getByLabel('M’envoyer le bilan chaque lundi').uncheck();
+  await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-digest')) ?? null), { timeout: 10_000 }).toBeNull();
+});

@@ -11,6 +11,7 @@ import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, w
 import { type ParcelStage, arrivedAtPickup } from '@/intelligence/parcels';
 import { db } from '@/data/db';
 import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
+import { DIGEST_ALARM, digestEnabled, nextMonday9, runDigest } from '@/data/digest';
 import { recordError } from '@/data/error-journal';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
 import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
@@ -121,6 +122,12 @@ async function scheduleBackup(): Promise<void> {
   }
 }
 
+/** Monday's digest: an alarm every Monday at 9:00 while it is switched on. */
+async function scheduleDigest(): Promise<void> {
+  await browser.alarms.clear(DIGEST_ALARM);
+  if (await digestEnabled()) await browser.alarms.create(DIGEST_ALARM, { when: nextMonday9(Date.now()), periodInMinutes: 7 * 24 * 60 });
+}
+
 /** Read-only import every few hours, only if the seller switched it on. */
 async function scheduleRefresh(): Promise<void> {
   const cfg = await loadRefreshConfig();
@@ -215,16 +222,19 @@ export default defineBackground(() => {
     if (a.name === AUTO_ALARM) void onAutoAlarm();
     if (a.name === REFRESH_ALARM) void onRefreshAlarm();
     if (a.name === BACKUP_ALARM) void runAutoBackup().catch(() => undefined);
+    if (a.name === DIGEST_ALARM) void runDigest().catch((e) => recordError('service-worker:digest', e));
   });
   void scheduleAuto();
   void scheduleRefresh();
   void scheduleBackup();
+  void scheduleDigest();
   void updateBadge().catch(() => undefined);
   // A notification opens what it announces.
   browser.notifications?.onClicked.addListener((id) => {
     if (id.startsWith('era-news-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/sales?ship=1` });
     if (id.startsWith('era-deals-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/buy?tab=scan` });
     if (id.startsWith('era-parcel-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/parcels` });
+    if (id.startsWith('era-digest-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/insights?tab=review` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
@@ -300,6 +310,8 @@ export default defineBackground(() => {
         return answer(scheduleAuto().then(() => ({ ok: true })), unavailable);
       case 'era:refresh:schedule':
         return answer(scheduleRefresh().then(() => ({ ok: true })), unavailable);
+      case 'era:digest:schedule':
+        return answer(scheduleDigest().then(() => ({ ok: true })), unavailable);
       case 'era:backup:schedule':
         // Switched on: the first copy is written now if one is due, then the alarm keeps it up to date.
         return answer(

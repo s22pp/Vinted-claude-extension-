@@ -1,4 +1,4 @@
-import { eurNumber } from '@/domain/money';
+import { eurNumber, eurText } from '@/domain/money';
 import { DAY, addMonths, startOfMonth } from '@/domain/time';
 import { toCsv } from './accounting';
 import type { ItemView, SaleView } from './portfolio';
@@ -153,4 +153,22 @@ export function monthReport(sales: readonly SaleView[], views: readonly ItemView
       .slice(0, 5),
     refunds: inMonth.filter((s) => s.sale.status === 'REFUNDED').sort((a, b) => b.sale.soldAt - a.sale.soldAt),
   };
+}
+
+export interface WeeklyDigest {
+  title: string;
+  lines: string[];
+}
+
+/**
+ * Monday's digest: the last 7 days in three lines — sales and revenue, listings put online against the pace the
+ * monthly goal needs, articles waiting in the workshop. Written for a notification (French, short).
+ */
+export function weeklyDigest(week: PeriodStats, perWeekNeeded: number | null, waitingInWorkshop: number): WeeklyDigest {
+  const title = week.sales ? `Semaine : ${week.sales} vente${week.sales > 1 ? 's' : ''} · ${eurText(week.revenueCents)}` : 'Semaine : aucune vente';
+  const listed = `Mises en ligne : ${week.listed}${perWeekNeeded !== null ? ` (votre objectif en demande ${perWeekNeeded} par semaine)` : ''}`;
+  const lines = [listed];
+  if (waitingInWorkshop > 0) lines.push(`Atelier : ${waitingInWorkshop} article${waitingInWorkshop > 1 ? 's attendent' : ' attend'} d’être mis en ligne`);
+  if (week.refunds > 0) lines.push(`Remboursements : ${week.refunds}`);
+  return { title, lines };
 }

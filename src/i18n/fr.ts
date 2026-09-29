@@ -2085,6 +2085,13 @@ export const fr = {
     restored: 'Sauvegarde restaurée',
     restoredHint: '{n} lignes rétablies.',
   },
+  digest: {
+    title: 'Bilan du lundi',
+    hint: 'Une notification chaque lundi à 9 h : la semaine écoulée en trois lignes',
+    enable: 'M’envoyer le bilan chaque lundi',
+    realOnly: 'Avec vos vraies données seulement (pas sur la démo).',
+    preview: 'Ce qu’il dirait aujourd’hui',
+  },
   growth: {
     title: 'Plan d’achat pour {amount} par mois',
     hint: 'Ce que l’objectif demande en achats, d’après vos propres ventes',

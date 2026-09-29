@@ -1,9 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type MonthlyGoal, buyingPlan, goalPlan, goalProgress } from '@/intelligence/goal';
-import { type PeriodStats, businessReview, reviewCsv } from '@/intelligence/review';
+import { type PeriodStats, businessReview, periodStats, reviewCsv, weeklyDigest } from '@/intelligence/review';
+import { DAY } from '@/domain/time';
+import { DIGEST_KEY } from '@/data/digest';
+import type { EraMessage } from '@/data/adapters/vinted/protocol';
 import { shoppingList } from '@/intelligence/shopping';
 import { downloadText } from '@/lib/download';
 import { BarChart } from '@/ui/charts/charts';
@@ -112,6 +115,7 @@ export function BusinessReview() {
 
       <GoalCard />
       <BuyingPlanCard capitalNowCents={r.today.capitalCents} />
+      <DigestSetting />
 
       <div className="grid-12">
         <Card className="span-8" title={t('review.chart')} hint={t('review.chartHint')} icon="calendar" tone="emerald">
@@ -259,6 +263,42 @@ function BuyingPlanCard({ capitalNowCents }: { capitalNowCents: number }) {
       <p className="t-small t-faint" style={{ marginTop: 12 }}>
         {b.medianCost ? t('growth.basis', { cost: money(b.medianCost.cents), n: b.medianCost.n }) : t('growth.noCost')} {t('growth.caveat')}
       </p>
+    </Card>
+  );
+}
+
+/** Monday's digest: switched on here; what it will say is shown right away, from the same numbers. */
+function DigestSetting() {
+  const { t } = useI18n();
+  const era = useEra();
+  const cfg = useLiveQuery(() => repo.getSetting<{ enabled?: boolean } | null>(DIGEST_KEY, null), []);
+  const goal = useLiveQuery(() => repo.getSetting<MonthlyGoal | null>('monthlyGoal', null), []);
+  const preview = useMemo(() => {
+    const plan = goal ? goalPlan(goalProgress(goal, era.sales, era.views, era.now), era.views, era.now) : null;
+    return weeklyDigest(periodStats(era.sales, era.views, era.now - 7 * DAY, era.now + 1), plan?.perWeek ?? null, era.workshop.toList.length);
+  }, [goal, era.sales, era.views, era.now, era.workshop.toList.length]);
+  // The box follows the click at once; the stored value takes over once written.
+  const [local, setLocal] = useState<boolean | null>(null);
+  const on = local ?? cfg?.enabled === true;
+  const toggle = async (enabled: boolean) => {
+    setLocal(enabled);
+    await repo.setSetting(DIGEST_KEY, { enabled });
+    await browser.runtime.sendMessage({ type: 'era:digest:schedule' } satisfies EraMessage).catch(() => undefined);
+  };
+  return (
+    <Card title={t('digest.title')} hint={t('digest.hint')} icon="calendar" tone="cyan" data-testid="digest">
+      <label htmlFor="digest-on" className="row t-small" style={{ gap: 8, cursor: 'pointer' }}>
+        <input id="digest-on" type="checkbox" className="checkbox" checked={on} disabled={era.mode !== 'real'} onChange={(e) => void toggle(e.target.checked)} />
+        {t('digest.enable')}
+      </label>
+      {era.mode !== 'real' && <p className="t-small t-faint">{t('digest.realOnly')}</p>}
+      <div className="t-small t-muted" style={{ marginTop: 10 }}>
+        <div className="t-caption">{t('digest.preview')}</div>
+        <b>{preview.title}</b>
+        {preview.lines.map((l) => (
+          <div key={l}>{l}</div>
+        ))}
+      </div>
     </Card>
   );
 }
