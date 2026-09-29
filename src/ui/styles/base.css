@@ -335,7 +335,9 @@ a {
   max-width: 1480px;
   margin: 0 auto;
   padding: var(--s-8) var(--s-8) var(--s-12);
-  animation: page-in var(--t-normal) var(--ease) both;
+  /* backwards, not both: a transform kept after the animation would make the page the reference of every
+     position: fixed inside it (dialogs opened off screen once scrolled). */
+  animation: page-in var(--t-normal) var(--ease) backwards;
 }
 @keyframes page-in {
   from {
@@ -707,6 +709,14 @@ a {
   transition:
     border-color var(--t-fast) var(--ease),
     box-shadow var(--t-fast) var(--ease);
+}
+/* A multi-line field: its own height, never the one-line height of .input. */
+textarea.input {
+  height: auto;
+  min-height: 72px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
 }
 .input::placeholder {
   color: var(--text-3);

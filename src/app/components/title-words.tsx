@@ -64,6 +64,12 @@ export function TitleWords({
           })}
         </div>
       )}
+      {/* A colour or a claim ("vintage", "rare") goes in only if it is true: said in plain sight, not only on hover. */}
+      {r.words.some((w) => w.kind !== 'WORD') && (
+        <p className="t-small t-warn">
+          {t('tw.checkFirst', { words: r.words.filter((w) => w.kind !== 'WORD').map((w) => `« ${w.word} »`).join(', ') })}
+        </p>
+      )}
       <p className="t-small t-faint">{onAdd ? t('tw.onlyTrue') : t('tw.onlyTrueLive')}</p>
     </div>
   );

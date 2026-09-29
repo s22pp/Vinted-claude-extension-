@@ -369,6 +369,11 @@ test('description templates: written once, applied to the sheet, the standard on
   const standard = await desc.innerText();
   await page.getByTestId('desc-templates').getByRole('button', { name: 'Créer mon modèle de description' }).click();
   const modal = page.getByTestId('desc-templates-modal');
+  // Opened from low on a scrolled page: the dialog is entirely on screen (it used to open half off screen).
+  const box = (await page.getByRole('dialog').boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  expect((await modal.getByLabel('Texte').boundingBox())!.height).toBeGreaterThan(120);
   await modal.getByLabel('Catégorie').selectOption('');
   await modal.getByLabel('Marque').fill('');
   await modal.getByLabel('Texte').fill('Belle pièce {marque}, taille {taille}.\nMesures : {mesures}\nMa boutique : envoi le jour même.');

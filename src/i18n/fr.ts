@@ -2179,6 +2179,7 @@ export const fr = {
     },
   },
   markdown: {
+    vsAdvice: 'Le conseil ERA en haut de la fiche, tiré de l’analyse du marché, propose {price} : le plan suit votre calendrier, le conseil suit le marché. À vous de choisir.',
     title: 'Plan de baisse',
     hint: 'Un calendrier de prix réglé une fois : ERA dit quand baisser, vous appliquez',
     filter: 'Baisse à faire',
@@ -2254,6 +2255,7 @@ export const fr = {
     },
   },
   tw: {
+    checkFirst: 'À vérifier avant d’ajouter : {words} — seulement si c’est vrai pour votre article.',
     title: 'Mots des annonces comparables',
     label: 'Utilisés par les {n} annonces comparables de l’analyse du {when}, absents de votre titre :',
     noAnalysis: 'Analysez le marché de cet article pour voir les mots que les annonces comparables mettent dans leur titre.',

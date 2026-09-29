@@ -24,6 +24,8 @@ export function MarkdownPlanView({ v, onAddCost }: { v: ItemView; onAddCost: () 
   const era = useEra();
   const [edit, setEdit] = useState(false);
   const plan = era.markdown.get(v.item.id);
+  const advice = era.intelById.get(v.item.id)?.recommendation;
+  const advisedCents = advice && typeof advice.actionParams.price === 'number' ? advice.actionParams.price : null;
   if (!plan || plan.status === 'NONE') {
     return (
       <div className="stack" style={{ gap: 8 }} data-testid="markdown">
@@ -64,6 +66,12 @@ export function MarkdownPlanView({ v, onAddCost }: { v: ItemView; onAddCost: () 
             <PriceOnVintedButton v={v} suggested={plan.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: money(plan.step.targetCents) })} />
           </div>
         </div>
+      )}
+      {/* ERA's market advice gives another price: both are shown, with where each one comes from. */}
+      {advisedCents !== null && advisedCents !== (plan.status === 'DUE' ? plan.step.targetCents : null) && (
+        <p className="t-small t-muted" data-testid="markdown-vs-advice">
+          {t('markdown.vsAdvice', { price: money(advisedCents) })}
+        </p>
       )}
       {plan.status === 'WAIT' && <p className="t-small t-muted">{t('markdown.next', { when: date(plan.next.at), price: money(plan.next.targetCents) })}</p>}
       {plan.status === 'DONE' && <p className="t-small t-muted">{plan.atFloor ? t('markdown.atFloor') : t('markdown.done')}</p>}

@@ -1,4 +1,5 @@
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { errorInfo } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
 import { Icon, type IconName } from './icons';
@@ -41,7 +42,9 @@ export function Drawer({ open, onClose, title, children, footer }: { open: boole
   const id = useId();
   const { t } = useI18n();
   if (!open) return null;
-  return (
+  // Rendered at the root of the page: a transformed ancestor (an animated screen) would otherwise become the
+  // reference of `position: fixed`, and the drawer would open off screen once the page is scrolled.
+  return createPortal(
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
       <div className="drawer" role="dialog" aria-modal="true" aria-labelledby={id} ref={ref}>
@@ -56,7 +59,8 @@ export function Drawer({ open, onClose, title, children, footer }: { open: boole
         <div className="drawer__body">{children}</div>
         {footer && <div className="drawer__foot">{footer}</div>}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -64,7 +68,8 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   const ref = useFocusTrap(open, onClose);
   const id = useId();
   if (!open) return null;
-  return (
+  // At the root of the page, like the drawer: always centred on the screen, whatever is scrolled or animated.
+  return createPortal(
     <>
       <div className="scrim" style={{ zIndex: 'var(--z-modal)' as unknown as number }} onClick={onClose} aria-hidden="true" />
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby={id} ref={ref}>
@@ -75,7 +80,8 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
           {children}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
