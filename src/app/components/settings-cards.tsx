@@ -146,6 +146,7 @@ export function IntegrationsCard() {
       hide: done('HIDE', 'UNHIDE'),
       repost: done('REPOST', 'DELETE'),
       auto: done('FAV_MESSAGE', 'FAV_OFFER', 'FAV_BUNDLE', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'),
+      description: done('DESCRIPTION'),
     };
   }, []);
   const rows: { key: string; n: number | null; flag?: 'EXPERIMENTAL' | 'UNVERIFIED' }[] = ev
@@ -156,6 +157,7 @@ export function IntegrationsCard() {
         { key: 'search', n: ev.searches, flag: ev.learned ? 'UNVERIFIED' : undefined },
         { key: 'purchases', n: ev.purchases },
         { key: 'priceEdit', n: null, flag: 'EXPERIMENTAL' },
+        { key: 'description', n: ev.description, flag: 'EXPERIMENTAL' },
         { key: 'draft', n: ev.draft, flag: 'EXPERIMENTAL' },
         { key: 'label', n: ev.label, flag: 'EXPERIMENTAL' },
         { key: 'hide', n: ev.hide, flag: 'EXPERIMENTAL' },

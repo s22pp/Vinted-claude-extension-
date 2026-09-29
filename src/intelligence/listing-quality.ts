@@ -1,6 +1,8 @@
-import type { Category } from '@/domain/entities';
+import type { Category, InventoryItem, Prep } from '@/domain/entities';
 import type { ItemIntel } from './decision';
-import { titleIssues } from './listing';
+import { CONDITION_TEXT, titleIssues } from './listing';
+import { normalizeText } from './normalize';
+import { cm, measureFields } from './workshop';
 
 /**
  * What holds each live listing back, from what Vinted shows of it (photos, title, description) and how it does
@@ -69,4 +71,64 @@ export function qualityReport(intel: readonly ItemIntel[]): { rows: ListingQuali
     checked: all.length,
     unreadDesc: all.filter((q) => q.unread.includes('description')).length,
   };
+}
+
+/* ── Completing a live listing's description ────────────── */
+
+export type DescAddition = 'size' | 'condition' | 'defects' | 'material' | 'measures';
+
+export interface CompletedDescription {
+  text: string;
+  /** What was added under the seller's own text, in order. */
+  added: DescAddition[];
+  /** "__" left to fill (a measure ERA does not know): the description cannot be sent to Vinted with any left. */
+  blanks: number;
+}
+
+const MATERIAL_WORDS = /composition|matiere|coton|laine|polyester|cuir|\blin\b|soie|cachemire|viscose|elasthanne|nylon|acrylique|denim/;
+const CONDITION_WORDS = /\betat\b|\bneuf\b|tres bon|bon etat|satisfaisant|jamais porte/;
+
+/**
+ * A live listing's description, completed — never rewritten: the seller's text stays as it is and only what is
+ * missing is added below it, from what ERA knows (size, condition, the sheet's defects, material and measures).
+ * A measure ERA does not know is left as "__" for the seller to fill: no measure or composition is ever invented.
+ */
+export function completeDescription(
+  current: string,
+  item: Pick<InventoryItem, 'category' | 'size' | 'condition' | 'material'>,
+  prep: Pick<Prep, 'measures' | 'defects' | 'material'> | null,
+  measureLabel: (k: string) => string,
+): CompletedDescription {
+  const base = current.trim();
+  const low = normalizeText(base);
+  const added: DescAddition[] = [];
+  const lines: string[] = [];
+  if (item.size && !/\btaille\b|\bsize\b/.test(low)) {
+    lines.push(`• Taille : ${item.size}`);
+    added.push('size');
+  }
+  if (item.condition && !CONDITION_WORDS.test(low)) {
+    lines.push(`• État : ${CONDITION_TEXT[item.condition]}`);
+    added.push('condition');
+  }
+  const defects = prep?.defects.trim();
+  if (defects && !low.includes(normalizeText(defects).slice(0, 24))) {
+    lines.push(`• Défauts : ${defects}`);
+    added.push('defects');
+  }
+  const material = prep?.material.trim() || item.material || '';
+  if (material && !MATERIAL_WORDS.test(low)) {
+    lines.push(`• Composition : ${material}`);
+    added.push('material');
+  }
+  if (MEASURED.includes(item.category) && !MEASURE_RE.test(base)) {
+    const m = prep?.measures ?? {};
+    lines.push(`• Mesures à plat : ${measureFields(item.category)
+      // Unknown: "__ cm", so the seller types the number only and the unit stays.
+      .map((k) => `${measureLabel(k)} ${m[k]?.trim() ? cm(m[k]) : '__ cm'}`)
+      .join(' · ')}`);
+    added.push('measures');
+  }
+  const text = lines.length ? `${base}${base ? '\n\n' : ''}${lines.join('\n')}` : base;
+  return { text, added, blanks: (text.match(/__/g) ?? []).length };
 }

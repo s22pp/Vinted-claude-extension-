@@ -1292,6 +1292,14 @@
   max-width: 794px;
   margin: 0 auto 16px;
 }
+/* The sheet is always light, whatever the theme: its bar's quiet buttons use dark ink (contrast). */
+.invoice-bar .btn--ghost {
+  color: #1f2937;
+}
+.invoice-bar .btn--ghost:hover {
+  color: #111827;
+  background: rgba(15, 23, 42, 0.06);
+}
 .invoice {
   max-width: 794px;
   margin: 0 auto;

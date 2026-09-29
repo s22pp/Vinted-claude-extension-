@@ -2,7 +2,9 @@ import { repo } from '../../repo';
 import { MarketplaceError } from '../marketplace';
 import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
-import type { EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
+import type { DescEditResult, EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
+import { sameText } from './edit-form';
+import { db, uid } from '../../db';
 import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
 import { eurText } from '@/domain/money';
 
@@ -20,35 +22,16 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
   if (!r.ok) throw new MarketplaceError(r.code);
 
   onStage('OPENING');
-  const url = `https://www.vinted.fr/items/${platformListingId}/edit`;
-  const tab = await browser.tabs.create({ url, active: false });
-  const tabId = tab.id!;
+  const tabId = await openEditTab(platformListingId);
   let keepOpen = false;
   try {
-    await waitForLoad(tabId, 20_000);
-    if (!(await ping(tabId))) {
-      await browser.tabs.update(tabId, { url });
-      await waitForLoad(tabId, 20_000);
-    }
-    let ready = false;
-    for (let i = 0; i < 40 && !ready; i++) {
-      ready = await ping(tabId);
-      if (!ready) await sleep(250);
-    }
-    if (!ready) throw new MarketplaceError('NO_VINTED_TAB', 'la page de modification n’a pas répondu');
-
     onStage('FILLING');
     const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:form', cents } satisfies EraMessage)) as EditFormResult;
     if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
     const before = priceCentsOrNull(res.before);
 
     onStage('SAVING');
-    // Saving navigates away from /edit. Wait for it (or give up after ~15 s and verify anyway).
-    for (let i = 0; i < 30; i++) {
-      await sleep(500);
-      const t = await browser.tabs.get(tabId).catch(() => null);
-      if (!t?.url || !/\/edit(\b|$|\?)/.test(new URL(t.url).pathname)) break;
-    }
+    await leftEditPage(tabId);
 
     onStage('VERIFYING');
     const after = await readListingPrice(platformListingId);
@@ -63,6 +46,77 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
   } finally {
     if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
   }
+}
+
+/** The edit page of one of the seller's listings, in a background tab, with ERA's content script answering. */
+async function openEditTab(platformListingId: string): Promise<number> {
+  const url = `https://www.vinted.fr/items/${platformListingId}/edit`;
+  const tabId = (await browser.tabs.create({ url, active: false })).id!;
+  await waitForLoad(tabId, 20_000);
+  if (!(await ping(tabId))) {
+    await browser.tabs.update(tabId, { url });
+    await waitForLoad(tabId, 20_000);
+  }
+  for (let i = 0; i < 40; i++) {
+    if (await ping(tabId)) return tabId;
+    await sleep(250);
+  }
+  await browser.tabs.remove(tabId).catch(() => undefined);
+  throw new MarketplaceError('NO_VINTED_TAB', 'la page de modification n’a pas répondu');
+}
+
+/** Saving navigates away from /edit. Wait for it (or give up after ~15 s and verify anyway). */
+async function leftEditPage(tabId: number): Promise<void> {
+  for (let i = 0; i < 30; i++) {
+    await sleep(500);
+    const t = await browser.tabs.get(tabId).catch(() => null);
+    if (!t?.url || !/\/edit(\b|$|\?)/.test(new URL(t.url).pathname)) return;
+  }
+}
+
+/**
+ * Replace the description of ONE of the seller's own listings, from a single click (EXPERIMENTAL): same path as
+ * the price — the edit page in a background tab, only the description field written, saved, then Vinted read back.
+ * A text with blanks left ("__") never leaves ERA; success is said only once Vinted shows the new text.
+ */
+export async function applyDescriptionOnVinted(platformListingId: string, text: string): Promise<DescEditResult> {
+  if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
+  if (!text.trim() || text.includes('__')) throw new MarketplaceError('EDIT_FORM', 'description vide ou avec des « __ » à remplir : rien envoyé');
+  await reserveWrite();
+  const r = await reserve();
+  if (!r.ok) throw new MarketplaceError(r.code);
+  const tabId = await openEditTab(platformListingId);
+  let keepOpen = false;
+  try {
+    const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:desc', text } satisfies EraMessage)) as EditFormResult;
+    if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
+    await leftEditPage(tabId);
+    const after = await readListingDescription(platformListingId);
+    if (after === null || !sameText(after, text)) {
+      keepOpen = true; // let the seller see what Vinted shows
+      await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+      throw new MarketplaceError('NOT_APPLIED', after === null ? 'description introuvable à la relecture' : 'Vinted affiche toujours l’ancienne description');
+    }
+    await db.listings.filter((l) => l.platformListingId === platformListingId).modify({ description: after });
+    await journal(true, platformListingId, `description remplacée (${after.length} caractères), relue sur Vinted`);
+    return { ok: true };
+  } catch (e) {
+    await journal(false, platformListingId, e instanceof Error ? e.message : String(e));
+    throw e;
+  } finally {
+    if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
+  }
+}
+
+/** Every description sent is written in the local journal (what was done, or why not), like the other writes. */
+function journal(ok: boolean, listingId: string, detail: string) {
+  return db.autoLog.put({ id: uid('al'), at: Date.now(), kind: 'DESCRIPTION', dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
+}
+
+/** Verified read of one of MY listings' description (item_upload, `.item.description`). */
+async function readListingDescription(id: string): Promise<string | null> {
+  const j = (await new VintedTabAdapter().rawGet(`/api/v2/item_upload/items/${id}`)) as { item?: { description?: unknown } } | null;
+  return typeof j?.item?.description === 'string' ? j.item.description : null;
 }
 
 function priceCentsOrNull(v: string): number | null {

@@ -8,6 +8,7 @@ import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { StockTabs } from '../components/section-tabs';
 import { PhotoAuditCard } from '../components/photo-audit';
+import { DescriptionModal } from '../components/describe';
 
 /** Live listings ranked by what holds them back × the money waiting on them. Fixes are made on Vinted. */
 export function Quality() {
@@ -15,6 +16,7 @@ export function Quality() {
   const era = useEra();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [describing, setDescribing] = useState<string | null>(null);
   const report = useMemo(() => qualityReport(era.intel), [era.intel]);
   const unreadIds = useMemo(
     () =>
@@ -89,11 +91,18 @@ export function Quality() {
                         <Money cents={q.priceCents} />
                       </td>
                       <td>
-                        {q.platformListingId && /^\d+$/.test(q.platformListingId) && (
-                          <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${q.platformListingId}/edit`, '_blank', 'noopener')}>
-                            {t('lq.edit')}
-                          </Button>
-                        )}
+                        <div className="stack" style={{ gap: 4, alignItems: 'flex-start' }}>
+                          {!q.unread.includes('description') && q.issues.some((i) => i.code === 'SHORT_DESC' || i.code === 'NO_MEASURES') && (
+                            <Button size="sm" variant="primary" icon="edit" onClick={() => setDescribing(q.itemId)}>
+                              {t('describe.button')}
+                            </Button>
+                          )}
+                          {q.platformListingId && /^\d+$/.test(q.platformListingId) && (
+                            <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${q.platformListingId}/edit`, '_blank', 'noopener')}>
+                              {t('lq.edit')}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -103,6 +112,7 @@ export function Quality() {
           </Card>
         )}
         <p className="t-small t-faint">{t('lq.rules')}</p>
+        {describing && <DescriptionModal itemId={describing} open onClose={() => setDescribing(null)} />}
       </div>
     </>
   );

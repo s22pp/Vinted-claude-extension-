@@ -94,7 +94,8 @@ export function draftTitle(item: DraftItem, prep: Pick<Prep, 'titleOverride' | '
   return `${base} · ${sku}`;
 }
 
-const cm = (v: string | undefined) => (v && v.trim() ? (/^\d+([.,]\d+)?$/.test(v.trim()) ? `${v.trim()} cm` : v.trim()) : '__');
+/** A measure as written in a description: "56" → "56 cm"; unknown → "__" (to fill, never guessed). */
+export const cm = (v: string | undefined) => (v && v.trim() ? (/^\d+([.,]\d+)?$/.test(v.trim()) ? `${v.trim()} cm` : v.trim()) : '__');
 
 export function draftDescription(
   item: DraftItem & { material: string | null },

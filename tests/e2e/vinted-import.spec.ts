@@ -7,6 +7,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
+  const descriptions: Record<string, string> = { '101': 'Veste Harrington, bon état.' };
   const clicked: string[] = [];
   // Test fixture only: Vinted's image server (a tiny JPEG header is enough).
   await context.route('https://images1.vinted.net/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]) }));
@@ -14,22 +15,27 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     const url = new URL(route.request().url());
     if (/^\/items\/\d+\/edit$/.test(url.pathname) && opts.editForm) {
       const id = url.pathname.split('/')[2]!;
-      // Test fixture only: a form with a price field, a delete button, a boost button and a save button.
+      // Test fixture only: a form with a price field, a description, a delete button, a boost button and a save button.
       const second = opts.editForm === 'ambiguous' ? '<label for="p2">Prix de réserve</label><input id="p2" name="price2">' : '';
+      const desc = (descriptions[id] ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
       return route.fulfill({
         contentType: 'text/html',
         body: `<html><body><form id="f">
           <label for="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}">Prix</label><input id="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}" value="59,00">${second}
+          <label for="description">Description</label><textarea id="description">${desc}</textarea>
           <button type="button" onclick="fetch('/fake/click?b=delete',{method:'POST'})">Supprimer</button>
           <button type="button" onclick="fetch('/fake/click?b=boost',{method:'POST'})">Booster</button>
           <button type="submit">Enregistrer</button></form>
           <script>document.getElementById('f').addEventListener('submit', async (e) => { e.preventDefault();
-            await fetch('/fake/save?id=${id}&price=' + encodeURIComponent(document.querySelector('input').value), { method: 'POST' });
+            await fetch('/fake/save?id=${id}', { method: 'POST', body: JSON.stringify({ price: document.querySelector('input').value, description: document.querySelector('textarea').value }) });
             location.href = '/items/${id}'; });</script></body></html>`,
       });
     }
     if (url.pathname === '/fake/save') {
-      if (!opts.lockPrice) prices[url.searchParams.get('id')!] = url.searchParams.get('price')!.replace(',', '.');
+      const id = url.searchParams.get('id')!;
+      const saved = JSON.parse(route.request().postData() ?? '{}') as { price: string; description: string };
+      if (!opts.lockPrice) prices[id] = saved.price.replace(',', '.');
+      descriptions[id] = saved.description;
       return route.fulfill({ status: 204 });
     }
     if (url.pathname === '/fake/click') {
@@ -135,7 +141,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({});
     }
     if (url.pathname === '/api/v2/item_upload/items/101')
-      return json({ item: { id: 101, title: 'Veste Harrington Ralph Lauren M', description: 'Veste Harrington, bon état.', photos: [{ full_size_url: 'https://images1.vinted.net/t/101/1.jpeg' }, { full_size_url: 'https://images1.vinted.net/t/101/2.jpeg' }], price: prices['101'], is_hidden: state.hidden101 } });
+      return json({ item: { id: 101, title: 'Veste Harrington Ralph Lauren M', description: descriptions['101'], photos: [{ full_size_url: 'https://images1.vinted.net/t/101/1.jpeg' }, { full_size_url: 'https://images1.vinted.net/t/101/2.jpeg' }], price: prices['101'], is_hidden: state.hidden101 } });
     // Test fixture only: the sold Carhartt's own upload data (Vinted's ids for that kind of article).
     if (url.pathname === '/api/v2/item_upload/items/103') return json({ item: { id: 103, title: 'Veste Carhartt Detroit M', catalog_id: 2551, brand_id: 362, brand: 'Carhartt', size_id: 208, status_id: 2, package_size_id: 2, price: '80.0' } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
@@ -164,7 +170,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ my_orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '75.0' }, date: '2026-09-10', status: 'Terminée' }, ...(opts.orders ?? [])] });
     return json({}, 404);
   });
-  return Object.assign(calls, { clicked, prices, state });
+  return Object.assign(calls, { clicked, prices, descriptions, state });
 }
 
 test('one click imports stock + sales, opening vinted.fr by itself', async ({ context, base }) => {
@@ -1084,4 +1090,35 @@ test('parcels on a map around home (Roanne): steps from Vinted statuses, the pic
   await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toBeVisible();
   await page.getByRole('button', { name: 'Revenir à Roanne' }).click();
   await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toHaveCount(0);
+});
+
+test('complete a description: the seller’s text kept, blanks to fill first, then replaced on Vinted and read back', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/quality`);
+  await page.getByRole('button', { name: /Lire \d+ descriptions? sur Vinted/ }).click();
+  await expect(page.getByText(/annonces? lues?/).first()).toBeVisible({ timeout: 40_000 });
+  const row = page.getByTestId('quality').locator('tr', { hasText: 'Veste Harrington Ralph Lauren M' });
+  await row.getByRole('button', { name: 'Compléter la description' }).click();
+  const dialog = page.getByRole('dialog');
+  const text = dialog.getByTestId('describe-text');
+  // The seller's own text first, word for word; what is missing below; measures ERA does not know left blank.
+  await expect(text).toHaveValue(/^Veste Harrington, bon état\.\n\n• Taille : M\n/);
+  await expect(text).toHaveValue(/Mesures à plat : .*__/);
+  await expect(dialog).toContainText('à remplir avec vos mesures');
+  await expect(dialog.getByRole('button', { name: /Remplacer sur Vinted/ })).toBeDisabled();
+  await text.fill((await text.inputValue()).replace(/__/g, '60'));
+  await dialog.getByRole('button', { name: /Remplacer sur Vinted/ }).click();
+  await expect(dialog).toContainText('sera remplacée sur Vinted');
+  await dialog.getByRole('button', { name: 'Confirmer et remplacer' }).click();
+  await expect(page.getByText('Description remplacée sur Vinted')).toBeVisible({ timeout: 40_000 });
+  expect(fake.descriptions['101']).toMatch(/^Veste Harrington, bon état\.\n\n• Taille : M\n/);
+  expect(fake.descriptions['101']).toContain('60 cm');
+  // Only the description changed: the price field was sent back as it was (59,00), no other button was touched.
+  expect(fake.prices['101']).toBe('59.00');
+  expect(fake.clicked).toEqual([]);
 });

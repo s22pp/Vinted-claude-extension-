@@ -76,7 +76,7 @@ export interface ExpenseRow {
 export interface AutoLogRow {
   id: string;
   at: number;
-  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'FAV_BUNDLE' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT' | 'LABEL' | 'HIDE' | 'UNHIDE' | 'REPOST' | 'DELETE';
+  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'FAV_BUNDLE' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT' | 'LABEL' | 'HIDE' | 'UNHIDE' | 'REPOST' | 'DELETE' | 'DESCRIPTION';
   dryRun: boolean;
   ok: boolean;
   target: string;

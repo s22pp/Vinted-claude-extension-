@@ -98,10 +98,13 @@ export type EraMessage =
   | { type: 'era:observe' }
   | { type: 'era:price:edit'; platformListingId: string; cents: number; itemId: string }
   | { type: 'era:price:stage'; stage: PriceStage }
-  | { type: 'era:edit:form'; cents: number };
+  | { type: 'era:edit:form'; cents: number }
+  | { type: 'era:desc:edit'; platformListingId: string; text: string }
+  | { type: 'era:edit:desc'; text: string };
 
 export type PriceStage = 'OPENING' | 'FILLING' | 'SAVING' | 'VERIFYING' | 'DONE';
 export type EditFormResult = { ok: true; before: string } | { ok: false; detail: string };
+export type DescEditResult = { ok: true } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 export type PriceEditResult = { ok: true; before: number | null; after: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 export type ImportStage = 'CONNECTING' | 'READING' | 'MATCHING' | 'COMPLETE';

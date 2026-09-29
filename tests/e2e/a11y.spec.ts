@@ -21,6 +21,14 @@ test('accessibility: no serious or critical WCAG A/AA violation on the main scre
   await page.goto(`${base}#/stock?filter=listed`);
   await page.locator('tbody tr[aria-rowindex]').first().click();
   await scan('item');
+  // The printable sheets (always light): a sale's dispute file.
+  await page.goto(`${base}#/sales`);
+  await page.waitForTimeout(700);
+  const dossier = page.getByRole('button', { name: /Dossier d’envoi/ });
+  if (await dossier.count()) {
+    await dossier.first().click();
+    await scan('dossier');
+  }
   // Light theme too: its colours are different, so is their contrast.
   for (const s of ['today', 'stock', 'workshop', 'sales', 'accounting', 'settings']) {
     await page.goto(`${base}#/${s}`);

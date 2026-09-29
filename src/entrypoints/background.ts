@@ -1,7 +1,7 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
-import { applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import { applyDescriptionOnVinted, applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
+import type { AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
@@ -136,12 +136,12 @@ async function onRefreshAlarm(): Promise<void> {
   await runImport(true);
 }
 
-let editing: Promise<PriceEditResult> | null = null;
+/** The listing edit in progress (price or description): one at a time, each from a single user click. */
+let editing: Promise<unknown> | null = null;
 
-/** One price edit at a time; each one comes from a single user click. */
 function runPriceEdit(platformListingId: string, cents: number, itemId: string): Promise<PriceEditResult> {
   if (editing) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une modification est déjà en cours' });
-  editing = applyPriceOnVinted(platformListingId, cents, itemId, (stage) =>
+  const run = applyPriceOnVinted(platformListingId, cents, itemId, (stage) =>
     void browser.runtime.sendMessage({ type: 'era:price:stage', stage } satisfies EraMessage).catch(() => undefined),
   )
     .catch((e): PriceEditResult => {
@@ -151,7 +151,23 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
     .finally(() => {
       editing = null;
     });
-  return editing;
+  editing = run;
+  return run;
+}
+
+/** A description replaced on Vinted: same lock as the price, never during another Vinted operation. */
+function runDescEdit(platformListingId: string, text: string): Promise<DescEditResult> {
+  if (vintedBusy()) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+  const run = applyDescriptionOnVinted(platformListingId, text)
+    .catch((e): DescEditResult => {
+      const { code, detail } = errorInfo(e);
+      return { ok: false, code, detail: detail ?? undefined };
+    })
+    .finally(() => {
+      editing = null;
+    });
+  editing = run;
+  return run;
 }
 
 let autoRunning: Promise<AutoRunResult> | null = null;
@@ -316,6 +332,8 @@ export default defineBackground(() => {
         return answer(updateBadge().then(() => ({ ok: true })), unavailable);
       case 'era:price:edit':
         return answer(runPriceEdit(msg.platformListingId, msg.cents, msg.itemId), unavailable);
+      case 'era:desc:edit':
+        return answer(runDescEdit(msg.platformListingId, msg.text), unavailable);
       default:
         return undefined;
     }

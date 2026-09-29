@@ -105,6 +105,7 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Republication sans perte (`item_upload/items/{id}`, `POST /api/v2/photos`, `item_upload/drafts`, `POST items/{id}/delete`) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Repères sur les pages vinted.fr, bouton « Réponses ERA » dans la messagerie (lecture de la page, aucun appel) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Colis : lieux et code de suivi lus dans la conversation de la commande (`conversations/{id}`, champs à coordonnées) | EXPERIMENTAL · NON VÉRIFIÉ |
+| Compléter une description : champ description de la page de modification, puis relecture `item_upload/items/{id}` | EXPERIMENTAL · NON VÉRIFIÉ |
 
 Réglages → *Intégrations Vinted* compte aussi, pour chaque écriture, les envois que Vinted a **acceptés sur cet appareil** (d'après le journal) : c'est la seule preuve qu'une route fonctionne sur votre compte.
 
@@ -164,6 +165,14 @@ Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de *
 ## Alertes d'achat
 
 Buy → Scanner → **Alertes d'achat** : après chaque actualisation automatique, vos 3 meilleures niches sont cherchées une fois chacune sur Vinted (lecture seule, dans le budget). Une annonce **sous votre prix max** qu'ERA ne vous a pas encore montrée est gardée et annoncée par une notification (si activée) ; jamais vos propres annonces, chaque annonce une seule fois. « Vérifier maintenant » lance la même recherche à la main.
+
+## Compléter les descriptions de vos annonces
+
+Stock → **Qualité** → « Lire N descriptions sur Vinted » (lecture budgétée), puis **« Compléter la description »** sur une annonce trop courte ou sans mesures :
+
+- **votre texte est gardé tel quel** ; ERA ajoute dessous seulement ce qui manque, d'après ce qu'il sait de l'article : taille, état, défauts et composition notés dans la fiche, mesures à plat ;
+- une mesure qu'ERA ne connaît pas reste **« __ cm »** : vous la lisez sur le vêtement et la tapez — **ERA n'invente aucune mesure ni composition** ; rien ne part sur Vinted tant qu'il reste un « __ » ;
+- **Copier** pour coller vous-même sur Vinted, ou **« Remplacer sur Vinted »** (EXPERIMENTAL) : après confirmation, une annonce à la fois, ERA ouvre la page de modification en arrière-plan, écrit **le champ description seul** (jamais la catégorie, le prix ou les photos ; au moindre doute sur la page, rien n'est enregistré), enregistre, puis **relit Vinted** : « fait » seulement si le nouveau texte y apparaît. Chaque envoi compte dans le budget d'appels et s'écrit dans le journal.
 
 ## Pilotage : l'activité mois par mois, et l'objectif traduit en achats
 
