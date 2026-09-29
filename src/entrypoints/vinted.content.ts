@@ -64,7 +64,7 @@ export default defineContentScript({
           cards.push({ href, text: text.slice(0, 400) });
           if (cards.length >= 96) break;
         }
-        sendResponse({ path: location.pathname, links: anchors.length, cards } satisfies CatalogPageRead);
+        sendResponse({ path: location.pathname, query: new URLSearchParams(location.search).get('search_text'), links: anchors.length, cards } satisfies CatalogPageRead);
         return;
       }
       if (msg.type === 'era:edit:form') {

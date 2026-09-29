@@ -98,6 +98,7 @@ export type EraMessage =
   | { type: 'era:import:stage'; stage: ImportStage }
   | { type: 'era:observe' }
   | { type: 'era:catalog:read' }
+  | { type: 'era:search:visit'; q: string }
   | { type: 'era:price:edit'; platformListingId: string; cents: number; itemId: string }
   | { type: 'era:price:stage'; stage: PriceStage }
   | { type: 'era:edit:form'; cents: number }
@@ -107,6 +108,8 @@ export type EraMessage =
 /** The listing links Vinted's search page shows, read as they are (link + accessible title): parsed by ERA, not here. */
 export interface CatalogPageRead {
   path: string;
+  /** The search_text of the page read: a reused tab can still show the previous search for a moment. */
+  query: string | null;
   /** How many links to a listing the page holds at all (0 on an empty or unrendered page). */
   links: number;
   cards: { href: string; text: string }[];

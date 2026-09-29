@@ -1,36 +1,18 @@
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
 import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
-import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult, ReserveResult } from './protocol';
+import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult } from './protocol';
+import { visitSearchPage } from './search-page';
+import { ping, waitForLoad } from './tabs';
+
+export { ping, waitForLoad } from './tabs';
+export { templateFromObserved, visitSearchPage } from './search-page';
 import type { MarketCandidate } from '@/domain/entities';
 import { db } from '../../db';
 
 export async function findVintedTab(): Promise<number | null> {
   const tabs = await browser.tabs.query({ url: 'https://www.vinted.fr/*' });
   return tabs.find((t) => t.active)?.id ?? tabs[0]?.id ?? null;
-}
-
-export async function ping(tabId: number): Promise<boolean> {
-  try {
-    await browser.tabs.sendMessage(tabId, { type: 'era:ping' } satisfies EraMessage);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function waitForLoad(tabId: number, timeoutMs = 25_000): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => {
-      clearTimeout(timer);
-      browser.tabs.onUpdated.removeListener(on);
-      resolve();
-    };
-    const on = (id: number, info: { status?: string }) => id === tabId && info.status === 'complete' && done();
-    const timer = setTimeout(done, timeoutMs);
-    browser.tabs.onUpdated.addListener(on);
-    void browser.tabs.get(tabId).then((t) => t.status === 'complete' && done());
-  });
 }
 
 /**
@@ -75,8 +57,6 @@ export const SEARCH_PAUSE_MS = 30 * 60_000;
  */
 export const SEARCH_MODE_KEY = 'vintedSearchMode';
 export const PAGE_MODE_RETRY_MS = 7 * 86_400_000;
-/** Paths the search page calls that are not a listing search (seen: promoted_closets — another member's wardrobe). */
-const NOT_A_SEARCH = /promoted|closet|banner|suggest|saved_search|conversation|notification/i;
 export const ERROR_LOG_KEY = 'vintedErrorLog';
 
 export interface VintedErrorEntry {
@@ -105,56 +85,6 @@ export function fillTemplate(template: string, q: string): string {
   return template.replace('{q}', encodeURIComponent(q));
 }
 
-/** Turn an observed search URL into a reusable template: same path and params, our text in search_text. */
-export function templateFromObserved(url: string): string | null {
-  const [path, qs = ''] = url.split('?');
-  if (!path?.startsWith('/api/') || NOT_A_SEARCH.test(path)) return null;
-  const params = new URLSearchParams(qs);
-  if (!params.has('search_text')) return null;
-  params.set('search_text', '__Q__');
-  // Keep the page's own paging and filters, but never ask for more than 2 pages' worth.
-  params.delete('page');
-  return `${path}?${params.toString().replace('__Q__', '{q}')}`;
-}
-
-/**
- * Open Vinted's public search page in a background tab (normal browsing, one unit of the budget), then read what it
- * shows: which API URL it called for its results, if any, and the listing cards it displays. Nothing is injected or
- * clicked; the tab is closed afterwards.
- */
-export async function visitSearchPage(q: string): Promise<{ template: string | null; observed: string[]; page: CatalogPageRead | null }> {
-  const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
-  if (!r.ok) throw new MarketplaceError(r.code);
-  const url = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(q)}&order=newest_first`;
-  const tab = await browser.tabs.create({ url, active: false });
-  const tabId = tab.id!;
-  try {
-    await waitForLoad(tabId, 15_000);
-    // First load failed (network hiccup, interstitial)? Navigate once more.
-    if (!(await ping(tabId))) {
-      await browser.tabs.update(tabId, { url });
-      await waitForLoad(tabId, 15_000);
-    }
-    let observed: string[] = [];
-    let template: string | null = null;
-    let page: CatalogPageRead | null = null;
-    // Results can arrive after load: look for up to ~12 s, until an API search or listing cards show up.
-    for (let i = 0; i < 24; i++) {
-      await new Promise((res) => setTimeout(res, 500));
-      try {
-        observed = ((await browser.tabs.sendMessage(tabId, { type: 'era:observe' } satisfies EraMessage)) as { urls: string[] }).urls;
-        template = observed.map(templateFromObserved).find((x): x is string => x !== null) ?? null;
-        page = (await browser.tabs.sendMessage(tabId, { type: 'era:catalog:read' } satisfies EraMessage)) as CatalogPageRead;
-        if (template || page.cards.length > 0) break;
-      } catch {
-        /* content script not ready yet */
-      }
-    }
-    return { template, observed: [...new Set(observed.map((u) => u.split('?')[0]!))], page };
-  } finally {
-    await browser.tabs.remove(tabId).catch(() => undefined);
-  }
-}
 
 /** What a search page held, for the report: counts, and one card's text as the page wrote it (the evidence to adapt to). */
 function pageSummary(page: CatalogPageRead): string {

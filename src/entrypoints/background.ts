@@ -1,5 +1,6 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
+import { SEARCH_TAB_ALARM, closeIdleSearchTab, visitInWorker } from '@/data/adapters/vinted/search-page';
 import { applyDescriptionOnVinted, applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
 import type { AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
@@ -223,7 +224,10 @@ export default defineBackground(() => {
     if (a.name === REFRESH_ALARM) void onRefreshAlarm();
     if (a.name === BACKUP_ALARM) void runAutoBackup().catch(() => undefined);
     if (a.name === DIGEST_ALARM) void runDigest().catch((e) => recordError('service-worker:digest', e));
+    if (a.name === SEARCH_TAB_ALARM) void closeIdleSearchTab().catch(() => undefined);
   });
+  // A search tab left from before the worker slept: closed if idle.
+  void closeIdleSearchTab().catch(() => undefined);
   void scheduleAuto();
   void scheduleRefresh();
   void scheduleBackup();
@@ -262,6 +266,13 @@ export default defineBackground(() => {
         return answer(budget.report(msg.status).then(() => ({ ok: true })), unavailable);
       case 'era:budget:status':
         return answer(budget.status(), () => ({ remaining: 0, halted: 'UNAVAILABLE', haltedUntil: null }));
+      case 'era:search:visit':
+        // One search-page visit, in the worker's own tab (see search-page.ts); the error keeps its code (budget, block…).
+        visitInWorker(msg.q).then(
+          (v) => sendResponse({ ok: true, ...v }),
+          (e: unknown) => sendResponse({ ok: false, ...errorInfo(e) }),
+        );
+        return true;
       case 'era:import':
         // Mid-repost, the fresh draft is not yet recorded as a copy: an import now would count it as a new article.
         if (reposting) {
