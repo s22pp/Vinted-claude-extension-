@@ -50,14 +50,18 @@ Le calcul du tableau de bord est découpé en trois couches pures (`src/app/era-
 ## Architecture
 
 ```
-src/domain         entités (Zod), argent en centimes (UNKNOWN ≠ 0), provenance
+src/domain         entités (types TypeScript + validation à l'écriture), argent en centimes (UNKNOWN ≠ 0), provenance
 src/data           Dexie, repository, adapters (démo / Vinted lecture seule + budget d'appels), import CSV/Vinted
 src/intelligence   moteurs purs : comparables, pricing, stagnation, capital, seller model, buy/deal score,
                    offres, annonce + bouclier, apprentissage, décision
-src/app            écrans React (Today, Stock + Mise en ligne + Capital, Item, Market, Buy, Sales + Comptabilité,
-                   Insights, Outils, Réglages), facture imprimable, popup, side panel
+src/app/screens    un fichier par écran, chargé à la demande (Today, Stock, Atelier, Capital, Item, Market, Buy,
+                   Sales, Colis, Comptabilité, Insights, Outils, Réglages)
+src/app/components les morceaux partagés ou volumineux (fiche d'atelier, tableau du stock, analyse de prix,
+                   cartes des réglages, onglets de section…)
 src/ui             design system : tokens, composants, graphiques SVG, illustrations, logo
 ```
+
+Un écran n'importe jamais un autre écran : ce qu'ils partagent vit dans `src/app/components`, pour qu'ouvrir un écran ne charge que son code.
 
 ## Quand un écran plante
 

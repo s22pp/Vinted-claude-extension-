@@ -285,7 +285,7 @@ test('statuses: posted / reserved / sold are filterable, and sold items get a pr
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
-  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
 
   await page.goto(`${base}#/stock`);
   await expect(page.getByRole('button', { name: /Réservés\s*1/ })).toBeVisible();
@@ -370,10 +370,14 @@ test('search refuses the sort parameter (404): the plain form works, no page dis
   expect(calls.some((c) => c.path.includes('era-test'))).toBe(false);
 });
 
+/**
+ * Imports the stock, then opens the jacket. 40 s like every import here: when the background vinted.fr tab's first load
+ * fails, ERA reloads it once before reading (see ensureVintedTab).
+ */
 async function importThenOpen(page: import('@playwright/test').Page, base: string) {
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
-  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/stock?filter=listed`);
   await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Harrington' }).click();
 }
