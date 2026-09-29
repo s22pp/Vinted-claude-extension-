@@ -12,11 +12,12 @@ import { CopyButton } from './tools';
  * knows, "__" where only the seller can fill (a measure read on the garment). Copy it, or — EXPERIMENTAL, one
  * listing, on a click, once no blank is left — replace it on Vinted, read back before saying it is done.
  */
-export function DescriptionModal({ itemId, open, onClose }: { itemId: string; open: boolean; onClose: () => void }) {
+export function DescriptionModal({ queue, startId, onClose }: { queue: readonly string[]; startId: string; onClose: () => void }) {
   const { t } = useI18n();
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
+  const [itemId, setItemId] = useState(startId);
   const v = era.viewById.get(itemId);
   const listingId = v?.current?.platformListingId ?? null;
   const current = v?.current?.description ?? '';
@@ -24,19 +25,22 @@ export function DescriptionModal({ itemId, open, onClose }: { itemId: string; op
     () => (v ? completeDescription(current, v.item, era.preps.get(itemId) ?? null, (k) => t(`workshop.m.${k}`)) : null),
     [v, current, era.preps, itemId, t],
   );
-  const [text, setText] = useState('');
+  // What the seller typed is theirs: a data refresh while the window is open never puts the proposal back.
+  const [edited, setEdited] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (open && proposal) {
-      setText(proposal.text);
-      setConfirming(false);
-    }
-  }, [open, proposal]);
+    setEdited(null);
+    setConfirming(false);
+  }, [itemId]);
   if (!v || !proposal) return null;
+  const text = edited ?? proposal.text;
+  const setText = setEdited;
   const blanks = (text.match(/__/g) ?? []).length;
   const unchanged = text.trim() === current.trim();
   const canSend = era.mode === 'real' && !!listingId && /^\d+$/.test(listingId) && blanks === 0 && !unchanged && text.trim().length > 0;
+  const next = queue[queue.indexOf(itemId) + 1] ?? null;
+  const position = queue.indexOf(itemId) + 1;
 
   const send = async () => {
     setBusy(true);
@@ -50,13 +54,18 @@ export function DescriptionModal({ itemId, open, onClose }: { itemId: string; op
     setConfirming(false);
     if (r.ok) {
       toast('success', t('describe.done'), t('describe.verified'));
-      onClose();
+      // The next listing to complete, right away; the last one closes the window.
+      if (next) setItemId(next);
+      else onClose();
     } else errorToast(r);
   };
 
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} title={t('describe.title')}>
-      <p className="t-small t-muted">{v.item.title}</p>
+    <Modal open onClose={() => !busy && onClose()} title={t('describe.title')}>
+      <p className="t-small t-muted">
+        {v.item.title}
+        {queue.length > 1 && position > 0 && <span className="t-faint"> · {t('describe.position', { n: position, total: queue.length })}</span>}
+      </p>
       <details className="t-small">
         <summary style={{ cursor: 'pointer' }}>{t('describe.current', { n: current.trim().length })}</summary>
         <pre className="wdesc" style={{ marginTop: 6 }}>{current.trim() || t('describe.empty')}</pre>
@@ -80,6 +89,11 @@ export function DescriptionModal({ itemId, open, onClose }: { itemId: string; op
         </div>
       )}
       <div className="row wrap" style={{ justifyContent: 'flex-end', gap: 8 }}>
+        {next && (
+          <Button variant="ghost" icon="chevronRight" disabled={busy} onClick={() => setItemId(next)}>
+            {t('describe.next')}
+          </Button>
+        )}
         <CopyButton text={text} />
         {listingId && /^\d+$/.test(listingId) && (
           <Button variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${listingId}/edit`, '_blank', 'noopener')}>

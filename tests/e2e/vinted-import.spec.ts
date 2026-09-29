@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -22,7 +22,12 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
         contentType: 'text/html',
         body: `<html><body><form id="f">
           <label for="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}">Prix</label><input id="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}" value="59,00">${second}
-          <label for="description">Description</label><textarea id="description">${desc}</textarea>
+          ${
+            opts.editForm === 'twoDescriptions'
+              ? // Two fields that both say "description", neither named exactly so: which one is meant cannot be told.
+                `<label for="d1">Description</label><textarea id="d1">${desc}</textarea><label for="d2">Description courte</label><textarea id="d2"></textarea>`
+              : `<label for="description">Description</label><textarea id="description">${desc}</textarea>`
+          }
           <button type="button" onclick="fetch('/fake/click?b=delete',{method:'POST'})">Supprimer</button>
           <button type="button" onclick="fetch('/fake/click?b=boost',{method:'POST'})">Booster</button>
           <button type="submit">Enregistrer</button></form>
@@ -1120,5 +1125,26 @@ test('complete a description: the seller’s text kept, blanks to fill first, th
   expect(fake.descriptions['101']).toContain('60 cm');
   // Only the description changed: the price field was sent back as it was (59,00), no other button was touched.
   expect(fake.prices['101']).toBe('59.00');
+  expect(fake.clicked).toEqual([]);
+});
+
+test('complete a description on an ambiguous page (two description fields): nothing is saved on Vinted', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'twoDescriptions' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/quality`);
+  await page.getByRole('button', { name: /Lire \d+ descriptions? sur Vinted/ }).click();
+  await expect(page.getByText(/annonces? lues?/).first()).toBeVisible({ timeout: 40_000 });
+  await page.getByTestId('quality').locator('tr', { hasText: 'Veste Harrington Ralph Lauren M' }).getByRole('button', { name: 'Compléter la description' }).click();
+  const dialog = page.getByRole('dialog');
+  const text = dialog.getByTestId('describe-text');
+  await text.fill((await text.inputValue()).replace(/__/g, '60'));
+  await dialog.getByRole('button', { name: /Remplacer sur Vinted/ }).click();
+  await dialog.getByRole('button', { name: 'Confirmer et remplacer' }).click();
+  await expect(page.getByText('Modification annulée avant enregistrement')).toBeVisible({ timeout: 40_000 });
+  expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.');
   expect(fake.clicked).toEqual([]);
 });

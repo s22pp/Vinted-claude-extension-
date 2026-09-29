@@ -28,6 +28,12 @@ export function Quality() {
     [era.intel],
   );
 
+  // Listings whose description was read and falls short, in the report's order: the window goes from one to the next.
+  const toDescribe = useMemo(
+    () => report.rows.filter((q) => !q.unread.includes('description') && q.issues.some((i) => i.code === 'SHORT_DESC' || i.code === 'NO_MEASURES')).map((q) => q.itemId),
+    [report.rows],
+  );
+
   const readDetails = async () => {
     setBusy(true);
     try {
@@ -92,7 +98,7 @@ export function Quality() {
                       </td>
                       <td>
                         <div className="stack" style={{ gap: 4, alignItems: 'flex-start' }}>
-                          {!q.unread.includes('description') && q.issues.some((i) => i.code === 'SHORT_DESC' || i.code === 'NO_MEASURES') && (
+                          {toDescribe.includes(q.itemId) && (
                             <Button size="sm" variant="primary" icon="edit" onClick={() => setDescribing(q.itemId)}>
                               {t('describe.button')}
                             </Button>
@@ -112,7 +118,7 @@ export function Quality() {
           </Card>
         )}
         <p className="t-small t-faint">{t('lq.rules')}</p>
-        {describing && <DescriptionModal itemId={describing} open onClose={() => setDescribing(null)} />}
+        {describing && <DescriptionModal queue={toDescribe} startId={describing} onClose={() => setDescribing(null)} />}
       </div>
     </>
   );

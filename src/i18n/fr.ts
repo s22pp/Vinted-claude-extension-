@@ -2119,6 +2119,8 @@ export const fr = {
     safe1: 'Seul le champ description est modifié (jamais la catégorie, le prix, les photos) ; au moindre doute sur la page, rien n’est enregistré.',
     safe2: 'Vinted est relu ensuite : « fait » seulement si la nouvelle description y apparaît. Une action comptée dans le budget, écrite dans le journal.',
     send: 'Confirmer et remplacer',
+    next: 'Suivante',
+    position: '{n} sur {total}',
     done: 'Description remplacée sur Vinted',
     verified: 'Relue sur Vinted : c’est bien le nouveau texte.',
   },
