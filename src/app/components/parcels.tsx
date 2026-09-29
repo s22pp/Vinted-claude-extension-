@@ -14,7 +14,15 @@ export function ParcelsCard() {
   if (!alerts.length) return null;
   const byId = new Map(era.sales.map((x) => [x.sale.id, x]));
   return (
-    <Card title={t('parcels.title', { n: alerts.length })} hint={t('parcels.hint')} icon="box" tone="amber" actions={<Flag kind="UNVERIFIED" title={t('parcels.unverified')} />}>
+    <Card title={t('parcels.title', { n: alerts.length })} hint={t('parcels.hint')} icon="box" tone="amber" actions={
+        <div className="row" style={{ gap: 6 }}>
+          <Button size="sm" variant="ghost" icon="target" onClick={() => go('parcels')}>
+            {t('parcels.all')}
+          </Button>
+          <Flag kind="UNVERIFIED" title={t('parcels.unverified')} />
+        </div>
+      }
+    >
       <div className="stack-3" data-testid="parcels">
         {alerts.map((a) => {
           const x = byId.get(a.saleId)!;
@@ -25,7 +33,7 @@ export function ParcelsCard() {
                   {x.item.title}
                 </a>
                 <span className="t-small">
-                  <Badge tone={a.state === 'SHIPPED' ? 'amber' : 'cyan'}>{x.sale.vintedStatus}</Badge> {t(`parcels.${a.state}`, { n: a.days })}
+                  <Badge tone={a.state === 'SHIPPED' ? 'amber' : a.state === 'AT_PICKUP' ? 'violet' : 'cyan'}>{x.sale.vintedStatus}</Badge> {t(`parcels.${a.state}`, { n: a.days })}
                   {a.since === 'SALE' ? ` ${t('parcels.atLeast')}` : ''}
                 </span>
                 <span className="t-small t-faint">{t(`parcels.do.${a.state}`)}</span>

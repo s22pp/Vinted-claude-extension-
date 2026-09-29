@@ -36,11 +36,18 @@ describe('parcels to watch', () => {
         s('e', 'Terminée', 30),
         s('f', 'Envoi à préparer', 20, null, { needsAction: true }),
         s('g', 'Colis envoyé', 20, null, { status: 'REFUNDED' }),
+        // "En cours de livraison" is on its way, not delivered (it contains "livr").
+        s('h', 'En cours de livraison', 12, 8),
+        // Waiting at the pickup point: flagged after 5 days, not before.
+        s('i', 'Disponible au point relais', 9, 6),
+        s('j', 'Disponible au point relais', 9, 2),
       ],
       now,
     );
     expect(a.map((x) => [x.saleId, x.state, x.days, x.since])).toEqual([
       ['a', 'SHIPPED', 10, 'SALE'],
+      ['h', 'SHIPPED', 8, 'STATUS'],
+      ['i', 'AT_PICKUP', 6, 'STATUS'],
       ['c', 'DELIVERED', 4, 'STATUS'],
     ]);
   });

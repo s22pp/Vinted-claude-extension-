@@ -1,3 +1,4 @@
+import { LATE_DAYS, type ParcelStage, parcelStage } from './parcels';
 import type { RefundGuard } from './refunds';
 
 /**
@@ -50,7 +51,7 @@ export function fileSlug(title: string): string {
 
 /* ── Parcels on their way ───────────────────────────────── */
 
-export type ParcelState = 'SHIPPED' | 'DELIVERED';
+export type ParcelState = 'SHIPPED' | 'AT_PICKUP' | 'DELIVERED';
 
 export interface ParcelAlert {
   saleId: string;
@@ -60,25 +61,27 @@ export interface ParcelAlert {
   since: 'STATUS' | 'SALE';
 }
 
+const ALERT_STATE: Partial<Record<ParcelStage, ParcelState>> = { SENT: 'SHIPPED', IN_TRANSIT: 'SHIPPED', AT_PICKUP: 'AT_PICKUP', DELIVERED: 'DELIVERED' };
+
 /**
- * Sales whose parcel seems stuck, read from Vinted's own status words (UNVERIFIED wording): sent and still not
- * delivered after `shippedDays`, delivered and still not completed after `deliveredDays`.
+ * Sales whose parcel seems stuck, read from Vinted's own status words (UNVERIFIED wording) with the same reading
+ * and the same delays as the Colis screen: sent or on its way for too long, waiting at the pickup point without
+ * the buyer collecting it, delivered and still not completed.
  */
 export function parcelAlerts(
   sales: readonly { id: string; status: string; soldAt: number; vintedStatus?: string | null; vintedStatusSince?: number | null; needsAction?: boolean }[],
   now: number,
-  o = { shippedDays: 7, deliveredDays: 3 },
 ): ParcelAlert[] {
   const out: ParcelAlert[] = [];
   for (const s of sales) {
     if (s.status === 'REFUNDED' || s.needsAction || !s.vintedStatus) continue;
-    const st = s.vintedStatus.toLowerCase();
-    if (/termin|complet|finalis|annul|rembours/.test(st)) continue;
-    const state: ParcelState | null = /livr|delivered|récupér|recuper/.test(st) ? 'DELIVERED' : /envoy|expédi|expedi|en route|transit|shipped|en cours de livraison|déposé|depose/.test(st) ? 'SHIPPED' : null;
-    if (!state) continue;
+    const stage = parcelStage(s.vintedStatus);
+    const state = ALERT_STATE[stage];
+    const limit = LATE_DAYS[stage]?.OUT;
+    if (!state || limit === undefined) continue;
     const from = s.vintedStatusSince ?? s.soldAt;
     const days = Math.floor((now - from) / 86_400_000);
-    if (days >= (state === 'SHIPPED' ? o.shippedDays : o.deliveredDays)) out.push({ saleId: s.id, state, days, since: s.vintedStatusSince ? 'STATUS' : 'SALE' });
+    if (days >= limit) out.push({ saleId: s.id, state, days, since: s.vintedStatusSince ? 'STATUS' : 'SALE' });
   }
   return out.sort((a, b) => b.days - a.days);
 }

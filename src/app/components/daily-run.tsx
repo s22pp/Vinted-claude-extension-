@@ -7,7 +7,7 @@ import type { EraMessage, LabelResult } from '@/data/adapters/vinted/protocol';
 import { useI18n } from '@/i18n';
 import type { ItemView, SaleView } from '@/intelligence/portfolio';
 import { purchaseByItem } from '@/intelligence/purchase-match';
-import { parcelAlerts } from '@/intelligence/shipping';
+import { type ParcelState, parcelAlerts } from '@/intelligence/shipping';
 import { type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card } from '@/ui/components/primitives';
@@ -28,7 +28,7 @@ import { PriceOnVintedButton } from './vinted-price';
  */
 type Task =
   | { key: string; kind: 'SHIP'; s: SaleView }
-  | { key: string; kind: 'PARCEL'; s: SaleView; days: number; state: 'SHIPPED' | 'DELIVERED' }
+  | { key: string; kind: 'PARCEL'; s: SaleView; days: number; state: ParcelState }
   | { key: string; kind: 'PICKUP'; title: string; days: number | null; place: string | null; conversationId: string | null }
   | { key: string; kind: 'RESERVED'; v: ItemView }
   | { key: string; kind: 'COST'; v: ItemView }

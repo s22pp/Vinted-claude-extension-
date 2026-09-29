@@ -2033,16 +2033,19 @@ export const fr = {
   parcels: {
     title: 'Colis à surveiller ({n})',
     title_one: 'Colis à surveiller',
-    hint: 'Envoyés mais toujours pas livrés, ou livrés mais pas encore finalisés, d’après le statut que Vinted affiche',
+    hint: 'Envoyés mais toujours pas livrés, en attente au point relais, ou livrés mais pas encore finalisés, d’après le statut que Vinted affiche',
     unverified: 'Lu dans le statut texte de vos commandes Vinted : sa formulation n’est pas vérifiée.',
     SHIPPED: 'en route depuis {n} j',
+    AT_PICKUP: 'au point relais depuis {n} j, pas encore retiré',
     DELIVERED: 'livré, pas finalisé depuis {n} j',
     atLeast: '(au moins : depuis la vente, ERA n’a pas vu le statut changer)',
     do: {
       SHIPPED: 'Vérifiez le suivi dans la conversation ; si rien ne bouge, contactez l’assistance Vinted avec le dossier d’envoi.',
+      AT_PICKUP: 'L’acheteur n’a pas retiré le colis : un mot dans la conversation. Un point relais ne garde un colis que quelques jours.',
       DELIVERED: 'Livré : l’acheteur doit confirmer. S’il signale un problème, le dossier d’envoi rassemble vos preuves.',
     },
     conversation: 'Conversation',
+    all: 'Tous les colis',
   },
   backup: {
     auto: 'Sauvegarde automatique',

@@ -60,7 +60,7 @@ interface PurchaseLike {
 }
 
 /** After this many days at a step, the parcel is flagged (the seller should look at the conversation). */
-const LATE_DAYS: Partial<Record<ParcelStage, { IN: number; OUT: number }>> = {
+export const LATE_DAYS: Partial<Record<ParcelStage, { IN: number; OUT: number }>> = {
   TO_SHIP: { IN: 5, OUT: 2 },
   SENT: { IN: 7, OUT: 7 },
   IN_TRANSIT: { IN: 7, OUT: 7 },
