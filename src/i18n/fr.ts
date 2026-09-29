@@ -1052,7 +1052,7 @@ export const fr = {
     hint: {
       NETWORK_403: 'Vinted a refusé la requête. Par sécurité, ERA n’enverra plus rien pendant 6 h. Vos données locales sont intactes.',
       RATE_LIMITED: 'Trop de requêtes. Par sécurité, ERA n’enverra plus rien pendant 6 h. Vos données locales sont intactes.',
-      BUDGET_EXHAUSTED: 'Les 60 requêtes de cette session sont utilisées. Réessayez après avoir redémarré le navigateur.',
+      BUDGET_EXHAUSTED: 'Les 60 requêtes de cette session sont utilisées : rien de plus n’est envoyé à Vinted (protection du compte). Le budget se recharge en fermant puis rouvrant Chrome, ou en rechargeant ERA dans chrome://extensions.',
       UNAVAILABLE: 'Vinted n’a pas renvoyé la réponse attendue. Le détail exact est gardé dans Réglages → Diagnostic de connexion → « Copier le rapport ». Vos données locales sont intactes.',
       NOT_IMPLEMENTED: 'Cette source n’est pas encore branchée.',
       NOT_LOGGED_IN: 'L’onglet Vinted est affiché : connectez-vous, puis recliquez.',

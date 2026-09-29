@@ -66,7 +66,12 @@ export function Automations() {
       await save();
       const r = (await browser.runtime.sendMessage({ type: 'era:auto:run', kind, dryRun } satisfies EraMessage)) as AutoRunResult;
       const line = t(dryRun ? 'auto.resultDry' : 'auto.result', { done: r.done, skipped: r.skipped, failed: r.failed });
-      if (r.stopped) toast('error', t('auto.stopped'), `${line} · ${r.stopped}`);
+      if (r.stopped) {
+        // A stop starts with its error code: said in words (what happened, what to do), the code's detail kept after.
+        const [code, ...rest] = r.stopped.split(' · ');
+        const known = /^[A-Z_0-9]+$/.test(code ?? '');
+        toast('error', known ? t(`errors.${code}`) : t('auto.stopped'), known ? `${line} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : `${line} · ${r.stopped}`);
+      }
       else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : 'auto.offers.title'), line);
     } catch (e) {
       toast('error', t('auto.stopped'), e instanceof Error ? e.message : String(e));
