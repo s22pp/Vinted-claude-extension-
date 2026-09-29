@@ -30,6 +30,8 @@ const PLACES: { key: string; href: string; icon: IconName }[] = [
   { key: 'sales', href: 'sales', icon: 'sales' },
   { key: 'accounting', href: 'accounting', icon: 'book' },
   { key: 'parcels', href: 'parcels', icon: 'target' },
+  { key: 'pilotage', href: 'insights?tab=review', icon: 'calendar' },
+  { key: 'report', href: 'report', icon: 'book' },
   { key: 'market', href: 'market', icon: 'market' },
   { key: 'buy', href: 'buy', icon: 'buy' },
   { key: 'shopping', href: 'buy?tab=list', icon: 'tag' },

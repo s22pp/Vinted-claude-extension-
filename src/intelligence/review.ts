@@ -124,3 +124,33 @@ export function reviewCsv(r: Review, monthLabel: (from: number) => string): stri
 function sum(xs: readonly number[]): number {
   return xs.reduce((a, b) => a + b, 0);
 }
+
+export interface MonthReport {
+  month: PeriodStats;
+  previous: PeriodStats;
+  /** The month is still running (its figures stop today). */
+  running: boolean;
+  /** Best sales of the month: by known profit first, then by price. */
+  top: SaleView[];
+  /** Refunds of the month, newest first. */
+  refunds: SaleView[];
+}
+
+/** One month for the printable report: its figures against the month before, its best sales, its refunds. */
+export function monthReport(sales: readonly SaleView[], views: readonly ItemView[], monthStart: number, now: number): MonthReport {
+  const start = startOfMonth(monthStart);
+  const end = addMonths(start, 1);
+  const running = now < end;
+  const inMonth = sales.filter((s) => s.sale.dateKnown !== false && s.sale.soldAt >= start && s.sale.soldAt < end);
+  const rank = (s: SaleView) => [s.profit ?? Number.NEGATIVE_INFINITY, s.sale.salePriceCents] as const;
+  return {
+    month: periodStats(sales, views, start, running ? now + 1 : end),
+    previous: periodStats(sales, views, addMonths(start, -1), start),
+    running,
+    top: inMonth
+      .filter((s) => s.sale.status !== 'REFUNDED')
+      .sort((a, b) => rank(b)[0] - rank(a)[0] || rank(b)[1] - rank(a)[1])
+      .slice(0, 5),
+    refunds: inMonth.filter((s) => s.sale.status === 'REFUNDED').sort((a, b) => b.sale.soldAt - a.sale.soldAt),
+  };
+}

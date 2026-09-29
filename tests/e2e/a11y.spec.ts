@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, loadDemo, test } from './fixtures';
 
-const SCREENS = ['today', 'stock', 'workshop', 'sales', 'parcels', 'accounting', 'buy', 'market', 'insights', 'settings', 'quality', 'tools', 'automations'];
+const SCREENS = ['today', 'stock', 'workshop', 'sales', 'parcels', 'accounting', 'buy', 'market', 'insights', 'report', 'settings', 'quality', 'tools', 'automations'];
 
 test('accessibility: no serious or critical WCAG A/AA violation on the main screens', async ({ context, base }) => {
   test.setTimeout(240_000);

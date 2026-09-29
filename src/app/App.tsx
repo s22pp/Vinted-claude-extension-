@@ -42,6 +42,7 @@ const Accounting = lazyScreen(() => import('./screens/Accounting').then((m) => m
 const Parcels = lazyScreen(() => import('./screens/Parcels').then((m) => m.Parcels));
 const Invoice = lazyScreen(() => import('./screens/Invoice').then((m) => m.Invoice));
 const Dossier = lazyScreen(() => import('./screens/Dossier').then((m) => m.Dossier));
+const Report = lazyScreen(() => import('./screens/Report').then((m) => m.Report));
 const Workshop = lazyScreen(() => import('./screens/Workshop').then((m) => m.Workshop));
 const Capital = lazyScreen(() => import('./screens/Capital').then((m) => m.Capital));
 const Quality = lazyScreen(() => import('./screens/Quality').then((m) => m.Quality));
@@ -118,7 +119,7 @@ function Router() {
     );
   if (!era.ready) {
     // Data still loading: the menu and the page's outline right away, never a blank window.
-    if (route.name === 'invoice' || route.name === 'dossier') return <div className="era-backdrop" aria-hidden="true" />;
+    if (route.name === 'invoice' || route.name === 'dossier' || route.name === 'report') return <div className="era-backdrop" aria-hidden="true" />;
     return (
       <>
         <div className="era-backdrop" aria-hidden="true" />
@@ -142,6 +143,14 @@ function Router() {
       <ErrorBoundary where="dossier" resetKey={key}>
         <Suspense fallback={null}>
           <Dossier saleId={route.id ?? ''} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  if (route.name === 'report')
+    return (
+      <ErrorBoundary where="report" resetKey={key}>
+        <Suspense fallback={null}>
+          <Report id={route.id} />
         </Suspense>
       </ErrorBoundary>
     );

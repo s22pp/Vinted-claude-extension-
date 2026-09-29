@@ -462,4 +462,16 @@ test('pilotage: the last 30 days against the 30 before, a year month by month, e
   await expect(plan).toContainText('Articles à acheter par semaine');
   await expect(plan).toContainText('Budget d’achat par semaine');
   await expect(plan).toContainText(/max .* sur Vinted/);
+  // The month's report: one printable page, the demo said as such; the month before is a closed month.
+  await review.getByRole('button', { name: 'Rapport du mois' }).click();
+  const report = page.getByTestId('report');
+  await expect(report).toContainText('Rapport d’activité');
+  await expect(report).toContainText('DONNÉES DE DÉMONSTRATION');
+  await expect(report).toContainText('Mois en cours');
+  await expect(report).toContainText('Le mois en chiffres');
+  await expect(report).toContainText('Meilleures ventes');
+  await expect(report).toContainText('Objectif mensuel');
+  await page.getByRole('button', { name: /Mois précédent/ }).click();
+  await expect(report).toContainText('Mois clos');
+  await expect(page.getByRole('button', { name: /Mois suivant/ })).toBeVisible();
 });

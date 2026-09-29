@@ -118,3 +118,26 @@ describe('pilotage: the business month by month', () => {
     expect(csv.trim().split('\r\n')).toHaveLength(13);
   });
 });
+
+describe('the month report', () => {
+  it('its figures against the month before, the best sales by known profit, the refunds', async () => {
+    const { monthReport } = await import('@/intelligence/review');
+    const items = ['a', 'b', 'c', 'd', 'e'].map((id) => item(id, { status: 'SOLD', purchasePriceCents: id === 'b' ? null : 1000 }));
+    const sales = [
+      sale('s1', 'a', Date.UTC(2026, 8, 3, 12), { salePriceCents: 3000 }),
+      sale('s2', 'b', Date.UTC(2026, 8, 5, 12), { salePriceCents: 9000 }),
+      sale('s3', 'c', Date.UTC(2026, 8, 7, 12), { salePriceCents: 5000 }),
+      sale('s4', 'd', Date.UTC(2026, 8, 9, 12), { salePriceCents: 4000, status: 'REFUNDED', refundReason: 'SIZE' }),
+      sale('s5', 'e', Date.UTC(2026, 7, 20, 12), { salePriceCents: 2000 }),
+    ];
+    const b = build(items, [], sales);
+    const r = monthReport(b.sales, b.views, Date.UTC(2026, 8, 1, 12), NOW);
+    expect(r.running).toBe(true);
+    expect(r.month.sales).toBe(3);
+    expect(r.previous.sales).toBe(1);
+    // Known profits first (c: 4000, a: 2000), then the sale whose cost is unknown, however high its price.
+    expect(r.top.map((s) => s.sale.id)).toEqual(['s3', 's1', 's2']);
+    expect(r.refunds.map((s) => s.sale.id)).toEqual(['s4']);
+    expect(monthReport(b.sales, b.views, Date.UTC(2026, 7, 10), NOW).running).toBe(false);
+  });
+});

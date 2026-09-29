@@ -161,9 +161,14 @@ export function BusinessReview() {
         icon="rows"
         tone="violet"
         actions={
-          <Button size="sm" variant="ghost" icon="download" onClick={() => downloadText(`era-pilotage-${new Date(era.now).toISOString().slice(0, 10)}.csv`, reviewCsv(r, monthLabel))}>
-            {t('review.csv')}
-          </Button>
+          <div className="row wrap" style={{ gap: 6 }}>
+            <Button size="sm" variant="ghost" icon="book" onClick={() => go('report')}>
+              {t('review.report')}
+            </Button>
+            <Button size="sm" variant="ghost" icon="download" onClick={() => downloadText(`era-pilotage-${new Date(era.now).toISOString().slice(0, 10)}.csv`, reviewCsv(r, monthLabel))}>
+              {t('review.csv')}
+            </Button>
+          </div>
         }
         flush
       >

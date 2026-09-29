@@ -1496,6 +1496,35 @@
   word-break: break-word;
 }
 
+/* Rapport du mois (printable, on the invoice sheet) */
+.report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.report__table th,
+.report__table td {
+  text-align: right;
+  padding: 5px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  font-variant-numeric: tabular-nums;
+}
+.report__table th:first-child {
+  text-align: left;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.report__table thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4b5563;
+  border-bottom: 2px solid #111827;
+}
+.report__table thead th:first-child {
+  text-align: left;
+}
+
 /* Dossier d'envoi (printable, on the invoice sheet) */
 .dossier__section {
   margin-top: 22px;
