@@ -54,7 +54,9 @@ export const test = base.extend<{ context: BrowserContext; extId: string; base: 
         `--disable-extensions-except=${EXT}`,
         `--load-extension=${EXT}`,
         // Test browser only: files the browser itself downloads (shipping labels) come from a local fake carrier.
-        `--host-resolver-rules=MAP labels.example:443 127.0.0.1:${LABEL_PORT}`,
+        // Vinted, its images and the map tiles resolve nowhere: a request the tests' fakes did not catch fails at
+        // once instead of reaching the real site.
+        `--host-resolver-rules=MAP labels.example:443 127.0.0.1:${LABEL_PORT}, MAP www.vinted.fr 127.0.0.1:1, MAP images1.vinted.net 127.0.0.1:1, MAP tile.openstreetmap.org 127.0.0.1:1`,
         // Trust only the fake carrier's own self-signed certificate (a blanket flag would change page behaviour).
         `--ignore-certificate-errors-spki-list=${LABEL_CERT.spki}`,
       ],

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import type { EraMessage, LocateResult } from '@/data/adapters/vinted/protocol';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
@@ -7,10 +7,13 @@ import { useI18n } from '@/i18n';
 import { DEFAULT_HOME, HOME_KEY, PARCEL_INFO_KEY, PARCEL_STEPS, type Parcel, type ParcelInfo, type Place, distanceKm, parcelsInProgress } from '@/intelligence/parcels';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Flag } from '@/ui/components/primitives';
-import { type MapPin, ParcelMap } from '../components/parcel-map';
+import type { MapPin } from '../components/parcel-map';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { SalesTabs } from '../components/section-tabs';
+
+// The map library is loaded with the map only, not with every visit of the dashboard.
+const ParcelMap = lazy(() => import('../components/parcel-map').then((m) => ({ default: m.ParcelMap })));
 
 /**
  * Colis: the parcels coming to the seller (purchases) and leaving (sales), on a map around home (Roanne by
@@ -142,7 +145,9 @@ export function Parcels() {
               </div>
             }
           >
-            <ParcelMap home={home} pins={pins} placing={placing} onPlace={(at) => void placeHome(at)} />
+            <Suspense fallback={<div className="pmap skeleton" aria-hidden="true" />}>
+              <ParcelMap home={home} pins={pins} placing={placing} onPlace={(at) => void placeHome(at)} />
+            </Suspense>
             <p className="t-small t-faint" style={{ marginTop: 8 }}>
               {t('parcelmap.honest')}
             </p>
