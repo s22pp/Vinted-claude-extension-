@@ -145,7 +145,7 @@ export function Insights({ route }: { route: Route }) {
                         {money(s.costCents)} <span className="t-faint" style={{ fontWeight: 400 }}>{t('insights.invested')}</span>
                       </span>
                       <span className="t-small">
-                        <Money cents={s.profitCents} sign /> · <span className="num">×{s.yield30.toFixed(1)}</span>
+                        <Money cents={s.profitCents} sign /> · <span className="num">×{i.num(s.yield30, 1)}</span>
                       </span>
                     </span>
                   </a>

@@ -179,7 +179,7 @@ export function DailyRun() {
           <div className="stack" style={{ gap: 6 }}>
             <span className="t-small">
               {x.place ?? t('parcelmap.step.AT_PICKUP')}
-              {x.days !== null && ` · ${t('parcelmap.atLeast', { n: x.days })}`}
+              {x.days !== null && x.days > 0 && ` · ${t('parcelmap.atLeast', { n: x.days })}`}
             </span>
             <div className="row wrap" style={{ gap: 8 }}>
               <Button size="sm" variant="primary" icon="target" onClick={() => go('parcels')}>

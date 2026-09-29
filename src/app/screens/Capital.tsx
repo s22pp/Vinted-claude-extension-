@@ -116,7 +116,7 @@ export function Capital() {
               icon="calendar"
               tone="cyan"
               value={<span className="num">{cap.medianDaysHeld === null ? '—' : t('kpi.days', { n: cap.medianDaysHeld })}</span>}
-              foot={cap.turnover !== null ? t('capital.turnoverLine', { x: cap.turnover.toFixed(1) }) : null}
+              foot={cap.turnover !== null ? t('capital.turnoverLine', { x: i.num(cap.turnover, 1) }) : null}
               small
             />
           </div>

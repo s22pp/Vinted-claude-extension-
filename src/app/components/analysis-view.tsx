@@ -33,7 +33,7 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
           <Metric small label={t('market.quality')} value={<Badge tone={QUALITY_TONE[analysis.quality]}>{t(`compQuality.${analysis.quality}`)}</Badge>} foot={analysis.source === 'DEMO' ? <DemoBadge /> : analysis.via ? <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} /> : t('market.sourceVINTED')} />
         </div>
         <div className="kpi">
-          <Metric small label={t('market.effectiveSample')} value={<span className="num">{analysis.effectiveSample}</span>} foot={t('market.kept', { kept: analysis.keptCount, collected: analysis.collected })} />
+          <Metric small label={t('market.effectiveSample')} value={<span className="num">{i.num(analysis.effectiveSample, 1)}</span>} foot={t('market.kept', { kept: analysis.keptCount, collected: analysis.collected })} />
         </div>
         <div className="kpi">
           <Metric small label={t('market.p25')} value={<span className="num">{d ? money(d.p25) : '—'}</span>} />

@@ -328,10 +328,24 @@ export function BarChart({
   const min = Math.min(...known.map((d) => d.value), 0);
 
   if (orientation === 'horizontal') {
-    const labelW = Math.min(170, Math.max(90, width * 0.34));
+    // Narrow (a phone, a side column): each label on its own line above its bar, the whole width to itself — cut
+    // beside the bar, labels of one brand would all read "Ralph Lauren…".
+    const stacked = width < 440;
+    const labelW = stacked ? 0 : Math.min(200, Math.max(100, width * 0.4));
+    // SVG text does not end in "…" by itself: cut to what fits (≈ 6.3 px a character at 12.5 px), 12 px short of
+    // what follows, keeping a trailing count (" · 4") whole. The full label stays on hover.
+    const maxChars = Math.max(8, Math.floor(((stacked ? width - 64 : labelW) - 12) / 6.3));
+    const fit = (label: string) => {
+      if (label.length <= maxChars) return label;
+      const count = / · \d+$/.exec(label)?.[0] ?? '';
+      return `${label.slice(0, Math.max(3, maxChars - count.length - 1)).trimEnd()}…${count}`;
+    };
     const valueW = 64;
     const barArea = Math.max(40, width - labelW - valueW);
-    const rowH = 30;
+    const rowH = stacked ? 42 : 30;
+    // Where the bar and the value sit in a row: level with the label, or under it when stacked.
+    const barY = stacked ? 24 : (rowH - 12) / 2;
+    const midY = barY + 6;
     const x0 = min < 0 ? (-min / (max - min)) * barArea : 0;
     const scale = (v: number) => (Math.abs(v) / (max - min || 1)) * barArea;
     return (
@@ -343,20 +357,21 @@ export function BarChart({
               const bw = v === null ? 0 : Math.max(2, scale(v));
               const bx = labelW + (v !== null && v < 0 ? x0 - bw : x0);
               return (
-                <g key={d.label} transform={`translate(0,${i * rowH})`} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onClick={onSelect ? () => onSelect(i) : undefined} opacity={hover === null || hover === i ? 1 : 0.55} style={{ transition: 'opacity 120ms', cursor: onSelect ? 'pointer' : undefined }}>
+                <g key={d.label} transform={`translate(0,${i * rowH})`} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onClick={onSelect ? () => onSelect(i) : undefined} opacity={hover === null || hover === i ? 1 : 0.55} style={{ transition: 'opacity var(--t-fast) var(--ease)', cursor: onSelect ? 'pointer' : undefined }}>
                   <rect x={0} y={0} width={width} height={rowH} fill="transparent" />
-                  <text x={0} y={rowH / 2} dy="0.32em" fontSize="12.5" fill="var(--text-2)">
-                    {d.label.length > 24 ? `${d.label.slice(0, 23)}…` : d.label}
+                  <text x={0} y={stacked ? 10 : rowH / 2} dy="0.32em" fontSize="12.5" fill="var(--text-2)">
+                    {fit(d.label)}
+                    {d.label.length > maxChars && <title>{d.label}</title>}
                   </text>
                   {v === null ? (
-                    <text x={labelW} y={rowH / 2} dy="0.32em" fontSize="12" fill="var(--text-3)">
+                    <text x={labelW} y={midY} dy="0.32em" fontSize="12" fill="var(--text-3)">
                       — {t('data.unknown')}
                     </text>
                   ) : (
-                    <rect className="chart-bar chart-bar--h" style={{ animationDelay: `${i * 40}ms` }} x={bx} y={(rowH - 12) / 2} width={bw} height={12} rx={4} fill={d.color ?? (v < 0 ? 'var(--coral)' : color)} />
+                    <rect className="chart-bar chart-bar--h" style={{ animationDelay: `${i * 40}ms` }} x={bx} y={barY} width={bw} height={12} rx={4} fill={d.color ?? (v < 0 ? 'var(--coral)' : color)} />
                   )}
                   {v !== null && (
-                    <text x={width} y={rowH / 2} dy="0.32em" textAnchor="end" fontSize="12.5" fontWeight={600} fill="var(--text)" className="num">
+                    <text x={width} y={midY} dy="0.32em" textAnchor="end" fontSize="12.5" fontWeight={600} fill="var(--text)" className="num">
                       {format(v)}
                     </text>
                   )}

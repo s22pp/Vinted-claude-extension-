@@ -9,6 +9,7 @@ import { useEra } from '../state';
 import { StockTabs } from '../components/section-tabs';
 import { PhotoAuditCard } from '../components/photo-audit';
 import { DescriptionModal } from '../components/describe';
+import { VintedImportButton } from '../components/vinted-import';
 
 /** Live listings ranked by what holds them back × the money waiting on them. Fixes are made on Vinted. */
 export function Quality() {
@@ -59,7 +60,12 @@ export function Quality() {
           </Card>
         )}
         <PhotoAuditCard />
-        {report.rows.length === 0 ? (
+        {report.checked === 0 ? (
+          // Nothing read is not "nothing wrong": say which it is.
+          <Card>
+            <EmptyState title={t('lq.noneChecked')} why={t(era.mode === 'demo' ? 'lq.noneCheckedDemo' : 'lq.noneCheckedWhy')} action={era.mode === 'demo' ? undefined : <VintedImportButton variant="primary" />} />
+          </Card>
+        ) : report.rows.length === 0 ? (
           <Card>
             <EmptyState title={t('lq.none')} why={t('lq.noneWhy')} />
           </Card>

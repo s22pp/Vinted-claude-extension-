@@ -47,6 +47,7 @@ export function Settings() {
     <>
       <PageHead title={t('settings.title')} />
       <div className="grid-12">
+        {/* Yours: look, language, your data and identity, the app itself. */}
         <div className="span-6 stack-4">
           <Card title={t('settings.theme')} icon="sun" tone="violet">
             <Segmented
@@ -59,7 +60,7 @@ export function Settings() {
                 { value: 'system', label: t('settings.themeSystem') },
               ]}
             />
-            <div className="stack" style={{ gap: 8, marginTop: 16 }}>
+            <div className="stack" style={{ gap: 8, marginTop: 16, alignItems: 'flex-start' }}>
               <span className="t-small">{t('settings.motion')}</span>
               <Segmented
                 label={t('settings.motion')}
@@ -83,6 +84,27 @@ export function Settings() {
                 { value: 'en', label: 'English' },
               ]}
             />
+          </Card>
+          <BackupCard />
+          <SellerIdentityCard />
+          <Card title={t('settings.data')} icon="stock" tone="amber">
+            <p className="t-small t-muted" style={{ marginBottom: 14 }}>
+              {t('settings.dataLocal')}
+            </p>
+            <div className="row wrap">
+              {era.mode !== 'demo' ? (
+                <Button icon="layers" loading={busy === 'demo'} disabled={era.mode === 'real'} onClick={() => run('demo', async () => { await repo.loadDemo(); toast('success', t('onboarding.loaded')); })}>
+                  {t('settings.loadDemo')} <DemoBadge />
+                </Button>
+              ) : (
+                <Button icon="x" loading={busy === 'clear'} onClick={() => run('clear', async () => { await repo.clearDemo(); toast('info', t('settings.clearDemo')); })}>
+                  {t('settings.clearDemo')}
+                </Button>
+              )}
+              <Button variant="danger" icon="alert" onClick={() => setConfirm(true)}>
+                {t('settings.reset')}
+              </Button>
+            </div>
           </Card>
           <Card title={t('settings.update')} icon="repost" tone="cobalt">
             <p className="t-small t-muted" style={{ marginBottom: 12 }}>
@@ -108,6 +130,7 @@ export function Settings() {
             </div>
           </Card>
         </div>
+        {/* Vinted's side: the source, what is verified on it, the connection test. */}
         <div className="span-6 stack-4">
           <Card title={t('settings.marketplace')} icon="repost" tone="cobalt">
             <div className="stack-3">
@@ -141,29 +164,8 @@ export function Settings() {
               <RepliesSettings />
             </div>
           </Card>
-          <BackupCard />
           <IntegrationsCard />
-          <SellerIdentityCard />
           <DiagnosticCard />
-          <Card title={t('settings.data')} icon="stock" tone="amber">
-            <p className="t-small t-muted" style={{ marginBottom: 14 }}>
-              {t('settings.dataLocal')}
-            </p>
-            <div className="row wrap">
-              {era.mode !== 'demo' ? (
-                <Button icon="layers" loading={busy === 'demo'} disabled={era.mode === 'real'} onClick={() => run('demo', async () => { await repo.loadDemo(); toast('success', t('onboarding.loaded')); })}>
-                  {t('settings.loadDemo')} <DemoBadge />
-                </Button>
-              ) : (
-                <Button icon="x" loading={busy === 'clear'} onClick={() => run('clear', async () => { await repo.clearDemo(); toast('info', t('settings.clearDemo')); })}>
-                  {t('settings.clearDemo')}
-                </Button>
-              )}
-              <Button variant="danger" icon="alert" onClick={() => setConfirm(true)}>
-                {t('settings.reset')}
-              </Button>
-            </div>
-          </Card>
         </div>
       </div>
       <Modal open={confirm} onClose={() => setConfirm(false)} title={t('settings.reset')}>

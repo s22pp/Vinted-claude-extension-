@@ -272,7 +272,7 @@ export function ItemDetail({ id }: { id: string }) {
                 {pricing?.status === 'OK' && <StrategyCards pricing={pricing} current={v.askPrice} />}
                 <div className="row wrap t-small t-muted" style={{ gap: 16 }}>
                   <span>
-                    {t('market.effectiveSample')} <b className="num">{analysis.effectiveSample}</b>
+                    {t('market.effectiveSample')} <b className="num">{i.num(analysis.effectiveSample, 1)}</b>
                   </span>
                   <span>{t('market.kept', { kept: analysis.keptCount, collected: analysis.collected })}</span>
                   {pricing && (

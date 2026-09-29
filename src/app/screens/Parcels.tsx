@@ -82,7 +82,8 @@ export function Parcels() {
         </ol>
         <div className="t-small t-muted">
           {p.status ?? t(`parcelmap.step.${p.stage}`)}
-          {p.days !== null && ` · ${p.sinceStatus ? t('parcelmap.since', { n: p.days }) : t('parcelmap.atLeast', { n: p.days })}`}
+          {/* "au moins 0 j" says nothing: a count of days shows from the first full day. */}
+          {p.days !== null && (p.sinceStatus || p.days > 0) && ` · ${p.sinceStatus ? (p.days === 0 ? t('parcelmap.sinceToday') : t('parcelmap.since', { n: p.days })) : t('parcelmap.atLeast', { n: p.days })}`}
         </div>
         {found && (
           <div className="t-small stack" style={{ gap: 2, marginTop: 4 }}>

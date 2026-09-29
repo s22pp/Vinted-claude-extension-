@@ -162,7 +162,7 @@ export function Today() {
               <span className="cockpit__v num">
                 <MetricValue metric={cap.returned90} />
               </span>
-              <span className="t-small t-faint">{cap.turnover !== null ? t('capital.turnoverLine', { x: cap.turnover.toFixed(1) }) : t('today.returned90Hint')}</span>
+              <span className="t-small t-faint">{cap.turnover !== null ? t('capital.turnoverLine', { x: i.num(cap.turnover, 1) }) : t('today.returned90Hint')}</span>
             </button>
             <button type="button" className="cockpit__cell cockpit__cell--wide" onClick={() => go('insights?tab=you')}>
               <span className="cockpit__k">{t('kpi.medianDays')}</span>

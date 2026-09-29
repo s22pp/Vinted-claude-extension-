@@ -1680,6 +1680,10 @@
   border: 1px solid var(--border);
   background: var(--surface-sunken);
 }
+/* Leaflet paints its container #ddd (its stylesheet loads after ours): the theme's surface while tiles load. */
+.pmap.leaflet-container {
+  background: var(--surface-sunken);
+}
 .pmap-home {
   display: grid;
   place-items: center;

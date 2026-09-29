@@ -7,7 +7,7 @@ import { go, useEra } from '../state';
 
 /** Prévision 49 € · 8–18 j → Réalité 47 € · 11 j, with the data the forecast used. */
 export function PredictionRow({ row, title }: { row: PrecisionRow; title?: string }) {
-  const { t, money, pct, date } = useI18n();
+  const { t, money, pct, date, num } = useI18n();
   const era = useEra();
   const b = row.basis;
   const open = !row.actual;
@@ -67,7 +67,7 @@ export function PredictionRow({ row, title }: { row: PrecisionRow; title?: strin
           {b.p50 !== null ? ` · P25 ${money(b.p25 ?? 0)} · ${t('market.median').toLowerCase()} ${money(b.p50)} · P75 ${money(b.p75 ?? 0)}` : ''}
           {b.source ? ` · ${t(`market.source${b.source}`)}` : ''}
           {b.personalN > 0 ? ` · ${t('precision.basisPersonal', { n: b.personalN })}${b.personalMedianCents !== null ? ` ${money(b.personalMedianCents)}` : ''}` : ` · ${t('precision.basisNoPersonal')}`}
-          {b.correction !== 1 ? ` · ${t('precision.basisCorrection', { f: b.correction.toFixed(2) })}` : ''}
+          {b.correction !== 1 ? ` · ${t('precision.basisCorrection', { f: num(b.correction, 2) })}` : ''}
         </p>
       )}
     </article>
@@ -76,7 +76,7 @@ export function PredictionRow({ row, title }: { row: PrecisionRow; title?: strin
 
 /** "Précision ERA": every forecast confronted with the real sale. */
 export function PrecisionView() {
-  const { t, money, pct, month } = useI18n();
+  const { t, money, pct, month, num } = useI18n();
   const era = useEra();
   const [show, setShow] = useState<'resolved' | 'open'>('resolved');
   const [all, setAll] = useState(false);
@@ -166,7 +166,7 @@ export function PrecisionView() {
               ))}
             </div>
             <p className="t-small t-muted" style={{ marginTop: 10 }}>
-              {learning.priceCorrection !== 1 ? t('insights.correction', { f: learning.priceCorrection.toFixed(2) }) : t('insights.noCorrection')}
+              {learning.priceCorrection !== 1 ? t('insights.correction', { f: num(learning.priceCorrection, 2) }) : t('insights.noCorrection')}
             </p>
           </Card>
           <Card title={t('insights.trend')} hint={t('insights.trendHint')} icon="trendDown" tone="emerald">
