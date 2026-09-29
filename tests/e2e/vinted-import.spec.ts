@@ -1148,3 +1148,25 @@ test('complete a description on an ambiguous page (two description fields): noth
   expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.');
   expect(fake.clicked).toEqual([]);
 });
+
+test('after a real import: every screen and tab opens with zero errors', async ({ context, base }) => {
+  test.setTimeout(180_000);
+  await fakeVinted(context, { loggedIn: true, purchases: [{ title: 'Pull Lacoste L', price: { amount: '12.0' }, date: '2026-09-20', status: 'Disponible au point relais', conversation_id: 9301 }] });
+  const png = (await import('node:fs')).readFileSync('.output/chrome-mv3/icon/128.png');
+  await context.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ contentType: 'image/png', body: png }));
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror ${page.url()} · ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`console ${page.url()} · ${m.text()}`);
+  });
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  for (const r of ['today', 'stock', 'workshop', 'capital', 'quality', 'sales', 'parcels', 'accounting', 'market', 'buy', 'buy?tab=list', 'insights?tab=review', 'insights?tab=you', 'report', 'tools', 'automations', 'settings']) {
+    await page.goto(`${base}#/${r}`);
+    await page.waitForTimeout(600);
+    await expect(page.getByTestId('error-boundary'), r).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
