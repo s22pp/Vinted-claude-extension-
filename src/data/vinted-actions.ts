@@ -80,7 +80,7 @@ export async function setListingHidden(platformListingId: string, itemId: string
       await db.listings.where('inventoryItemId').equals(itemId).filter((l) => l.platformListingId === platformListingId).modify({ status: hidden ? 'HIDDEN' : 'ACTIVE' });
       await db.events.put({ id: uid('ev'), type: 'STATUS_CHANGED', at: now, inventoryItemId: itemId, listingId: null, data: { from: item.status, to }, provenance: verified ? 'OBSERVED' : 'USER_PROVIDED', isDemo: false });
     }
-    await log({ kind: hidden ? 'HIDE' : 'UNHIDE', ok: true, target: title, detail: verified ? 'confirmé par Vinted' : 'envoyé ; Vinted ne dit pas l’état (non vérifié)' });
+    await log({ kind: hidden ? 'HIDE' : 'UNHIDE', ok: true, target: title, detail: verified ? 'confirmé par Vinted' : 'envoyé ; Vinted ne dit pas l’état (non vérifié)', ...(verified ? {} : { unconfirmed: true }) });
     return { ok: true, verified };
   } catch (e) {
     const { code, detail } = errorInfo(e);

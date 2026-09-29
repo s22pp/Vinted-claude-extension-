@@ -221,7 +221,7 @@ export function Automations() {
                       <td className="num t-small">{new Date(r.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                       <td>
                         <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                          <Badge tone={!r.ok ? 'coral' : r.kind === 'SKIP' || r.kind === 'RUN' ? 'neutral' : 'emerald'} dot>
+                          <Badge tone={!r.ok ? 'coral' : r.kind === 'SKIP' || r.kind === 'RUN' ? 'neutral' : r.unconfirmed ? 'amber' : 'emerald'} dot>
                             {t(`auto.kind.${r.kind}`)}
                           </Badge>
                           {r.dryRun && <Badge tone="cyan">{t('auto.log.dry')}</Badge>}

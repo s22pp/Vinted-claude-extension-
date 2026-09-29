@@ -479,6 +479,11 @@ test('price edit on Vinted: only the price, saved, then verified on Vinted', asy
   expect(fake.prices['101']).toBe('49');
   expect(fake.clicked).toEqual([]); // never delete, never boost
   await expect(page.locator('header').getByText('49 €')).toBeVisible();
+  // Journaled like every write, so the integration shows what was seen working (here: the fake, not the real account).
+  await page.goto(`${base}#/settings`);
+  const row = page.locator('.integ__row', { hasText: 'Modification de prix' });
+  await expect(row).toContainText('Vérifié ici · 1');
+  await expect(row).toHaveAttribute('data-state', 'VERIFIED');
 });
 
 test('ambiguous form: nothing is saved on Vinted', async ({ context, base }) => {
@@ -501,6 +506,11 @@ test('Vinted refuses the price: ERA says so instead of claiming success', async 
   await page.getByRole('button', { name: 'Appliquer sur Vinted', exact: true }).click();
   await expect(page.getByText('Vinted n’a pas pris le nouveau prix')).toBeVisible({ timeout: 40_000 });
   expect(fake.prices['101']).toBe('59.0');
+  // The failure is the integration's current state, with what Vinted showed.
+  await page.goto(`${base}#/settings`);
+  const row = page.locator('.integ__row', { hasText: 'Modification de prix' });
+  await expect(row).toHaveAttribute('data-state', 'FAILING');
+  await expect(row).toContainText('NOT_APPLIED · Vinted affiche toujours 59');
 });
 
 test('purchases: real buying prices imported and linked to stock in one click', async ({ context, base }) => {
@@ -913,6 +923,23 @@ test('icon badge counts the orders to ship; automatic refresh is scheduled only 
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh'))?.periodInMinutes ?? null), { timeout: 10_000 }).toBe(360);
   await page.getByLabel('Actualiser automatiquement').uncheck();
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh')) ?? null), { timeout: 10_000 }).toBeNull();
+});
+
+test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true, searchPageCards: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  const search = page.locator('.integ__row', { hasText: 'Recherche de comparables' });
+  await expect(search).toHaveAttribute('data-state', 'UNTESTED');
+  await page.getByRole('button', { name: 'Vérifier maintenant (lectures seules)' }).click();
+  // The API answers 404 here; the listings are read on the search page: verified here, through that route.
+  await expect(search).toHaveAttribute('data-state', 'VERIFIED', { timeout: 90_000 });
+  await expect(search).toContainText('Vérifié ici · 1');
+  // The search turns green mid-check; the rest of the reads land once the whole check is done.
+  await expect(page.locator('.integ__row', { hasText: 'Import du stock' })).toContainText('lu sur votre compte', { timeout: 60_000 });
+  await expect(page.getByTestId('integ-summary')).toContainText('sur 12 vérifiées sur cet appareil');
+  expect(calls.every((c) => c.method === 'GET')).toBe(true);
 });
 
 test('account check: every read ERA relies on, once each, read-only; the result shows on each integration', async ({ context, base }) => {

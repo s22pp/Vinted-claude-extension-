@@ -5,6 +5,13 @@ import { PURCHASES_TEMPLATE_KEY } from './orders';
 import { currentUserId, firstArray } from './parse';
 import type { BudgetStatus, EraMessage } from './protocol';
 
+/** The last diagnostic search that gave comparables on the real account: proof the search works here, and how. */
+export const SEARCH_PROBE_KEY = 'vintedSearchProbe';
+export interface SearchProbe {
+  at: number;
+  via: 'PAGE' | 'LEARNED' | null;
+}
+
 export type DiagKey = 'worker' | 'tab' | 'session' | 'wardrobe' | 'catalog' | 'sold' | 'purchases' | 'notifications' | 'inbox' | 'listing';
 export interface DiagStep {
   key: DiagKey;
@@ -74,6 +81,7 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
     await db.settings.delete(SEARCH_DOWN_KEY);
     const res = await adapter.searchComparables({ text: 'veste ralph lauren', brand: 'Ralph Lauren', category: 'JACKET', gender: null, size: null, condition: null });
     const used = ((await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined) ?? DEFAULT_SEARCH_TEMPLATE;
+    if (res.candidates.length > 0) await db.settings.put({ key: SEARCH_PROBE_KEY, value: { at: Date.now(), via: res.via ?? null } satisfies SearchProbe });
     push({
       key: 'catalog',
       ok: res.candidates.length > 0,

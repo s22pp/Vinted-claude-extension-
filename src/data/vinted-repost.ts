@@ -162,7 +162,7 @@ export async function finishRepost(itemId: string, now = Date.now()): Promise<Re
     if (!verified) {
       // Sent, not confirmed: ERA's data does not move; the next import (the listing gone or not) decides.
       await savePending((await pendingReposts(now)).map((p) => (p.itemId === itemId ? { ...p, deleteSentAt: now } : p)));
-      await log({ kind: 'DELETE', ok: true, target: title, detail: `suppression de ${pending.oldPlatformListingId} envoyée ; la relecture la montre encore (non confirmé) · le prochain import tranchera` });
+      await log({ kind: 'DELETE', ok: true, unconfirmed: true, target: title, detail: `suppression de ${pending.oldPlatformListingId} envoyée ; la relecture la montre encore (non confirmé) · le prochain import tranchera` });
       return { ok: true, verified: false };
     }
 

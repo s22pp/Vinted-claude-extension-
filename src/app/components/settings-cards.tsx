@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { ACCOUNT_CHECK_KEY, type AccountCheck, type DiagKey, type DiagStep, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
-import { ERROR_LOG_KEY, SEARCH_MODE_KEY, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
+import { ACCOUNT_CHECK_KEY, type AccountCheck, type DiagKey, type DiagStep, SEARCH_PROBE_KEY, type SearchProbe, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
+import { ERROR_LOG_KEY, SEARCH_DOWN_KEY, SEARCH_MODE_KEY, SEARCH_PAUSE_MS, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
+import { type IntegStatus, type IntegrationRecords, integrationStatus } from '@/data/integrations';
 import { type SellerIdentity, db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -117,54 +118,42 @@ export function DiagnosticCard() {
 /** Which read of the account check backs each integration. */
 const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'], reserved: ['wardrobe'], search: ['catalog'], purchases: ['purchases'], auto: ['notifications', 'inbox'], draft: ['listing'], repost: ['listing'] };
 
+const STATE_TONE = { VERIFIED: 'emerald', PARTIAL: 'amber', FAILING: 'coral', UNAVAILABLE: 'neutral' } as const;
+
+/** Everything ERA recorded on this device that says whether a Vinted route works. */
+async function integrationRecords(): Promise<IntegrationRecords> {
+  const setting = async <T,>(key: string, fallback: T) => ((await db.settings.get(key))?.value as T | undefined) ?? fallback;
+  const analyses = await db.analyses.filter((a) => !a.isDemo && a.analysis.source === 'VINTED' && a.analysis.keptCount > 0).toArray();
+  const probe = await setting<SearchProbe | null>(SEARCH_PROBE_KEY, null);
+  const down = await setting<{ until: number; detail: string } | null>(SEARCH_DOWN_KEY, null);
+  const { eraLastImportError } = (await browser.storage.local.get('eraLastImportError')) as { eraLastImportError?: { at: number; code: string; detail?: string } };
+  return {
+    now: Date.now(),
+    listings: await db.listings.filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '')).count(),
+    lastImport: await setting<number | null>('lastVintedImport', null),
+    importError: eraLastImportError ?? null,
+    sold: await db.events.where('type').equals('ITEM_SOLD').filter((e) => !e.isDemo && e.provenance === 'OBSERVED').count(),
+    reserved: await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count(),
+    wardrobeKeys: await setting<string[] | null>('vintedWardrobeKeys', null),
+    searches: [...analyses.map((a) => ({ at: a.at, via: a.analysis.via ?? null })), ...(probe ? [probe] : [])],
+    searchMode: (await setting(SEARCH_MODE_KEY, null)) ? 'PAGE' : (await setting(SEARCH_TEMPLATE_KEY, null)) ? 'LEARNED' : 'API',
+    searchDown: down ? { ...down, at: down.until - SEARCH_PAUSE_MS } : null,
+    errors: await setting<VintedErrorEntry[]>(ERROR_LOG_KEY, []),
+    purchases: await db.purchases.count(),
+    purchasesError: await setting<string | null>('purchasesError', null),
+    log: await db.autoLog.toArray(),
+  };
+}
+
 /**
- * What of the Vinted integration has actually been observed working on THIS device, and what has not.
- * Fixture tests prove ERA's logic; they never prove the real Vinted integration.
+ * What of the Vinted integration has actually been observed working on THIS device, route by route, and what has
+ * not — with the last failure when it is the current state. Fixture tests prove ERA's logic; never the real integration.
  */
 export function IntegrationsCard() {
   const i18n = useI18n();
   const { t } = i18n;
-  const ev = useLiveQuery(async () => {
-    const listings = await db.listings.filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '')).count();
-    const reserved = await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count();
-    const sold = await db.events.where('type').equals('ITEM_SOLD').filter((e) => !e.isDemo && e.provenance === 'OBSERVED').count();
-    const searches = await db.analyses.filter((a) => !a.isDemo && a.analysis.source === 'VINTED' && a.analysis.keptCount > 0).count();
-    const learned = !!(await db.settings.get(SEARCH_TEMPLATE_KEY))?.value || !!(await db.settings.get(SEARCH_MODE_KEY))?.value;
-    const purchases = await db.purchases.count();
-    // Writes: only what Vinted accepted here, as the journal recorded it (simulations excluded).
-    const okLog = await db.autoLog.filter((r) => r.ok && !r.dryRun).toArray();
-    const done = (...kinds: string[]) => okLog.filter((r) => kinds.includes(r.kind)).length;
-    return {
-      listings,
-      reserved,
-      sold,
-      searches,
-      learned,
-      purchases,
-      draft: done('DRAFT'),
-      label: done('LABEL'),
-      hide: done('HIDE', 'UNHIDE'),
-      repost: done('REPOST', 'DELETE'),
-      auto: done('FAV_MESSAGE', 'FAV_OFFER', 'FAV_BUNDLE', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'),
-      description: done('DESCRIPTION'),
-    };
-  }, []);
-  const rows: { key: string; n: number | null; flag?: 'EXPERIMENTAL' | 'UNVERIFIED' }[] = ev
-    ? [
-        { key: 'stock', n: ev.listings },
-        { key: 'sold', n: ev.sold },
-        { key: 'reserved', n: ev.reserved },
-        { key: 'search', n: ev.searches, flag: ev.learned ? 'UNVERIFIED' : undefined },
-        { key: 'purchases', n: ev.purchases },
-        { key: 'priceEdit', n: null, flag: 'EXPERIMENTAL' },
-        { key: 'description', n: ev.description, flag: 'EXPERIMENTAL' },
-        { key: 'draft', n: ev.draft, flag: 'EXPERIMENTAL' },
-        { key: 'label', n: ev.label, flag: 'EXPERIMENTAL' },
-        { key: 'hide', n: ev.hide, flag: 'EXPERIMENTAL' },
-        { key: 'repost', n: ev.repost, flag: 'EXPERIMENTAL' },
-        { key: 'auto', n: ev.auto, flag: 'EXPERIMENTAL' },
-      ]
-    : [];
+  const [checking, setChecking] = useState(false);
+  const rows = useLiveQuery(async () => integrationStatus(await integrationRecords()), [checking]) ?? [];
   const check = useLiveQuery(() => repo.getSetting<AccountCheck | null>(ACCOUNT_CHECK_KEY, null), []);
   const probed = (key: string) => {
     if (!check) return null;
@@ -173,39 +162,106 @@ export function IntegrationsCard() {
     if (key === 'reserved') return { ok: got[0]!.ok && /is_reserved présent/.test(got[0]!.info), info: got[0]!.info };
     return { ok: got.every((x) => x.ok), info: got.map((x) => x.info).join(' · ') };
   };
+  const when = (at: number | null) => (at === null ? '' : i18n.date(at));
+  const verified = rows.filter((r) => r.state === 'VERIFIED').length;
+  const failing = rows.filter((r) => r.state === 'FAILING').length;
+  const status = (r: IntegStatus) => {
+    const unverifiedFlag = r.write ? 'EXPERIMENTAL' : 'UNVERIFIED';
+    switch (r.state) {
+      case 'VERIFIED':
+        return (
+          <Badge tone="emerald" dot>
+            {t('integrations.verified', { n: r.n })}
+          </Badge>
+        );
+      case 'PARTIAL':
+        return (
+          <>
+            <Badge tone="amber" dot>
+              {r.key === 'reserved' ? t('integrations.fieldRead') : t('integrations.partial', { ok: r.routes.filter((x) => x.ok > 0).length, of: r.routes.length })}
+            </Badge>
+            <Flag kind={unverifiedFlag} title={t('integrations.partialHint')} />
+          </>
+        );
+      case 'FAILING':
+        return (
+          <Badge tone="coral" dot>
+            {r.lastFail?.at ? t('integrations.failedOn', { date: when(r.lastFail.at) }) : t('integrations.failed')}
+          </Badge>
+        );
+      case 'UNAVAILABLE':
+        return <Badge tone={STATE_TONE.UNAVAILABLE}>{t('integrations.unavailable')}</Badge>;
+      default:
+        return <Flag kind={unverifiedFlag} title={t(r.write ? 'integrations.untestedWrite' : 'integrations.untestedRead')} />;
+    }
+  };
+  const routeText = (r: IntegStatus['routes'][number]) =>
+    r.ok > 0
+      ? t('integrations.routeOk', { n: r.ok })
+      : r.unconfirmed > 0
+        ? t('integrations.routeUnconfirmed', { n: r.unconfirmed })
+        : r.lastFail
+          ? t('integrations.routeFailed', { date: when(r.lastFail.at) })
+          : t('integrations.routeNever');
   return (
     <Card title={t('integrations.title')} hint={t('integrations.hint')} icon="lock" tone="pink" id="integrations">
+      <div className="row-between wrap" style={{ gap: 10, marginBottom: 8 }}>
+        <span className="t-small t-muted" data-testid="integ-summary">
+          {t('integrations.summary', { ok: verified, of: rows.length })}
+          {failing > 0 && ` · ${t('integrations.summaryFailing', { n: failing })}`}
+        </span>
+        <Button
+          size="sm"
+          icon="check"
+          loading={checking}
+          onClick={async () => {
+            setChecking(true);
+            try {
+              const all = await runVintedDiagnostic(() => undefined, true);
+              await repo.setSetting(ACCOUNT_CHECK_KEY, { at: Date.now(), steps: all } satisfies AccountCheck);
+            } finally {
+              setChecking(false);
+            }
+          }}
+        >
+          {t('integrations.checkNow')}
+        </Button>
+      </div>
       <div className="integ">
-        {rows.map((r) => (
-          <div key={r.key} className="integ__row">
-            <div className="grow">
+        {rows.map((r) => {
+          const p = probed(r.key);
+          return (
+            <div key={r.key} className="integ__row" data-state={r.state}>
               <div className="integ__name">{t(`integrations.${r.key}`)}</div>
-              <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
-              {(() => {
-                const p = probed(r.key);
-                return p && check ? (
+              <div className="integ__status">{status(r)}</div>
+              <div className="integ__body">
+                <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
+                {r.routes.length > 1 && (
+                  <ul className="integ__routes">
+                    {r.routes.map((x) => (
+                      <li key={x.key} className={x.ok > 0 ? 't-pos' : x.lastFail ? 't-warn' : 't-faint'} title={x.lastFail ? x.lastFail.detail : undefined}>
+                        {t(`integrations.route.${x.key}`)} · {routeText(x)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {r.note && <div className="t-small t-muted">{t(`integrations.note.${r.note.key}`, { ...r.note.params, until: r.note.params?.until ? new Date(Number(r.note.params.until)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '' })}</div>}
+                {r.state === 'FAILING' && r.lastFail ? (
+                  <div className="t-small t-warn" style={{ overflowWrap: 'anywhere' }}>
+                    {t('integrations.lastFail', { detail: r.lastFail.detail })}
+                  </div>
+                ) : (
+                  r.lastOk !== null && <div className="t-small t-faint">{t('integrations.lastOk', { date: when(r.lastOk) })}</div>
+                )}
+                {p && check && (
                   <div className={`t-small ${p.ok ? 't-pos' : 't-warn'}`} title={p.info} style={{ overflowWrap: 'anywhere' }}>
                     {t(p.ok ? 'integrations.checkOk' : 'integrations.checkFail', { date: i18n.date(check.at) })}
                   </div>
-                ) : null;
-              })()}
+                )}
+              </div>
             </div>
-            <div className="integ__status">
-              {r.n && r.n > 0 ? (
-                <>
-                  <Badge tone="emerald" dot>
-                    {t('integrations.observed', { n: r.n })}
-                  </Badge>
-                  {r.flag && <Flag kind={r.flag} title={r.flag === 'UNVERIFIED' ? t('flag.learnedEndpoint') : undefined} />}
-                </>
-              ) : r.flag === 'EXPERIMENTAL' ? (
-                <Flag kind="EXPERIMENTAL" />
-              ) : (
-                <Flag kind="UNVERIFIED" />
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <p className="t-small t-muted" style={{ marginTop: 12 }}>
         {t('integrations.freeze')}

@@ -76,11 +76,13 @@ export interface ExpenseRow {
 export interface AutoLogRow {
   id: string;
   at: number;
-  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'FAV_BUNDLE' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT' | 'LABEL' | 'HIDE' | 'UNHIDE' | 'REPOST' | 'DELETE' | 'DESCRIPTION';
+  kind: 'RUN' | 'FAV_MESSAGE' | 'FAV_OFFER' | 'FAV_BUNDLE' | 'OFFER_ACCEPT' | 'OFFER_REJECT' | 'OFFER_COUNTER' | 'SKIP' | 'STOP' | 'DRAFT' | 'LABEL' | 'HIDE' | 'UNHIDE' | 'REPOST' | 'DELETE' | 'DESCRIPTION' | 'PRICE';
   dryRun: boolean;
   ok: boolean;
   target: string;
   detail: string;
+  /** Sent and accepted, but Vinted's read-back did not show the result: not a verified route. */
+  unconfirmed?: boolean;
 }
 
 export class EraDatabase extends Dexie {

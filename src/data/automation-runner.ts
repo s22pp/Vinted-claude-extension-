@@ -144,6 +144,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         out.done++;
         continue;
       }
+      // The step being sent, for the journal: a failed offer is not a failed message.
+      let step: 'FAV_MESSAGE' | 'FAV_OFFER' = plan.message ? 'FAV_MESSAGE' : 'FAV_OFFER';
       try {
         const conv = obj(obj(await write('POST', '/api/v2/conversations', { initiator: 'seller_enters_notification', item_id: Number(n.itemId), opposite_user_id: Number(n.userId) })).conversation);
         const convId = idOf(conv.id);
@@ -167,6 +169,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         }
         const txId = idOf(tx.id);
         if (plan.offerCents !== null && txId) {
+          step = 'FAV_OFFER';
           await write('POST', `/api/v2/transactions/${txId}/offers`, { offer: { price: (plan.offerCents / 100).toFixed(2), currency: 'EUR' } });
           await log({ kind: 'FAV_OFFER', dryRun, ok: true, target, detail: `offre ${eur(plan.offerCents)}${price !== null ? ` au lieu de ${eur(price)}` : ''}` });
         } else if (plan.note) {
@@ -179,7 +182,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       } catch (e) {
         out.failed++;
         const { code, detail } = errorInfo(e);
-        await log({ kind: 'FAV_MESSAGE', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        await log({ kind: step, dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
         const stop = stopReason(e);
         if (stop) {
           out.stopped = stop;

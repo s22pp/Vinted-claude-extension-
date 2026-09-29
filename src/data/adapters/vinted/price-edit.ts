@@ -1,5 +1,5 @@
 import { repo } from '../../repo';
-import { MarketplaceError } from '../marketplace';
+import { MarketplaceError, errorInfo } from '../marketplace';
 import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
 import type { DescEditResult, EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
@@ -22,7 +22,13 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
   if (!r.ok) throw new MarketplaceError(r.code);
 
   onStage('OPENING');
-  const tabId = await openEditTab(platformListingId);
+  let tabId: number;
+  try {
+    tabId = await openEditTab(platformListingId);
+  } catch (e) {
+    await journal('PRICE', false, platformListingId, failText(e));
+    throw e;
+  }
   let keepOpen = false;
   try {
     onStage('FILLING');
@@ -41,8 +47,12 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
       throw new MarketplaceError('NOT_APPLIED', after === null ? 'prix introuvable à la relecture' : `Vinted affiche toujours ${eurText(after, 2)}`);
     }
     await repo.updatePrice(itemId, cents, Date.now(), 'OBSERVED');
+    await journal('PRICE', true, platformListingId, `${before !== null ? `${eurText(before, 2)} → ` : ''}${eurText(after, 2)}, relu sur Vinted`);
     onStage('DONE');
     return { ok: true, before, after };
+  } catch (e) {
+    await journal('PRICE', false, platformListingId, failText(e));
+    throw e;
   } finally {
     if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
   }
@@ -98,19 +108,25 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
       throw new MarketplaceError('NOT_APPLIED', after === null ? 'description introuvable à la relecture' : 'Vinted affiche toujours l’ancienne description');
     }
     await db.listings.filter((l) => l.platformListingId === platformListingId).modify({ description: after });
-    await journal(true, platformListingId, `description remplacée (${after.length} caractères), relue sur Vinted`);
+    await journal('DESCRIPTION', true, platformListingId, `description remplacée (${after.length} caractères), relue sur Vinted`);
     return { ok: true };
   } catch (e) {
-    await journal(false, platformListingId, e instanceof Error ? e.message : String(e));
+    await journal('DESCRIPTION', false, platformListingId, failText(e));
     throw e;
   } finally {
     if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
   }
 }
 
-/** Every description sent is written in the local journal (what was done, or why not), like the other writes. */
-function journal(ok: boolean, listingId: string, detail: string) {
-  return db.autoLog.put({ id: uid('al'), at: Date.now(), kind: 'DESCRIPTION', dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
+/** What Vinted (or the page) answered, as every journal line says it: code, then detail. */
+function failText(e: unknown): string {
+  const { code, detail } = errorInfo(e);
+  return `${code}${detail ? ` · ${detail}` : ''}`;
+}
+
+/** Every price or description sent is written in the local journal (what was done, or why not), like the other writes. */
+function journal(kind: 'PRICE' | 'DESCRIPTION', ok: boolean, listingId: string, detail: string) {
+  return db.autoLog.put({ id: uid('al'), at: Date.now(), kind, dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
 }
 
 /** Verified read of one of MY listings' description (item_upload, `.item.description`). */
