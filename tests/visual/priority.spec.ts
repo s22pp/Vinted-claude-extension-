@@ -44,6 +44,8 @@ test('priority screens', async ({ context, base, extId }) => {
     const popup = await context.newPage();
     await popup.setViewportSize({ width: 380, height: 600 });
     await popup.goto(`chrome-extension://${extId}/popup.html`);
+    // After the app has applied the saved theme, or it would paint over the one asked for here.
+    await popup.getByTestId('pulse').waitFor();
     await popup.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     await popup.waitForTimeout(900);
     await popup.screenshot({ path: `${OUT}/popup-${theme}.png`, fullPage: true });

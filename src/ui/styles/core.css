@@ -236,37 +236,7 @@
   color: var(--text-3);
 }
 
-/* priorities */
-.prio {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-}
-.prio__item {
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-}
-.prio__item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--p, var(--cyan));
-}
-.prio__item--risk {
-  --p: var(--coral);
-}
-.prio__item--warning {
-  --p: var(--amber);
-}
-.prio__item--info {
-  --p: var(--cyan);
-}
-.prio__item--positive {
-  --p: var(--emerald);
-}
+/* priorities: tone on the icon only; the count and the arrow say where the row leads */
 .prio__body {
   display: flex;
   flex-direction: column;
@@ -277,22 +247,28 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: none;
   font-size: 12px;
   font-weight: 650;
   color: var(--text-3);
   transition:
-    color var(--t-normal) var(--ease),
-    transform var(--t-normal) var(--ease);
+    color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .prio__go .num {
-  min-width: 22px;
+  min-width: 24px;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: var(--r-pill);
   background: var(--surface-sunken);
   display: inline-grid;
   place-items: center;
   color: var(--text-2);
+}
+.prio__item--risk .prio__go .num {
+  background: var(--coral-soft);
+  /* As for badges: the tone lifted towards the text colour, readable (AA) on its tint, hovered row included. */
+  color: color-mix(in srgb, var(--coral) 70%, var(--text));
 }
 .prio__item:hover .prio__go {
   color: var(--text);
@@ -488,6 +464,23 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s-3);
 }
+.item-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+/* A phone: the photo above the title, so the title and the figures get the whole width. */
+@media (max-width: 760px) {
+  .item-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .item-hero > :first-child {
+    justify-self: start;
+  }
+}
 .dtile {
   display: flex;
   flex-direction: column;
@@ -615,9 +608,12 @@
   }
 }
 @media (max-width: 760px) {
-  .decision-grid,
+  /* Eight figures stay two by two on a phone: one per row made a page to scroll through before the comparables. */
   .mvy {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .dtile {
+    padding: var(--s-3);
   }
   .strat-table {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1758,4 +1754,46 @@
   font-size: 13px;
   font-weight: 550;
   color: var(--text-2);
+}
+
+/* ── Stock toolbar: search and view on one line, the filters under it ── */
+.stock-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) 1fr;
+  align-items: center;
+  gap: var(--s-3);
+}
+.stock-toolbar__view {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-2);
+}
+.stock-toolbar__filters {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (max-width: 760px) {
+  .stock-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stock-toolbar__view {
+    justify-content: flex-start;
+  }
+}
+/* A long recommendation stays in its cell: cut with an ellipsis, the full text in its tooltip. */
+.dt td .badge {
+  display: inline-block;
+  max-width: 180px;
+  line-height: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.dt td .badge .badge-dot {
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: 1px;
 }

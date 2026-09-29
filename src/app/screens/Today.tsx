@@ -5,8 +5,8 @@ import { monthlySeries, periodSales } from '@/intelligence/portfolio';
 import { BarChart, Legend, LineChart, Sparkline } from '@/ui/charts/charts';
 import { IconTile } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
-import { Button, Card, Delta, EmptyState, MetricFootPartial, MetricValue, Money, QualityTag } from '@/ui/components/primitives';
-import { ActivationProgress, ACTIVATION_STEPS, ItemCell, RecoChip, RecommendationCard } from '../components/domain';
+import { Button, Card, Delta, EmptyState, MetricFootPartial, MetricValue, QualityTag } from '@/ui/components/primitives';
+import { ActivationProgress, ACTIVATION_STEPS, RecommendationCard } from '../components/domain';
 import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
 import { DailyRun } from '../components/daily-run';
@@ -181,16 +181,22 @@ export function Today() {
           </div>
         </section>
 
-        <GoalCard />
-
         <DailyRun />
 
         <section aria-labelledby="prio-h">
-          <div className="row-between" style={{ marginBottom: 10 }}>
+          <div className="row-between wrap" style={{ marginBottom: 10, gap: 8 }}>
             <h2 className="t-caption" id="prio-h">
               {t('today.priorities')}
             </h2>
-            <span className="t-small t-faint">{t('today.prioritiesHint')}</span>
+            <span className="t-small t-faint">
+              {t('today.prioritiesHint')}
+              {recos.length > 0 && (
+                <>
+                  {' · '}
+                  <a href="#/stock?filter=attention">{t('today.allAdvice', { n: recos.length })} →</a>
+                </>
+              )}
+            </span>
           </div>
           {era.priorities.length === 0 ? (
             <Card>
@@ -200,6 +206,23 @@ export function Today() {
             <PriorityList priorities={era.priorities} />
           )}
         </section>
+
+        {/* The one advice worth doing first, explained (why, confidence, impact): the others are one click away. */}
+        {top?.recommendation && (
+          <section aria-labelledby="top-h" className="stack-3">
+            <div className="row-between wrap" style={{ gap: 8 }}>
+              <h2 className="t-caption clamp-1" id="top-h">
+                #1 · {top.view.item.title}
+              </h2>
+              <a className="t-small t-muted" href={`#/item/${top.view.item.id}`}>
+                {t('today.openItem')} →
+              </a>
+            </div>
+            <RecommendationCard r={top.recommendation} />
+          </section>
+        )}
+
+        <GoalCard />
 
         <div className="grid-12">
           <Card
@@ -248,53 +271,6 @@ export function Today() {
           </Card>
         </div>
 
-        <div className="grid-12">
-          <Card
-            className="span-7"
-            title={t('today.attention')}
-            hint={t('today.attentionHint')}
-            icon="alert"
-            tone="coral"
-            actions={
-              <Button size="sm" variant="ghost" iconRight="chevronRight" onClick={() => go('stock?filter=attention')}>
-                {t('today.seeAll')}
-              </Button>
-            }
-          >
-            {recos.length === 0 ? (
-              <p className="t-muted">{t('today.noPriorities')}</p>
-            ) : (
-              <div className="list">
-                {recos.slice(0, 7).map((x, idx) => (
-                  <a key={x.view.item.id} className="list__row" href={`#/item/${x.view.item.id}`} style={{ animationDelay: `${idx * 40}ms`, gridTemplateColumns: 'minmax(0,1fr) auto', color: 'inherit' }}>
-                    <ItemCell
-                      item={x.view.item}
-                      sub={
-                        <>
-                          {x.view.item.brand} · <Money cents={x.view.askPrice} /> · {x.view.daysHeld !== null ? t('kpi.days', { n: x.view.daysHeld }) : null}
-                        </>
-                      }
-                    />
-                    <RecoChip r={x.recommendation} />
-                  </a>
-                ))}
-              </div>
-            )}
-          </Card>
-          <div className="span-5 stack-3">
-            {top?.recommendation && (
-              <>
-                <div className="row-between">
-                  <span className="t-caption clamp-1">#1 · {top.view.item.title}</span>
-                  <a className="t-small t-muted" href={`#/item/${top.view.item.id}`}>
-                    {t('today.openItem')} →
-                  </a>
-                </div>
-                <RecommendationCard r={top.recommendation} />
-              </>
-            )}
-          </div>
-        </div>
       </div>
     </>
   );

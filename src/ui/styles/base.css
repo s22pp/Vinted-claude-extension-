@@ -368,6 +368,11 @@ a {
   gap: var(--s-2);
   flex-wrap: wrap;
 }
+/* A tab bar never pushes the page wider than the screen: it scrolls inside its own frame. */
+.page-head__tabs {
+  min-width: 0;
+  max-width: 100%;
+}
 
 .grid {
   display: grid;
@@ -1048,41 +1053,48 @@ textarea.input {
   color: var(--text-3);
 }
 
-/* ── Priority list (Today) ────────────────────────────── */
+/* ── Priority list (Today) ─────────────────────────────
+   One surface, compact rows: the icon carries the tone, the count says how many, the row opens them. */
 .prio {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 2px var(--s-3);
+  padding: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
 }
 .prio__item {
   display: flex;
   gap: var(--s-3);
-  align-items: flex-start;
-  padding: var(--s-4);
+  align-items: center;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
   border-radius: var(--r-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color var(--t-normal) var(--ease),
-    transform var(--t-normal) var(--ease),
-    background var(--t-normal) var(--ease);
-  animation: rise var(--t-slow) var(--ease) both;
+  transition: background-color var(--t-fast) var(--ease);
 }
 .prio__item:hover {
-  border-color: var(--border-strong);
   background: var(--surface-hover);
-  transform: translateY(-1px);
 }
 .prio__title {
   font-weight: 600;
+  font-size: 13.5px;
   line-height: 1.3;
 }
 .prio__hint {
   font-size: 12px;
   color: var(--text-3);
-  margin-top: 3px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @keyframes rise {
   from {
@@ -1321,7 +1333,7 @@ textarea.input {
   text-transform: uppercase;
   color: var(--text-3);
   background: var(--surface-solid);
-  padding: 0 12px;
+  padding: 0 10px;
   height: 38px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
@@ -1345,10 +1357,20 @@ textarea.input {
   flex-direction: row-reverse;
 }
 .dt td {
-  padding: 0 12px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   vertical-align: middle;
+}
+/* A long title ends in "…" (full name on hover) instead of pushing the last columns out of a 1366 px screen. */
+.dt__title {
+  font-weight: 550;
+  max-width: 190px;
+}
+@media (min-width: 1600px) {
+  .dt__title {
+    max-width: 320px;
+  }
 }
 .dt tbody tr {
   cursor: pointer;
@@ -2155,8 +2177,18 @@ textarea.input {
     grid-template-columns: 1fr;
     gap: 4px;
   }
-  .topbar__hide-sm {
+  /* Scoped to the top bar so it wins over a component's own display (the palette button is inline-flex). */
+  .topbar .topbar__hide-sm {
     display: none;
+  }
+}
+/* A phone: the top bar keeps every action, the secondary words go (the buttons keep their names for screen readers). */
+@media (max-width: 480px) {
+  .topbar .topbar__label {
+    display: none;
+  }
+  .topbar {
+    gap: var(--s-2);
   }
 }
 

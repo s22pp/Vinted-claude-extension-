@@ -179,18 +179,15 @@ export function Stock({ route }: { route: Route }) {
         tabs={<StockTabs active="stock" />}
         actions={
           <>
-            <VintedImportButton />
             <Button icon="upload" onClick={() => setImportOpen(true)}>
               {t('stock.import')}
             </Button>
             <Button icon="rows" variant="ghost" onClick={() => downloadText(`era-stock-${new Date(era.now).toISOString().slice(0, 10)}.csv`, stockCsv(era.views.filter((v) => v.inStock)))}>
               {t('stock.exportCsv')}
             </Button>
+            {/* "Ajouter" lives in the top bar, on every screen: a second one here would only repeat it. */}
             <Button icon="layers" onClick={() => go('stock?lot=1')}>
               {t('lot.button')}
-            </Button>
-            <Button variant="primary" icon="plus" onClick={() => go('stock?add=1')}>
-              {t('stock.add')}
             </Button>
           </>
         }
@@ -218,11 +215,42 @@ export function Stock({ route }: { route: Route }) {
               count={visible.length}
             />
           )}
-          <div className="toolbar">
-            <div style={{ width: 300, maxWidth: '100%' }}>
+          <div className="toolbar stock-toolbar">
+            <div className="stock-toolbar__search">
               <SearchInput value={q} onChange={setQ} placeholder={t('stock.search')} inputRef={searchRef} />
             </div>
-            <div className="row wrap" role="group" aria-label="Filtres" style={{ gap: 6 }}>
+            <div className="stock-toolbar__view">
+              <Segmented
+                label={t('stock.density')}
+                value={density}
+                onChange={setDensity}
+                options={[
+                  { value: 'compact', label: <Icon name="rows" size={14} />, ariaLabel: t('stock.compact') },
+                  { value: 'comfortable', label: <Icon name="layers" size={14} />, ariaLabel: t('stock.comfortable') },
+                ]}
+              />
+              <div style={{ position: 'relative' }}>
+                <Button size="sm" icon="columns" onClick={() => setShowCols((s) => !s)} aria-expanded={showCols}>
+                  {t('stock.columns')}
+                </Button>
+                {showCols && (
+                  <div className="card menu-pop" style={{ position: 'absolute', right: 0, top: 38, zIndex: 20, width: 220, padding: 12, boxShadow: 'var(--shadow-3)' }} role="menu">
+                    {ALL_COLS.map((c) => (
+                      <label key={c} className="row t-small" style={{ padding: '5px 4px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          className="checkbox"
+                          checked={cols.includes(c)}
+                          onChange={() => setCols((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : ALL_COLS.filter((x) => x === c || cs.includes(x))))}
+                        />
+                        {t(`stock.col.${c}`)}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="stock-toolbar__filters" role="group" aria-label="Filtres">
               {filters.map((f) => (
                 <button
                   key={f.value}
@@ -238,36 +266,6 @@ export function Stock({ route }: { route: Route }) {
                   <span className="chip__n num">{counts[f.value]}</span>
                 </button>
               ))}
-            </div>
-            <span className="grow" />
-            <Segmented
-              label={t('stock.density')}
-              value={density}
-              onChange={setDensity}
-              options={[
-                { value: 'compact', label: <Icon name="rows" size={14} />, ariaLabel: t('stock.compact') },
-                { value: 'comfortable', label: <Icon name="layers" size={14} />, ariaLabel: t('stock.comfortable') },
-              ]}
-            />
-            <div style={{ position: 'relative' }}>
-              <Button size="sm" icon="columns" onClick={() => setShowCols((s) => !s)} aria-expanded={showCols}>
-                {t('stock.columns')}
-              </Button>
-              {showCols && (
-                <div className="card" style={{ position: 'absolute', right: 0, top: 38, zIndex: 20, width: 220, padding: 12, boxShadow: 'var(--shadow-3)' }} role="menu">
-                  {ALL_COLS.map((c) => (
-                    <label key={c} className="row t-small" style={{ padding: '5px 4px', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        className="checkbox"
-                        checked={cols.includes(c)}
-                        onChange={() => setCols((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : ALL_COLS.filter((x) => x === c || cs.includes(x))))}
-                      />
-                      {t(`stock.col.${c}`)}
-                    </label>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 

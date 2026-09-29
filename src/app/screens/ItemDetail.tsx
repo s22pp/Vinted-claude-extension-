@@ -81,7 +81,7 @@ export function ItemDetail({ id }: { id: string }) {
         <BackLink href="#/stock" label={t('item.back')} />
       </div>
 
-      <header className="card" style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: 20, alignItems: 'center', marginBottom: 16 }}>
+      <header className="card item-hero">
         <Thumb photoUrl={item.photoUrl} category={item.category} alt={item.title} size="lg" />
         <div className="stack-3" style={{ minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 8 }}>

@@ -17,6 +17,7 @@ import { LogoMark } from '@/ui/components/Logo';
 import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages, Skeleton } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, RecommendationCard, StatusBadge } from '../components/domain';
+import { PRIO, priorityHref, usePriorityTitle } from '../components/priorities';
 import { OfferCalculator } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
@@ -106,6 +107,7 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
 
   const own = ownItemId ? (era.intelById.get(ownItemId) ?? null) : null;
   const urgent = era.priorities.filter((p) => p.tone === 'risk' || p.tone === 'warning');
+  const priorityTitle = usePriorityTitle();
 
   // Still loading: an outline, never the "import your stock" card a seller with data would briefly see.
   if (!era.ready) {
@@ -155,37 +157,40 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
         </section>
       )}
 
-      <section className="card" style={{ padding: 14 }} aria-label={t('popup.context')}>
-        <div className="t-caption" style={{ marginBottom: 8 }}>
-          {t('popup.context')}
-        </div>
-        {ctx.status === 'loading' ? (
-          <span className="skeleton" style={{ display: 'block', height: 44 }} />
-        ) : ctx.status === 'none' ? (
-          <p className="t-small t-muted row" style={{ gap: 8, alignItems: 'flex-start' }}>
-            <Icon name="info" size={15} /> {t('popup.noContext')}
-          </p>
-        ) : ctx.status === 'external' ? (
-          <SourcingCard key={ctx.tabId} tabId={ctx.tabId} host={ctx.host} />
-        ) : !ctx.item ? (
-          <p className="t-small t-muted">{t('popup.notRecognized')}</p>
-        ) : (
-          <div className="stack-3">
-            <div className="row" style={{ gap: 10 }}>
-              <Thumb photoUrl={ctx.item.photoUrl} category={categoriesInTitle(normalizeText(ctx.item.title))[0] ?? 'OTHER'} alt={ctx.item.title} />
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="clamp-1" style={{ fontWeight: 600 }}>
-                  {ctx.item.title}
-                </div>
-                <div className="t-small t-muted">
-                  {ctx.item.brand ?? '—'} · <Money cents={ctx.item.priceCents} />
+      {ctx.status === 'none' ? (
+        // Nothing to analyse on this tab: one quiet line, not a card.
+        <p className="t-small t-muted row" style={{ gap: 8, alignItems: 'flex-start', padding: '0 2px' }}>
+          <Icon name="info" size={15} /> {t('popup.noContext')}
+        </p>
+      ) : (
+        <section className="card" style={{ padding: 14 }} aria-label={t('popup.context')}>
+          <div className="t-caption" style={{ marginBottom: 8 }}>
+            {t('popup.context')}
+          </div>
+          {ctx.status === 'loading' ? (
+            <span className="skeleton" style={{ display: 'block', height: 44 }} />
+          ) : ctx.status === 'external' ? (
+            <SourcingCard key={ctx.tabId} tabId={ctx.tabId} host={ctx.host} />
+          ) : !ctx.item ? (
+            <p className="t-small t-muted">{t('popup.notRecognized')}</p>
+          ) : (
+            <div className="stack-3">
+              <div className="row" style={{ gap: 10 }}>
+                <Thumb photoUrl={ctx.item.photoUrl} category={categoriesInTitle(normalizeText(ctx.item.title))[0] ?? 'OTHER'} alt={ctx.item.title} />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="clamp-1" style={{ fontWeight: 600 }}>
+                    {ctx.item.title}
+                  </div>
+                  <div className="t-small t-muted">
+                    {ctx.item.brand ?? '—'} · <Money cents={ctx.item.priceCents} />
+                  </div>
                 </div>
               </div>
+              {own ? <OwnItem mode={mode} itemId={own.view.item.id} /> : <BuyQuick mode={mode} item={ctx.item} />}
             </div>
-            {own ? <OwnItem mode={mode} itemId={own.view.item.id} /> : <BuyQuick mode={mode} item={ctx.item} />}
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      )}
 
       {!own && era.mode !== 'empty' && (
         <section className="card" style={{ padding: 14 }}>
@@ -194,16 +199,11 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
             <span className="t-small t-faint">{urgent.length ? t('popup.attention', { n: urgent.length }) : t('popup.allGood')}</span>
           </div>
           <div className="stack" style={{ gap: 6 }}>
+            {/* Same icon, words and destination as on Today: a priority opens the items it counts. */}
             {era.priorities.slice(0, mode === 'popup' ? 3 : 6).map((p) => (
-              <button key={p.code} type="button" className="choice" style={{ padding: '8px 10px' }} onClick={() => openDashboard('today')}>
-                <IconTile name={p.tone === 'risk' ? 'hourglass' : p.tone === 'positive' ? 'trendUp' : p.tone === 'info' ? 'info' : 'capital'} tone={p.tone === 'risk' ? 'coral' : p.tone === 'positive' ? 'emerald' : p.tone === 'info' ? 'cyan' : 'amber'} size="sm" />
-                <span className="t-small grow">
-                  {p.code === 'CAPITAL_AGED'
-                    ? t('today.P_CAPITAL_AGED', { amount: p.amount && p.amount.status !== 'unknown' ? p.amount.value : null })
-                    : p.code === 'NICHE'
-                      ? t('today.P_NICHE', { label: p.label ?? '' })
-                      : t(`today.P_${p.code}`, { n: p.count })}
-                </span>
+              <button key={p.code} type="button" className="choice" style={{ padding: '8px 10px' }} onClick={() => openDashboard(priorityHref(p))}>
+                <IconTile name={PRIO[p.code].icon} tone={PRIO[p.code].tone} size="sm" />
+                <span className="t-small grow">{priorityTitle(p)}</span>
               </button>
             ))}
           </div>

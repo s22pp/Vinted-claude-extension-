@@ -14,8 +14,11 @@ test('timings', async ({ context, base, extId }) => {
   await loadDemo(page, base);
   const r: Record<string, number[]> = { dashboardOpen: [], toStock: [], toBuy: [], toInsights: [], toItem: [], popupOpen: [] };
   for (let i = 0; i < RUNS; i++) {
-    // Dashboard, from a fresh tab to Today's figures.
+    // Dashboard, from a fresh tab to Today's figures. Only that tab open, in front: a background tab's frames are
+    // throttled by the browser, which would time the throttling, not ERA.
+    for (const p of context.pages()) if (p !== page) await p.close();
     const tab = await context.newPage();
+    await tab.bringToFront();
     let t0 = Date.now();
     await tab.goto(`${base}#/today`);
     await tab.locator('.cockpit__hero').first().waitFor();
@@ -34,13 +37,16 @@ test('timings', async ({ context, base, extId }) => {
     }
     await tab.goto(`${base}#/stock?filter=listed`);
     await tab.locator('tbody tr[aria-rowindex]').first().waitFor();
+    // Let the page settle first: this measures opening the article, not the Stock page's own entrance.
+    await tab.waitForTimeout(400);
     t0 = Date.now();
     await tab.locator('tbody tr[aria-rowindex]').first().click();
-    await tab.locator('.page h1').first().waitFor();
+    await tab.locator('#main a.btn[href="#/stock"]').first().waitFor();
     r.toItem!.push(Date.now() - t0);
     await tab.close();
     // The toolbar popup, to its pulse line.
     const popup = await context.newPage();
+    await popup.bringToFront();
     await popup.setViewportSize({ width: 380, height: 600 });
     t0 = Date.now();
     await popup.goto(`chrome-extension://${extId}/popup.html`);

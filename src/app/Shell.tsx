@@ -128,8 +128,8 @@ function Topbar() {
           {t('buy.title')}
         </Button>
       </span>
-      <Button size="sm" variant="primary" icon="plus" onClick={() => go('stock?add=1')}>
-        {t('stock.add')}
+      <Button size="sm" variant="primary" icon="plus" aria-label={t('stock.add')} onClick={() => go('stock?add=1')}>
+        <span className="topbar__label">{t('stock.add')}</span>
       </Button>
       <IconButton
         icon={themeIcon[theme]}

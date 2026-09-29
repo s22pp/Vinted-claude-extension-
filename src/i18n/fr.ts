@@ -132,6 +132,7 @@ export const fr = {
     performanceHint: 'Chiffre d’affaires et profit connu, 12 derniers mois',
     attention: 'Articles prioritaires',
     attentionHint: 'Classés par impact',
+    allAdvice: 'tous les conseils ({n})',
     analyzeStock: 'Analyser le stock ({n})',
     seeAll: 'Tout voir',
     capitalAge: 'Âge du capital',

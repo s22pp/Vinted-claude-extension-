@@ -235,7 +235,7 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
                 <td style={{ maxWidth: 340 }}>
                   <span className="row" style={{ gap: 10 }}>
                     <Thumb photoUrl={r.v.item.photoUrl} category={r.v.item.category} alt="" size={density === 'compact' ? 'sm' : 'md'} />
-                    <span className="clamp-1" style={{ fontWeight: 550 }}>
+                    <span className="clamp-1 dt__title" title={r.v.item.title}>
                       {r.v.item.title}
                     </span>
                   </span>

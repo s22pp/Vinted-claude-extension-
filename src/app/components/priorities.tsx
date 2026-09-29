@@ -46,17 +46,11 @@ export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
   const title = usePriorityTitle();
   return (
     <div className="prio">
-      {priorities.map((p, idx) => {
+      {priorities.map((p) => {
         const cfg = PRIO[p.code];
         return (
-          <button
-            key={p.code}
-            type="button"
-            className={`prio__item prio__item--${p.tone}`}
-            style={{ animationDelay: `${idx * 55}ms` }}
-            onClick={() => go(priorityHref(p))}
-          >
-            <IconTile name={cfg.icon} tone={cfg.tone} />
+          <button key={p.code} type="button" className={`prio__item prio__item--${p.tone}`} onClick={() => go(priorityHref(p))}>
+            <IconTile name={cfg.icon} tone={cfg.tone} size="sm" />
             <span className="prio__body">
               <span className="prio__title">{title(p)}</span>
               <span className="prio__hint">{t(`today.P_${p.code}_hint`)}</span>
