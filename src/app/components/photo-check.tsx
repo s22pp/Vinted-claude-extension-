@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { type PhotoReport, SHOT_CHECKLIST } from '@/intelligence/photo';
 import { analyzeImageBlob } from '@/lib/photo-pixels';
-import { Ring } from '@/ui/charts/charts';
+import { Ring } from '@/ui/charts/ring';
 import { Badge } from '@/ui/components/primitives';
 
 async function analyzeFile(f: File): Promise<{ url: string; name: string; report: PhotoReport }> {

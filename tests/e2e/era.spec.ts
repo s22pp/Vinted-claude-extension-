@@ -182,6 +182,9 @@ test('motion: "Réduites" in Réglages stops the movement at once, kept after a 
   await page.locator('.prio__item').first().waitFor();
   const durations = await page.evaluate(() => ['.page', '.prio'].map((s) => getComputedStyle(document.querySelector(s)!).animationDuration));
   for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.001);
+  // Nor a stagger: the chart bars, delayed by their rank otherwise, all show at once.
+  await page.locator('.chart-bar').nth(2).waitFor();
+  expect(await page.locator('.chart-bar').nth(2).evaluate((el) => getComputedStyle(el).animationDelay)).toBe('0s');
   await page.goto(`${base}#/settings`);
   await page.getByRole('group', { name: 'Animations' }).getByRole('button', { name: 'Comme le système' }).click();
   await expect(page.locator('html')).not.toHaveAttribute('data-motion', 'reduced');

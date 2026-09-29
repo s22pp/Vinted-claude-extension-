@@ -4,7 +4,7 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type BuyAnalysis, analyzeBuy, buySubject } from '@/intelligence/buy';
 import { personalEvidence, realizedFor } from '@/intelligence/seller-model';
-import { Ring } from '@/ui/charts/charts';
+import { Ring } from '@/ui/charts/ring';
 import { IllustrationBuy } from '@/ui/components/illustrations';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Field, Flag, Input, Stages, Tabs } from '@/ui/components/primitives';

@@ -170,6 +170,8 @@
   *::before,
   *::after {
     animation-duration: 1ms !important;
+    /* No stagger either: an entrance delayed by its rank would keep the element hidden for nothing. */
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
@@ -185,6 +187,7 @@
 :root[data-motion='reduced'] *::before,
 :root[data-motion='reduced'] *::after {
   animation-duration: 1ms !important;
+  animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
   transition-duration: 1ms !important;
   scroll-behavior: auto !important;

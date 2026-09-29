@@ -11,7 +11,7 @@ import { skuOf, titleIssues } from '@/intelligence/listing';
 import type { ItemView } from '@/intelligence/portfolio';
 import { withWord } from '@/intelligence/title-words';
 import { type CheckKey, type PackageSize, brandWarning, draftDescription, draftTitle, measureFields, readiness, suggestPrice, suggestedPackage } from '@/intelligence/workshop';
-import { Ring } from '@/ui/charts/charts';
+import { Ring } from '@/ui/charts/ring';
 import { Icon } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Input, Money, QualityTag, Segmented } from '@/ui/components/primitives';

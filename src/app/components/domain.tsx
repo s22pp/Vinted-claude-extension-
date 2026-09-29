@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n';
 import type { Coded, Recommendation } from '@/intelligence/decision';
 import type { PricingResult } from '@/intelligence/pricing';
 import type { StagnationDiagnosis } from '@/intelligence/stagnation';
-import { Ring } from '@/ui/charts/charts';
+import { Ring } from '@/ui/charts/ring';
 import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, type BadgeTone, Button, ConfidenceMeter, Tooltip } from '@/ui/components/primitives';

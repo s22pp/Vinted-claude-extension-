@@ -11,7 +11,7 @@ import { personalEvidence } from '@/intelligence/seller-model';
 import { periodStats } from '@/intelligence/review';
 import { DAY } from '@/domain/time';
 import { vintedLanded } from '@/intelligence/shopping';
-import { Ring } from '@/ui/charts/charts';
+import { Ring } from '@/ui/charts/ring';
 import { Icon, IconTile } from '@/ui/components/icons';
 import { LogoMark } from '@/ui/components/Logo';
 import { Badge, Button, DemoBadge, ErrorState, Money, Sample, Stages, Skeleton } from '@/ui/components/primitives';

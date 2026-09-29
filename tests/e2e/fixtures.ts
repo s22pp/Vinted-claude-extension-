@@ -6,7 +6,8 @@ import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const EXT = path.resolve('.output/chrome-mv3');
+// ERA_EXT: another build to load (the source-mapped one of `npm run analyze`, to profile).
+const EXT = path.resolve(process.env.ERA_EXT ?? '.output/chrome-mv3');
 
 /**
  * The extension's ID, fixed by the public key in its manifest (see wxt.config.ts): read from the build instead of
