@@ -1,6 +1,6 @@
 import { errorInfo } from '../marketplace';
 import { db } from '../../db';
-import { DEFAULT_SEARCH_TEMPLATE, SEARCH_TEMPLATE_KEY, VintedTabAdapter, ensureVintedTab, findVintedTab } from './vinted-adapter';
+import { DEFAULT_SEARCH_TEMPLATE, SEARCH_DOWN_KEY, SEARCH_TEMPLATE_KEY, VintedTabAdapter, ensureVintedTab, findVintedTab } from './vinted-adapter';
 import { PURCHASES_TEMPLATE_KEY } from './orders';
 import { currentUserId, firstArray } from './parse';
 import type { BudgetStatus, EraMessage } from './protocol';
@@ -70,6 +70,8 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
   }
 
   try {
+    // The seller asked for this test: a search paused after failures is tried again now.
+    await db.settings.delete(SEARCH_DOWN_KEY);
     const res = await adapter.searchComparables({ text: 'veste ralph lauren', brand: 'Ralph Lauren', category: 'JACKET', gender: null, size: null, condition: null });
     const used = ((await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined) ?? DEFAULT_SEARCH_TEMPLATE;
     push({

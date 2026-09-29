@@ -61,6 +61,12 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
 }
 
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
+/**
+ * After every known form of the search answered 404: the search is paused for a while, its explanation kept.
+ * Calls that can only fail again are not spent against the budget (nor seen by Vinted); the diagnostic lifts it.
+ */
+export const SEARCH_DOWN_KEY = 'vintedSearchDown';
+export const SEARCH_PAUSE_MS = 30 * 60_000;
 export const ERROR_LOG_KEY = 'vintedErrorLog';
 
 export interface VintedErrorEntry {
@@ -252,6 +258,11 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   }
 
   async searchComparables(query: ComparableQuery): Promise<SearchResult> {
+    const down = (await db.settings.get(SEARCH_DOWN_KEY))?.value as { until: number; detail: string } | undefined;
+    if (down && down.until > Date.now()) {
+      const at = new Date(down.until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      throw new MarketplaceError('UNAVAILABLE', `recherche Vinted en pause jusqu’à ${at} (aucun appel envoyé) · ${down.detail}`);
+    }
     const stored = (await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined;
     const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
     let json: unknown;
@@ -278,16 +289,28 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     }
     if (json === undefined) {
       const learned = await discoverSearchTemplate(query.text);
-      if (!learned.template || learned.template === template) {
-        const err = new MarketplaceError(
-          'UNAVAILABLE',
-          `recherche Vinted introuvable · ${attempts.join(' · ')} · page de recherche : ${learned.template ? 'même adresse' : `appels observés : ${learned.observed.join(' | ') || 'aucun'}`}`,
-        );
+      // What Vinted's own search page called (paths only): the fact that decides what to do next, kept in every report.
+      const observed = ` · appels observés sur la page de recherche : ${[...new Set(learned.observed)].join(' | ') || 'aucun'}`;
+      const giveUp = async (tail: string) => {
+        const detail = `recherche Vinted introuvable · ${attempts.join(' · ')}${tail}`;
+        // Every form failed: pause the search rather than send calls that can only answer 404 again.
+        await db.settings.put({ key: SEARCH_DOWN_KEY, value: { until: Date.now() + SEARCH_PAUSE_MS, detail } });
+        const err = new MarketplaceError('UNAVAILABLE', detail);
         await logVintedError(err.code, err.message, 'catalog');
-        throw err;
+        return err;
+      };
+      if (!learned.template || learned.template === template) throw await giveUp(` · page de recherche : ${learned.template ? 'même adresse' : 'aucune adresse de recherche lue'}${observed}`);
+      // The address Vinted's own search page used: tried once, and kept only if it answers.
+      try {
+        json = await this.api(fillTemplate(learned.template, query.text));
+      } catch (e3) {
+        if (!(e3 instanceof MarketplaceError) || !/HTTP 404/.test(e3.message)) throw e3;
+        const samePath = learned.template.split('?')[0] === template.split('?')[0];
+        attempts.push(`adresse de la page de recherche ${learned.template.split('?')[0]} → ${short(e3)}`);
+        // Same path as ours, refused all the same: the difference is in the request, not the address.
+        throw await giveUp(`${samePath ? ' · même chemin que la page de Vinted : la différence vient de la requête, pas de l’adresse' : ''}${observed}`);
       }
       await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: learned.template });
-      json = await this.api(fillTemplate(learned.template, query.text));
       learnedUsed = true;
     }
     // A search answers with a list of listings (`items`, even empty). Anything else is another endpoint: a learned
