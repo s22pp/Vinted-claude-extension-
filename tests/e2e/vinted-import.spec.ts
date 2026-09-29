@@ -346,6 +346,9 @@ test('search moved (404): ERA learns the endpoint from Vinted’s own search pag
 });
 
 test('search unreachable everywhere: the report lists every try, the journal keeps it', async ({ context, base }) => {
+  // Every search form fails, then the search page is opened: ~35 s at best, and the diagnostic may first reopen
+  // its vinted.fr tab (see importThenOpen). The wait below needs room inside the test's own time.
+  test.setTimeout(120_000);
   await fakeVinted(context, { loggedIn: true, searchDead: true });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
