@@ -532,6 +532,7 @@ export const fr = {
     risk: 'Comparables {quality} · remboursements {refund} %',
     rarity: '{supply} annonces concurrentes',
     rarityCapped: 'Offre ≥ 960 : marché saturé',
+    rarityUnknown: 'Nombre d’annonces concurrentes inconnu : score neutre',
     resalePersonal: '{n} ventes de cette marque, {days} j médians',
     resaleUnknown: 'Pas d’historique sur cette marque',
     capital: 'Capital immobilisé : {cost}',

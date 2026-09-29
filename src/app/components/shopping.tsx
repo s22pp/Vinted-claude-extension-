@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { type Deal, type ShoppingLine, findDeals, shoppingList } from '@/intelligence/shopping';
-import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Money, Sample } from '@/ui/components/primitives';
+import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Flag, Money, Sample } from '@/ui/components/primitives';
 import { marketAdapter } from '../market-run';
 import { go, useEra } from '../state';
 
@@ -98,10 +98,13 @@ export function DealScanner() {
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [demo, setDemo] = useState(false);
+  // How the results were read when not through Vinted's own search API (page cards, learned address): never verified.
+  const [via, setVia] = useState<'PAGE' | 'LEARNED' | null>(null);
 
   const scan = async () => {
     setError(null);
     setDeals(null);
+    setVia(null);
     const adapter = await marketAdapter(era.mode, false);
     setDemo(adapter.isDemo);
     const own = new Set(era.views.flatMap((v) => v.listings.map((l) => l.platformListingId).filter((x): x is string => !!x)));
@@ -111,6 +114,7 @@ export function DealScanner() {
         setBusy(l.label);
         const r = await adapter.searchComparables({ text: l.label, brand: l.brand ?? '', category: l.category, gender: null, size: null, condition: null });
         found.push(...findDeals(l, r, own));
+        if (r.via) setVia((v) => (v === 'PAGE' ? v : r.via!));
       }
       setDeals(found.sort((a, b) => b.marginCents - a.marginCents));
     } catch (e) {
@@ -139,6 +143,7 @@ export function DealScanner() {
               {busy ? t('scanner.scanning', { niche: busy }) : t('scanner.run', { n: top.length })}
             </Button>
             {demo && <DemoBadge />}
+            {via && <Flag kind="UNVERIFIED" title={t(via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
           </div>
           {error != null && <ErrorState error={error} />}
         </div>

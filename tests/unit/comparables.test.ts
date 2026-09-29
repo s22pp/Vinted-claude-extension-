@@ -97,6 +97,23 @@ describe('comparable engine', () => {
     expect(a.exclusions.DUPLICATE).toBe(1);
   });
 
+  it('seller unknown (listings read on the search page): same title and price from two listings are two comparables', () => {
+    const base = goodSet([40, 42, 45, 46, 48, 50, 52, 54, 55]).map((x) => ({ ...x, sellerId: null }));
+    const twin = { ...base[0]!, id: 'twin-id' };
+    const a = analyzeComparables(
+      subject,
+      [
+        { candidates: [...base, twin], totalEntries: null, totalCapped: false, fetchedAt: 0 },
+        { candidates: base.slice(0, 2), totalEntries: null, totalCapped: false, fetchedAt: 0 },
+      ],
+      { queries: ['a', 'b'], source: 'VINTED', now: 0 },
+    );
+    // The same id surfaced by the second query is still not new evidence.
+    expect(a.keptCount).toBe(10);
+    expect(a.exclusions.DUPLICATE ?? 0).toBe(0);
+    expect(a.totalEntries).toBeNull();
+  });
+
   it('computes a robust distribution and positions the current price', () => {
     const a = run(goodSet([38, 40, 42, 44, 45, 46, 47, 48, 50, 52, 54, 55, 56, 58, 60, 62]));
     const d = a.distribution!;

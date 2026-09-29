@@ -229,8 +229,12 @@ function weighted(d: SimilarityBreakdown): number {
   return s;
 }
 
+/**
+ * Same seller, same title, same price: one listing reposted. With no seller (listings read on the search page), two
+ * members can sell the same thing at the same price: only the listing id tells them apart.
+ */
 function dedupeKey(c: MarketCandidate): string {
-  return `${c.sellerId ?? '?'}|${normalizeText(c.title)}|${c.priceCents}`;
+  return c.sellerId === null ? `id:${c.id}` : `${c.sellerId}|${normalizeText(c.title)}|${c.priceCents}`;
 }
 
 /**

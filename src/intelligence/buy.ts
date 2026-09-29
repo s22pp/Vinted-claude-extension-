@@ -193,7 +193,7 @@ export function analyzeBuy(
   // Rarity: supply size. A capped total ("≥ 960") is a crowded market.
   const supply = analysis.totalEntries;
   const rarity = analysis.totalCapped ? 0.15 : supply === null ? 0.5 : 1 - clamp(Math.log10(Math.max(supply, 10) / 30) / Math.log10(960 / 30));
-  push('rarity', rarity, supply === null ? 'INFERRED' : 'MARKET', analysis.totalCapped ? 'deal.rarityCapped' : 'deal.rarity', {
+  push('rarity', rarity, supply === null ? 'INFERRED' : 'MARKET', analysis.totalCapped ? 'deal.rarityCapped' : supply === null ? 'deal.rarityUnknown' : 'deal.rarity', {
     supply: supply ?? '—',
   });
 

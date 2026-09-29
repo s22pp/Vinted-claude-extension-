@@ -1,12 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import type { EraMessage } from '@/data/adapters/vinted/protocol';
-import { ALERT_NICHES, type AlertDeal, BUY_ALERTS_KEY, BUY_LAST_KEY } from '@/data/buy-alerts';
+import { ALERT_NICHES, type AlertDeal, BUY_ALERTS_KEY, BUY_LAST_KEY, type BuyAlertsLast } from '@/data/buy-alerts';
 import { REFRESH_KEY, type RefreshConfig } from '@/data/refresh';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { useToast } from '@/ui/components/overlays';
-import { Button, Card, Money } from '@/ui/components/primitives';
+import { Button, Card, Flag, Money } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
 
 /** Buy alerts: switch, "check now", and the last listings found under your max. */
@@ -16,7 +16,7 @@ export function BuyAlertsCard() {
   const toast = useToast();
   const cfg = useLiveQuery(() => repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null), []);
   const refresh = useLiveQuery(() => repo.getSetting<Partial<RefreshConfig> | null>(REFRESH_KEY, null), []);
-  const last = useLiveQuery(() => repo.getSetting<{ at: number; deals: AlertDeal[] } | null>(BUY_LAST_KEY, null), []);
+  const last = useLiveQuery(() => repo.getSetting<BuyAlertsLast | null>(BUY_LAST_KEY, null), []);
   const [local, setLocal] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   if (cfg === undefined || era.mode !== 'real') return null;
@@ -61,7 +61,10 @@ export function BuyAlertsCard() {
         </div>
         {last && last.deals.length > 0 && (
           <div className="stack" style={{ gap: 6 }}>
-            <span className="t-caption">{t('alerts.last', { when: relative(last.at, era.now) })}</span>
+            <span className="t-caption row" style={{ gap: 8 }}>
+              {t('alerts.last', { when: relative(last.at, era.now) })}
+              {last.via && <Flag kind="UNVERIFIED" title={t(last.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+            </span>
             {last.deals.map((d) => (
               <div key={d.id} className="row-between t-small" style={{ gap: 10, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
                 <a href={d.url} target="_blank" rel="noopener noreferrer" className="clamp-1">

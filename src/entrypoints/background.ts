@@ -64,7 +64,7 @@ async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise
   await updateBadge();
   // Scheduled refresh: the buy alerts run right after, if switched on (a few budgeted searches).
   if (auto && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && !(await budget.status()).halted) {
-    const { deals } = await runBuyAlerts();
+    const { deals, via } = await runBuyAlerts();
     if (deals.length && (await loadRefreshConfig()).notify)
       await browser.notifications
         .create(`era-deals-${Date.now()}`, {
@@ -75,6 +75,8 @@ async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise
             .slice(0, 3)
             .map((d) => `${d.title} · ${(d.priceCents / 100).toFixed(0)} € → marge ~${Math.round(d.marginCents / 100)} €`)
             .join('\n'),
+          // Listings read on the search page (or through an address learned from it): an unverified reading, said so.
+          ...(via ? { contextMessage: via === 'PAGE' ? 'Lu sur la page de recherche Vinted · expérimental' : 'Adresse de recherche apprise · non vérifié' } : {}),
           priority: 1,
         })
         .catch(() => undefined);
@@ -350,7 +352,7 @@ export default defineBackground(() => {
           sendResponse({ deals: [], stopped: BUSY });
           return undefined;
         }
-        return answer(runBuyAlerts(), (detail) => ({ deals: [], stopped: detail }));
+        return answer(runBuyAlerts(), (detail) => ({ deals: [], stopped: detail, via: null }));
       case 'era:badge:update':
         return answer(updateBadge().then(() => ({ ok: true })), unavailable);
       case 'era:price:edit':

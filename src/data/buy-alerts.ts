@@ -24,7 +24,14 @@ export interface AlertDeal {
   photoUrl: string | null;
 }
 
-export async function runBuyAlerts(now = Date.now()): Promise<{ deals: AlertDeal[]; stopped: string | null }> {
+export interface BuyAlertsLast {
+  at: number;
+  deals: AlertDeal[];
+  /** Absent in alerts saved before 0.31.1. */
+  via?: 'PAGE' | 'LEARNED' | null;
+}
+
+export async function runBuyAlerts(now = Date.now()): Promise<{ deals: AlertDeal[]; stopped: string | null; via: BuyAlertsLast['via'] }> {
   const got = (await browser.storage.local.get([OVERLAY_KEY, 'eraOwnListings'])) as Record<string, unknown>;
   const niches = (Array.isArray(got[OVERLAY_KEY]) ? (got[OVERLAY_KEY] as OverlayNiche[]) : []).filter((n) => !n.avoid).slice(0, ALERT_NICHES);
   const own = new Set(Array.isArray(got.eraOwnListings) ? (got.eraOwnListings as string[]) : []);
@@ -32,9 +39,12 @@ export async function runBuyAlerts(now = Date.now()): Promise<{ deals: AlertDeal
   const adapter = new VintedTabAdapter();
   const fresh: AlertDeal[] = [];
   let stopped: string | null = null;
+  // Listings read on the search page, or through an address learned from it: never verified, said with the alert.
+  let via: 'PAGE' | 'LEARNED' | null = null;
   for (const n of niches) {
     try {
       const r = await adapter.searchComparables({ text: n.label, brand: n.brand, category: n.category ?? 'OTHER', gender: null, size: null, condition: null });
+      if (r.via) via = via === 'PAGE' ? via : r.via;
       for (const c of r.candidates) {
         if (own.has(c.id) || seen.has(c.id)) continue;
         const m = markFor(`${c.brand ?? ''} ${c.title}`, c.priceCents, [n]);
@@ -50,6 +60,6 @@ export async function runBuyAlerts(now = Date.now()): Promise<{ deals: AlertDeal
   }
   fresh.sort((a, b) => b.marginCents - a.marginCents);
   await repo.setSetting(BUY_SEEN_KEY, [...seen].slice(-1000));
-  if (fresh.length) await repo.setSetting(BUY_LAST_KEY, { at: now, deals: fresh.slice(0, 12) });
-  return { deals: fresh, stopped };
+  if (fresh.length) await repo.setSetting(BUY_LAST_KEY, { at: now, deals: fresh.slice(0, 12), via } satisfies BuyAlertsLast);
+  return { deals: fresh, stopped, via };
 }
