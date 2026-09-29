@@ -475,3 +475,40 @@ test('pilotage: the last 30 days against the 30 before, a year month by month, e
   await expect(report).toContainText('Mois clos');
   await expect(page.getByRole('button', { name: /Mois suivant/ })).toBeVisible();
 });
+
+test('every screen, every tab: no display error, no script error, no console error', async ({ context, base, extId }) => {
+  test.setTimeout(180_000);
+  // Test fixture only: the map's tiles, served locally (a 1×1 PNG) — the test browser does not reach the internet.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await context.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ contentType: 'image/png', body: png }));
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror ${page.url()} · ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`console ${page.url()} · ${m.text()}`);
+  });
+  await loadDemo(page, base);
+  const routes = [
+    'today', 'stock', 'stock?filter=listed', 'stock?lot=1', 'stock?costs=1', 'workshop', 'capital', 'quality',
+    'sales', 'sales?ship=1', 'parcels', 'accounting', 'market', 'buy', 'buy?tab=list', 'buy?tab=scan',
+    'insights?tab=review', 'insights?tab=patterns', 'insights?tab=you', 'insights?tab=precision', 'insights?tab=niches',
+    'report', 'tools', 'automations', 'settings',
+  ];
+  for (const r of routes) {
+    await page.goto(`${base}#/${r}`);
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId('error-boundary'), r).toHaveCount(0);
+  }
+  // An article, its dispute file and invoice: opened from the data itself.
+  await page.goto(`${base}#/stock?filter=listed`);
+  await page.locator('tbody tr[aria-rowindex]').first().click();
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('error-boundary'), 'item').toHaveCount(0);
+  // The toolbar popup and the side panel.
+  for (const p of ['popup.html', 'sidepanel.html']) {
+    await page.goto(`chrome-extension://${extId}/${p}`);
+    await page.waitForTimeout(700);
+    await expect(page.getByTestId('error-boundary'), p).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
