@@ -1,11 +1,22 @@
 import { type BrowserContext, test as base, chromium } from '@playwright/test';
 import { execFileSync, execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const EXT = path.resolve('.output/chrome-mv3');
+
+/**
+ * The extension's ID, fixed by the public key in its manifest (see wxt.config.ts): read from the build instead of
+ * waiting for its service worker to start, which a loaded machine can delay past the test's setup time.
+ */
+function extensionId(): string {
+  const { key } = JSON.parse(readFileSync(path.join(EXT, 'manifest.json'), 'utf8')) as { key: string };
+  const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32);
+  return [...hex].map((d) => String.fromCharCode(97 + parseInt(d, 16))).join('');
+}
 
 /** Port of the local HTTPS server standing in for the carrier's PDF host (labels.example): one per test worker. */
 export const LABEL_PORT = 47443 + Number(process.env.TEST_WORKER_INDEX ?? 0);
@@ -51,10 +62,8 @@ export const test = base.extend<{ context: BrowserContext; extId: string; base: 
     await use(context);
     await context.close();
   },
-  extId: async ({ context }, use) => {
-    const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-    await use(new URL(sw.url()).host);
-  },
+  // Depends on the context so the browser (and the extension) is up before the ID is used.
+  extId: async ({ context: _context }, use) => use(extensionId()),
   base: async ({ extId }, use) => use(`chrome-extension://${extId}/dashboard.html`),
 });
 
