@@ -229,7 +229,7 @@ Stock → **Qualité des annonces** : chaque annonce en ligne, classée par ce q
 
 ## Colis à surveiller
 
-Ventes → **Colis à surveiller** : un colis envoyé depuis plus de 7 jours et pas livré, ou livré depuis plus de 3 jours et pas finalisé, d'après le statut texte de vos commandes Vinted (formulation **NON VÉRIFIÉE**). La durée compte depuis le changement de statut vu par ERA, sinon depuis la vente (« au moins »). Lien vers la conversation et le dossier d'envoi.
+Ventes → **Colis à surveiller** : un colis envoyé ou en route depuis 7 jours et plus, en attente au point relais sans que l'acheteur l'ait retiré depuis 5 jours, ou livré depuis 3 jours et pas finalisé, d'après le statut texte de vos commandes Vinted (formulation **NON VÉRIFIÉE**) — la même lecture et les mêmes délais que l'écran Colis (« En cours de livraison » est un colis en route, pas livré). La durée compte depuis le changement de statut vu par ERA, sinon depuis la vente (« au moins »). Lien vers la conversation, le dossier d'envoi et tous les colis.
 
 ## Analyse de prix : quand la recherche ne trouve rien
 
