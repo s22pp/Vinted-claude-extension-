@@ -1,4 +1,4 @@
-import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
+import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type CatalogPageRead, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { editDescriptionOnPage, editPriceOnPage } from '@/data/adapters/vinted/edit-form';
 
@@ -36,6 +36,35 @@ export default defineContentScript({
           .filter((u) => u.startsWith(location.origin) && u.includes('/api/'))
           .map((u) => u.slice(location.origin.length));
         sendResponse({ urls: [...new Set(urls)].slice(-60) });
+        return;
+      }
+      if (msg.type === 'era:catalog:read') {
+        // Read-only: the listing cards of the search page as it shows them (link + its title). Nothing is clicked,
+        // nothing changed; the promoted closets block (another member's wardrobe) is left out.
+        const seen = new Set<string>();
+        const anchors = [...document.querySelectorAll<HTMLAnchorElement>('a[href*="/items/"]')];
+        const cards: CatalogPageRead['cards'] = [];
+        for (const a of anchors) {
+          if (a.closest('[class*="closet" i], [data-testid*="closet" i]')) continue;
+          const href = a.getAttribute('href') ?? '';
+          const id = /\/items\/(\d+)/.exec(href)?.[1];
+          // The link's accessible title first; else its image's text; else what the card itself shows, line by line.
+          const card = a.closest('[data-testid*="item" i], [class*="feed-grid__item"], [class*="item-box"]') as HTMLElement | null;
+          const text =
+            a.getAttribute('title') ||
+            a.getAttribute('aria-label') ||
+            a.querySelector('img')?.getAttribute('alt') ||
+            (card?.innerText ?? '')
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .join(', ');
+          if (!id || seen.has(id) || !text) continue;
+          seen.add(id);
+          cards.push({ href, text: text.slice(0, 400) });
+          if (cards.length >= 96) break;
+        }
+        sendResponse({ path: location.pathname, links: anchors.length, cards } satisfies CatalogPageRead);
         return;
       }
       if (msg.type === 'era:edit:form') {

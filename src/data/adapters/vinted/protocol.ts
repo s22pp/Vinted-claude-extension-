@@ -97,11 +97,20 @@ export type EraMessage =
   | { type: 'era:import' }
   | { type: 'era:import:stage'; stage: ImportStage }
   | { type: 'era:observe' }
+  | { type: 'era:catalog:read' }
   | { type: 'era:price:edit'; platformListingId: string; cents: number; itemId: string }
   | { type: 'era:price:stage'; stage: PriceStage }
   | { type: 'era:edit:form'; cents: number }
   | { type: 'era:desc:edit'; platformListingId: string; text: string }
   | { type: 'era:edit:desc'; text: string };
+
+/** The listing links Vinted's search page shows, read as they are (link + accessible title): parsed by ERA, not here. */
+export interface CatalogPageRead {
+  path: string;
+  /** How many links to a listing the page holds at all (0 on an empty or unrendered page). */
+  links: number;
+  cards: { href: string; text: string }[];
+}
 
 export type PriceStage = 'OPENING' | 'FILLING' | 'SAVING' | 'VERIFYING' | 'DONE';
 export type EditFormResult = { ok: true; before: string } | { ok: false; detail: string };

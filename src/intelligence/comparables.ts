@@ -106,7 +106,7 @@ export interface ComparableAnalysis {
   position: { priceCents: number; deltaPct: number; percentile: number } | null;
   notes: AnalysisNote[];
   /** Search endpoint learned at runtime (structure never verified on a real account). */
-  via?: 'LEARNED' | null;
+  via?: 'LEARNED' | 'PAGE' | null;
   /** Each search run and what it brought back: when nothing comparable is found, the seller sees why. */
   queryStats?: { text: string; returned: number; total: number | null }[];
 }
@@ -378,7 +378,7 @@ export function analyzeComparables(
     exclusions,
     position,
     notes,
-    via: results.some((r) => r.via === 'LEARNED') ? 'LEARNED' : null,
+    via: results.some((r) => r.via === 'PAGE') ? 'PAGE' : results.some((r) => r.via === 'LEARNED') ? 'LEARNED' : null,
   };
 }
 

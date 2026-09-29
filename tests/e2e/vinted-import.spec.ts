@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -52,6 +52,16 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20')</script></body></html>` });
     if (url.pathname === '/api/v2/my_orders' && (url.searchParams.get('era_test') === 'purchased' || url.searchParams.get('type') === 'purchased'))
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: opts.purchases ?? [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
+    if (url.pathname === '/catalog' && opts.searchPageCards) {
+      // Test fixture only: as seen on the seller's account (Sept. 2026) — the search page brings its listings with it,
+      // calls no search API (only promoted closets), and shows a promoted closet block of another member.
+      const q = url.searchParams.get('search_text') ?? '';
+      const card = (id: number, title: string) => `<div class="feed-grid__item"><a href="/items/${id}-annonce?referrer=catalog" title="${title}"></a></div>`;
+      return route.fulfill({
+        contentType: 'text/html; charset=utf-8',
+        body: `<html><body><div class="closet-promotion">${card(990, 'Pull, marque: Zara, 5,00 €, 5,95 € inclus')}</div><div class="feed-grid">${card(801, 'Veste Harrington, marque: Ralph Lauren, état: Très bon état, taille: M, 45,00 €, 48,85 € inclus')}${card(802, 'Veste Harrington vintage, marque: Ralph Lauren, état: Bon état, taille: L, 38,00 €, 41,60 € inclus')}${card(803, 'Blouson Ralph Lauren, marque: Ralph Lauren, taille: M, 52,00 €, 55,30 € inclus')}</div><script>fetch('/api/v2/promoted_closets?search_text=' + encodeURIComponent(${JSON.stringify(q)}))</script></body></html>`,
+      });
+    }
     if (url.pathname === '/catalog' && opts.searchSamePath)
       // Test fixture only: the search page calls the same path as ERA (with its own paging), which answers 404 to ERA.
       return route.fulfill({
@@ -158,7 +168,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
     if (url.pathname === '/api/v2/era-test/search')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 120 } });
-    if (url.pathname === '/api/v2/catalog/items' && (opts.searchMoved || opts.searchDead || opts.searchSamePath)) return json({ code: 404 }, 404);
+    if (url.pathname === '/api/v2/catalog/items' && (opts.searchMoved || opts.searchDead || opts.searchSamePath || opts.searchPageCards)) return json({ code: 404 }, 404);
+    if (url.pathname === '/api/v2/promoted_closets') return json({ promoted_closets: [], pagination: {}, page_info: {}, code: 0 });
     if (url.pathname === '/api/v2/catalog/items' && opts.sortRefused && url.searchParams.has('order')) return json({ code: 404 }, 404);
     // Test fixture only: a collaboration found under its parts, never under "uniqlo x kaws"; an unknown brand found nowhere.
     if (url.pathname === '/api/v2/catalog/items') {
@@ -408,6 +419,27 @@ test('search page on the same path, refused all the same: every try reported, no
   expect(stored.down!.until).toBeGreaterThan(Date.now());
   // ERA's own calls (they carry the page's CSRF token; the page's own search call does not here): three, all GET.
   expect(calls.filter((c) => c.path.startsWith('/api/v2/catalog/items') && c.csrf !== null)).toHaveLength(3);
+  expect(calls.every((c) => c.method === 'GET')).toBe(true);
+});
+
+test('API search gone (404), results only on the search page: comparables read from its cards, then straight from the page', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true, searchPageCards: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
+  const catalog = page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' });
+  await expect(catalog.getByText('✓')).toBeVisible({ timeout: 60_000 });
+  // The three listings of the grid, not the promoted closet's; no total on the page: unknown, never 0.
+  await expect(catalog).toContainText('3 comparables · total ? · via la page de recherche Vinted');
+  const apiSearch = () => calls.filter((c) => c.path.startsWith('/api/v2/catalog/items') && c.csrf !== null).length;
+  expect(apiSearch()).toBe(2);
+  // promoted_closets is never taken for a search.
+  expect(calls.some((c) => c.path.startsWith('/api/v2/promoted_closets') && c.csrf !== null)).toBe(false);
+  // Next time: straight to the page, no API call that can only answer 404.
+  await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
+  await expect(page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' }).getByText('✓')).toBeVisible({ timeout: 60_000 });
+  expect(apiSearch()).toBe(2);
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
 });
 

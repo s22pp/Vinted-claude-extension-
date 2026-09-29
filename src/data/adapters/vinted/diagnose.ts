@@ -77,7 +77,7 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
     push({
       key: 'catalog',
       ok: res.candidates.length > 0,
-      info: `${res.candidates.length} comparables · total ${res.totalEntries === null ? '?' : res.totalCapped ? '≥ 960' : res.totalEntries} · via ${used.split('?')[0]}`,
+      info: `${res.candidates.length} comparables · total ${res.totalEntries === null ? '?' : res.totalCapped ? '≥ 960' : res.totalEntries} · via ${res.via === 'PAGE' ? 'la page de recherche Vinted (cartes lues, EXPERIMENTAL)' : used.split('?')[0]}`,
     });
   } catch (e) {
     return fail('catalog', e);

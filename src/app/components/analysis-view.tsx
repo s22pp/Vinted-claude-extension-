@@ -30,7 +30,7 @@ export function AnalysisView({ analysis, pricing, current, onRetry }: { analysis
     <div className="stack-4">
       <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(7, minmax(0,1fr))' }}>
         <div className="kpi">
-          <Metric small label={t('market.quality')} value={<Badge tone={QUALITY_TONE[analysis.quality]}>{t(`compQuality.${analysis.quality}`)}</Badge>} foot={analysis.source === 'DEMO' ? <DemoBadge /> : analysis.via ? <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} /> : t('market.sourceVINTED')} />
+          <Metric small label={t('market.quality')} value={<Badge tone={QUALITY_TONE[analysis.quality]}>{t(`compQuality.${analysis.quality}`)}</Badge>} foot={analysis.source === 'DEMO' ? <DemoBadge /> : analysis.via ? <Flag kind="UNVERIFIED" title={t(analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} /> : t('market.sourceVINTED')} />
         </div>
         <div className="kpi">
           <Metric small label={t('market.effectiveSample')} value={<span className="num">{i.num(analysis.effectiveSample, 1)}</span>} foot={t('market.kept', { kept: analysis.keptCount, collected: analysis.collected })} />

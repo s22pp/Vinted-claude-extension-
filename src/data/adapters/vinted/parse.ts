@@ -129,6 +129,48 @@ export function parseCatalogItem(it: Json): MarketCandidate | null {
   };
 }
 
+/**
+ * One listing card of Vinted's search page, from what the page shows: the link to the listing and its accessible
+ * title ("Veste Harrington, marque: Ralph Lauren, état: Très bon état, taille: M, 45,00 €, 48,85 € inclus").
+ * The price kept is the item's own, never the one "inclus" (with the buyer protection). EXPERIMENTAL: depends on how
+ * Vinted writes its cards — a card that does not read that way is skipped, never guessed.
+ */
+export function parseCatalogCard(href: string, text: string): MarketCandidate | null {
+  const id = /\/items\/(\d+)/.exec(href)?.[1];
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!id || !t) return null;
+  const field = (name: string) => new RegExp(`(?:^|,)\\s*${name}\\s*:\\s*([^,]+)`, 'i').exec(t)?.[1]?.trim() ?? null;
+  // Every "12,00 €" in the text, with whether it is the protection-included one.
+  const prices = [...t.matchAll(/(\d{1,5}(?:[ \u00a0\u202f.]\d{3})*(?:,\d{1,2})?)\s?€(\s*inclus)?/gi)];
+  const own = prices.find((m) => !m[2]);
+  if (!own) return null;
+  const cents = Math.round(Number(own[1]!.replace(/[ \u00a0\u202f.]/g, '').replace(',', '.')) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return null;
+  // The title: what comes before the first labelled field or the first price.
+  const cut = [/,\s*(?:marque|état|etat|taille)\s*:/i, /,?\s*\d{1,5}(?:[ \u00a0\u202f.]\d{3})*(?:,\d{1,2})?\s?€/]
+    .map((re) => re.exec(t)?.index ?? -1)
+    .filter((i) => i > 0);
+  const title = (cut.length ? t.slice(0, Math.min(...cut)) : t).replace(/[,\s]+$/, '').trim();
+  if (!title) return null;
+  const brand = field('marque');
+  return {
+    id,
+    title,
+    brand: brand && !/^(sans marque|autre|other)$/i.test(brand) ? brand : null,
+    priceCents: cents,
+    size: field('taille'),
+    condition: conditionOf(field('état') ?? field('etat')),
+    category: null,
+    gender: null,
+    url: href.startsWith('http') ? href : `https://www.vinted.fr${href.startsWith('/') ? '' : '/'}${href}`,
+    photoUrl: null,
+    favorites: null,
+    listedAt: null,
+    promoted: false,
+    sellerId: null,
+  };
+}
+
 export function parseTotalEntries(json: unknown): { total: number | null; capped: boolean } {
   const pag = isObj(json) && isObj(json.pagination) ? json.pagination : null;
   const total = int(pag?.total_entries);

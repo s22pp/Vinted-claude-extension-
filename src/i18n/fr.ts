@@ -1105,6 +1105,7 @@ export const fr = {
     UNVERIFIED: 'Non vérifié',
     UNVERIFIED_hint: 'Repose sur une structure Vinted jamais confirmée sur un compte réel.',
     learnedEndpoint: 'Point d’accès de recherche appris depuis la page Vinted : structure non vérifiée.',
+    pageSearch: 'Comparables lus sur la page de recherche Vinted (l’API de recherche ne répond plus) : lecture expérimentale, total des annonces inconnu.',
     purchasesHint: 'Import des achats : point d’accès et champs non confirmés sur un compte réel.',
   },
   capital: {

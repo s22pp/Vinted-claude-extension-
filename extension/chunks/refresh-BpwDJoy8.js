@@ -1,0 +1,1 @@
+import"./providers-CdkSthvZ.js";var e=`autoRefresh`,t={enabled:!1,everyHours:6,notify:!0};export{e as n,t};

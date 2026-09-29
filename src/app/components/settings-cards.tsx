@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { ACCOUNT_CHECK_KEY, type AccountCheck, type DiagKey, type DiagStep, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
-import { ERROR_LOG_KEY, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
+import { ERROR_LOG_KEY, SEARCH_MODE_KEY, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
 import { type SellerIdentity, db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -129,7 +129,7 @@ export function IntegrationsCard() {
     const reserved = await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count();
     const sold = await db.events.where('type').equals('ITEM_SOLD').filter((e) => !e.isDemo && e.provenance === 'OBSERVED').count();
     const searches = await db.analyses.filter((a) => !a.isDemo && a.analysis.source === 'VINTED' && a.analysis.keptCount > 0).count();
-    const learned = !!(await db.settings.get(SEARCH_TEMPLATE_KEY))?.value;
+    const learned = !!(await db.settings.get(SEARCH_TEMPLATE_KEY))?.value || !!(await db.settings.get(SEARCH_MODE_KEY))?.value;
     const purchases = await db.purchases.count();
     // Writes: only what Vinted accepted here, as the journal recorded it (simulations excluded).
     const okLog = await db.autoLog.filter((r) => r.ok && !r.dryRun).toArray();

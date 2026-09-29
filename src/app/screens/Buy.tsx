@@ -200,7 +200,7 @@ function BuyResult({ r, onAdd, saved }: { r: BuyAnalysis; onAdd: () => void; sav
           <div className="row" style={{ gap: 8 }}>
             <span className="t-caption">{t('buy.dealScore')}</span>
             {r.analysis.source === 'DEMO' && <DemoBadge />}
-            {r.analysis.via && <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} />}
+            {r.analysis.via && <Flag kind="UNVERIFIED" title={t(r.analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
           </div>
           <div className="verdict__title">{t(`buy.verdict.${r.verdict}`)}</div>
           <p className="t-muted" style={{ marginTop: 4 }}>

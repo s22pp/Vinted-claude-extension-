@@ -231,7 +231,7 @@ export function ItemDetail({ id }: { id: string }) {
             actions={
               analysis ? (
                 <span className="row" style={{ gap: 6 }}>
-                  {analysis.via && <Flag kind="UNVERIFIED" title={t('flag.learnedEndpoint')} />}
+                  {analysis.via && <Flag kind="UNVERIFIED" title={t(analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
                   {intel?.analysisStale && <Badge tone="amber">{t('item.stale')}</Badge>}
                   <Badge tone={analysis.quality === 'HIGH' ? 'emerald' : analysis.quality === 'MEDIUM' ? 'cyan' : 'amber'}>
                     {t('market.quality')} · {t(`compQuality.${analysis.quality}`)}

@@ -1,7 +1,8 @@
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
-import { brandOf, currentUserId, firstArray, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
-import type { ApiResult, BudgetStatus, EraMessage, PageResult, ReserveResult } from './protocol';
+import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
+import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult, ReserveResult } from './protocol';
+import type { MarketCandidate } from '@/domain/entities';
 import { db } from '../../db';
 
 export async function findVintedTab(): Promise<number | null> {
@@ -67,6 +68,15 @@ export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
  */
 export const SEARCH_DOWN_KEY = 'vintedSearchDown';
 export const SEARCH_PAUSE_MS = 30 * 60_000;
+/**
+ * Seen on the seller's account (Sept. 2026): /api/v2/catalog/items answers 404 and Vinted's own search page calls no
+ * search API — its results come with the page. ERA then reads the listing cards that page shows (EXPERIMENTAL),
+ * remembers it, and tries the API again after a week.
+ */
+export const SEARCH_MODE_KEY = 'vintedSearchMode';
+export const PAGE_MODE_RETRY_MS = 7 * 86_400_000;
+/** Paths the search page calls that are not a listing search (seen: promoted_closets — another member's wardrobe). */
+const NOT_A_SEARCH = /promoted|closet|banner|suggest|saved_search|conversation|notification/i;
 export const ERROR_LOG_KEY = 'vintedErrorLog';
 
 export interface VintedErrorEntry {
@@ -98,7 +108,7 @@ export function fillTemplate(template: string, q: string): string {
 /** Turn an observed search URL into a reusable template: same path and params, our text in search_text. */
 export function templateFromObserved(url: string): string | null {
   const [path, qs = ''] = url.split('?');
-  if (!path?.startsWith('/api/')) return null;
+  if (!path?.startsWith('/api/') || NOT_A_SEARCH.test(path)) return null;
   const params = new URLSearchParams(qs);
   if (!params.has('search_text')) return null;
   params.set('search_text', '__Q__');
@@ -108,10 +118,11 @@ export function templateFromObserved(url: string): string | null {
 }
 
 /**
- * Open Vinted's public search page in a background tab (normal browsing), then read which API URL the page
- * itself called for its results. Nothing is injected into the page; the tab is closed afterwards.
+ * Open Vinted's public search page in a background tab (normal browsing, one unit of the budget), then read what it
+ * shows: which API URL it called for its results, if any, and the listing cards it displays. Nothing is injected or
+ * clicked; the tab is closed afterwards.
  */
-export async function discoverSearchTemplate(q: string): Promise<{ template: string | null; observed: string[] }> {
+export async function visitSearchPage(q: string): Promise<{ template: string | null; observed: string[]; page: CatalogPageRead | null }> {
   const r = (await browser.runtime.sendMessage({ type: 'era:budget:reserve' } satisfies EraMessage)) as ReserveResult;
   if (!r.ok) throw new MarketplaceError(r.code);
   const url = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(q)}&order=newest_first`;
@@ -125,22 +136,35 @@ export async function discoverSearchTemplate(q: string): Promise<{ template: str
       await waitForLoad(tabId, 15_000);
     }
     let observed: string[] = [];
-    // Results are fetched by the page after load: poll the resource list for up to ~12 s.
+    let template: string | null = null;
+    let page: CatalogPageRead | null = null;
+    // Results can arrive after load: look for up to ~12 s, until an API search or listing cards show up.
     for (let i = 0; i < 24; i++) {
       await new Promise((res) => setTimeout(res, 500));
       try {
-        const o = (await browser.tabs.sendMessage(tabId, { type: 'era:observe' } satisfies EraMessage)) as { urls: string[] };
-        observed = o.urls;
-        const hit = observed.map(templateFromObserved).find((x): x is string => x !== null);
-        if (hit) return { template: hit, observed: observed.map((u) => u.split('?')[0]!) };
+        observed = ((await browser.tabs.sendMessage(tabId, { type: 'era:observe' } satisfies EraMessage)) as { urls: string[] }).urls;
+        template = observed.map(templateFromObserved).find((x): x is string => x !== null) ?? null;
+        page = (await browser.tabs.sendMessage(tabId, { type: 'era:catalog:read' } satisfies EraMessage)) as CatalogPageRead;
+        if (template || page.cards.length > 0) break;
       } catch {
         /* content script not ready yet */
       }
     }
-    return { template: null, observed: [...new Set(observed.map((u) => u.split('?')[0]!))] };
+    return { template, observed: [...new Set(observed.map((u) => u.split('?')[0]!))], page };
   } finally {
     await browser.tabs.remove(tabId).catch(() => undefined);
   }
+}
+
+/** What a search page held, for the report: counts, and one card's text as the page wrote it (the evidence to adapt to). */
+function pageSummary(page: CatalogPageRead): string {
+  const sample = page.cards[0]?.text;
+  return `${page.links} liens d’annonce, ${page.cards.length} textes, aucun lu comme annonce${sample ? ` · exemple : « ${sample.slice(0, 160)} »` : ''}`;
+}
+
+/** The comparables a search page showed, read from its cards; the ones that do not read as a listing are skipped. */
+export function candidatesFromPage(page: CatalogPageRead | null): MarketCandidate[] {
+  return (page?.cards ?? []).map((c) => parseCatalogCard(c.href, c.text)).filter((c): c is MarketCandidate => c !== null);
 }
 
 export async function budgetStatus(): Promise<BudgetStatus | null> {
@@ -263,6 +287,9 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       const at = new Date(down.until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       throw new MarketplaceError('UNAVAILABLE', `recherche Vinted en pause jusqu’à ${at} (aucun appel envoyé) · ${down.detail}`);
     }
+    // The API search is known gone: read the search page directly (the API is tried again after a week).
+    const mode = (await db.settings.get(SEARCH_MODE_KEY))?.value as { at: number } | undefined;
+    if (mode && Date.now() - mode.at < PAGE_MODE_RETRY_MS) return this.searchByPage(query);
     const stored = (await db.settings.get(SEARCH_TEMPLATE_KEY))?.value as string | undefined;
     const template = stored ?? DEFAULT_SEARCH_TEMPLATE;
     let json: unknown;
@@ -288,30 +315,43 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       }
     }
     if (json === undefined) {
-      const learned = await discoverSearchTemplate(query.text);
+      const visit = await visitSearchPage(query.text);
       // What Vinted's own search page called (paths only): the fact that decides what to do next, kept in every report.
-      const observed = ` · appels observés sur la page de recherche : ${[...new Set(learned.observed)].join(' | ') || 'aucun'}`;
+      const observed = ` · appels observés sur la page de recherche : ${visit.observed.join(' | ') || 'aucun'}`;
       const giveUp = async (tail: string) => {
         const detail = `recherche Vinted introuvable · ${attempts.join(' · ')}${tail}`;
-        // Every form failed: pause the search rather than send calls that can only answer 404 again.
+        // Every form failed: pause the search rather than send calls that can only fail again.
         await db.settings.put({ key: SEARCH_DOWN_KEY, value: { until: Date.now() + SEARCH_PAUSE_MS, detail } });
         const err = new MarketplaceError('UNAVAILABLE', detail);
         await logVintedError(err.code, err.message, 'catalog');
         return err;
       };
-      if (!learned.template || learned.template === template) throw await giveUp(` · page de recherche : ${learned.template ? 'même adresse' : 'aucune adresse de recherche lue'}${observed}`);
-      // The address Vinted's own search page used: tried once, and kept only if it answers.
-      try {
-        json = await this.api(fillTemplate(learned.template, query.text));
-      } catch (e3) {
-        if (!(e3 instanceof MarketplaceError) || !/HTTP 404/.test(e3.message)) throw e3;
-        const samePath = learned.template.split('?')[0] === template.split('?')[0];
-        attempts.push(`adresse de la page de recherche ${learned.template.split('?')[0]} → ${short(e3)}`);
-        // Same path as ours, refused all the same: the difference is in the request, not the address.
-        throw await giveUp(`${samePath ? ' · même chemin que la page de Vinted : la différence vient de la requête, pas de l’adresse' : ''}${observed}`);
+      // An API search the page itself called: tried once, and kept only if it answers.
+      let samePath = false;
+      if (visit.template && visit.template !== template) {
+        try {
+          json = await this.api(fillTemplate(visit.template, query.text));
+          await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: visit.template });
+          learnedUsed = true;
+        } catch (e3) {
+          if (!(e3 instanceof MarketplaceError) || !/HTTP 404/.test(e3.message)) throw e3;
+          attempts.push(`adresse de la page de recherche ${visit.template.split('?')[0]} → ${short(e3)}`);
+          // Same path as ours, refused all the same: the difference is in the request, not the address.
+          samePath = visit.template.split('?')[0] === template.split('?')[0];
+        }
       }
-      await db.settings.put({ key: SEARCH_TEMPLATE_KEY, value: learned.template });
-      learnedUsed = true;
+      if (json === undefined) {
+        // No API search answers: the listings the search page shows are the comparables (EXPERIMENTAL), from now on.
+        const cards = candidatesFromPage(visit.page);
+        if (cards.length > 0) {
+          await db.settings.put({ key: SEARCH_MODE_KEY, value: { at: Date.now() } });
+          await db.settings.delete(SEARCH_TEMPLATE_KEY);
+          await logVintedError('INFO', `recherche par l’API indisponible (${attempts.join(' · ')}) : comparables lus sur la page de recherche`, 'catalog');
+          return { candidates: cards, totalEntries: null, totalCapped: false, fetchedAt: Date.now(), via: 'PAGE' };
+        }
+        const pageFacts = visit.page ? ` · page de recherche : ${pageSummary(visit.page)}` : ' · page de recherche : non lue';
+        throw await giveUp(`${samePath ? ' · même chemin que la page de Vinted : la différence vient de la requête, pas de l’adresse' : ''}${pageFacts}${observed}`);
+      }
     }
     // A search answers with a list of listings (`items`, even empty). Anything else is another endpoint: a learned
     // address that was wrong is forgotten and the default form tried once — never "0 listings" read from the wrong reply.
@@ -333,7 +373,31 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       }
     }
     const { total, capped } = parseTotalEntries(json);
+    // The API answers again: back to it.
+    await db.settings.delete(SEARCH_MODE_KEY);
     return { candidates, totalEntries: total, totalCapped: capped, fetchedAt: Date.now(), via: learnedUsed ? 'LEARNED' : null };
+  }
+
+  /**
+   * Comparables read on Vinted's search page (EXPERIMENTAL): one page visit, the listing cards it shows. The total is
+   * not shown there: unknown, never 0. Cards that no longer read as listings say so — never "no comparables".
+   */
+  private async searchByPage(query: ComparableQuery): Promise<SearchResult> {
+    const visit = await visitSearchPage(query.text);
+    if (!visit.page) {
+      const err = new MarketplaceError('UNAVAILABLE', 'page de recherche Vinted sans réponse (onglet non lu)');
+      await logVintedError(err.code, err.message, 'catalog');
+      throw err;
+    }
+    const candidates = candidatesFromPage(visit.page);
+    if (visit.page.links > 0 && candidates.length === 0) {
+      // Vinted writes its cards another way now: forget the page mode, so the next search tries the API again.
+      await db.settings.delete(SEARCH_MODE_KEY);
+      const err = new MarketplaceError('UNAVAILABLE', `page de recherche lue mais aucune annonce reconnue : la présentation de Vinted a changé · ${pageSummary(visit.page)}`);
+      await logVintedError(err.code, err.message, 'catalog');
+      throw err;
+    }
+    return { candidates, totalEntries: null, totalCapped: false, fetchedAt: Date.now(), via: 'PAGE' };
   }
 
 }
