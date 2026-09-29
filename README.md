@@ -29,7 +29,7 @@ puis **Réglages → Recharger ERA** (ou ↻ dans `chrome://extensions`). L'iden
 
 Pour développer : `npm install && npm run build` (sortie `.output/chrome-mv3`) ; `npm run release` régénère `extension/` et le ZIP.
 
-Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connecté, lecture seule, ≤ 5 requêtes), CSV, saisie, ou démo clairement étiquetée.
+Premier lancement : onboarding. Importer depuis Vinted (onglet vinted.fr connecté, lecture seule, 10 requêtes au plus avec les achats), CSV, saisie, ou démo clairement étiquetée.
 
 ## Développer / tester
 
@@ -89,13 +89,13 @@ Des extensions commerciales ont été examinées uniquement pour relever des **f
 ## Ce qui est vérifié — et ce qui ne l'est pas
 
 Les tests automatiques utilisent des données fictives : **ils prouvent la logique d'ERA, pas le fonctionnement réel de Vinted.**
-Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réellement été observé (import du stock, ventes, statut réservé, recherche de comparables, achats) et marque le reste **NON VÉRIFIÉ**.
+Réglages → *Intégrations Vinted* affiche, pour cet appareil et route par route, ce qui a réellement fonctionné (d'après l'import, les recherches, le diagnostic et le journal des écritures) : **Vérifié ici**, **Partiel** (certaines routes seulement), **Échec** (le dernier essai a échoué, avec la réponse de Vinted) ou **NON VÉRIFIÉ / EXPERIMENTAL** (jamais vu fonctionner ici). Un arrêt dû à une limite d'ERA (budget d'appels, espacement) est dit comme tel, jamais comme une erreur Vinted. « Vérifier maintenant » relance toutes les lectures (GET uniquement).
 
 | Intégration | Statut |
 | --- | --- |
 | Import garde-robe, ventes | utilisé en réel, champs non garantis |
 | Statut « réservé » (`is_reserved`) | NON VÉRIFIÉ |
-| Recherche de comparables (`catalog/items`, en-têtes CSRF/anon_id de la page ; replis : forme sans tri, puis apprentissage) | NON VÉRIFIÉ |
+| Recherche de comparables : `catalog/items` répond **HTTP 404** sur le compte réel (observé le 29/09/2026) ; repli : lecture des cartes de la page de recherche Vinted (titre, marque, état, taille, prix de l'article — jamais celui « protection incluse » ; total inconnu), API réessayée tous les 7 jours | EXPERIMENTAL · NON VÉRIFIÉ |
 | Achats (`my_orders?type=purchased`, repli : apprentissage depuis la page Mes commandes) | NON VÉRIFIÉ |
 | Commandes « à traiter » (`transaction_user_status: needs_action` dans `my_orders`) | NON VÉRIFIÉ |
 | Modification de prix | EXPERIMENTAL |
@@ -107,7 +107,9 @@ Réglages → *Intégrations Vinted* affiche, pour cet appareil, ce qui a réell
 | Colis : lieux et code de suivi lus dans la conversation de la commande (`conversations/{id}`, champs à coordonnées) | EXPERIMENTAL · NON VÉRIFIÉ |
 | Compléter une description : champ description de la page de modification, puis relecture `item_upload/items/{id}` | EXPERIMENTAL · NON VÉRIFIÉ |
 
-Réglages → *Intégrations Vinted* compte aussi, pour chaque écriture, les envois que Vinted a **acceptés sur cet appareil** (d'après le journal) : c'est la seule preuve qu'une route fonctionne sur votre compte.
+Pour les écritures, seul compte ce que Vinted a **accepté et montré à la relecture sur cet appareil** (journal) : un envoi non confirmé reste « envoyé, non confirmé », une simulation ne compte jamais. C'est la seule preuve qu'une route fonctionne sur votre compte ; à côté de l'action, le drapeau EXPERIMENTAL devient alors « Vérifié ici ».
+
+Réglages → Vinted indique aussi à quoi sont passées les requêtes de la session (import, recherche, automatisations…), pour qu'un « budget épuisé » dise ce qui l'a consommé.
 
 ## Republications : un article, une mémoire
 
