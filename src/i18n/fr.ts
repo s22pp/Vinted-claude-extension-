@@ -1061,6 +1061,10 @@ export const fr = {
     generic: 'Une erreur est survenue',
   },
   popup: {
+    pulse: '30 derniers jours',
+    pulseLine: '{amount} · {sales}',
+    toShip: '{n} à envoyer',
+    toShip_one: '1 à envoyer',
     context: 'Contexte',
     noContext: 'Ouvrez une annonce Vinted pour une analyse contextuelle.',
     detected: 'Article détecté',

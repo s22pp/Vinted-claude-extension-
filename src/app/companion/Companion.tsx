@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PageItem } from '@/data/adapters/vinted/parse';
 import { readPageContext } from '@/data/adapters/vinted/vinted-adapter';
 import { db } from '@/data/db';
@@ -8,6 +8,9 @@ import { type BuyAnalysis, analyzeBuy, buySubject } from '@/intelligence/buy';
 import { categoriesInTitle, normalizeText } from '@/intelligence/normalize';
 import { type ExternalProduct, type PageSnapshot, buyRouteFor, productFromPage, snapshotPage } from '@/intelligence/sourcing';
 import { personalEvidence } from '@/intelligence/seller-model';
+import { periodStats } from '@/intelligence/review';
+import { DAY } from '@/domain/time';
+import { vintedLanded } from '@/intelligence/shopping';
 import { Ring } from '@/ui/charts/charts';
 import { Icon, IconTile } from '@/ui/components/icons';
 import { LogoMark } from '@/ui/components/Logo';
@@ -17,7 +20,6 @@ import { RecoChip, RecommendationCard, StatusBadge } from '../components/domain'
 import { OfferCalculator } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
-import { vintedLandedCost } from '../screens/Buy';
 import { useEra } from '../state';
 
 type Ctx =
@@ -61,6 +63,26 @@ function usePageContext(): [Ctx, () => void] {
     };
   }, [load]);
   return [ctx, load];
+}
+
+/** The business at a glance — revenue and sales over 30 days, orders to ship — opening Pilotage. */
+function Pulse() {
+  const { t, money } = useI18n();
+  const era = useEra();
+  const p = useMemo(() => periodStats(era.sales, era.views, era.now - 30 * DAY, era.now + 1), [era.sales, era.views, era.now]);
+  const toShip = era.sales.filter((s) => s.sale.needsAction && s.sale.status !== 'REFUNDED').length;
+  return (
+    <button type="button" className="choice" style={{ padding: '10px 12px' }} data-testid="pulse" onClick={() => openDashboard('insights?tab=review')}>
+      <IconTile name="calendar" tone="emerald" size="sm" />
+      <span className="grow stack" style={{ gap: 0 }}>
+        <span className="t-caption">{t('popup.pulse')}</span>
+        <span className="t-small">
+          <b className="num">{t('popup.pulseLine', { amount: money(p.revenueCents), sales: t('accounting.salesN', { n: p.sales }) })}</b>
+        </span>
+      </span>
+      {toShip > 0 && <Badge tone="coral">{t('popup.toShip', { n: toShip })}</Badge>}
+    </button>
+  );
 }
 
 function openDashboard(hash = 'today') {
@@ -121,6 +143,8 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
           </button>
         </span>
       </header>
+
+      {era.mode !== 'empty' && <Pulse />}
 
       {era.mode !== 'real' && (
         <section className="card" style={{ padding: 14 }}>
@@ -294,7 +318,7 @@ function BuyQuick({ item, mode }: { item: PageItem; mode: 'popup' | 'panel' }) {
   const brand = item.brand ?? '';
   const category = categoriesInTitle(normalizeText(item.title))[0] ?? 'OTHER';
   // Buying on Vinted: the listed price plus buyer protection is the real cost (shipping not included).
-  const cost = item.priceCents === null ? null : vintedLandedCost(item.priceCents, null);
+  const cost = item.priceCents === null ? null : vintedLanded(item.priceCents);
 
   const run = async () => {
     if (cost === null || !brand) return;

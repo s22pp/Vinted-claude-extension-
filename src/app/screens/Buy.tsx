@@ -15,15 +15,11 @@ import { marketAdapter } from '../market-run';
 import { AnalysisView } from '../components/analysis-view';
 import { PageHead } from '../Shell';
 import { DealScanner, ShoppingListView } from '../components/shopping';
+import { vintedLanded } from '@/intelligence/shopping';
 import { go, type Route, useEra } from '../state';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 const VERDICT_TONE = { BUY: 'emerald', NEGOTIATE: 'amber', AVOID: 'coral', INSUFFICIENT_DATA: 'neutral' } as const;
-
-/** Buyer-side Vinted fees (verified): 0,70 € + 5 % buyer protection, shipping on top. */
-export function vintedLandedCost(listed: number, shipping: number | null): number {
-  return listed + 70 + Math.round(listed * 0.05) + (shipping ?? 0);
-}
 
 export function Buy({ route }: { route: Route }) {
   const { t } = useI18n();
@@ -69,7 +65,7 @@ function BuyAnalyzer({ route }: { route: Route }) {
   const [saved, setSaved] = useState(false);
   const [touched, setTouched] = useState(false);
 
-  const cost = price.cents === null ? null : onVinted ? vintedLandedCost(price.cents, shipping.cents) : price.cents + (shipping.cents ?? 0);
+  const cost = price.cents === null ? null : (onVinted ? vintedLanded(price.cents) : price.cents) + (shipping.cents ?? 0);
   const valid = brand.trim() !== '' && cost !== null && !price.invalid;
 
   const submit = async (e: React.FormEvent) => {
