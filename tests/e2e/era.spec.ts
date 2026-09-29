@@ -443,8 +443,10 @@ test('pilotage: the last 30 days against the 30 before, a year month by month, e
   await expect(review).toBeVisible();
   await expect(review).toContainText('Chiffre d’affaires · 30 j');
   await expect(review).toContainText(/vs .* les 30 j d’avant|pareil que les 30 j d’avant/);
-  // Twelve months, the current one marked as running, one row per indicator.
-  await expect(review.locator('.review-table thead th')).toHaveCount(13);
+  // Up to twelve months (none before the first activity), the current one marked as running, one row per indicator.
+  const cols = await review.locator('.review-table thead th').count();
+  expect(cols).toBeGreaterThanOrEqual(4);
+  expect(cols).toBeLessThanOrEqual(13);
   await expect(review.locator('.review-table thead')).toContainText('(en cours)');
   await expect(review.locator('.review-table tbody tr')).toHaveCount(8);
   const [download] = await Promise.all([page.waitForEvent('download'), review.getByRole('button', { name: 'Exporter (CSV)' }).click()]);

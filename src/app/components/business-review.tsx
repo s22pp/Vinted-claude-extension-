@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type MonthlyGoal, buyingPlan, goalPlan, goalProgress } from '@/intelligence/goal';
@@ -25,8 +25,22 @@ export function BusinessReview() {
     return `${t(`accounting.m${d.getMonth()}`)} ${String(d.getFullYear()).slice(2)}`;
   };
   const { last30: a, prev30: b } = r;
+  // Months before any activity (a young account, the demo) are left out; at least the last three stay.
+  const firstActive = r.months.findIndex((m) => m.sales + m.refunds + m.listed + m.bought > 0);
+  const months = r.months.slice(firstActive < 0 ? r.months.length - 3 : Math.min(firstActive, r.months.length - 3));
+  // On the chart: the month alone, its year on January and on the first bar (short labels fit a phone).
+  const barLabel = (from: number, i: number) => {
+    const d = new Date(from);
+    return d.getMonth() === 0 || i === 0 ? monthLabel(from) : t(`accounting.m${d.getMonth()}`);
+  };
+  const tableRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // The latest months are the ones read first: the table opens scrolled to its right end.
+    const el = tableRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [months.length]);
   const days = (n: number | null) => (n === null ? '—' : t('kpi.days', { n }));
-  const rate = (p: PeriodStats) => (p.refundRate === null ? '' : ` · ${pct(p.refundRate)}`);
+  const rate = (p: PeriodStats) => (p.refundRate === null ? '' : ` (${pct(p.refundRate)})`);
 
   const rows: { key: string; label: string; cell: (m: PeriodStats) => React.ReactNode }[] = [
     { key: 'sales', label: t('review.row.sales'), cell: (m) => m.sales },
@@ -76,7 +90,7 @@ export function BusinessReview() {
             label={t('review.k.refunds')}
             icon="alert"
             tone="coral"
-            value={<span className="num">{a.refunds}{a.refundRate !== null && a.refunds > 0 ? ` · ${pct(a.refundRate)}` : ''}</span>}
+            value={<span className="num">{a.refunds}{a.refundRate !== null && a.refunds > 0 ? ` (${pct(a.refundRate)})` : ''}</span>}
             foot={<Versus now={a.refunds} before={b.refunds} invert text={t('review.vs', { v: b.refunds })} />}
           />
         </div>
@@ -105,10 +119,10 @@ export function BusinessReview() {
             title={t('review.chart')}
             orientation="vertical"
             height={210}
-            data={r.months.map((m, i) => ({
-              label: monthLabel(m.from),
+            data={months.map((m, i) => ({
+              label: barLabel(m.from, i),
               value: m.revenueCents,
-              color: i === r.months.length - 1 ? 'var(--chart-1)' : 'var(--emerald)',
+              color: i === months.length - 1 ? 'var(--chart-1)' : 'var(--emerald)',
               sub: (
                 <div className="chart__tooltip-row">
                   {t('accounting.salesN', { n: m.sales })} <b className="num">{money(m.revenueCents)}</b>
@@ -153,15 +167,15 @@ export function BusinessReview() {
         }
         flush
       >
-        <div className="table-wrap" tabIndex={0} style={{ boxShadow: 'none', border: 0 }}>
+        <div className="table-wrap" tabIndex={0} ref={tableRef} style={{ boxShadow: 'none', border: 0 }}>
           <table className="dt dt--compact review-table">
             <thead>
               <tr>
                 <th scope="col">{t('review.metric')}</th>
-                {r.months.map((m, i) => (
+                {months.map((m, i) => (
                   <th key={m.from} scope="col" className="is-num">
                     {monthLabel(m.from)}
-                    {i === r.months.length - 1 && <span className="t-faint"> {t('review.running')}</span>}
+                    {i === months.length - 1 && <span className="t-faint"> {t('review.running')}</span>}
                   </th>
                 ))}
               </tr>
@@ -170,7 +184,7 @@ export function BusinessReview() {
               {rows.map((row) => (
                 <tr key={row.key}>
                   <th scope="row">{row.label}</th>
-                  {r.months.map((m) => (
+                  {months.map((m) => (
                     <td key={m.from} className="is-num num">
                       {row.cell(m)}
                     </td>

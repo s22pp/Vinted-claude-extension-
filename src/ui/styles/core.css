@@ -1632,6 +1632,12 @@
 .goal__plan table {
   max-width: 460px;
 }
+/* On a phone the three columns share the width: labels wrap instead of pushing the figures out. */
+.goal__plan .dt th,
+.goal__plan .dt td {
+  padding: 0 8px;
+  white-space: normal;
+}
 
 /* ── Parcels map ─────────────────────────────────────────── */
 .pmap {

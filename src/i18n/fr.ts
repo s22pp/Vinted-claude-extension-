@@ -2118,7 +2118,7 @@ export const fr = {
     undated: '{n} ventes sans date donnée par Vinted ne sont comptées dans aucun mois.',
     undated_one: '1 vente sans date donnée par Vinted n’est comptée dans aucun mois.',
     chart: 'Chiffre d’affaires par mois',
-    chartHint: '12 derniers mois, remboursements exclus ; le mois en cours n’est pas fini',
+    chartHint: 'Jusqu’à 12 mois, remboursements exclus ; le mois en cours n’est pas fini',
     today: 'Aujourd’hui',
     inStock: 'Articles en stock',
     online: 'En ligne sur Vinted',
