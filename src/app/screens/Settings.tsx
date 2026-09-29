@@ -7,7 +7,7 @@ import { type Locale, useI18n } from '@/i18n';
 import { LogoMark } from '@/ui/components/Logo';
 import { Modal, useToast } from '@/ui/components/overlays';
 import { Button, Card, DemoBadge, Segmented } from '@/ui/components/primitives';
-import { type ThemeSetting, setTheme } from '../providers';
+import { type MotionSetting, type ThemeSetting, setMotion, setTheme } from '../providers';
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
 import { BackupCard } from '../components/backup';
@@ -22,6 +22,7 @@ export function Settings() {
   const era = useEra();
   const toast = useToast();
   const theme = useLiveQuery(() => repo.getSetting<ThemeSetting>('theme', 'dark'), []) ?? 'dark';
+  const motion = useLiveQuery(() => repo.getSetting<MotionSetting>('motion', 'system'), []) ?? 'system';
   const locale = useLiveQuery(() => repo.getSetting<Locale>('locale', 'fr'), []) ?? 'fr';
   const lastImport = useLiveQuery(() => repo.getSetting<number | null>('lastVintedImport', null), []);
   const wardrobeKeys = useLiveQuery(() => repo.getSetting<string[] | null>('vintedWardrobeKeys', null), []);
@@ -58,9 +59,19 @@ export function Settings() {
                 { value: 'system', label: t('settings.themeSystem') },
               ]}
             />
-            <p className="t-small t-faint" style={{ marginTop: 12 }}>
-              {t('settings.motionHint')}
-            </p>
+            <div className="stack" style={{ gap: 8, marginTop: 16 }}>
+              <span className="t-small">{t('settings.motion')}</span>
+              <Segmented
+                label={t('settings.motion')}
+                value={motion}
+                onChange={(v) => void setMotion(v)}
+                options={[
+                  { value: 'system', label: t('settings.motionSystem') },
+                  { value: 'reduced', label: t('settings.motionReduced') },
+                ]}
+              />
+              <p className="t-small t-faint">{t('settings.motionHint')}</p>
+            </div>
           </Card>
           <Card title={t('settings.language')} icon="book" tone="cyan">
             <Segmented

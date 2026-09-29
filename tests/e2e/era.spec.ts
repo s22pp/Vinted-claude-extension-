@@ -169,6 +169,24 @@ test('theme: dark ↔ light', async ({ context, base }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('motion: "Réduites" in Réglages stops the movement at once, kept after a reload, back to the system on demand', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('group', { name: 'Animations' }).getByRole('button', { name: 'Réduites' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced');
+  await page.reload();
+  await page.goto(`${base}#/today`);
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced');
+  // Entrances end at once: the page and the priorities are not moving.
+  await page.locator('.prio__item').first().waitFor();
+  const durations = await page.evaluate(() => ['.page', '.prio'].map((s) => getComputedStyle(document.querySelector(s)!).animationDuration));
+  for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.001);
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('group', { name: 'Animations' }).getByRole('button', { name: 'Comme le système' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-motion', 'reduced');
+});
+
 test('narrow viewport: bottom navigation, no horizontal scroll', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

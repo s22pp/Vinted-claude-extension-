@@ -136,7 +136,7 @@ function QueueRow({ v, active, prep, guards }: { v: ItemView; active: boolean; p
           {v.item.status === 'DRAFT' && v.current ? ` · ${t('workshop.vintedDraft')}` : ''}
         </span>
         <span className="wq__bar" aria-label={t('workshop.readiness', { done: r.done, total: r.total })}>
-          <span style={{ width: `${(r.done / r.total) * 100}%` }} className={r.ready ? 'is-ready' : ''} />
+          <span style={{ transform: `scaleX(${r.done / r.total})` }} className={r.ready ? 'is-ready' : ''} />
         </span>
       </span>
       <span className="wq__side">

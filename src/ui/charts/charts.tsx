@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactNode, useLayoutEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/i18n';
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -109,6 +109,9 @@ export function DataTable({ caption, head, rows }: { caption: string; head: stri
     </details>
   );
 }
+
+/** A chart tooltip's place: above the point, centred on it. A transform, so following the pointer moves no layout. */
+export const tipAt = (x: number, y: number): CSSProperties => ({ transform: `translate(calc(${Math.round(x)}px - 50%), calc(${Math.round(y)}px - 100% - 12px))` });
 
 export function Legend({ items }: { items: { label: string; color: string; dot?: boolean; dashed?: boolean }[] }) {
   return (
@@ -247,7 +250,7 @@ export function LineChart({
                     d={d}
                     stroke={s.color}
                     strokeDasharray={s.dashed ? '4 5' : undefined}
-                    style={{ ['--len' as string]: 4000, animationDelay: `${si * 120}ms` }}
+                    style={{ animationDelay: `${si * 120}ms` }}
                   />
                   {lastI >= 0 && s.values[lastI] !== null && (
                     <circle className="chart-dot" cx={x(lastI)} cy={y(s.values[lastI]!)} r={4} fill={s.color} stroke="var(--surface-solid)" strokeWidth={2} />
@@ -270,7 +273,7 @@ export function LineChart({
         </svg>
       )}
       {hover !== null && width > 0 && (
-        <div className="chart__tooltip" style={{ left: pad.l + x(hover), top: pad.t + Math.min(...series.map((s) => (s.values[hover] == null ? h : y(s.values[hover]!)))) }}>
+        <div className="chart__tooltip" style={tipAt(pad.l + x(hover), pad.t + Math.min(...series.map((s) => (s.values[hover] == null ? h : y(s.values[hover]!)))))}>
           <div className="chart__tooltip-title">{labels[hover]}</div>
           {series.map((s) => (
             <div key={s.key} className="chart__tooltip-row">
@@ -418,7 +421,7 @@ export function BarChart({
         </svg>
       )}
       {hover !== null && data[hover]?.sub && width > 0 && (
-        <div className="chart__tooltip" style={{ left: pad.l + (w / data.length) * (hover + 0.5), top: pad.t + y(data[hover]!.value ?? 0) - 16 }}>
+        <div className="chart__tooltip" style={tipAt(pad.l + (w / data.length) * (hover + 0.5), pad.t + y(data[hover]!.value ?? 0) - 16)}>
           <div className="chart__tooltip-title">{data[hover]!.label}</div>
           {data[hover]!.sub}
         </div>
@@ -515,10 +518,10 @@ export function ScatterChart({
             {points.map((p, i) => (
               <circle
                 key={i}
-                className="chart-dot"
+                className={`chart-dot${hover === i ? ' is-hot' : ''}`}
                 cx={X(p.x)}
                 cy={Y(p.y)}
-                r={hover === i ? (p.r ?? 5) + 2 : (p.r ?? 5)}
+                r={p.r ?? 5}
                 fill={p.color ?? 'var(--chart-1)'}
                 fillOpacity={hover === null || hover === i ? 0.85 : 0.35}
                 stroke="var(--surface-solid)"
@@ -533,7 +536,7 @@ export function ScatterChart({
         </svg>
       )}
       {hp && (
-        <div className="chart__tooltip" style={{ left: pad.l + X(hp.x), top: pad.t + Y(hp.y) }}>
+        <div className="chart__tooltip" style={tipAt(pad.l + X(hp.x), pad.t + Y(hp.y))}>
           <div className="chart__tooltip-title">{hp.label}</div>
           <div className="chart__tooltip-row">
             {yLabel} <b className="num">{yFormat(hp.y)}</b>
@@ -626,11 +629,11 @@ export function DistributionStrip({
             {placed.map((p) => (
               <circle
                 key={p.i}
-                className="chart-dot"
+                className={`chart-dot${hover === p.i ? ' is-hot' : ''}`}
                 style={{ animationDelay: `${Math.min(p.i * 18, 600)}ms` }}
                 cx={p.x}
                 cy={p.y}
-                r={hover === p.i ? p.r + 1.5 : p.r}
+                r={p.r}
                 fill="var(--chart-2)"
                 fillOpacity={0.75}
                 stroke="var(--surface-solid)"
@@ -657,7 +660,7 @@ export function DistributionStrip({
         </svg>
       )}
       {hp && (
-        <div className="chart__tooltip" style={{ left: pad.l + hp.x, top: pad.t + hp.y - hp.r }}>
+        <div className="chart__tooltip" style={tipAt(pad.l + hp.x, pad.t + hp.y - hp.r)}>
           <div className="chart__tooltip-title">{points[hp.i]!.label}</div>
           <div className="chart__tooltip-row">
             {t('charts.price')} <b className="num">{format(points[hp.i]!.v)}</b>
@@ -684,7 +687,7 @@ export function Sparkline({ values, color = 'var(--chart-1)', width = 96, height
   return (
     <svg width={width} height={height} aria-hidden="true" style={{ overflow: 'visible' }}>
       <path d={`${d}L${width},${height}L0,${height}Z`} fill={color} opacity={0.1} />
-      <path d={d} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" className="chart-draw" style={{ ['--len' as string]: 400 }} />
+      <path d={d} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" className="chart-draw" />
       <circle cx={last[0]} cy={last[1]} r={3} fill={color} />
     </svg>
   );

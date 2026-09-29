@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { quantile } from '@/intelligence/stats';
-import { DataTable, niceTicks, useWidth } from './charts';
+import { DataTable, niceTicks, tipAt, useWidth } from './charts';
 
 export interface Lane {
   points: { v: number; w?: number; label: string }[];
@@ -105,11 +105,11 @@ export function DualDistribution({
                   {L.placed.map((p) => (
                     <circle
                       key={p.i}
-                      className="chart-dot"
+                      className={`chart-dot${hover?.lane === li && hover.i === p.i ? ' is-hot' : ''}`}
                       style={{ animationDelay: `${Math.min(p.i * 14, 500)}ms` }}
                       cx={p.x}
                       cy={p.y}
-                      r={hover?.lane === li && hover.i === p.i ? p.r + 1.5 : p.r}
+                      r={p.r}
                       fill={c}
                       fillOpacity={0.78}
                       stroke="var(--surface-solid)"
@@ -167,7 +167,7 @@ export function DualDistribution({
         </svg>
       )}
       {hp && hpt && hover && (
-        <div className="chart__tooltip" style={{ left: pad.l + hp.x, top: pad.t + hp.y - hp.r }}>
+        <div className="chart__tooltip" style={tipAt(pad.l + hp.x, pad.t + hp.y - hp.r)}>
           <div className="chart__tooltip-title">{hpt.label}</div>
           <div className="chart__tooltip-row">
             {hover.lane === 0 ? t('dual.asking') : t('dual.realized')} <b className="num">{format(hpt.v)}</b>

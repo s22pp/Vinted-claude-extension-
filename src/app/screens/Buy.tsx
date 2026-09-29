@@ -38,7 +38,9 @@ export function Buy({ route }: { route: Route }) {
           { value: 'scan', label: t('scanner.tab') },
         ]}
       />
-      <div style={{ marginTop: 16 }}>{tab === 'list' ? <ShoppingListView /> : tab === 'scan' ? <DealScanner /> : <BuyAnalyzer route={route} />}</div>
+      <div key={tab} className="tabpanel" style={{ marginTop: 16 }}>
+        {tab === 'list' ? <ShoppingListView /> : tab === 'scan' ? <DealScanner /> : <BuyAnalyzer route={route} />}
+      </div>
     </>
   );
 }

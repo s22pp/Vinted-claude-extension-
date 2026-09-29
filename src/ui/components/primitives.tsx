@@ -14,6 +14,7 @@ import type { MoneyMetric } from '@/domain/money';
 import type { DataQuality } from '@/domain/provenance';
 import { errorInfo } from '@/data/adapters/marketplace';
 import { useI18n } from '@/i18n';
+import { motionEase, motionMs } from '../motion';
 import { Icon, type IconName, IconTile, type TileTone } from './icons';
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -116,14 +117,26 @@ export function SearchInput({ value, onChange, placeholder, inputRef }: { value:
 /** Segmented control with a sliding thumb. */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode; ariaLabel?: string }[]; label: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLSpanElement>(null);
+  const prev = useRef<{ x: number; w: number } | null>(null);
   const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
     const el = ref.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
     if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth });
   }, [value, options.length]);
+  // The thumb takes its new place and size at once; what the eye sees is a slide from the old one, by transform only
+  // (FLIP): no width animated, nothing re-laid out while it moves.
+  useLayoutEffect(() => {
+    const el = thumbRef.current;
+    const from = prev.current;
+    prev.current = thumb;
+    if (!el || !from || !thumb || (from.x === thumb.x && from.w === thumb.w) || typeof el.animate !== 'function') return;
+    const duration = motionMs('--t-normal');
+    if (duration > 0) el.animate([{ transform: `translateX(${from.x - 3}px) scaleX(${from.w / thumb.w})` }, { transform: `translateX(${thumb.x - 3}px)` }], { duration, easing: motionEase() });
+  }, [thumb]);
   return (
     <div className="seg" role="group" aria-label={label} ref={ref}>
-      {thumb && <span className="seg__thumb" style={{ transform: `translateX(${thumb.x - 3}px)`, width: thumb.w, left: 3 }} />}
+      {thumb && <span ref={thumbRef} className="seg__thumb" style={{ transform: `translateX(${thumb.x - 3}px)`, width: thumb.w, left: 3 }} />}
       {options.map((o) => (
         <button key={o.value} type="button" className="seg__btn" aria-pressed={o.value === value} aria-label={o.ariaLabel} onClick={() => onChange(o.value)}>
           {o.label}
