@@ -6,7 +6,7 @@ import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Money } from '@/ui/components/primitives';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
-import { StockTabs } from './Stock';
+import { StockTabs } from '../components/section-tabs';
 import { PhotoAuditCard } from '../components/photo-audit';
 
 /** Live listings ranked by what holds them back × the money waiting on them. Fixes are made on Vinted. */

@@ -12,7 +12,7 @@ import { Icon, IconTile } from '@/ui/components/icons';
 import { DualDistribution } from '@/ui/charts/dual';
 import { CategorySelect, ConditionSelect, useMoneyField } from '../components/forms';
 import { marketAdapter } from '../market-run';
-import { AnalysisView } from './Market';
+import { AnalysisView } from '../components/analysis-view';
 import { PageHead } from '../Shell';
 import { DealScanner, ShoppingListView } from '../components/shopping';
 import { go, type Route, useEra } from '../state';

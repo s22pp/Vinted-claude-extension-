@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
-import type { ItemIntel } from '@/intelligence/decision';
-import type { ItemView } from '@/intelligence/portfolio';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Button, Card, EmptyState, Money, SearchInput, Segmented } from '@/ui/components/primitives';
-import { Thumb } from '@/ui/components/Thumb';
-import { RecoChip, StatusBadge } from '../components/domain';
+import { Button, Card, EmptyState, SearchInput, Segmented } from '@/ui/components/primitives';
+import { ALL_COLS, type ColKey, DEFAULT_COLS, type Row, type Sort, type SortKey, StockTable, nextSort, sortRows } from '../components/stock-table';
 import { VintedImportButton } from '../components/vinted-import';
 import { PurchasesBanner } from '../components/purchases';
 import { AddItemDrawer, ImportCsvModal } from '../components/forms';
@@ -16,61 +13,15 @@ import { CostsDrawer } from '../components/costs';
 import { analyzeItem } from '../market-run';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
-import type { CapitalPosition } from '@/intelligence/capital';
 import type { TodayPriority } from '@/intelligence/decision';
 import { nicheKey } from '@/intelligence/seller-model';
 import { stockCsv } from '@/intelligence/accounting';
 import { downloadText } from '@/lib/download';
 import { IconTile } from '@/ui/components/icons';
 import { PRIO, usePriorityTitle } from '../components/priorities';
+import { StockTabs } from '../components/section-tabs';
 
 type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost' | 'markdown';
-type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
-type SortKey = 'title' | ColKey;
-
-interface Row {
-  v: ItemView;
-  intel: ItemIntel | null;
-}
-
-const ALL_COLS: ColKey[] = ['brand', 'size', 'cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
-const STATUS_ORDER = ['RESERVED', 'LISTED', 'HIDDEN', 'DRAFT', 'SOLD', 'ARCHIVED'];
-const DEFAULT_COLS: ColKey[] = ['status', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'reco'];
-const NUMERIC = new Set<ColKey>(['cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings']);
-
-function sortValue(r: Row, k: SortKey, pos?: CapitalPosition): number | string | null {
-  const v = r.v;
-  switch (k) {
-    case 'title':
-      return v.item.title.toLowerCase();
-    case 'brand':
-      return v.item.brand.toLowerCase();
-    case 'size':
-      return v.item.size ?? null;
-    case 'cost':
-      return v.cost;
-    case 'price':
-      return v.askPrice ?? v.sale?.salePriceCents ?? null;
-    case 'margin':
-      return v.potentialProfit;
-    case 'roi':
-      return pos?.potentialRoi ?? null;
-    case 'yield':
-      return pos?.efficiency30 ?? null;
-    case 'views':
-      return v.current?.views ?? null;
-    case 'favorites':
-      return v.current?.favorites ?? null;
-    case 'age':
-      return v.daysHeld;
-    case 'listings':
-      return v.listings.length;
-    case 'status':
-      return STATUS_ORDER.indexOf(v.item.status);
-    case 'reco':
-      return r.intel?.recommendation?.priority ?? null;
-  }
-}
 
 function loadPref<T>(key: string, fallback: T): T {
   try {
@@ -89,15 +40,14 @@ function savePref(key: string, value: unknown) {
 }
 
 export function Stock({ route }: { route: Route }) {
-  const i18n = useI18n();
-  const { t } = i18n;
+  const { t } = useI18n();
   const prioTitle = usePriorityTitle();
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
   const [q, setQ] = useState(route.query.get('q') ?? '');
   const [filter, setFilter] = useState<Filter>((route.query.get('filter') as Filter) ?? 'all');
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
+  const [sort, setSort] = useState<Sort>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
   const [density, setDensity] = useState<'compact' | 'comfortable'>(() => loadPref('era.stock.density', 'compact'));
   const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v3', DEFAULT_COLS));
   const [showCols, setShowCols] = useState(false);
@@ -173,35 +123,9 @@ export function Stock({ route }: { route: Route }) {
       if (needle && !`${r.v.item.title} ${r.v.item.brand} ${r.v.item.model ?? ''}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-    return out.sort((a, b) => {
-      const x = sortValue(a, sort.key, positions.get(a.v.item.id));
-      const y = sortValue(b, sort.key, positions.get(b.v.item.id));
-      // Unknown values always sink to the bottom, whatever the direction.
-      if (x === null && y === null) return 0;
-      if (x === null) return 1;
-      if (y === null) return -1;
-      return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
-    });
+    return sortRows(out, sort, positions);
   }, [rows, filter, q, sort, focusSet, positions, era.markdown]);
 
-  // Virtualisation: fixed row height, only the visible window is rendered.
-  const rowH = density === 'compact' ? 42 : 58;
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportH, setViewportH] = useState(800);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setViewportH(el.clientHeight));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const overscan = 8;
-  const start = Math.max(0, Math.floor(scrollTop / rowH) - overscan);
-  const end = Math.min(visible.length, Math.ceil((scrollTop + viewportH) / rowH) + overscan);
-  const windowRows = visible.slice(start, end);
-
-  const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: NUMERIC.has(key as ColKey) || key === 'reco' ? -1 : 1 }));
   const allSelected = visible.length > 0 && visible.every((r) => selected.has(r.v.item.id));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visible.map((r) => r.v.item.id)));
   const toggle = (id: string) =>
@@ -230,87 +154,6 @@ export function Stock({ route }: { route: Route }) {
     } finally {
       setBulkBusy(false);
       setSelected(new Set());
-    }
-  };
-
-  const header = (key: SortKey, label: string) => {
-    const active = sort.key === key;
-    return (
-      <th key={key} className={NUMERIC.has(key as ColKey) ? 'is-num' : ''} aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} scope="col">
-        <button type="button" onClick={() => toggleSort(key)}>
-          {label}
-          <Icon name={active && sort.dir === 1 ? 'arrowUp' : 'arrowDown'} size={11} style={{ opacity: active ? 1 : 0.25 }} />
-        </button>
-      </th>
-    );
-  };
-
-  const cell = (r: Row, c: ColKey) => {
-    const v = r.v;
-    switch (c) {
-      case 'brand':
-        return <td key={c}>{v.item.brand}</td>;
-      case 'size':
-        return <td key={c}>{v.item.size ?? <span className="t-faint">—</span>}</td>;
-      case 'cost':
-        return (
-          <td key={c} className="is-num" title={v.cost !== null && !v.costComplete ? t('capital.knownExShipping') : undefined}>
-            <Money cents={v.cost} compact />
-            {v.cost !== null && !v.costComplete && <sup className="t-warn" aria-label={t('capital.knownExShipping')}>+</sup>}
-          </td>
-        );
-      case 'roi': {
-        const p = positions.get(v.item.id);
-        return <td key={c} className="is-num num">{p?.potentialRoi != null ? i18n.pct(p.potentialRoi) : <span className="t-faint">—</span>}</td>;
-      }
-      case 'yield': {
-        const p = positions.get(v.item.id);
-        return (
-          <td key={c} className="is-num num">
-            {p?.efficiency30 != null ? <span className={p.efficiency30 < 0.25 ? 't-warn' : p.efficiency30 >= 1 ? 't-pos' : ''}>{i18n.pct(p.efficiency30)}</span> : <span className="t-faint">—</span>}
-          </td>
-        );
-      }
-      case 'price':
-        return (
-          <td key={c} className="is-num">
-            <Money cents={v.askPrice ?? v.sale?.salePriceCents ?? null} />
-          </td>
-        );
-      case 'margin':
-        return <td key={c} className="is-num">{v.inStock ? <Money cents={v.potentialProfit} sign compact /> : <span className="t-faint">—</span>}</td>;
-      case 'views':
-        return (
-          <td key={c} className="is-num num">
-            {v.current?.views ?? <span className="t-faint">—</span>}
-          </td>
-        );
-      case 'favorites':
-        return (
-          <td key={c} className="is-num num">
-            {v.current?.favorites ?? <span className="t-faint">—</span>}
-          </td>
-        );
-      case 'age':
-        return (
-          <td key={c} className="is-num num" title={v.daysHeldInferred ? t('data.inferred') : undefined}>
-            {v.daysHeld === null ? <span className="t-faint">—</span> : <span className={v.inStock && v.daysHeld >= 60 ? 't-warn' : ''}>{t('kpi.days', { n: v.daysHeld })}{v.daysHeldInferred ? '*' : ''}</span>}
-          </td>
-        );
-      case 'listings':
-        return (
-          <td key={c} className="is-num num">
-            {v.listings.length}
-          </td>
-        );
-      case 'status':
-        return (
-          <td key={c}>
-            <StatusBadge status={v.item.status} />
-          </td>
-        );
-      case 'reco':
-        return <td key={c}>{v.inStock ? <RecoChip r={r.intel?.recommendation ?? null} /> : null}</td>;
     }
   };
 
@@ -433,63 +276,17 @@ export function Stock({ route }: { route: Route }) {
               <EmptyState compact title={t('stock.noResults')} why={t('stock.noResultsWhy')} action={<Button onClick={() => { setFilter('all'); setQ(''); }}>{t('stock.noResultsCta')}</Button>} />
             </Card>
           ) : (
-            <div className="table-wrap" ref={scrollRef} style={{ maxHeight: 'calc(100vh - 250px)', minHeight: 320 }} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
-              <table className={`dt dt--${density}`} aria-rowcount={visible.length + 1}>
-                <thead>
-                  <tr>
-                    <th className="col-check" scope="col">
-                      <input type="checkbox" className="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Tout sélectionner" />
-                    </th>
-                    {header('title', t('stock.col.item'))}
-                    {cols.map((c) => header(c, t(`stock.col.${c}`)))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {start > 0 && (
-                    <tr aria-hidden="true" style={{ height: start * rowH }}>
-                      <td colSpan={cols.length + 2} style={{ padding: 0, border: 0 }} />
-                    </tr>
-                  )}
-                  {windowRows.map((r, i) => {
-                    const id = r.v.item.id;
-                    return (
-                      <tr
-                        key={id}
-                        aria-rowindex={start + i + 2}
-                        aria-selected={selected.has(id)}
-                        tabIndex={0}
-                        onClick={() => go(`item/${id}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') go(`item/${id}`);
-                          if (e.key === ' ') {
-                            e.preventDefault();
-                            toggle(id);
-                          }
-                        }}
-                      >
-                        <td className="col-check" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" className="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} aria-label={r.v.item.title} />
-                        </td>
-                        <td style={{ maxWidth: 340 }}>
-                          <span className="row" style={{ gap: 10 }}>
-                            <Thumb photoUrl={r.v.item.photoUrl} category={r.v.item.category} alt="" size={density === 'compact' ? 'sm' : 'md'} />
-                            <span className="clamp-1" style={{ fontWeight: 550 }}>
-                              {r.v.item.title}
-                            </span>
-                          </span>
-                        </td>
-                        {cols.map((c) => cell(r, c))}
-                      </tr>
-                    );
-                  })}
-                  {end < visible.length && (
-                    <tr aria-hidden="true" style={{ height: (visible.length - end) * rowH }}>
-                      <td colSpan={cols.length + 2} style={{ padding: 0, border: 0 }} />
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <StockTable
+              rows={visible}
+              cols={cols}
+              density={density}
+              sort={sort}
+              onSort={(key: SortKey) => setSort((x) => nextSort(x, key))}
+              positions={positions}
+              selected={selected}
+              onToggle={toggle}
+              onToggleAll={toggleAll}
+            />
           )}
           {selected.size > 0 && (
             <div className="bulkbar" role="region" aria-label={t('stock.selected', { n: selected.size })}>
@@ -531,28 +328,5 @@ function FocusBanner({ priority, title, hint, count }: { priority: TodayPriority
         {t('stock.focusClear')}
       </Button>
     </div>
-  );
-}
-
-export function StockTabs({ active }: { active: 'stock' | 'capital' | 'workshop' | 'quality' }) {
-  const { t } = useI18n();
-  const era = useEra();
-  const n = era.workshop.toList.length;
-  return (
-    <nav className="subtabs" aria-label={t('stock.title')}>
-      <a href="#/stock" aria-current={active === 'stock' ? 'page' : undefined}>
-        <Icon name="stock" size={14} /> {t('stock.tabItems')}
-      </a>
-      <a href="#/workshop" aria-current={active === 'workshop' ? 'page' : undefined}>
-        <Icon name="upload" size={14} /> {t('workshop.title')}
-        {n > 0 && <span className="subtabs__n num">{n}</span>}
-      </a>
-      <a href="#/capital" aria-current={active === 'capital' ? 'page' : undefined}>
-        <Icon name="capital" size={14} /> {t('capital.title')}
-      </a>
-      <a href="#/quality" aria-current={active === 'quality' ? 'page' : undefined}>
-        <Icon name="target" size={14} /> {t('lq.tab')}
-      </a>
-    </nav>
   );
 }

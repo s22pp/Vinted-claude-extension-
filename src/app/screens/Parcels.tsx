@@ -10,7 +10,7 @@ import { Badge, Button, Card, EmptyState, Flag } from '@/ui/components/primitive
 import { type MapPin, ParcelMap } from '../components/parcel-map';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
-import { SalesTabs } from './Accounting';
+import { SalesTabs } from '../components/section-tabs';
 
 /**
  * Colis: the parcels coming to the seller (purchases) and leaving (sales), on a map around home (Roanne by

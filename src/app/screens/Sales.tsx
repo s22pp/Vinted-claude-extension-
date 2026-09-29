@@ -16,7 +16,7 @@ import { go, type Route, useEra } from '../state';
 import { RefundsCard } from '../components/refunds';
 import { ToShipCard } from '../components/to-ship';
 import { ParcelsCard } from '../components/parcels';
-import { SalesTabs } from './Accounting';
+import { SalesTabs } from '../components/section-tabs';
 import { useEffect } from 'react';
 
 type Period = '30' | '90' | '365' | 'all';

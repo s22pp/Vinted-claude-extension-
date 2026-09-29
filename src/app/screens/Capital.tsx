@@ -7,7 +7,7 @@ import { Badge, type BadgeTone, Card, EmptyState, Metric, MetricFootPartial, Met
 import { ItemCell } from '../components/domain';
 import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
-import { StockTabs } from './Stock';
+import { StockTabs } from '../components/section-tabs';
 
 const REASON_TONE: Record<TrapReason, BadgeTone> = { HIGH_COST: 'violet', LONG_HELD: 'amber', LOW_DEMAND: 'coral', THIN_MARGIN: 'coral' };
 const AGE_FOCUS = ['stock?sort=age', 'stock?focus=AGE30', 'stock?focus=AGE60', 'stock?focus=AGE90'];
