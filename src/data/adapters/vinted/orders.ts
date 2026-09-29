@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import { MarketplaceError } from '../marketplace';
 import { reserve } from './budget-store';
 import { type SoldOrder, firstArray, parseOrder } from './parse';
 import type { EraMessage } from './protocol';
@@ -79,7 +80,16 @@ export async function fetchPurchases(adapter: VintedTabAdapter): Promise<SoldOrd
   }
   const out: SoldOrder[] = [];
   for (let page = 1; page <= 2; page++) {
-    const json = page === 1 && firstPage !== null ? firstPage : await adapter.rawGet(template.replace('{page}', String(page)));
+    let json: unknown;
+    try {
+      json = page === 1 && firstPage !== null ? firstPage : await adapter.rawGet(template.replace('{page}', String(page)));
+    } catch (e) {
+      // The address answered before and no longer does: forgotten, so the next import looks for it again.
+      if (page === 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') await db.settings.delete(PURCHASES_TEMPLATE_KEY);
+      // Page 2 unavailable: page 1 is kept. A block or a logout always stops everything.
+      if (page > 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') break;
+      throw e;
+    }
     const raw = firstArray(json, ['my_orders', 'orders', 'items']);
     out.push(...raw.map(parseOrder).filter((o): o is SoldOrder => o !== null));
     if (raw.length < 20) break;

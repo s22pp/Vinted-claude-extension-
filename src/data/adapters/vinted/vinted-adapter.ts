@@ -187,13 +187,21 @@ export class VintedTabAdapter implements MarketplaceAdapter {
 
   async getSoldOrders(): Promise<SoldOrder[]> {
     const out: SoldOrder[] = [];
+    // `status=all` (as read by two production tools) also returns refunded and cancelled orders; if Vinted refuses the
+    // parameter, fall back once to the plain list — and keep it for the next page (asking again would only fail again).
+    let plain = false;
+    const path = (page: number) => `/api/v2/my_orders?type=sold${plain ? '' : '&status=all'}&page=${page}&per_page=20`;
     for (let page = 1; page <= 2; page++) {
-      // `status=all` (as read by two production tools) also returns refunded and cancelled orders;
-      // if Vinted refuses the parameter, fall back once to the plain list.
-      const json = await this.api(`/api/v2/my_orders?type=sold&status=all&page=${page}&per_page=20`).catch((e) => {
-        if (page === 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') return this.api(`/api/v2/my_orders?type=sold&page=${page}&per_page=20`);
+      const json = await this.api(path(page)).catch((e) => {
+        if (!plain && page === 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') {
+          plain = true;
+          return this.api(path(page));
+        }
+        // Page 2 unavailable: the sales of page 1 are kept, never dropped with it. A block or a logout still stops.
+        if (page > 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') return null;
         throw e;
       });
+      if (json === null) break;
       const raw = firstArray(json, ['my_orders', 'orders']);
       out.push(...raw.map(parseOrder).filter((o): o is SoldOrder => o !== null));
       if (raw.length < 20) break;

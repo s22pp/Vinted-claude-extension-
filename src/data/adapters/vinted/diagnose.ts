@@ -21,7 +21,8 @@ export interface DiagStep {
 
 /**
  * Step-by-step check of the whole chain, stopping at the first failure (no wasted calls).
- * Costs at most 3 budgeted GET calls: users/current, wardrobe page 1, one catalog search.
+ * Costs 3 budgeted GET calls as a rule (users/current, wardrobe page 1, one search); up to 6 when the search goes
+ * through its fallbacks (plain form, search page visit, learned address).
  */
 export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = false): Promise<DiagStep[]> {
   const steps: DiagStep[] = [];

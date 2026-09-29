@@ -14,7 +14,7 @@ import { repo } from './repo';
 import { PENDING_REPOSTS_KEY, pendingReposts } from './vinted-repost';
 
 /**
- * Import the seller's own wardrobe + sold orders from Vinted (≤ 5 budgeted GET calls).
+ * Import the seller's own wardrobe + sold orders from Vinted (≤ 6 budgeted GET calls: profile, 2 wardrobe pages, 2 sales pages + one plain-form retry; purchases ≤ 4 more).
  * - Items are matched by platform listing id: re-importing updates, never duplicates.
  * - Imports store observations (price/views/favourites) when they change, and a live listing at least once a day:
  *   the engagement history, without identical rows from frequent automatic refreshes.

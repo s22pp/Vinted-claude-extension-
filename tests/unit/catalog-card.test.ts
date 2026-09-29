@@ -26,3 +26,13 @@ describe('parseCatalogCard', () => {
     expect(parseCatalogCard('/items/9', '')).toBeNull();
   });
 });
+
+describe('parseCatalogCard, from what a card shows when its link carries no price', () => {
+  it('name from the link, brand, size and price from the card lines: the item price, never the one with protection', () => {
+    const c = parseCatalogCard('/items/42-veste', 'Veste Harrington, Ralph Lauren, M · Très bon état, 45,00 €, 48,85 € incl.')!;
+    expect(c).toMatchObject({ id: '42', priceCents: 4500, brand: null });
+    expect(c.title.startsWith('Veste Harrington')).toBe(true);
+    // No "marque:" label: the brand is found in the title by the comparables step, not invented here.
+    expect(c.title).toContain('Ralph Lauren');
+  });
+});

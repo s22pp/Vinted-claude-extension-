@@ -40,8 +40,20 @@ test('companion: popup and side panel', async ({ context, base, extId }) => {
           const p = await context.newPage();
           await p.setViewportSize({ width: w, height: surface === 'popup' ? 600 : 860 });
           await p.goto(`chrome-extension://${extId}/${surface}.html`);
-          await p.getByTestId('pulse').or(p.locator('.companion')).first().waitFor();
-          await p.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+          // The theme as the app keeps it (its setting, and the copy read at boot), not forced over it: the app would
+          // paint its own back.
+          await p.evaluate(async (t) => {
+            localStorage.setItem('era.theme', t);
+            const req = indexedDB.open('era-intelligence');
+            const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+            await new Promise((r) => {
+              const tx = db.transaction('settings', 'readwrite');
+              tx.objectStore('settings').put({ key: 'theme', value: t });
+              tx.oncomplete = r;
+            });
+          }, theme);
+          await p.reload();
+          await p.locator('#root > *').first().waitFor({ timeout: 15_000 });
           await p.waitForTimeout(900);
           const o = await overflow(p);
           if (o.scroll > o.vw || o.out.length) console.log('OVERFLOW', state, surface, theme, w, JSON.stringify(o));

@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -57,6 +57,14 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       // calls no search API (only promoted closets), and shows a promoted closet block of another member.
       const q = url.searchParams.get('search_text') ?? '';
       const card = (id: number, title: string) => `<div class="feed-grid__item"><a href="/items/${id}-annonce?referrer=catalog" title="${title}"></a></div>`;
+      // Variant: the link names the listing only through its image; brand, size and price are what the card shows.
+      if (opts.searchPageCards === 'altOnly') {
+        const shown = (id: number, name: string, lines: string[]) => `<div class="feed-grid__item"><a href="/items/${id}-annonce"><img alt="${name}" width="10" height="10"></a>${lines.map((l) => `<p>${l}</p>`).join('')}</div>`;
+        return route.fulfill({
+          contentType: 'text/html; charset=utf-8',
+          body: `<html><body><div class="feed-grid">${shown(811, 'Veste Harrington', ['Ralph Lauren', 'M · Très bon état', '45,00 €', '48,85 € incl.'])}${shown(812, 'Blouson Harrington', ['Ralph Lauren', 'L · Bon état', '39,00 €', '41,65 € incl.'])}</div></body></html>`,
+        });
+      }
       return route.fulfill({
         contentType: 'text/html; charset=utf-8',
         body: `<html><body><div class="closet-promotion">${card(990, 'Pull, marque: Zara, 5,00 €, 5,95 € inclus')}</div><div class="feed-grid">${card(801, 'Veste Harrington, marque: Ralph Lauren, état: Très bon état, taille: M, 45,00 €, 48,85 € inclus')}${card(802, 'Veste Harrington vintage, marque: Ralph Lauren, état: Bon état, taille: L, 38,00 €, 41,60 € inclus')}${card(803, 'Blouson Ralph Lauren, marque: Ralph Lauren, taille: M, 52,00 €, 55,30 € inclus')}</div><script>fetch('/api/v2/promoted_closets?search_text=' + encodeURIComponent(${JSON.stringify(q)}))</script></body></html>`,
@@ -188,6 +196,19 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ items: [{ id: 31, title: 'Chemise Bonobo lin', price: '18.0', brand_title: 'Bonobo', size_title: 'L' }, { id: 32, title: 'Chemise en lin Bonobo', price: '22.0', brand_title: 'Bonobo', size_title: 'L' }], pagination: { total_entries: 40 } });
     if (url.pathname === '/api/v2/catalog/items')
       return json({ items: [{ id: 9, title: 'Veste Ralph Lauren', price: '50.0', brand_title: 'Ralph Lauren' }], pagination: { total_entries: 960 } });
+    // Vinted refusing `status=all`, with 25 sales over two pages: page 2 must be asked in the plain form too.
+    if (url.pathname === '/api/v2/my_orders' && opts.soldStatusRefused) {
+      if (url.searchParams.has('status')) return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      const page = Number(url.searchParams.get('page') ?? 1);
+      const n = page === 1 ? 20 : page === 2 ? 5 : 0;
+      return json({ my_orders: Array.from({ length: n }, (_, i) => ({ title: `Article vendu ${page}-${i}`, price: { amount: '20.0' }, date: '2026-09-01', status: 'Terminée' })) });
+    }
+    // A full first page of sales (one of them a listing of the wardrobe), then page 2 unavailable.
+    if (url.pathname === '/api/v2/my_orders' && opts.soldPage2Down) {
+      if (url.searchParams.get('page') === '2') return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      const filler = Array.from({ length: 19 }, (_, i) => ({ title: `Article vendu ${i}`, price: { amount: '20.0' }, date: '2026-09-01', status: 'Terminée' }));
+      return json({ my_orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '75.0' }, date: '2026-09-10', status: 'Terminée' }, ...filler] });
+    }
     if (url.pathname === '/api/v2/my_orders')
       return json({ my_orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '75.0' }, date: '2026-09-10', status: 'Terminée' }, ...(opts.orders ?? [])] });
     return json({}, 404);
@@ -925,6 +946,42 @@ test('icon badge counts the orders to ship; automatic refresh is scheduled only 
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh'))?.periodInMinutes ?? null), { timeout: 10_000 }).toBe(360);
   await page.getByLabel('Actualiser automatiquement').uncheck();
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-refresh')) ?? null), { timeout: 10_000 }).toBeNull();
+});
+
+test('sales list: Vinted refuses status=all → page 1 and page 2 both read in the plain form, no sale dropped', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, soldStatusRefused: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const sold = calls.filter((c) => c.path.startsWith('/api/v2/my_orders') && c.path.includes('type=sold')).map((c) => c.path);
+  // Refused once, then the plain form for both pages — never asking page 2 again with the refused parameter.
+  expect(sold).toEqual([
+    '/api/v2/my_orders?type=sold&status=all&page=1&per_page=20',
+    '/api/v2/my_orders?type=sold&page=1&per_page=20',
+    '/api/v2/my_orders?type=sold&page=2&per_page=20',
+  ]);
+});
+
+test('sales list: page 2 unavailable → the sales of page 1 are kept, never dropped with it', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, soldPage2Down: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  // The 20 sales of page 1 recorded (before: page 2's 404 dropped them all, 0).
+  await expect(page.getByText(/ 20 ventes rapprochées/)).toBeVisible({ timeout: 40_000 });
+  expect(calls.some((c) => c.path.includes('type=sold') && c.path.includes('page=2'))).toBe(true);
+});
+
+test('search page whose links name the listing only by image: the price read from what the card shows', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true, searchPageCards: 'altOnly' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
+  const catalog = page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' });
+  await expect(catalog.getByText('✓')).toBeVisible({ timeout: 60_000 });
+  await expect(catalog).toContainText('2 comparables · total ? · via la page de recherche Vinted');
 });
 
 test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {

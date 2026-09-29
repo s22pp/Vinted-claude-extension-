@@ -49,16 +49,15 @@ export default defineContentScript({
           const href = a.getAttribute('href') ?? '';
           const id = /\/items\/(\d+)/.exec(href)?.[1];
           // The link's accessible title first; else its image's text; else what the card itself shows, line by line.
+          // A name without its price (an image's alt, say) takes the price from what the card shows.
           const card = a.closest('[data-testid*="item" i], [class*="feed-grid__item"], [class*="item-box"]') as HTMLElement | null;
-          const text =
-            a.getAttribute('title') ||
-            a.getAttribute('aria-label') ||
-            a.querySelector('img')?.getAttribute('alt') ||
-            (card?.innerText ?? '')
-              .split('\n')
-              .map((l) => l.trim())
-              .filter(Boolean)
-              .join(', ');
+          const lines = (card?.innerText ?? '')
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .join(', ');
+          const named = [a.getAttribute('title'), a.getAttribute('aria-label'), a.querySelector('img')?.getAttribute('alt')].filter((x): x is string => !!x?.trim());
+          const text = named.find((x) => x.includes('€')) ?? (named[0] ? (lines.includes('€') ? `${named[0]}, ${lines}` : named[0]) : lines);
           if (!id || seen.has(id) || !text) continue;
           seen.add(id);
           cards.push({ href, text: text.slice(0, 400) });
