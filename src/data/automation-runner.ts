@@ -99,13 +99,15 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         const convId = idOf(conv.id);
         if (!convId) throw new MarketplaceError('UNAVAILABLE', 'conversation sans identifiant');
         const detail = obj(obj(await adapter.rawGet(`/api/v2/conversations/${convId}`)).conversation);
-        for (const n of b.notices) seen.add(n.key);
         if (Array.isArray(detail.messages) && detail.messages.length > 0) {
+          for (const n of b.notices) seen.add(n.key);
           out.skipped++;
           await log({ kind: 'SKIP', dryRun, ok: true, target, detail: 'conversation déjà engagée : rien envoyé' });
           continue;
         }
         await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
+        // Seen only once the message is sent: a failed reply is tried again, never dropped.
+        for (const n of b.notices) seen.add(n.key);
         await log({ kind: 'FAV_BUNDLE', dryRun, ok: true, target, detail: `« ${text} »` });
         sentToday++;
         await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
@@ -127,6 +129,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       const plan = planFavorite(n, item, cfg, { seen, sentToday, now });
       if (!plan.send) {
         if (plan.final && !dryRun) seen.add(n.key);
+        // A simulation says why nothing would be sent (a real pass stays quiet: it is looked at again next time).
+        if (plan.reason === 'NO_OFFER' && dryRun) await log({ kind: 'SKIP', dryRun, ok: true, target: `${item?.title ?? `annonce ${n.itemId}`} → membre ${n.userId}`, detail: plan.note ?? 'pas d’offre possible' });
         if (plan.reason === 'DAY_CAP') {
           out.stopped = 'plafond du jour atteint';
           break;
@@ -165,17 +169,24 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
           await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
         }
         const txId = idOf(tx.id);
+        let offerSent = false;
         if (plan.offerCents !== null && txId) {
           step = 'FAV_OFFER';
           await write('POST', `/api/v2/transactions/${txId}/offers`, { offer: { price: (plan.offerCents / 100).toFixed(2), currency: 'EUR' } });
           await log({ kind: 'FAV_OFFER', dryRun, ok: true, target, detail: `offre ${eur(plan.offerCents)}${price !== null ? ` au lieu de ${eur(price)}` : ''}` });
+          offerSent = true;
+        } else if (plan.offerCents !== null) {
+          // The offer was planned but Vinted gives no transaction for this conversation: said, never counted as sent.
+          await log({ kind: 'FAV_OFFER', dryRun, ok: false, target, detail: `UNAVAILABLE · offre de ${eur(plan.offerCents)} non envoyée : Vinted ne donne pas la transaction de cette conversation` });
         } else if (plan.note) {
           await log({ kind: 'SKIP', dryRun, ok: true, target, detail: plan.note });
         }
         seen.add(n.key);
         sentToday++;
         await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
-        out.done++;
+        // Done only when something reached the member (a message or an offer).
+        if (plan.message || offerSent) out.done++;
+        else out.failed++;
       } catch (e) {
         out.failed++;
         const { code, detail } = errorInfo(e);
@@ -211,7 +222,9 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
       if (out.done >= PER_RUN) break;
       const item = o.itemId ? (items.get(o.itemId) ?? null) : null;
       const floor = floorFor(item?.costCents ?? null, cfg);
-      const d = decideOffer(o, floor, cfg, !!state[o.offerId]?.countered);
+      // One counter-offer per sale (transaction), not per offer: a buyer's new offer after ours goes to the seller.
+      const txKey = o.transactionId ? `tx:${o.transactionId}` : null;
+      const d = decideOffer(o, floor, cfg, !!state[o.offerId]?.countered || (txKey !== null && !!state[txKey]?.countered));
       const target = `${o.itemTitle} · offre ${eur(o.offerCents)} sur ${eur(o.itemPriceCents)}`;
       if (d.action === 'SKIP') {
         out.skipped++;
@@ -235,6 +248,7 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
           if (!o.transactionId) throw new MarketplaceError('UNAVAILABLE', 'transaction inconnue : contre-offre impossible');
           await write('POST', `/api/v2/transactions/${o.transactionId}/offers`, { offer: { price: (d.counterCents / 100).toFixed(2), currency: 'EUR' } });
           state[o.offerId] = { ...state[o.offerId], countered: true, at: now };
+          if (txKey) state[txKey] = { countered: true, at: now };
         } else {
           await answerOffer(o.offerId, o.transactionId, d.action === 'ACCEPT' ? 'accept' : 'reject');
           if (d.action === 'ACCEPT' && cfg.offers.acceptMessage.trim() && o.conversationId)
@@ -274,8 +288,10 @@ async function answerOffer(offerId: string, transactionId: string | null, verb: 
       await write('PUT', `/api/v2/transactions/${transactionId}/offer_requests/${offerId}/${verb}`, {});
       return;
     } catch (e) {
-      // Only "route not found" falls back; a block or a logout stops everything.
-      if (errorInfo(e).code !== 'UNAVAILABLE') throw e;
+      // Only "route not found" (HTTP 404) falls back. Any other answer — a server error, a reply that is not JSON, a
+      // timeout — may mean Vinted applied it: never a second write on top. A block or a logout stops everything.
+      const { code, detail } = errorInfo(e);
+      if (code !== 'UNAVAILABLE' || !/HTTP 404\b/.test(detail ?? '')) throw e;
     }
   }
   await write('POST', `/api/v2/offers/${offerId}/${verb}`, {});

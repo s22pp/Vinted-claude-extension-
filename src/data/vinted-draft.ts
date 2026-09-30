@@ -19,33 +19,40 @@ const idText = (x: unknown): string | null => (typeof x === 'number' ? String(x)
  */
 export async function createVintedDraft(input: DraftInput): Promise<DraftResult> {
   const adapter = new VintedTabAdapter();
+  // A helper Vinted does not answer (not found, odd reply) leaves its field for the seller; a block, a logout, an
+  // exhausted budget stop everything — never a draft sent in the middle of a block.
+  const soft = <T,>(p: Promise<T>): Promise<T | null> =>
+    p.catch((e) => {
+      if (errorInfo(e).code === 'UNAVAILABLE') return null;
+      throw e;
+    });
   const filled: string[] = [];
   const missing: string[] = [];
   try {
     // 0. A similar article sold before: its own listing carries Vinted's ids for this very kind of article.
-    const tpl = input.template ? (repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${input.template.listingId}`).catch(() => null))?.fields ?? null) : null;
+    const tpl = input.template ? (repostSource(await soft(adapter.rawGet(`/api/v2/item_upload/items/${input.template.listingId}`)))?.fields ?? null) : null;
     const tplId = (k: string) => (tpl && typeof tpl[k] === 'number' ? (tpl[k] as number) : null);
     // 1. Category first (on Vinted, changing it resets brand, size and condition): the model's, else the one Vinted suggests.
     const catalogId =
       tplId('catalog_id') ??
-      pickCatalogId(await vintedWrite('POST', '/api/v2/item_upload/suggestions/categories', { title: input.title.slice(0, 200), description: input.description.slice(0, 1000) }, { spaced: false }).catch(() => null));
+      pickCatalogId(await soft(vintedWrite('POST', '/api/v2/item_upload/suggestions/categories', { title: input.title.slice(0, 200), description: input.description.slice(0, 1000) }, { spaced: false })));
     (catalogId ? filled : missing).push('category');
     // 2. Brand, by its exact name — an approximate brand gets a listing banned. The model's only if it is the same name.
     const sameBrand = tplId('brand_id') !== null && typeof tpl?.brand === 'string' && normalizeText(tpl.brand) === normalizeText(input.brand);
     const brand = sameBrand
       ? { id: tplId('brand_id')!, title: tpl!.brand as string }
-      : pickBrandId(await adapter.rawGet(`/api/v2/item_upload/brands?keyword=${encodeURIComponent(input.brand)}`).catch(() => null), input.brand);
+      : pickBrandId(await soft(adapter.rawGet(`/api/v2/item_upload/brands?keyword=${encodeURIComponent(input.brand)}`)), input.brand);
     (brand ? filled : missing).push('brand');
     // 3. Size: the model's when it is the same size in the same category, else an exact match in this category's sizes.
     const sizeId =
       input.template?.sameSize && tplId('size_id') && catalogId === tplId('catalog_id')
         ? tplId('size_id')
         : catalogId && input.size
-          ? pickSizeId(await adapter.rawGet(`/api/v2/item_upload/size_groups?catalog_ids=${catalogId}`).catch(() => null), input.size)
+          ? pickSizeId(await soft(adapter.rawGet(`/api/v2/item_upload/size_groups?catalog_ids=${catalogId}`)), input.size)
           : null;
     (sizeId ? filled : missing).push('size');
     // 4. Package: the one the sheet chose, if the category allows it.
-    const packageId = catalogId ? pickPackageId(await adapter.rawGet(`/api/v2/catalogs/${catalogId}/package_sizes`).catch(() => null), input.packageSize) : null;
+    const packageId = catalogId ? pickPackageId(await soft(adapter.rawGet(`/api/v2/catalogs/${catalogId}/package_sizes`)), input.packageSize) : null;
     (packageId ? filled : missing).push('package');
     const statusId = input.condition ? STATUS_ID_OF[input.condition] : null;
     (statusId ? filled : missing).push('condition');
@@ -73,12 +80,19 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
     const draftId = idText(obj(res.draft).id) ?? idText(res.id);
     if (!draftId) throw new MarketplaceError('UNAVAILABLE', 'Vinted n’a pas renvoyé de brouillon');
 
-    // 5. Read it back on Vinted: the title must be there, as a draft.
-    const back = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
-    if (typeof back.title === 'string' && back.title.trim() !== input.title.trim())
-      throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre`);
-
+    // 5. Read it back on Vinted: the title must be there, as a draft. The draft exists from here on: whatever the
+    // read-back says, it is kept on the sheet (never created twice on a retry) and named in the answer.
     await repo.savePrep(input.itemId, { vintedDraftId: draftId });
+    let back: Record<string, unknown>;
+    try {
+      back = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
+    } catch (e) {
+      const { code, detail } = errorInfo(e);
+      throw new MarketplaceError(code, `brouillon ${draftId} créé sur Vinted, relecture impossible (${detail ?? code}) : vérifiez-le sur Vinted avant de le compléter`);
+    }
+    if (typeof back.title === 'string' && back.title.trim() !== input.title.trim())
+      throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
+
     await journal({ kind: 'DRAFT', dryRun: false, ok: true, target: input.title, detail: `brouillon ${draftId} · rempli : ${filled.join(', ')}${missing.length ? ` · à compléter sur Vinted : ${missing.join(', ')}` : ''}` });
     return { ok: true, draftId, filled, missing };
   } catch (e) {

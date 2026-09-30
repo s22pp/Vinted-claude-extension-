@@ -55,6 +55,9 @@ export async function asScheduled<T>(floor: number, run: () => Promise<T>): Prom
   }
 }
 
+/** A scheduled run is going on in this worker (nothing it does was clicked by the seller). */
+export const isScheduledRun = () => scheduledRuns > 0;
+
 export async function reserve(use: BudgetUse = 'OTHER'): Promise<ReserveResult> {
   const { budget } = await loadBudget();
   if (scheduledRuns > 0 && budget.remaining <= reserveFloor) return { ok: false, code: 'BUDGET_EXHAUSTED' };

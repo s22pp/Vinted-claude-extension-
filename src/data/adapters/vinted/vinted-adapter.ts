@@ -1,3 +1,4 @@
+import { isScheduledRun } from './budget-store';
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
 import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
@@ -22,6 +23,8 @@ export async function findVintedTab(): Promise<number | null> {
 export async function ensureVintedTab(): Promise<{ tabId: number; created: boolean }> {
   const existing = await findVintedTab();
   if (existing !== null && (await ping(existing))) return { tabId: existing, created: false };
+  // A scheduled pass never opens, reloads or navigates a tab by itself: the seller may be typing in theirs.
+  if (isScheduledRun()) throw new MarketplaceError('NO_VINTED_TAB', 'passage automatique : aucun onglet vinted.fr ne répond, ERA n’en ouvre ni n’en recharge aucun tout seul');
   // A vinted.fr tab opened before ERA was installed has no content script: reload it. Otherwise open one.
   const tabId = existing ?? (await browser.tabs.create({ url: 'https://www.vinted.fr/', active: false })).id!;
   // Vinted pages are heavy: give a slow connection up to ~15 s before retrying once.

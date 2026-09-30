@@ -1,5 +1,6 @@
 import { labelFileName } from '@/intelligence/shipping';
 import { journal } from './journal';
+import { repo } from './repo';
 import { PARCEL_INFO_KEY, type ParcelInfo, pointsIn, trackingIn } from '@/intelligence/parcels';
 import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, type MarketplaceErrorCode, errorInfo } from './adapters/marketplace';
@@ -27,23 +28,43 @@ const log = (row: Omit<AutoLogRow, 'id' | 'at' | 'dryRun'>) => journal({ dryRun:
  * The printable label of one order, like "Obtenir le bordereau" on Vinted: an existing label is simply fetched;
  * otherwise it is ordered (printable, the drop-off Vinted proposes), then Vinted is given up to ~25 s to make it.
  */
+/** Shipments ERA ordered a label for, and when: never ordered twice while Vinted is still making it. */
+export const LABEL_ORDERED_KEY = 'labelOrdered';
+const REORDER_AFTER_MS = 24 * 3600_000;
+
 export async function getShippingLabel(conversationId: string, title: string, soldAt: number): Promise<LabelResult> {
   const adapter = new VintedTabAdapter();
+  // "No label yet" is only a label address Vinted does not have (not found / empty). A block, a logout, an exhausted
+  // budget stop everything — never read as "no label", which would order one in the middle of a block.
+  const labelUrl = async (shipmentId: string) => {
+    try {
+      return urlOf(await adapter.rawGet(`/api/v2/shipments/${shipmentId}/label_url`));
+    } catch (e) {
+      if (errorInfo(e).code === 'UNAVAILABLE') return null;
+      throw e;
+    }
+  };
   try {
     const tx = obj(obj(obj(await adapter.rawGet(`/api/v2/conversations/${conversationId}`)).conversation).transaction);
     const txId = idText(tx.id);
     const shipmentId = idText(tx.shipment_id) ?? idText(obj(tx.shipment).id);
     if (!txId || !shipmentId) throw new MarketplaceError('NOT_APPLIED', 'commande pas encore prête pour un bordereau (pas d’expédition chez Vinted)');
-    let url = urlOf(await adapter.rawGet(`/api/v2/shipments/${shipmentId}/label_url`).catch(() => null));
+    let url = await labelUrl(shipmentId);
     const ordered = !url;
+    const orderedAt = (await repo.getSetting<Record<string, number>>(LABEL_ORDERED_KEY, {}))[shipmentId];
+    if (!url && orderedAt && Date.now() - orderedAt < REORDER_AFTER_MS) {
+      // Already ordered by ERA: look again, never order a second time.
+      throw new MarketplaceError('NOT_APPLIED', 'bordereau déjà commandé, pas encore fabriqué par Vinted : réessayez dans quelques minutes');
+    }
     if (!url) {
       const address = idText(obj(obj(await adapter.rawGet('/api/v2/user_addresses/default_shipping_address')).user_address).id);
       if (!address) throw new MarketplaceError('NOT_APPLIED', 'aucune adresse d’expédition par défaut sur votre compte Vinted');
       await vintedWrite('PUT', `/api/v2/transactions/${txId}/shipment/order`, { seller_address_id: Number(address), drop_off_type: null, label_type: 'printable' });
+      await repo.setSetting(LABEL_ORDERED_KEY, { ...(await repo.getSetting<Record<string, number>>(LABEL_ORDERED_KEY, {})), [shipmentId]: Date.now() });
       // Vinted makes the label asynchronously: a few spaced looks, not a hammering.
       for (const ms of [2000, 4000, 7000, 11000]) {
         await waitAlive(ms);
-        url = urlOf(await adapter.rawGet(`/api/v2/shipments/${shipmentId}/label_url`).catch(() => null));
+        url = await labelUrl(shipmentId);
         if (url) break;
       }
     }

@@ -107,6 +107,8 @@ export async function repostAsDraft(itemId: string, now = Date.now()): Promise<R
     const b = await budget.status();
     if (b.halted) throw new MarketplaceError(b.halted);
     if (b.remaining < photos.length + 2) throw new MarketplaceError('BUDGET_EXHAUSTED', `${photos.length + 2} appels nécessaires, ${b.remaining} restants`);
+    // …nor one the day's write quota cannot finish (the draft is one of those writes): throws when it is spent.
+    await budget.autoWriteWait();
 
     const { tabId } = await ensureVintedTab();
     const session = globalThis.crypto.randomUUID();
@@ -118,9 +120,17 @@ export async function repostAsDraft(itemId: string, now = Date.now()): Promise<R
     const draftId = idText(obj(res.draft).id) ?? idText(res.id);
     if (!draftId) throw new MarketplaceError('UNAVAILABLE', 'Vinted n’a pas renvoyé de brouillon');
 
-    // Read back: the title and the photos (field `photos`) must be there.
-    const back = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
-    if (typeof back.title === 'string' && back.title.trim() !== src.title.trim()) throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre`);
+    // Read back: the title and the photos (field `photos`) must be there. The copy exists from here on: when it cannot be
+    // read back it is kept waiting like any copy (never made twice on a retry) and named in the answer.
+    let back: Record<string, unknown>;
+    try {
+      back = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
+    } catch (e) {
+      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
+      const { code, detail } = errorInfo(e);
+      throw new MarketplaceError(code, `copie en brouillon ${draftId} créée sur Vinted, relecture impossible (${detail ?? code}) : vérifiez-la sur Vinted avant de la publier`);
+    }
+    if (typeof back.title === 'string' && back.title.trim() !== src.title.trim()) throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
     const photosBack = Array.isArray(back.photos) ? back.photos.length : null;
 
     await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);

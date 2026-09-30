@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -164,6 +164,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/conversations/9200') return json({ conversation: { transaction: { id: 7200, shipment_id: 6200, shipment: { status: 1 } } } });
     if (url.pathname === '/api/v2/conversations/9201') return json({ conversation: { transaction: { id: 7201, shipment_id: 6201 } } });
     if (url.pathname === '/api/v2/shipments/6201/label_url') return json({ label_url: 'https://labels.example/6201.pdf', code: 0 });
+    if (url.pathname === '/api/v2/shipments/6200/label_url' && opts.labelRateLimited) return json({ code: 106 }, 429);
+    if (url.pathname === '/api/v2/shipments/6200/label_url' && opts.labelNeverReady) return json({ label_url: null, code: 0 });
     if (url.pathname === '/api/v2/shipments/6200/label_url') return json({ label_url: state.labelOrdered ? 'https://labels.example/6200.pdf' : null, code: 0 });
     if (url.pathname === '/api/v2/user_addresses/default_shipping_address') return json({ user_address: { id: 42 } });
     if (url.pathname === '/api/v2/transactions/7200/shipment/order' && method === 'PUT') {
@@ -316,6 +318,42 @@ test('an order Vinted says needs the seller: first in Today, a checklist, then t
   expect(JSON.parse(put.body!)).toEqual({ seller_address_id: 42, drop_off_type: null, label_type: 'printable' });
   expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://labels.example/6200.pdf']);
 });;
+
+test('label: Vinted limits the requests while ERA looks for it → nothing ordered, everything stops', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, labelRateLimited: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales?ship=1`);
+  const card = page.getByTestId('to-ship');
+  await card.getByLabel('Photo de l’article avant emballage (preuve d’état)').check();
+  await card.getByRole('button', { name: 'Obtenir le bordereau' }).click();
+  // A block while ERA looks for the label: never taken for "no label yet" (the budget's halt also refuses what follows).
+  await expect.poll(() => calls.filter((c) => c.path.includes('/label_url')).length, { timeout: 40_000 }).toBeGreaterThan(0);
+  await page.waitForTimeout(3000);
+  expect(calls.filter((c) => c.method !== 'GET')).toEqual([]);
+  expect(calls.some((c) => c.path.includes('default_shipping_address'))).toBe(false);
+});
+
+test('label ordered but not made yet: a second click looks again, never orders a second time', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const calls = await fakeVinted(context, { loggedIn: true, labelNeverReady: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/sales?ship=1`);
+  const card = page.getByTestId('to-ship');
+  await card.getByLabel('Photo de l’article avant emballage (preuve d’état)').check();
+  const orders = () => calls.filter((c) => c.method === 'PUT' && c.path.endsWith('/shipment/order')).length;
+  await card.getByRole('button', { name: 'Obtenir le bordereau' }).click();
+  await expect(page.getByText(/pas encore fabriqué/).first()).toBeVisible({ timeout: 60_000 });
+  expect(orders()).toBe(1);
+  await card.getByRole('button', { name: 'Obtenir le bordereau' }).click();
+  await expect(page.getByText(/déjà commandé/).first()).toBeVisible({ timeout: 30_000 });
+  expect(orders()).toBe(1);
+});
 
 test('not logged in: clear message, Vinted tab brought forward', async ({ context, base }) => {
   await fakeVinted(context, { loggedIn: false });

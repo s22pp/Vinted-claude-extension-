@@ -137,7 +137,7 @@ export interface FavItem {
 
 export type FavPlan =
   | { send: true; message: boolean; offerCents: number | null; note: string | null }
-  | { send: false; reason: 'SEEN' | 'TOO_RECENT' | 'TOO_OLD' | 'DAY_CAP'; final: boolean };
+  | { send: false; reason: 'SEEN' | 'TOO_RECENT' | 'TOO_OLD' | 'DAY_CAP' | 'NO_OFFER'; final: boolean; note?: string };
 
 export function planFavorite(n: FavoriteNotice, item: FavItem | null, cfg: AutoConfig, ctx: { seen: ReadonlySet<string>; sentToday: number; now: number }): FavPlan {
   if (ctx.seen.has(n.key)) return { send: false, reason: 'SEEN', final: true };
@@ -148,6 +148,9 @@ export function planFavorite(n: FavoriteNotice, item: FavItem | null, cfg: AutoC
   const message = cfg.fav.mode !== 'OFFER';
   if (cfg.fav.mode === 'MESSAGE') return { send: true, message, offerCents: null, note: null };
   const offer = favoriteOffer(item, cfg);
+  // Offer only, and no offer possible (cost or article unknown, floor at the price): nothing to send — no conversation
+  // opened for nothing. Looked at again later (the cost may be filled in), until the favourite is too old.
+  if (!message && offer.cents === null) return { send: false, reason: 'NO_OFFER', final: false, note: offer.note ?? undefined };
   return { send: true, message, offerCents: offer.cents, note: offer.note };
 }
 
@@ -181,8 +184,10 @@ export function parseInboxOffers(json: unknown, myUserId: string | null): Pendin
     const tx = isObj(c.transaction) ? c.transaction : null;
     const offer = isObj(tx?.offer) ? tx!.offer : isObj(c.offer) ? c.offer : null;
     if (!offer || offer.status !== 'pending') continue;
+    // Acted on only when it is certainly someone else's: an offer whose author or whose seller is unknown may be the
+    // seller's own counter-offer — never accepted, refused or countered by ERA.
     const author = id(offer.user_id ?? offer.from_user_id ?? offer.author_id ?? offer.by_user_id);
-    if (author && myUserId && author === myUserId) continue;
+    if (!author || !myUserId || author === myUserId) continue;
     const item = isObj(c.item) ? c.item : null;
     const itemPrice = priceCents(tx?.item_price ?? item?.price);
     const offered = priceCents(offer.price ?? offer.amount);

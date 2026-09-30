@@ -31,6 +31,14 @@ describe('new favourites', () => {
     expect(planFavorite(n!, item, cfg, { ...ctx, sentToday: cfg.fav.perDay })).toMatchObject({ send: false, reason: 'DAY_CAP' });
   });
 
+  it('offer only, and no offer possible (cost unknown): nothing sent, no conversation opened — looked at again later', () => {
+    const [n] = parseFavoriteNotifications(json);
+    const offerOnly = { ...cfg, fav: { ...cfg.fav, mode: 'OFFER' as const } };
+    const ctx = { seen: new Set<string>(), sentToday: 0, now: NOW };
+    expect(planFavorite(n!, { title: 'Veste', priceCents: 5900, costCents: null }, offerOnly, ctx)).toMatchObject({ send: false, reason: 'NO_OFFER', final: false });
+    expect(planFavorite(n!, { title: 'Veste', priceCents: 5900, costCents: 1800 }, offerOnly, ctx)).toEqual({ send: true, message: false, offerCents: 5400, note: null });
+  });
+
   it('offers the discount, never under cost + margin, never without a known cost', () => {
     expect(favoriteOffer({ title: 'a', priceCents: 5900, costCents: 1800 }, cfg).cents).toBe(5400); // −10 % = 53,10 → 54 €
     expect(favoriteOffer({ title: 'a', priceCents: 2000, costCents: 1700 }, cfg).cents).toBeNull(); // floor 20 € = price
@@ -61,6 +69,12 @@ describe('offers received', () => {
 
   it('keeps only pending offers from buyers', () => {
     expect(parseInboxOffers(inbox, '177293623')).toEqual([{ offerId: '8100', conversationId: '9100', transactionId: '7100', itemId: '101', itemTitle: 'Veste', itemPriceCents: 5900, offerCents: 4000 }]);
+  });
+
+  it('an offer whose author, or the seller, is unknown may be the seller’s own counter-offer: never acted on', () => {
+    const noAuthor = { conversations: [{ id: 9103, transaction: { id: 7103, item_id: 104, item_price: { amount: '50.0' }, offer: { id: 8103, status: 'pending', price: { amount: '46.0' } } } }] };
+    expect(parseInboxOffers(noAuthor, '177293623')).toEqual([]);
+    expect(parseInboxOffers(inbox, null)).toEqual([]);
   });
 
   const o = (offer: number, price = 5000): PendingOffer => ({ offerId: '1', conversationId: '2', transactionId: '3', itemId: '4', itemTitle: 't', itemPriceCents: price, offerCents: offer });
