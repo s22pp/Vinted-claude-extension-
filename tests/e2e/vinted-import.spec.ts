@@ -1,5 +1,5 @@
 import type { BrowserContext } from '@playwright/test';
-import { expect, fakeLabelServer, test } from './fixtures';
+import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean }) {
@@ -1573,6 +1573,38 @@ test('descriptions in series: the text added to what the Vinted page holds (ERA 
   expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.\n\nEnvoi sous 48 h.');
   expect(fake.titles['101']).toBe('Veste Harrington Ralph Lauren M');
   expect(fake.clicked).toEqual([]);
+});
+
+test('description written with Gemini: the seller’s text kept, what is not in ERA’s facts flagged, sent only once seen', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const seen = await fakeGemini(context, { reply: 'Coupe droite, 100 % coton.' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await setGeminiKey(page, base);
+  await page.goto(`${base}#/quality`);
+  await page.getByRole('button', { name: /Lire \d+ descriptions? sur Vinted/ }).click();
+  await expect(page.getByText(/annonces? lues?/).first()).toBeVisible({ timeout: 40_000 });
+  await page.getByTestId('quality').locator('tr', { hasText: 'Veste Harrington Ralph Lauren M' }).getByRole('button', { name: 'Compléter la description' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Rédiger avec Gemini' }).click();
+  // The seller's own text first, word for word; Gemini's addition below it.
+  await expect(dialog.getByTestId('describe-text')).toHaveValue('Veste Harrington, bon état.\n\nCoupe droite, 100 % coton.');
+  // ERA knows no composition for this jacket: the number and the material are flagged.
+  await expect(dialog.getByTestId('draft-issues')).toContainText('chiffre « 100 »');
+  await expect(dialog.getByTestId('draft-issues')).toContainText('matière « coton »');
+  await expect(dialog.getByRole('button', { name: /Remplacer sur Vinted/ })).toBeDisabled();
+  await dialog.getByLabel(/J’ai vérifié ces points/).check();
+  await dialog.getByRole('button', { name: /Remplacer sur Vinted/ }).click();
+  await dialog.getByRole('button', { name: 'Confirmer et remplacer' }).click();
+  await expect(page.getByText('Description remplacée sur Vinted')).toBeVisible({ timeout: 40_000 });
+  expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.\n\nCoupe droite, 100 % coton.');
+  // What went to Google: the facts ERA knows and the seller's text to keep, nothing sent by itself.
+  const gen = seen.filter((x) => x.method === 'POST');
+  expect(gen).toHaveLength(1);
+  expect(JSON.stringify(gen[0]!.body)).toContain('Veste Harrington, bon état.');
 });
 
 test('complete a description on an ambiguous page (two description fields): nothing is saved on Vinted', async ({ context, base }) => {

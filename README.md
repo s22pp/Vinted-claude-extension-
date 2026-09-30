@@ -189,6 +189,17 @@ Outils → **« Titres et descriptions en série »** : le même changement sur 
 - **Bouclier** : un changement qui mettrait une autre marque, un terme de contrefaçon ou un contact hors Vinted n'est jamais envoyé.
 - L'**assistant annonce** (fiche article) peut aussi remplacer le titre par celui qu'il propose, sur confirmation, relu de la même façon.
 
+## Rédaction avec Gemini (votre clé Google)
+
+Réglages → **Rédaction avec Gemini** : collez votre clé API Gemini, « Enregistrer et tester ». ERA la teste en demandant à Google la liste des modèles qu'elle permet d'utiliser, et choisit dans cette liste un modèle rapide (vous pouvez en choisir un autre) — aucun nom de modèle écrit à l'avance.
+
+- **La clé reste dans ce navigateur** (stockage de l'extension) : jamais dans la base d'ERA, donc jamais dans la sauvegarde JSON, les CSV ou le journal ; envoyée à Google dans un en-tête, jamais dans une adresse. « Effacer la clé » la retire.
+- **Rien n'est envoyé tout seul** : un appel par clic « Rédiger ». Envoyé : les faits de l'article (titre, marque, taille, état, défauts, composition, mesures, prix), votre description actuelle, et pour une réponse le message de l'acheteur que vous collez. Les appels comptent sur votre compte Google.
+- **Descriptions** (Qualité → « Compléter la description » → « Rédiger avec Gemini ») : votre texte est gardé mot pour mot, Gemini écrit seulement ce qui manque dessous.
+- **Réponses** (Outils → Réponses types → « Répondre à un message avec Gemini ») : l'offre lue dans le message passe par les **règles d'offre d'ERA** (accepter, contre-proposer à quel prix, refuser) ; Gemini ne fait que formuler cette décision. Le message de l'acheteur est traité comme une donnée, jamais comme une consigne. ERA n'envoie rien : vous copiez et envoyez vous-même.
+- **Vérifié après coup** : un chiffre, une matière ou une affirmation (authentique, jamais porté, rare…) absents de vos données, un prix qui ne vient pas d'ERA, ou un mot bloqué par le bouclier est signalé ; le texte ne se copie pas et ne part pas sur Vinted tant que vous n'avez pas coché « J'ai vérifié ces points ».
+- Les tests d'ERA utilisent un faux Google : ils prouvent cette logique, pas ce que le vrai modèle écrit. Relisez toujours.
+
 ## Records
 
 Ventes → **Records** : meilleure vente, plus gros bénéfice connu, meilleur mois, vente la plus rapide (avec une vraie date de publication), mois d'affilée avec une vente, et les paliers franchis (1re vente, 10, 25, 50… ventes ; 100 €, 500 €, 1 000 €… encaissés) avec leur date. Calculés sur les ventes enregistrées dans ERA ; les remboursées ne comptent pas ; une vente sans date est comptée dans les totaux, jamais placée dans un mois.

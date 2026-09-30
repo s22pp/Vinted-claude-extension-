@@ -7,6 +7,7 @@ import { Button, Select } from '@/ui/components/primitives';
 import { CopyButton } from './tools';
 import { useEra } from '../state';
 import { replyContextOf, useCustomReplies } from '../reply-kit';
+import { AiReply } from './gemini';
 
 /** Answer a buyer in seconds: pick a template, ERA fills what it knows, you copy it into Vinted. */
 export function Replies({ intel }: { intel: ItemIntel }) {
@@ -47,6 +48,12 @@ export function Replies({ intel }: { intel: ItemIntel }) {
         </>
       )}
       <p className="t-small t-faint">{t('replies.never')}</p>
+      <details className="stack" style={{ gap: 8 }}>
+        <summary className="t-small" style={{ cursor: 'pointer', fontWeight: 600 }}>
+          {t('gemini.replyTitle')}
+        </summary>
+        <AiReply intel={intel} />
+      </details>
     </div>
   );
 }

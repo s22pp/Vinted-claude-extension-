@@ -7,6 +7,10 @@ import { Button } from '@/ui/components/primitives';
 import { useEra } from '../state';
 import { CopyButton } from './tools';
 import { RouteFlag } from './route-flag';
+import { DraftIssues, factsOf, useGeminiConfig } from './gemini';
+import { geminiWrite } from '@/data/gemini';
+import { checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd } from '@/intelligence/ai-draft';
+import { replyContextOf } from '../reply-kit';
 
 /**
  * Complete a live listing's description: the seller's text kept as it is, what is missing added below from what ERA
@@ -14,7 +18,7 @@ import { RouteFlag } from './route-flag';
  * listing, on a click, once no blank is left — replace it on Vinted, read back before saying it is done.
  */
 export function DescriptionModal({ queue, startId, onClose }: { queue: readonly string[]; startId: string; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, money } = useI18n();
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
@@ -30,16 +34,39 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
   const [edited, setEdited] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const gemini = useGeminiConfig();
+  const [aiUsed, setAiUsed] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [ack, setAck] = useState(false);
   useEffect(() => {
     setEdited(null);
     setConfirming(false);
+    setAiUsed(false);
+    setAck(false);
   }, [itemId]);
   if (!v || !proposal) return null;
   const text = edited ?? proposal.text;
   const setText = setEdited;
   const blanks = (text.match(/__/g) ?? []).length;
   const unchanged = text.trim() === current.trim();
-  const canSend = era.mode === 'real' && !!listingId && /^\d+$/.test(listingId) && blanks === 0 && !unchanged && text.trim().length > 0;
+  const intel = era.intelById.get(itemId) ?? null;
+  const facts = intel ? factsOf(intel, replyContextOf(intel, era.preps, era.model, { t, money }), era.preps.get(itemId)?.material.trim() || v.item.material || null) : null;
+  // A text Gemini wrote in: what it says beyond ERA's facts and the seller's own text is flagged, to be acknowledged.
+  const issues = aiUsed && facts ? checkDraft(text, `${factLines(facts).join('\n')}\n${current}`, v.item.brand) : [];
+  const canSend = era.mode === 'real' && !!listingId && /^\d+$/.test(listingId) && blanks === 0 && !unchanged && text.trim().length > 0 && (issues.length === 0 || ack);
+  const writeWithGemini = async () => {
+    if (!facts) return;
+    setAiBusy(true);
+    const r = await geminiWrite(descriptionRequest(facts, current));
+    setAiBusy(false);
+    if (!r.ok) return toast('error', t('gemini.failed'), r.detail);
+    const added = cleanDraft(r.text);
+    if (nothingToAdd(added)) return toast('info', t('gemini.nothing'), t('gemini.nothingHint'));
+    setEdited(current.trim() ? `${current.trim()}\n\n${added}` : added);
+    setAiUsed(true);
+    setAck(false);
+    setConfirming(false);
+  };
   const next = queue[queue.indexOf(itemId) + 1] ?? null;
   const position = queue.indexOf(itemId) + 1;
 
@@ -78,6 +105,7 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
         <textarea className="input wdesc" rows={10} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} aria-label={t('describe.proposal')} data-testid="describe-text" />
       </label>
       {blanks > 0 ? <p className="t-small t-warn">{t('describe.blanks', { n: blanks })}</p> : <p className="t-small t-faint">{t('describe.own')}</p>}
+      {aiUsed && <DraftIssues issues={issues} ack={ack} onAck={setAck} />}
       {confirming && (
         <div className="stack" style={{ gap: 6 }}>
           <p className="t-small">
@@ -95,7 +123,12 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
             {t('describe.next')}
           </Button>
         )}
-        <CopyButton text={text} />
+        {gemini && facts && (
+          <Button variant="ghost" icon="edit" loading={aiBusy} disabled={busy} onClick={() => void writeWithGemini()}>
+            {t('gemini.writeDesc')}
+          </Button>
+        )}
+        {(issues.length === 0 || ack) && <CopyButton text={text} />}
         {listingId && /^\d+$/.test(listingId) && (
           <Button variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${listingId}/edit`, '_blank', 'noopener')}>
             {t('describe.open')}

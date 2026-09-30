@@ -11,6 +11,7 @@ import { type MotionSetting, type ThemeSetting, setMotion, setTheme } from '../p
 import { PageHead } from '../Shell';
 import { VintedImportButton } from '../components/vinted-import';
 import { BackupCard } from '../components/backup';
+import { GeminiCard } from '../components/gemini';
 import { RefreshSettings } from '../components/refresh-settings';
 import { OverlaySettings, RepliesSettings } from '../components/overlay-settings';
 import { DiagnosticCard, IntegrationsCard, SellerIdentityCard } from '../components/settings-cards';
@@ -95,6 +96,7 @@ export function Settings() {
           </Card>
           <BackupCard />
           <SellerIdentityCard />
+          <GeminiCard />
           <Card title={t('settings.data')} icon="stock" tone="amber">
             <p className="t-small t-muted" style={{ marginBottom: 14 }}>
               {t('settings.dataLocal')}

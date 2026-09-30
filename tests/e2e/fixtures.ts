@@ -79,3 +79,42 @@ export async function loadDemo(page: import('@playwright/test').Page, base: stri
   // Onboarding advances to step 3 only once the demo is fully loaded.
   await expect(page.getByRole('heading', { name: 'Renseignez vos coûts' })).toBeVisible({ timeout: 15_000 });
 }
+
+/**
+ * Test fixture only: Google's Gemini API as its documentation describes it (models list, generateContent), with a key
+ * made up for the tests. It proves ERA's logic around the model, not what the real model writes.
+ */
+export async function fakeGemini(context: BrowserContext, opts: { reply: string; badKey?: boolean }) {
+  const seen: { method: string; url: string; key: string | null; body: unknown }[] = [];
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-goog-api-key', 'access-control-allow-methods': 'GET,POST,OPTIONS' };
+  await context.route('https://generativelanguage.googleapis.com/**', async (route) => {
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: cors });
+    seen.push({ method: req.method(), url: req.url(), key: (await req.headerValue('x-goog-api-key')) ?? null, body: req.postData() ? JSON.parse(req.postData()!) : null });
+    const json = (status: number, body: unknown) => route.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    if (opts.badKey) return json(400, { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } });
+    if (/\/v1beta\/models\?/.test(req.url()))
+      return json(200, {
+        models: [
+          { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent', 'countTokens'] },
+          { name: 'models/gemini-2.5-pro', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] },
+        ],
+      });
+    if (/:generateContent$/.test(new URL(req.url()).pathname)) return json(200, { candidates: [{ content: { role: 'model', parts: [{ text: opts.reply }] }, finishReason: 'STOP' }] });
+    return json(404, { error: { code: 404, message: 'not found' } });
+  });
+  return seen;
+}
+
+/** Test fixture only: a made-up key (never a real one). */
+export const TEST_GEMINI_KEY = 'era-test-key-0000-wxyz';
+
+/** Réglages → the made-up key saved and tested against the fake Gemini. */
+export async function setGeminiKey(page: import('@playwright/test').Page, base: string) {
+  await page.goto(`${base}#/settings`);
+  const card = page.getByTestId('gemini-card');
+  await card.getByLabel('Clé API Gemini').fill(TEST_GEMINI_KEY);
+  await card.getByRole('button', { name: 'Enregistrer et tester' }).click();
+  await expect(card).toContainText('Clé enregistrée …wxyz');
+}
