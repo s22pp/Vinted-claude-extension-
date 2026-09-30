@@ -130,6 +130,7 @@ Fiche article → **« Republier sans rien perdre »** (annonce en ligne, ni ré
 
 1. ERA lit l'annonce sur Vinted et **refuse s'il y a un seul favori** (une republication les ferait perdre ; favoris non confirmés = refus aussi).
 2. Il la copie dans un **brouillon** : mêmes titre, description, prix, catégorie, marque, taille, état, couleurs, format de colis, et **les mêmes photos**, téléchargées depuis les serveurs d'images de Vinted puis renvoyées (tout ou rien : si une photo échoue, aucun brouillon ; le budget d'appels doit couvrir la copie entière avant de commencer). Le brouillon est relu, puis ouvert sur Vinted. **Rien n'est publié, rien n'est supprimé.**
+   **Prix de la copie** : le prix actuel par défaut ; vous pouvez en choisir un autre (la baisse prévue par votre plan est proposée, jamais appliquée d'office). Le brouillon est relu avec ce prix ; un autre prix relu est signalé et la copie reste en attente, jamais annoncée comme faite. L'ancienne annonce garde son prix.
 3. Vous vérifiez la copie et la publiez vous-même. À l'import suivant, la copie rejoint **le même article** (jamais un doublon) : coût, date d'achat, 1re mise en ligne et historique restent.
 4. « Supprimer l'ancienne annonce » : ERA revérifie sur Vinted que la copie est publiée et que l'ancienne n'a toujours aucun favori, demande confirmation, supprime, puis relit. Non confirmé par la relecture → rien ne bouge dans ERA, le prochain import tranche.
 
@@ -177,6 +178,20 @@ Stock → **Qualité** → « Lire N descriptions sur Vinted » (lecture budgét
 - **votre texte est gardé tel quel** ; ERA ajoute dessous seulement ce qui manque, d'après ce qu'il sait de l'article : taille, état, défauts et composition notés dans la fiche, mesures à plat ;
 - une mesure qu'ERA ne connaît pas reste **« __ cm »** : vous la lisez sur le vêtement et la tapez — **ERA n'invente aucune mesure ni composition** ; rien ne part sur Vinted tant qu'il reste un « __ » ;
 - **Copier** pour coller vous-même sur Vinted, ou **« Remplacer sur Vinted »** (EXPERIMENTAL) : après confirmation, une annonce à la fois, ERA ouvre la page de modification en arrière-plan, écrit **le champ description seul** (jamais la catégorie, le prix ou les photos ; au moindre doute sur la page, rien n'est enregistré), enregistre, puis **relit Vinted** : « fait » seulement si le nouveau texte y apparaît. Chaque envoi compte dans le budget d'appels et s'écrit dans le journal.
+
+## Titres et descriptions en série (EXPERIMENTAL)
+
+Outils → **« Titres et descriptions en série »** : le même changement sur plusieurs annonces en ligne — un texte **ajouté au début**, **ajouté à la fin**, ou **un texte remplacé** (exactement, majuscules comprises ; vide = supprimé).
+
+- **Préparé pour toutes, envoyé une annonce par clic** : jamais enchaîné sans vous (Vinted a bloqué le compte après des validations automatisées enchaînées). 15 modifications au plus par session, 20 s entre deux ; un refus de Vinted (403/429), une déconnexion ou le budget épuisé arrête la série.
+- **Appliqué à ce que la page Vinted affiche**, jamais à la copie d'ERA (la garde-robe ne donne pas les descriptions) : déjà présent → rien n'est enregistré, et c'est dit. Plus long que ce que le champ permet → rien n'est enregistré.
+- **Le champ visé seul** est écrit (titre ou description ; au moindre doute sur la page, rien n'est enregistré), puis **relu sur Vinted** : « relu sur Vinted » seulement si le nouveau texte y apparaît ; sinon « échec », avec ce que Vinted affiche.
+- **Bouclier** : un changement qui mettrait une autre marque, un terme de contrefaçon ou un contact hors Vinted n'est jamais envoyé.
+- L'**assistant annonce** (fiche article) peut aussi remplacer le titre par celui qu'il propose, sur confirmation, relu de la même façon.
+
+## Records
+
+Ventes → **Records** : meilleure vente, plus gros bénéfice connu, meilleur mois, vente la plus rapide (avec une vraie date de publication), mois d'affilée avec une vente, et les paliers franchis (1re vente, 10, 25, 50… ventes ; 100 €, 500 €, 1 000 €… encaissés) avec leur date. Calculés sur les ventes enregistrées dans ERA ; les remboursées ne comptent pas ; une vente sans date est comptée dans les totaux, jamais placée dans un mois.
 
 ## Pilotage : l'activité mois par mois, et l'objectif traduit en achats
 

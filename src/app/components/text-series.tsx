@@ -123,7 +123,7 @@ export function TextSeries() {
                 {t('series.stop')}
               </Button>
             </div>
-            <p className="t-small t-faint">{t('series.oneByOne', { max: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
+            <p className="t-small t-faint">{t('series.oneByOne', { cap: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
           </>
         ) : (
           <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
@@ -222,7 +222,7 @@ export function TextSeries() {
           })}
         </ul>
       )}
-      {toSend.length > WRITE_MAX && <p className="t-small t-warn">{t('series.overCap', { n: toSend.length, max: WRITE_MAX })}</p>}
+      {toSend.length > WRITE_MAX && <p className="t-small t-warn">{t('series.overCap', { n: toSend.length, cap: WRITE_MAX })}</p>}
       <div>
         <Button
           variant="primary"
@@ -237,7 +237,7 @@ export function TextSeries() {
           {t('series.start', { n: Math.min(toSend.length, WRITE_MAX) })}
         </Button>
       </div>
-      <p className="t-small t-faint">{t('series.oneByOne', { max: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
+      <p className="t-small t-faint">{t('series.oneByOne', { cap: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
     </div>
   );
 }

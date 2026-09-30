@@ -72,6 +72,17 @@ test('refunds: one click per reason, rules feed the workshop', async ({ context,
   await expect(card.getByText('Règles actives dans l’atelier')).toBeVisible();
 });
 
+test('records: best sale, best month, steps crossed with their date, the next step', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/sales?period=all`);
+  const card = page.getByTestId('records');
+  await expect(card).toContainText('Meilleure vente');
+  await expect(card).toContainText('Meilleur mois');
+  await expect(card.getByText(/^1re vente · /)).toBeVisible();
+  await expect(card).toContainText(/Prochain palier : \d+ ventes \(encore \d+\)/);
+});
+
 test('accounting: sales ledger, DAC7 threshold, a numbered printable invoice', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

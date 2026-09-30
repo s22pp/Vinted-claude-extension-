@@ -1519,6 +1519,7 @@ test('titles in series: prepared for the listings ticked, sent one per click, on
   await expect(dialog.getByLabel('Veste Carhartt Detroit M')).toHaveCount(0);
   await dialog.getByLabel('Veste Harrington Ralph Lauren M').check();
   await expect(dialog).toContainText('Devient : Veste Harrington Ralph Lauren M vintage');
+  await expect(dialog).toContainText('15 modifications au plus par session, 20 s entre deux');
   await dialog.getByTestId('series-start').click();
   await expect(dialog.getByTestId('series-run')).toContainText('Annonce 1 sur 1');
   await dialog.getByTestId('series-send').click();

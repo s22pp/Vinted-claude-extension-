@@ -14,6 +14,7 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { PageHead } from '../Shell';
 import { go, type Route, useEra } from '../state';
 import { RefundsCard } from '../components/refunds';
+import { RecordsCard } from '../components/records';
 import { ToShipCard } from '../components/to-ship';
 import { ParcelsCard } from '../components/parcels';
 import { SalesTabs } from '../components/section-tabs';
@@ -136,6 +137,7 @@ export function Sales({ route }: { route?: Route }) {
           </Card>
         </div>
 
+        <RecordsCard />
         <RefundsCard highlight={focusRefunds} />
 
         <Card title={t('sales.recent')} icon="calendar" tone="neutral" hint={unknownProfit ? t('sales.unknownProfit', { n: unknownProfit }) : undefined} flush>
