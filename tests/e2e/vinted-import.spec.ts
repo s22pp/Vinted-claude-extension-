@@ -243,7 +243,7 @@ test('one click imports stock + sales, opening vinted.fr by itself', async ({ co
   // Costs are never guessed.
   await expect(page.getByText('DÉMO')).toHaveCount(0);
   await page.goto(`${base}#/sales`);
-  await expect(page.getByText('Veste Carhartt Detroit M')).toBeVisible();
+  await expect(page.locator('tr', { hasText: 'Veste Carhartt Detroit M' })).toBeVisible();
   // Read-only and within budget.
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
   expect(calls.length).toBeLessThanOrEqual(5);
@@ -262,7 +262,8 @@ test('re-import updates instead of duplicating', async ({ context, base }) => {
   await expect(page.getByText(/0 nouveaux articles · 3 mis à jour/)).toBeVisible({ timeout: 40_000 });
   // The sold order is matched to the sale it already created: still one sale, not two.
   await page.goto(`${base}#/sales`);
-  await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(1);
+  // Sales rows only: the Records card names the best sale too.
+  await expect(page.locator('tr', { hasText: 'Veste Carhartt Detroit M' })).toHaveCount(1);
   // Dated by the order (10 Sept.), not by the import day, even though Vinted gave no publication date.
   const row = page.locator('tr', { hasText: 'Veste Carhartt Detroit M' });
   await expect(row).toContainText('10 sept.');
@@ -277,7 +278,7 @@ test('two sales under the same title stay two sales, import after import', async
   await page.getByRole('button', { name: /Actualiser/ }).first().click();
   await expect(page.getByText(/0 nouveaux articles · 4 mis à jour/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/sales`);
-  await expect(page.getByText('Veste Carhartt Detroit M')).toHaveCount(2);
+  await expect(page.locator('tr', { hasText: 'Veste Carhartt Detroit M' })).toHaveCount(2);
 });
 
 test('a listing deleted and published again stays ONE article, with its history; a deleted one leaves the stock', async ({ context, base }) => {
@@ -1179,7 +1180,7 @@ test('integrations card: one click checks the reads; the search seen working tur
   await expect(search).toContainText('Vérifié ici · 1');
   // The search turns green mid-check; the rest of the reads land once the whole check is done.
   await expect(page.locator('.integ__row', { hasText: 'Import du stock' })).toContainText('lu sur votre compte', { timeout: 60_000 });
-  await expect(page.getByTestId('integ-summary')).toContainText('sur 12 vérifiées sur cet appareil');
+  await expect(page.getByTestId('integ-summary')).toContainText('sur 13 vérifiées sur cet appareil');
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
   // Where the session's budget went, by use.
   await expect(page.getByTestId('budget-uses')).toContainText('recherche');
