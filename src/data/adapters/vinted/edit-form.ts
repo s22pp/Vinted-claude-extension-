@@ -1,9 +1,10 @@
 /**
- * Runs inside the vinted.fr edit page (content script). Changes ONLY one field — the price, or the description —
+ * Runs inside the vinted.fr edit page (content script). Changes ONLY one field — the price, the title or the description —
  * then clicks the save button: never the category (changing it resets brand, size, condition, price), never a
  * boost, never delete. Anything ambiguous aborts before saving: nothing is changed on Vinted.
  */
-import type { EditFormResult } from './protocol';
+import type { EditFormResult, EditTextResult } from './protocol';
+import { type TextField, type TextOp, applyTextOp, sameFieldText } from '@/intelligence/text-edit';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -43,6 +44,19 @@ export function findDescriptionInput(doc: Document = document): HTMLTextAreaElem
   const exact = candidates.filter((i) => i.id === 'description' || i.name === 'description');
   if (exact.length === 1) return exact[0]!;
   return { error: candidates.length === 0 ? 'champ description introuvable sur la page de modification' : `${candidates.length} champs « description » possibles : modification annulée` };
+}
+
+/** The title field: exactly one visible text input that says it is the title (never a search box), or nothing is touched. */
+export function findTitleInput(doc: Document = document): HTMLInputElement | { error: string } {
+  const all = [...doc.querySelectorAll<HTMLInputElement>('input')].filter((i) => (i.type === 'text' || i.type === '') && !i.disabled && !i.readOnly && visible(i));
+  const hay = (i: HTMLInputElement) =>
+    [i.id, i.name, i.getAttribute('data-testid'), i.getAttribute('aria-label'), i.placeholder, labelOf(i)].join(' ').toLowerCase();
+  const word = (w: string) => new RegExp(`(^|[^a-zà-ÿ])(${w})(?![a-zà-ÿ])`);
+  const candidates = all.filter((i) => word('title|titre').test(hay(i)) && !word('search|recherche|rechercher|prix|price|marque|brand').test(hay(i)));
+  if (candidates.length === 1) return candidates[0]!;
+  const exact = candidates.filter((i) => i.id === 'title' || i.name === 'title');
+  if (exact.length === 1) return exact[0]!;
+  return { error: candidates.length === 0 ? 'champ titre introuvable sur la page de modification' : `${candidates.length} champs « titre » possibles : modification annulée` };
 }
 
 export function findSaveButton(input: HTMLElement): HTMLButtonElement | { error: string } {
@@ -136,6 +150,37 @@ export async function editDescriptionOnPage(text: string): Promise<EditFormResul
   btn.scrollIntoView({ block: 'center' });
   btn.click();
   return { ok: true, before };
+}
+
+/**
+ * Title or description changed by an operation applied to what the page holds (a prefix, a suffix, a replacement):
+ * the field read, the new text computed from it, written at once, checked, then saved. Nothing to change (already
+ * there): nothing is written, nothing saved. Longer than the field allows: nothing saved.
+ */
+export async function editTextOnPage(field: TextField, op: TextOp): Promise<EditTextResult> {
+  const find = () => (field === 'title' ? findTitleInput() : findDescriptionInput());
+  let found: ReturnType<typeof find> = { error: 'page non chargée' };
+  for (let i = 0; i < 30; i++) {
+    found = find();
+    if (!('error' in found)) break;
+    await sleep(500);
+  }
+  if ('error' in found) return { ok: false, detail: found.error };
+  const settled = await settledField(find);
+  if ('error' in settled) return { ok: false, detail: settled.error };
+  const input = settled;
+  const before = input.value;
+  const after = applyTextOp(before, op, field);
+  if (after === null) return { ok: true, before, after: null };
+  if (input.maxLength > 0 && after.length > input.maxLength) return { ok: false, detail: `${after.length} caractères pour ${input.maxLength} permis par le champ : rien n’a été enregistré` };
+  nativeSet(input, after);
+  await sleep(400);
+  if (!sameFieldText(field, input.value, after)) return { ok: false, detail: `le champ ${field === 'title' ? 'titre' : 'description'} ne contient pas le texte après saisie : rien n’a été enregistré` };
+  const btn = findSaveButton(input);
+  if ('error' in btn) return { ok: false, detail: btn.error };
+  btn.scrollIntoView({ block: 'center' });
+  btn.click();
+  return { ok: true, before, after };
 }
 
 /** Two descriptions are the same text when they match once line endings and outer spaces are set aside. */

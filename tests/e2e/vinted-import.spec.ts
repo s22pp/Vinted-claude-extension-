@@ -2,12 +2,13 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
   const descriptions: Record<string, string> = { '101': 'Veste Harrington, bon état.' };
+  const titles: Record<string, string> = { '101': 'Veste Harrington Ralph Lauren M' };
   const clicked: string[] = [];
   // Test fixture only: Vinted's image server (a tiny JPEG header is enough).
   await context.route('https://images1.vinted.net/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]) }));
@@ -18,10 +19,14 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       // Test fixture only: a form with a price field, a description, a delete button, a boost button and a save button.
       const second = opts.editForm === 'ambiguous' ? '<label for="p2">Prix de réserve</label><input id="p2" name="price2">' : '';
       const desc = (descriptions[id] ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const title = (titles[id] ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
       return route.fulfill({
-        contentType: 'text/html',
+        // As Vinted serves its pages: UTF-8 (accents in the seller's text read as they are).
+        contentType: 'text/html; charset=utf-8',
         body: `<html><body><form id="f">
           <label for="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}">Prix</label><input id="${opts.editForm === 'ambiguous' ? 'p1' : 'price'}" value="59,00">${second}
+          <input type="search" placeholder="Rechercher un titre" aria-label="Rechercher">
+          <label for="title">Titre</label><input id="title" type="text" maxlength="${opts.titleMax ?? 100}" value="${title}">
           ${
             opts.editForm === 'twoDescriptions'
               ? // Two fields that both say "description", neither named exactly so: which one is meant cannot be told.
@@ -32,14 +37,15 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
           <button type="button" onclick="fetch('/fake/click?b=boost',{method:'POST'})">Booster</button>
           <button type="submit">Enregistrer</button></form>
           <script>document.getElementById('f').addEventListener('submit', async (e) => { e.preventDefault();
-            await fetch('/fake/save?id=${id}', { method: 'POST', body: JSON.stringify({ price: document.querySelector('input').value, description: document.querySelector('textarea').value }) });
+            await fetch('/fake/save?id=${id}', { method: 'POST', body: JSON.stringify({ price: document.querySelector('input').value, title: document.getElementById('title').value, description: document.querySelector('textarea').value }) });
             location.href = '/items/${id}'; });</script></body></html>`,
       });
     }
     if (url.pathname === '/fake/save') {
       const id = url.searchParams.get('id')!;
-      const saved = JSON.parse(route.request().postData() ?? '{}') as { price: string; description: string };
+      const saved = JSON.parse(route.request().postData() ?? '{}') as { price: string; title: string; description: string };
       if (!opts.lockPrice) prices[id] = saved.price.replace(',', '.');
+      if (!opts.lockTitle) titles[id] = saved.title;
       descriptions[id] = saved.description;
       return route.fulfill({ status: 204 });
     }
@@ -111,7 +117,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items'))
       return json({
         items: [
-          { id: 101, title: 'Veste Harrington Ralph Lauren M', price: { amount: prices['101'], currency_code: 'EUR' }, view_count: 212, favourite_count: 9, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: null, is_main: true, high_resolution: { timestamp: 1756000000 } }] },
+          { id: 101, title: titles['101'], price: { amount: prices['101'], currency_code: 'EUR' }, view_count: 212, favourite_count: 9, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: null, is_main: true, high_resolution: { timestamp: 1756000000 } }] },
           { id: 102, title: "Jean Levi's 501 W32", price: '30.0', view_count: 40, favourite_count: 1, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] },
           { id: 103, title: 'Veste Carhartt Detroit M', price: { amount: '80.0' }, view_count: 300, favourite_count: 14, brand_title: 'Carhartt', is_draft: false, is_closed: true, is_hidden: false, photos: [] },
           ...(opts.extra ?? []),
@@ -178,7 +184,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({});
     }
     if (url.pathname === '/api/v2/item_upload/items/101')
-      return json({ item: { id: 101, title: 'Veste Harrington Ralph Lauren M', description: descriptions['101'], photos: [{ full_size_url: 'https://images1.vinted.net/t/101/1.jpeg' }, { full_size_url: 'https://images1.vinted.net/t/101/2.jpeg' }], price: prices['101'], is_hidden: state.hidden101 } });
+      return json({ item: { id: 101, title: titles['101'], description: descriptions['101'], photos: [{ full_size_url: 'https://images1.vinted.net/t/101/1.jpeg' }, { full_size_url: 'https://images1.vinted.net/t/101/2.jpeg' }], price: prices['101'], is_hidden: state.hidden101 } });
     // Test fixture only: the sold Carhartt's own upload data (Vinted's ids for that kind of article).
     if (url.pathname === '/api/v2/item_upload/items/103') return json({ item: { id: 103, title: 'Veste Carhartt Detroit M', catalog_id: 2551, brand_id: 362, brand: 'Carhartt', size_id: 208, status_id: 2, package_size_id: 2, price: '80.0' } });
     if (url.pathname.startsWith('/api/v2/item_upload/items/')) return json({ item: { id: 101, price: prices['101'] } });
@@ -221,7 +227,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ my_orders: [{ title: 'Veste Carhartt Detroit M', price: { amount: '75.0' }, date: '2026-09-10', status: 'Terminée' }, ...(opts.orders ?? [])] });
     return json({}, 404);
   });
-  return Object.assign(calls, { clicked, prices, descriptions, state });
+  return Object.assign(calls, { clicked, prices, descriptions, titles, state });
 }
 
 test('one click imports stock + sales, opening vinted.fr by itself', async ({ context, base }) => {
@@ -1453,6 +1459,79 @@ test('complete a description: the seller’s text kept, blanks to fill first, th
   expect(fake.descriptions['101']).toContain('60 cm');
   // Only the description changed: the price field was sent back as it was (59,00), no other button was touched.
   expect(fake.prices['101']).toBe('59.00');
+  expect(fake.clicked).toEqual([]);
+});
+
+async function openSeries(context: BrowserContext, base: string) {
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/tools`);
+  await page.getByRole('button', { name: /Titres et descriptions en série/ }).click();
+  return { page, dialog: page.getByRole('dialog') };
+}
+
+test('titles in series: prepared for the listings ticked, sent one per click, only the title saved, read back on Vinted', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const { dialog } = await openSeries(context, base);
+  await dialog.getByLabel('Texte à ajouter').fill('vintage');
+  // Only live listings with a Vinted id are offered (the sold Carhartt is not).
+  await expect(dialog.getByLabel('Veste Carhartt Detroit M')).toHaveCount(0);
+  await dialog.getByLabel('Veste Harrington Ralph Lauren M').check();
+  await expect(dialog).toContainText('Devient : Veste Harrington Ralph Lauren M vintage');
+  await dialog.getByTestId('series-start').click();
+  await expect(dialog.getByTestId('series-run')).toContainText('Annonce 1 sur 1');
+  await dialog.getByTestId('series-send').click();
+  await expect(dialog.getByTestId('series-done')).toContainText('Relu sur Vinted', { timeout: 40_000 });
+  await expect(dialog).toContainText('Série terminée.');
+  expect(fake.titles['101']).toBe('Veste Harrington Ralph Lauren M vintage');
+  // Only the title: the price went back as it was, the description untouched, no other button clicked.
+  expect(fake.prices['101']).toBe('59.00');
+  expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.');
+  expect(fake.clicked).toEqual([]);
+  // The same series again: ERA already sees the word at the end, nothing is sent.
+  await dialog.getByRole('button', { name: 'Nouvelle série' }).click();
+  await dialog.getByLabel('Texte à ajouter').fill('vintage');
+  await dialog.getByLabel(/^Veste Harrington Ralph Lauren M/).check();
+  await expect(dialog).toContainText('Déjà présent : rien à changer');
+  await expect(dialog.getByTestId('series-start')).toBeDisabled();
+  // Another brand put in the title (Carhartt on a Ralph Lauren): the shield blocks it, nothing can be sent.
+  await dialog.getByLabel('Changement').selectOption('replace');
+  await dialog.getByLabel(/Texte à remplacer/).fill('Harrington');
+  await dialog.getByLabel(/Remplacer par/).fill('Carhartt');
+  await expect(dialog).toContainText('Bloqué par le bouclier (« carhartt »)');
+  await expect(dialog.getByTestId('series-start')).toBeDisabled();
+});
+
+test('titles in series: Vinted keeps the old title → said as a failure, never as done', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok', lockTitle: true });
+  const { dialog } = await openSeries(context, base);
+  await dialog.getByLabel('Texte à ajouter').fill('vintage');
+  await dialog.getByLabel('Veste Harrington Ralph Lauren M').check();
+  await dialog.getByTestId('series-start').click();
+  await dialog.getByTestId('series-send').click();
+  await expect(dialog.getByTestId('series-done')).toContainText('Échec', { timeout: 40_000 });
+  await expect(dialog.getByTestId('series-done')).toContainText('Vinted affiche toujours l’ancien titre');
+  expect(fake.titles['101']).toBe('Veste Harrington Ralph Lauren M');
+});
+
+test('descriptions in series: the text added to what the Vinted page holds (ERA has no copy), read back', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const { dialog } = await openSeries(context, base);
+  await dialog.getByLabel('Champ').selectOption('description');
+  await dialog.getByLabel('Texte à ajouter').fill('Envoi sous 48 h.');
+  await dialog.getByLabel('Veste Harrington Ralph Lauren M').check();
+  await expect(dialog).toContainText('Appliqué à la description lue sur la page Vinted');
+  await dialog.getByTestId('series-start').click();
+  await dialog.getByTestId('series-send').click();
+  await expect(dialog.getByTestId('series-done')).toContainText('Relu sur Vinted', { timeout: 40_000 });
+  // The seller's text kept word for word, the addition as its own paragraph; the title untouched.
+  expect(fake.descriptions['101']).toBe('Veste Harrington, bon état.\n\nEnvoi sous 48 h.');
+  expect(fake.titles['101']).toBe('Veste Harrington Ralph Lauren M');
   expect(fake.clicked).toEqual([]);
 });
 

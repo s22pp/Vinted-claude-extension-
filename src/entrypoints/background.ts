@@ -1,8 +1,9 @@
 import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { SEARCH_TAB_ALARM, closeIdleSearchTab, visitInWorker } from '@/data/adapters/vinted/search-page';
-import { applyDescriptionOnVinted, applyPriceOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from '@/data/adapters/vinted/price-edit';
+import type { AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult, TextEditResult } from '@/data/adapters/vinted/protocol';
+import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
@@ -207,6 +208,21 @@ function runDescEdit(platformListingId: string, text: string): Promise<DescEditR
   return run;
 }
 
+/** A title or description changed by an operation: same lock, never during another Vinted operation. */
+function runTextEdit(platformListingId: string, field: TextField, op: TextOp): Promise<TextEditResult> {
+  if (vintedBusy()) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
+  const run = applyTextOnVinted(platformListingId, field, op)
+    .catch((e): TextEditResult => {
+      const { code, detail } = errorInfo(e);
+      return { ok: false, code, detail: detail ?? undefined };
+    })
+    .finally(() => {
+      editing = null;
+    });
+  editing = run;
+  return run;
+}
+
 let autoRunning: Promise<AutoRunResult> | null = null;
 /** A repost copies photos for a while: one at a time, and nothing else writes meanwhile. */
 let reposting: Promise<RepostResult | RepostFinishResult> | null = null;
@@ -390,6 +406,8 @@ export default defineBackground(() => {
         return answer(runPriceEdit(msg.platformListingId, msg.cents, msg.itemId), unavailable);
       case 'era:desc:edit':
         return answer(runDescEdit(msg.platformListingId, msg.text), unavailable);
+      case 'era:text:edit':
+        return answer(runTextEdit(msg.platformListingId, msg.field, msg.op), unavailable);
       default:
         return undefined;
     }

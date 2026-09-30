@@ -13,6 +13,7 @@ import { analyzeItem } from '../market-run';
 import { useEra } from '../state';
 import { useMoneyField } from './forms';
 import { TitleWords } from './title-words';
+import { TitleOnVinted } from './text-series';
 
 /* ── Offer calculator ─────────────────────────────────────── */
 
@@ -135,6 +136,7 @@ export function ListingAssistant({ intel }: { intel: ItemIntel }) {
         </div>
         <code className="listing-box">{title}</code>
         <p className="t-small t-faint">{t('listing.sku', { sku: skuOf(item.id) })}</p>
+        <TitleOnVinted v={intel.view} title={title} />
       </div>
       <div className="stack" style={{ gap: 6 }}>
         <div className="row-between">

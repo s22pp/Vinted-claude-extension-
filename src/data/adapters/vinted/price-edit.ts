@@ -2,7 +2,8 @@ import { repo } from '../../repo';
 import { MarketplaceError, errorInfo } from '../marketplace';
 import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
-import type { DescEditResult, EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
+import type { DescEditResult, EditFormResult, EditTextResult, EraMessage, PriceEditResult, PriceStage, TextEditResult } from './protocol';
+import { type TextField, type TextOp, sameFieldText, textOpProblem } from '@/intelligence/text-edit';
 import { readCents, sameText } from './edit-form';
 import { db } from '../../db';
 import { journal as writeJournal } from '../../journal';
@@ -129,6 +130,64 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
   }
 }
 
+/**
+ * Title or description of ONE of the seller's own listings changed by an operation (prefix, suffix, replacement),
+ * from one click (EXPERIMENTAL): the operation is applied to what Vinted's edit page holds, never to ERA's copy; the
+ * result is saved, then read back on Vinted. Already there: nothing saved, said so. Never several listings from one
+ * click: series are walked one listing per click, within the write limits (15 per session, 20 s apart).
+ */
+export async function applyTextOnVinted(platformListingId: string, field: TextField, op: TextOp): Promise<TextEditResult> {
+  if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
+  const problem = textOpProblem(field, op);
+  if (problem) throw new MarketplaceError('EDIT_FORM', `${problem} : rien envoyé`);
+  const kind = field === 'title' ? 'TITLE' : 'DESCRIPTION';
+  await reserveWrite();
+  const r = await reserve('WRITE');
+  if (!r.ok) throw new MarketplaceError(r.code);
+  let tabId: number;
+  try {
+    tabId = await openEditTab(platformListingId);
+  } catch (e) {
+    await journal(kind, false, platformListingId, failText(e));
+    throw e;
+  }
+  let keepOpen = false;
+  try {
+    const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:text', field, op } satisfies EraMessage)) as EditTextResult;
+    if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
+    // Already there on Vinted: nothing written, nothing saved (the page is closed unsaved).
+    if (res.after === null) return { ok: true, changed: false, before: res.before, after: res.before };
+    const after = res.after;
+    await leftEditPage(tabId);
+    const shown = field === 'title' ? await readListingTitle(platformListingId) : await readListingDescription(platformListingId);
+    if (shown === null || !sameFieldText(field, shown, after)) {
+      keepOpen = true; // let the seller see what Vinted shows
+      await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+      const what = field === 'title' ? 'titre' : 'description';
+      throw new MarketplaceError('NOT_APPLIED', shown === null ? `${what} introuvable à la relecture` : `Vinted affiche toujours ${field === 'title' ? 'l’ancien titre' : 'l’ancienne description'}`);
+    }
+    // Vinted shows it: ERA's copy follows (the next import would align it anyway).
+    await db.listings
+      .filter((l) => l.platformListingId === platformListingId)
+      .modify(field === 'title' ? { title: shown } : { description: shown })
+      .catch(() => undefined);
+    const detail = field === 'title' ? `titre « ${shown} », relu sur Vinted (avant : « ${res.before.trim()} »)` : `description modifiée (${shown.length} caractères), relue sur Vinted`;
+    await journal(kind, true, platformListingId, detail);
+    return { ok: true, changed: true, before: res.before, after: shown };
+  } catch (e) {
+    await journal(kind, false, platformListingId, failText(e));
+    throw e;
+  } finally {
+    if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
+  }
+}
+
+/** Verified read of one of MY listings' title (item_upload, `.item.title`). */
+async function readListingTitle(id: string): Promise<string | null> {
+  const j = (await new VintedTabAdapter().rawGet(`/api/v2/item_upload/items/${id}`)) as { item?: { title?: unknown } } | null;
+  return typeof j?.item?.title === 'string' ? j.item.title : null;
+}
+
 /** What Vinted (or the page) answered, as every journal line says it: code, then detail. */
 function failText(e: unknown): string {
   const { code, detail } = errorInfo(e);
@@ -136,7 +195,7 @@ function failText(e: unknown): string {
 }
 
 /** Every price or description sent is written in the local journal (what was done, or why not), like the other writes. */
-function journal(kind: 'PRICE' | 'DESCRIPTION', ok: boolean, listingId: string, detail: string) {
+function journal(kind: 'PRICE' | 'DESCRIPTION' | 'TITLE', ok: boolean, listingId: string, detail: string) {
   return writeJournal({ kind, dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
 }
 

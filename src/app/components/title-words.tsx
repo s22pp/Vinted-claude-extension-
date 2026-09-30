@@ -7,8 +7,8 @@ import { Badge, Button } from '@/ui/components/primitives';
 
 /**
  * Words the comparable listings use in their titles and yours does not, from the article's last market analysis.
- * With `onAdd` (workshop), a click puts the word in the title; otherwise (a live listing) the list is for reading:
- * ERA never changes a title on Vinted.
+ * With `onAdd` (workshop), a click puts the word in the title; otherwise (a live listing) the list is for reading: a
+ * title changes on Vinted only from the assistant's « Remplacer le titre sur Vinted » or a series, one click each.
  */
 export function TitleWords({
   intel,

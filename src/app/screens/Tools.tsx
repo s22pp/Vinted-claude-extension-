@@ -6,9 +6,10 @@ import { Button, Field, Select } from '@/ui/components/primitives';
 import { ListingAssistant, OfferCalculator, ShieldChecker, useBulkAnalyze } from '../components/tools';
 import { PhotoCheck } from '../components/photo-check';
 import { Replies } from '../components/replies';
+import { TextSeries } from '../components/text-series';
 import { go, useEra } from '../state';
 
-type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'automations' | 'listing' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
+type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'automations' | 'listing' | 'series' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
 const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] = [
   { key: 'today', icon: 'today', tone: 'violet', href: 'today' },
@@ -17,6 +18,7 @@ const TOOLS: { key: ToolKey; icon: IconName; tone: TileTone; href?: string }[] =
   { key: 'replies', icon: 'book', tone: 'cyan' },
   { key: 'automations', icon: 'repost', tone: 'coral', href: 'automations' },
   { key: 'listing', icon: 'edit', tone: 'pink' },
+  { key: 'series', icon: 'edit', tone: 'cobalt' },
   { key: 'shield', icon: 'alert', tone: 'coral' },
   { key: 'photo', icon: 'eye', tone: 'cyan' },
   { key: 'buy', icon: 'buy', tone: 'violet', href: 'buy' },
@@ -89,6 +91,7 @@ export function Tools() {
           <li>{t('tools.ni.photos')}</li>
           <li>{t('tools.ni.automation')}</li>
           <li>{t('tools.ni.bypass')}</li>
+          <li>{t('tools.ni.chained')}</li>
         </ul>
       </section>
 
@@ -106,6 +109,9 @@ export function Tools() {
       </Modal>
       <Modal open={open === 'photo'} onClose={() => setOpen(null)} title={t('tools.t.photo.0')}>
         <PhotoCheck />
+      </Modal>
+      <Modal open={open === 'series'} onClose={() => setOpen(null)} title={t('tools.t.series.0')}>
+        <TextSeries />
       </Modal>
       <Modal open={open === 'shield'} onClose={() => setOpen(null)} title={t('tools.t.shield.0')}>
         <ShieldChecker />

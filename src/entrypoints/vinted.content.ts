@@ -1,6 +1,6 @@
 import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type CatalogPageRead, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
-import { editDescriptionOnPage, editPriceOnPage } from '@/data/adapters/vinted/edit-form';
+import { editDescriptionOnPage, editPriceOnPage, editTextOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
  * Runs on vinted.fr pages:
@@ -81,6 +81,14 @@ export default defineContentScript({
           return;
         }
         return reply(editDescriptionOnPage(msg.text));
+      }
+      if (msg.type === 'era:edit:text') {
+        // Title or description by an operation (prefix, suffix, replacement): same rule, one click, one listing.
+        if (!/\/items\/\d+\/edit/.test(location.pathname)) {
+          sendResponse({ ok: false, detail: `pas sur une page de modification (${location.pathname})` });
+          return;
+        }
+        return reply(editTextOnPage(msg.field, msg.op));
       }
       if (msg.type === 'era:api') {
         return reply(callApi(msg.path));

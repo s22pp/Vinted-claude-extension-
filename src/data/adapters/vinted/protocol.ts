@@ -1,5 +1,6 @@
 import type { MarketplaceErrorCode } from '../marketplace';
 import type { PageItem } from './parse';
+import type { TextField, TextOp } from '@/intelligence/text-edit';
 
 /** Read-only GET paths ERA may call. Anything else is refused by the content script. */
 export const ALLOWED_API = [
@@ -104,7 +105,9 @@ export type EraMessage =
   | { type: 'era:price:stage'; stage: PriceStage }
   | { type: 'era:edit:form'; cents: number }
   | { type: 'era:desc:edit'; platformListingId: string; text: string }
-  | { type: 'era:edit:desc'; text: string };
+  | { type: 'era:edit:desc'; text: string }
+  | { type: 'era:text:edit'; platformListingId: string; field: TextField; op: TextOp }
+  | { type: 'era:edit:text'; field: TextField; op: TextOp };
 
 /** The listing links Vinted's search page shows, read as they are (link + accessible title): parsed by ERA, not here. */
 export interface CatalogPageRead {
@@ -119,6 +122,10 @@ export interface CatalogPageRead {
 export type PriceStage = 'OPENING' | 'FILLING' | 'SAVING' | 'VERIFYING' | 'DONE';
 export type EditFormResult = { ok: true; before: string } | { ok: false; detail: string };
 export type DescEditResult = { ok: true } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+/** The page's field before, and after (null: nothing to change, nothing saved). */
+export type EditTextResult = { ok: true; before: string; after: string | null } | { ok: false; detail: string };
+/** changed false: the text was already there on Vinted, nothing was saved. */
+export type TextEditResult = { ok: true; changed: boolean; before: string; after: string } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 export type PriceEditResult = { ok: true; before: number | null; after: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 export type ImportStage = 'CONNECTING' | 'READING' | 'MATCHING' | 'COMPLETE';

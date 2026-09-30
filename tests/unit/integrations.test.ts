@@ -27,7 +27,7 @@ const get = (rec: IntegrationRecords, k: IntegKey) => integrationStatus(rec).fin
 describe('Vinted integrations: what the records on this device prove', () => {
   it('nothing done yet: reads unverified, writes untested, never a success invented', () => {
     const all = integrationStatus(base());
-    expect(all.map((s) => s.key)).toEqual(['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto']);
+    expect(all.map((s) => s.key)).toEqual(['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'titleEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto']);
     expect(all.every((s) => s.state === 'UNTESTED' && s.n === 0 && s.lastOk === null)).toBe(true);
   });
 

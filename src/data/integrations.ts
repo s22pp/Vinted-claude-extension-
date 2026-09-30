@@ -9,7 +9,7 @@ import type { SearchOk, VintedErrorEntry } from './adapters/vinted/vinted-adapte
  * only these records prove the real integration.
  */
 
-export type IntegKey = 'stock' | 'sold' | 'reserved' | 'search' | 'purchases' | 'priceEdit' | 'description' | 'draft' | 'label' | 'hide' | 'repost' | 'auto';
+export type IntegKey = 'stock' | 'sold' | 'reserved' | 'search' | 'purchases' | 'priceEdit' | 'titleEdit' | 'description' | 'draft' | 'label' | 'hide' | 'repost' | 'auto';
 
 /**
  * VERIFIED: every route seen working here. PARTIAL: some routes only. FAILING: the last attempt failed (or the search
@@ -70,6 +70,7 @@ export interface IntegrationRecords {
 /** The routes behind each write, as the journal names them. */
 export const WRITE_ROUTES: Partial<Record<IntegKey, AutoLogRow['kind'][]>> = {
   priceEdit: ['PRICE'],
+  titleEdit: ['TITLE'],
   description: ['DESCRIPTION'],
   draft: ['DRAFT'],
   label: ['LABEL'],
@@ -78,7 +79,7 @@ export const WRITE_ROUTES: Partial<Record<IntegKey, AutoLogRow['kind'][]>> = {
   auto: ['FAV_MESSAGE', 'FAV_BUNDLE', 'FAV_OFFER', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER'],
 };
 
-const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto'];
+const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'titleEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto'];
 
 /** Stops journaled by the other schedules (a skipped refresh, skipped buy alerts): not the automations'. */
 const NOT_AUTOMATIONS = new Set(['Actualisation automatique', 'Alertes d’achat']);
