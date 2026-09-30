@@ -1257,6 +1257,32 @@ test('download my photos: every photo of each live listing, a folder per listing
   expect(urls).toEqual(['https://images1.vinted.net/t/101/1.jpeg', 'https://images1.vinted.net/t/101/2.jpeg']);
 });
 
+test('replies in Vinted messaging: the open conversation’s listing, never another one listed beside it', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true });
+  // Test fixture only: the list of conversations on the side (one about the jacket), the open one about the jeans.
+  await context.route('https://www.vinted.fr/inbox/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<html><body><aside><a href="/inbox/9100">Alice</a> <a href="/items/101-veste">Veste Harrington Ralph Lauren M</a></aside>
+        <main><header><a href="/items/102-jean">Jean Levi's 501 W32</a></header>
+        <div style="margin-top:400px"><textarea id="msg" rows="3" style="width:500px"></textarea></div></main></body></html>`,
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await expect.poll(() => sw.evaluate(async () => Object.keys(((await chrome.storage.local.get('eraReplyKit')).eraReplyKit as { items?: object } | undefined)?.items ?? {})), { timeout: 15_000 }).toContain('102');
+  const inbox = await context.newPage();
+  await inbox.goto('https://www.vinted.fr/inbox/9101');
+  const open = inbox.locator('[data-era-replies="button"]');
+  await expect(open).toBeVisible({ timeout: 15_000 });
+  await open.click();
+  await expect(inbox.locator('[data-era-replies="menu"]')).toContainText('ERA · Jean Levi');
+});
+
 test('replies in Vinted messaging: your templates filled for the conversation’s listing, written in the box, never sent', async ({ context, base }) => {
   test.setTimeout(120_000);
   const calls = await fakeVinted(context, { loggedIn: true });

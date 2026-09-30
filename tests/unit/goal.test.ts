@@ -143,9 +143,11 @@ describe('replies inside Vinted messaging', () => {
     ],
     items: { '101': { title: 'Veste Harrington M', size: 'M', condition: null, defects: null, measures: null, price: '59 €', counter: '54 €' } },
   };
-  it('the conversation’s listing is the first linked one ERA knows', () => {
-    expect(conversationItem(kit, ['999', '101', '102'])).toBe('101');
+  it('the conversation’s listing is the one listing of the seller ERA knows there; none when several (never another one’s price)', () => {
+    expect(conversationItem(kit, ['999', '101', '102', '101'])).toBe('101');
     expect(conversationItem(kit, ['999'])).toBeNull();
+    const two = { ...kit, items: { ...kit.items, '102': { ...kit.items['101']!, title: 'Jean 501', price: '30 €' } } };
+    expect(conversationItem(two, ['101', '102'])).toBeNull();
   });
   it('filled for that listing; an unknown listing keeps visible blanks, never an invented price', () => {
     const known = kitReplies(kit, '101');

@@ -36,8 +36,19 @@ export default defineContentScript({
       const all = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((t) => !t.disabled && !t.readOnly && t.getClientRects().length > 0);
       return all[all.length - 1] ?? null;
     };
-    /** Listing ids the conversation page links to, in page order. */
-    const linkedIds = () => [...document.querySelectorAll<HTMLAnchorElement>('a[href*="/items/"]')].map((a) => /\/items\/(\d+)/.exec(a.getAttribute('href') ?? '')?.[1]).filter((x): x is string => !!x);
+    /**
+     * Listing ids the open conversation links to: the closest part of the page around the message box that links to
+     * listings (the list of other conversations is further away), in page order.
+     */
+    const linkedIds = (box: HTMLElement | null) => {
+      const idsIn = (root: ParentNode) => [...root.querySelectorAll<HTMLAnchorElement>('a[href*="/items/"]')].map((a) => /\/items\/(\d+)/.exec(a.getAttribute('href') ?? '')?.[1]).filter((x): x is string => !!x);
+      // Up to the whole page at worst — where several of the seller's listings mean none is taken (conversationItem).
+      for (let el = box?.parentElement ?? null; el; el = el.parentElement) {
+        const ids = idsIn(el);
+        if (ids.length) return ids;
+      }
+      return idsIn(document);
+    };
 
     /** Writes like a person typing would (React reads the native setter and an insertText input event). */
     const write = (box: HTMLTextAreaElement, text: string) => {
@@ -75,7 +86,7 @@ export default defineContentScript({
 
     const openMenu = () => {
       if (!kit || !target) return;
-      const itemId = conversationItem(kit, linkedIds());
+      const itemId = conversationItem(kit, linkedIds(findBox()));
       const name = itemId ? kit.items[itemId]?.title : null;
       menu.replaceChildren();
       const head = document.createElement('div');

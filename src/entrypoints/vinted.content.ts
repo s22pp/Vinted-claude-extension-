@@ -125,7 +125,8 @@ async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', bod
       method === 'GET'
         ? await fetch(path, { credentials: 'same-origin', headers: apiHeaders() })
         : await fetch(path, { method, credentials: 'same-origin', headers: { ...apiHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
-    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
+    // Reporting the status must never turn an answer Vinted gave into a failure (a retry would send it twice).
+    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage).catch(() => undefined);
     const where = `HTTP ${res.status} · ${method === 'GET' ? '' : `${method} `}${path.split('?')[0]}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
     if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
@@ -163,7 +164,8 @@ async function uploadPhoto(base64: string, mime: string, tempUuid: string, name:
     form.append('photo[file]', new Blob([bytes], { type: mime }), name.replace(/[^\w.-]/g, '') || 'photo.jpg');
     // No content-type header: the browser writes the multipart boundary itself.
     const res = await fetch(PHOTO_UPLOAD_PATH, { method: 'POST', credentials: 'same-origin', headers: apiHeaders(), body: form });
-    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage);
+    // Reporting the status must never turn an answer Vinted gave into a failure (a retry would send it twice).
+    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage).catch(() => undefined);
     const where = `HTTP ${res.status} · POST ${PHOTO_UPLOAD_PATH}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
     if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
@@ -183,14 +185,16 @@ let csrf: string | null | undefined;
 
 /** The CSRF token Vinted put in this page (meta tag, or its inline app config). Read once per page. */
 function pageCsrfToken(): string | null {
-  if (csrf !== undefined) return csrf;
+  // The page's own token first, read fresh each time (Vinted is a single-page app: it can change without a reload).
   const meta = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
   if (meta) return (csrf = meta);
+  if (csrf) return csrf;
   for (const s of document.querySelectorAll('script:not([src])')) {
     const m = /CSRF_TOKEN[\\"']*\s*:\s*[\\"']*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(s.textContent ?? '');
     if (m) return (csrf = m[1]!);
   }
-  return (csrf = null);
+  // Not found yet (the page may still be loading): never remembered as "none" — looked for again at the next call.
+  return null;
 }
 
 function cookie(name: string): string | null {

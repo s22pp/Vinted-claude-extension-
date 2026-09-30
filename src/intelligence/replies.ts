@@ -77,7 +77,10 @@ const UNKNOWN: ReplyContext = { title: null, size: null, condition: null, defect
 
 /** The conversation's listing among those the page links to: the first one ERA knows. */
 export function conversationItem(kit: ReplyKit, linkedIds: readonly string[]): string | null {
-  return linkedIds.find((id) => id in kit.items) ?? null;
+  // Several of the seller's listings around the conversation: none is taken — a blank to fill beats another
+  // listing's price sent to a buyer.
+  const known = [...new Set(linkedIds.filter((id) => id in kit.items))];
+  return known.length === 1 ? known[0]! : null;
 }
 
 /** Every template, filled for this listing (or left visibly blank when ERA does not know it). */

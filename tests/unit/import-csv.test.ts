@@ -26,5 +26,10 @@ describe('price typed into Vinted’s edit form', () => {
     expect(readCents('59,50 €')).toBe(5950);
     expect(readCents('€59.00')).toBe(5900);
     expect(readCents('')).toBeNull();
+    // Thousands separators, as Vinted or a browser may write them.
+    expect(readCents('1 234,50 €')).toBe(123450);
+    expect(readCents('1.234,50')).toBe(123450);
+    expect(readCents('1.234')).toBe(123400);
+    expect(readCents('12.5')).toBe(1250);
   });
 });

@@ -3,7 +3,7 @@ import { MarketplaceError, errorInfo } from '../marketplace';
 import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
 import type { DescEditResult, EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
-import { sameText } from './edit-form';
+import { readCents, sameText } from './edit-form';
 import { db } from '../../db';
 import { journal as writeJournal } from '../../journal';
 import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
@@ -35,7 +35,7 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
     onStage('FILLING');
     const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:form', cents } satisfies EraMessage)) as EditFormResult;
     if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
-    const before = priceCentsOrNull(res.before);
+    const before = readCents(res.before);
 
     onStage('SAVING');
     await leftEditPage(tabId);
@@ -47,8 +47,12 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
       await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
       throw new MarketplaceError('NOT_APPLIED', after === null ? 'prix introuvable à la relecture' : `Vinted affiche toujours ${eurText(after, 2)}`);
     }
-    await repo.updatePrice(itemId, cents, Date.now(), 'OBSERVED');
-    await journal('PRICE', true, platformListingId, `${before !== null ? `${eurText(before, 2)} → ` : ''}${eurText(after, 2)}, relu sur Vinted`);
+    // Vinted shows the new price: done, whatever happens to ERA's own copy (the next import aligns it).
+    const local = await repo.updatePrice(itemId, cents, Date.now(), 'OBSERVED').then(
+      () => '',
+      () => ' · copie locale non mise à jour (le prochain import l’alignera)',
+    );
+    await journal('PRICE', true, platformListingId, `${before !== null ? `${eurText(before, 2)} → ` : ''}${eurText(after, 2)}, relu sur Vinted${local}`);
     onStage('DONE');
     return { ok: true, before, after };
   } catch (e) {
@@ -96,7 +100,13 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
   await reserveWrite();
   const r = await reserve('WRITE');
   if (!r.ok) throw new MarketplaceError(r.code);
-  const tabId = await openEditTab(platformListingId);
+  let tabId: number;
+  try {
+    tabId = await openEditTab(platformListingId);
+  } catch (e) {
+    await journal('DESCRIPTION', false, platformListingId, failText(e));
+    throw e;
+  }
   let keepOpen = false;
   try {
     const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:desc', text } satisfies EraMessage)) as EditFormResult;
@@ -136,10 +146,6 @@ async function readListingDescription(id: string): Promise<string | null> {
   return typeof j?.item?.description === 'string' ? j.item.description : null;
 }
 
-function priceCentsOrNull(v: string): number | null {
-  const n = Number.parseFloat(v.replace(/[^\d,.]/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? Math.round(n * 100) : null;
-}
 
 /** Verified read of one of MY listings: item_upload first, wardrobe (verified `price`) as fallback. */
 async function readListingPrice(id: string): Promise<number | null> {

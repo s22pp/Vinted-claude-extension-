@@ -20,7 +20,10 @@ export function findPriceInput(doc: Document = document): HTMLInputElement | { e
   const all = [...doc.querySelectorAll<HTMLInputElement>('input')].filter((i) => i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' && !i.disabled && visible(i));
   const hay = (i: HTMLInputElement) =>
     [i.id, i.name, i.getAttribute('data-testid'), i.getAttribute('aria-label'), i.placeholder, labelOf(i)].join(' ').toLowerCase();
-  const candidates = all.filter((i) => /\bprice\b|prix/.test(hay(i)) && !/frais|shipping|port|colis|package|boost/.test(hay(i)));
+  // Whole words only (letters around, accents included, make another word): "item_price" is a price, "support" or
+  // "important" do not rule a field out; "frais de port" does.
+  const word = (w: string) => new RegExp(`(^|[^a-zà-ÿ])(${w})(?![a-zà-ÿ])`);
+  const candidates = all.filter((i) => word('price|prix').test(hay(i)) && !word('frais|shipping|port|colis|package|boost').test(hay(i)));
   if (candidates.length === 1) return candidates[0]!;
   const exact = candidates.filter((i) => i.id === 'price' || i.name === 'price');
   if (exact.length === 1) return exact[0]!;
@@ -69,9 +72,24 @@ export function formatPrice(cents: number): string {
   return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2).replace('.', ',');
 }
 
+/** "59", "59,50", "59.50 €", "1 234,50 €", "1.234,50" → cents; null when it does not read as a price. */
 export function readCents(value: string): number | null {
-  const n = Number.parseFloat(value.replace(/[^\d,.]/g, '').replace(',', '.'));
+  let s = value.replace(/[^\d,.]/g, '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) s = s.replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number.parseFloat(s);
   return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+/**
+ * The field as the page ends up with it: once the page has finished loading and its scripts have taken over the form
+ * (a field written before that can be reset), found again.
+ */
+async function settledField<T>(find: () => T | { error: string }): Promise<T | { error: string }> {
+  for (let i = 0; i < 30 && document.readyState !== 'complete'; i++) await sleep(250);
+  await sleep(600);
+  return find();
 }
 
 export async function editPriceOnPage(cents: number): Promise<EditFormResult> {
@@ -82,14 +100,16 @@ export async function editPriceOnPage(cents: number): Promise<EditFormResult> {
     await sleep(500);
   }
   if ('error' in found) return { ok: false, detail: found.error };
-  const input = found;
+  const settled = await settledField(() => findPriceInput());
+  if ('error' in settled) return { ok: false, detail: settled.error };
+  const input = settled;
   const before = input.value;
   nativeSet(input, formatPrice(cents));
   await sleep(400);
   if (readCents(input.value) !== cents) return { ok: false, detail: `le champ prix affiche « ${input.value} » après saisie : rien n’a été enregistré` };
   const btn = findSaveButton(input);
   if ('error' in btn) return { ok: false, detail: btn.error };
-  // Close a fixed promo overlay covering the button, if any, without touching anything else.
+  // Brought into view, then clicked (nothing else on the page is touched).
   btn.scrollIntoView({ block: 'center' });
   btn.click();
   return { ok: true, before };
@@ -104,7 +124,9 @@ export async function editDescriptionOnPage(text: string): Promise<EditFormResul
     await sleep(500);
   }
   if ('error' in found) return { ok: false, detail: found.error };
-  const input = found;
+  const settled = await settledField(() => findDescriptionInput());
+  if ('error' in settled) return { ok: false, detail: settled.error };
+  const input = settled;
   const before = input.value;
   nativeSet(input, text);
   await sleep(400);
