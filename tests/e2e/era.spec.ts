@@ -185,6 +185,19 @@ test('tools: the forbidden-words shield flags another brand; the photo check rea
   await expect(page.getByRole('dialog').getByText(/^(Bonne|À améliorer|À refaire)$/)).toBeVisible({ timeout: 15_000 });
 });
 
+test('dispute file: from an order to ship, what ERA recorded on the sale, printable; an unknown sale said so', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/sales?ship=1`);
+  const card = page.getByTestId('to-ship');
+  await card.getByRole('button', { name: 'Dossier d’envoi' }).first().click();
+  await expect(page).toHaveURL(/#\/dossier\//);
+  await expect(page.getByText('Ce qu’ERA a enregistré sur cette vente — à joindre en cas de litige.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Imprimer / PDF' })).toBeVisible();
+  await page.goto(`${base}#/dossier/nope`);
+  await expect(page.getByText('Vente introuvable.')).toBeVisible();
+});
+
 test('theme: dark ↔ light', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);
