@@ -104,8 +104,8 @@ export type EraMessage =
   | { type: 'era:price:edit'; platformListingId: string; cents: number; itemId: string }
   | { type: 'era:price:stage'; stage: PriceStage }
   | { type: 'era:edit:form'; cents: number }
-  | { type: 'era:desc:edit'; platformListingId: string; text: string }
-  | { type: 'era:edit:desc'; text: string }
+  | { type: 'era:desc:edit'; platformListingId: string; text: string; expectBefore?: string }
+  | { type: 'era:edit:desc'; text: string; expectBefore?: string }
   | { type: 'era:text:edit'; platformListingId: string; field: TextField; op: TextOp }
   | { type: 'era:edit:text'; field: TextField; op: TextOp };
 

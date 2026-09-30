@@ -130,7 +130,7 @@ export async function editPriceOnPage(cents: number): Promise<EditFormResult> {
 }
 
 /** Same as the price, for the description: the whole text written at once, checked, then saved. */
-export async function editDescriptionOnPage(text: string): Promise<EditFormResult> {
+export async function editDescriptionOnPage(text: string, expectBefore?: string): Promise<EditFormResult> {
   let found: ReturnType<typeof findDescriptionInput> = { error: 'page non chargée' };
   for (let i = 0; i < 30; i++) {
     found = findDescriptionInput();
@@ -142,6 +142,8 @@ export async function editDescriptionOnPage(text: string): Promise<EditFormResul
   if ('error' in settled) return { ok: false, detail: settled.error };
   const input = settled;
   const before = input.value;
+  // Built on the description ERA read: changed on Vinted since, the seller's newer text is never overwritten.
+  if (expectBefore !== undefined && !sameText(before, expectBefore)) return { ok: false, detail: 'la description a changé sur Vinted depuis la lecture d’ERA : rien n’a été enregistré (relisez les descriptions)' };
   nativeSet(input, text);
   await sleep(400);
   if (sameText(input.value, text) === false) return { ok: false, detail: 'le champ description ne contient pas le texte après saisie : rien n’a été enregistré' };

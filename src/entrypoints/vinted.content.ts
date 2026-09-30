@@ -80,7 +80,7 @@ export default defineContentScript({
           sendResponse({ ok: false, detail: `pas sur une page de modification (${location.pathname})` });
           return;
         }
-        return reply(editDescriptionOnPage(msg.text));
+        return reply(editDescriptionOnPage(msg.text, msg.expectBefore));
       }
       if (msg.type === 'era:edit:text') {
         // Title or description by an operation (prefix, suffix, replacement): same rule, one click, one listing.

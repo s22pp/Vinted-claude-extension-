@@ -194,9 +194,9 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
 }
 
 /** A description replaced on Vinted: same lock as the price, never during another Vinted operation. */
-function runDescEdit(platformListingId: string, text: string): Promise<DescEditResult> {
+function runDescEdit(platformListingId: string, text: string, expectBefore?: string): Promise<DescEditResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
-  const run = applyDescriptionOnVinted(platformListingId, text)
+  const run = applyDescriptionOnVinted(platformListingId, text, expectBefore)
     .catch((e): DescEditResult => {
       const { code, detail } = errorInfo(e);
       return { ok: false, code, detail: detail ?? undefined };
@@ -405,7 +405,7 @@ export default defineBackground(() => {
       case 'era:price:edit':
         return answer(runPriceEdit(msg.platformListingId, msg.cents, msg.itemId), unavailable);
       case 'era:desc:edit':
-        return answer(runDescEdit(msg.platformListingId, msg.text), unavailable);
+        return answer(runDescEdit(msg.platformListingId, msg.text, msg.expectBefore), unavailable);
       case 'era:text:edit':
         return answer(runTextEdit(msg.platformListingId, msg.field, msg.op), unavailable);
       default:

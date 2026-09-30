@@ -74,7 +74,7 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
     setBusy(true);
     let r: DescEditResult;
     try {
-      r = (await browser.runtime.sendMessage({ type: 'era:desc:edit', platformListingId: listingId!, text } satisfies EraMessage)) as DescEditResult;
+      r = (await browser.runtime.sendMessage({ type: 'era:desc:edit', platformListingId: listingId!, text, expectBefore: current } satisfies EraMessage)) as DescEditResult;
     } catch (e) {
       r = { ok: false, code: 'UNAVAILABLE', detail: `service worker : ${e instanceof Error ? e.message : String(e)}` };
     }

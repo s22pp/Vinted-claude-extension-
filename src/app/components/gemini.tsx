@@ -44,7 +44,8 @@ export function GeminiCard() {
     const r = await testGeminiKey(k);
     setBusy(false);
     if (!r.ok) return setFail(r.detail);
-    await saveGemini({ key: k.trim(), model: r.model, models: r.models, testedAt: Date.now() });
+    const chosen = cfg?.model && r.models.includes(cfg.model) ? cfg.model : r.model;
+    await saveGemini({ key: k.trim(), model: chosen, models: r.models, testedAt: Date.now() });
     setKey('');
   };
   return (

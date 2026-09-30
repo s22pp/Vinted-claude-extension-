@@ -95,7 +95,7 @@ async function leftEditPage(tabId: number): Promise<void> {
  * the price — the edit page in a background tab, only the description field written, saved, then Vinted read back.
  * A text with blanks left ("__") never leaves ERA; success is said only once Vinted shows the new text.
  */
-export async function applyDescriptionOnVinted(platformListingId: string, text: string): Promise<DescEditResult> {
+export async function applyDescriptionOnVinted(platformListingId: string, text: string, expectBefore?: string): Promise<DescEditResult> {
   if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
   if (!text.trim() || text.includes('__')) throw new MarketplaceError('EDIT_FORM', 'description vide ou avec des « __ » à remplir : rien envoyé');
   await reserveWrite();
@@ -110,7 +110,7 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
   }
   let keepOpen = false;
   try {
-    const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:desc', text } satisfies EraMessage)) as EditFormResult;
+    const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:desc', text, ...(expectBefore !== undefined ? { expectBefore } : {}) } satisfies EraMessage)) as EditFormResult;
     if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
     await leftEditPage(tabId);
     const after = await readListingDescription(platformListingId);

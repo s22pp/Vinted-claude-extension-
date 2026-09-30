@@ -1607,6 +1607,29 @@ test('description written with Gemini: the seller’s text kept, what is not in 
   expect(JSON.stringify(gen[0]!.body)).toContain('Veste Harrington, bon état.');
 });
 
+test('complete a description: changed on Vinted since ERA read it → nothing saved, the seller’s newer text kept', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/quality`);
+  await page.getByRole('button', { name: /Lire \d+ descriptions? sur Vinted/ }).click();
+  await expect(page.getByText(/annonces? lues?/).first()).toBeVisible({ timeout: 40_000 });
+  // The seller rewrites the description on Vinted after ERA read it.
+  fake.descriptions['101'] = 'Veste Harrington, réécrite sur Vinted.';
+  await page.getByTestId('quality').locator('tr', { hasText: 'Veste Harrington Ralph Lauren M' }).getByRole('button', { name: 'Compléter la description' }).click();
+  const dialog = page.getByRole('dialog');
+  const text = dialog.getByTestId('describe-text');
+  await text.fill((await text.inputValue()).replace(/__/g, '60'));
+  await dialog.getByRole('button', { name: /Remplacer sur Vinted/ }).click();
+  await dialog.getByRole('button', { name: 'Confirmer et remplacer' }).click();
+  await expect(page.getByText(/la description a changé sur Vinted depuis la lecture d’ERA/).first()).toBeVisible({ timeout: 40_000 });
+  expect(fake.descriptions['101']).toBe('Veste Harrington, réécrite sur Vinted.');
+  expect(fake.clicked).toEqual([]);
+});
+
 test('complete a description on an ambiguous page (two description fields): nothing is saved on Vinted', async ({ context, base }) => {
   test.setTimeout(120_000);
   const fake = await fakeVinted(context, { loggedIn: true, editForm: 'twoDescriptions' });
