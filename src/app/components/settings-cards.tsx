@@ -117,7 +117,7 @@ export function DiagnosticCard() {
 }
 
 /** Which read of the account check backs each integration. */
-const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'], reserved: ['wardrobe'], search: ['catalog'], purchases: ['purchases'], auto: ['notifications', 'inbox'], draft: ['listing'], repost: ['listing'] };
+const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'], reserved: ['wardrobe'], search: ['catalog'], purchases: ['purchases'], auto: ['notifications', 'inbox'], draft: ['brands', 'sizes'], repost: ['listing'], label: ['conversation', 'address'], description: ['listing'], priceEdit: ['listing'], hide: ['listing'] };
 
 const STATE_TONE = { VERIFIED: 'emerald', PARTIAL: 'amber', FAILING: 'coral', UNAVAILABLE: 'neutral' } as const;
 

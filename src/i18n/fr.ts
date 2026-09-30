@@ -857,7 +857,7 @@ export const fr = {
     of: 'sur',
   },
   vinted: {
-    checkRun: 'Vérification complète (8 lectures)',
+    checkRun: 'Vérification complète (12 lectures)',
     reposts: '{n} republications reconnues (même article, historique conservé)',
     reposts_one: '1 republication reconnue (même article, historique conservé)',
     removed: '{n} annonces disparues de Vinted, retirées du stock',
@@ -884,7 +884,7 @@ export const fr = {
     diagRun: 'Lancer le diagnostic',
     diagCopy: 'Copier le rapport',
     diagCopied: 'Rapport copié : collez-le dans la conversation',
-    diagStep: { worker: 'Extension (service worker)', tab: 'Onglet vinted.fr', session: 'Session Vinted', wardrobe: 'Lecture du dressing', catalog: 'Recherche de comparables', sold: 'Ventes (Mes commandes)', purchases: 'Achats', notifications: 'Notifications (favoris)', inbox: 'Messagerie', listing: 'Une de vos annonces en entier' },
+    diagStep: { worker: 'Extension (service worker)', tab: 'Onglet vinted.fr', session: 'Session Vinted', wardrobe: 'Lecture du dressing', catalog: 'Recherche de comparables', sold: 'Ventes (Mes commandes)', purchases: 'Achats', notifications: 'Notifications (favoris)', inbox: 'Messagerie', listing: 'Une de vos annonces en entier', conversation: 'Conversation d’une vente (bordereaux, colis)', address: 'Adresse d’expédition par défaut (bordereaux)', brands: 'Recherche de marque (brouillons)', sizes: 'Tailles d’une catégorie (brouillons)' },
     lastError: 'Dernière erreur d’import',
     journal: 'Journal technique (dernières erreurs Vinted)',
     journalHint: '« Copier le rapport » copie ce journal : envoyez-le tel quel pour un diagnostic exact. Il reste sur cet appareil.',
@@ -1038,7 +1038,11 @@ export const fr = {
     itemFor: 'Article correspondant à {title}',
     error: 'Achats Vinted non importés : {detail}',
   },
-  bulk: { done: '{n} articles analysés' },
+  bulk: {
+    done: '{n} articles analysés',
+    stopped: '{n} articles analysés, {left} laissés pour plus tard',
+    stoppedWhy: 'Il reste {remaining} requêtes cette session : les {reserve} dernières sont gardées pour vos actions (bordereaux, prix…). Relancez après un redémarrage du navigateur.',
+  },
   errors: {
     NO_VINTED_TAB: 'Vinted n’a pas répondu dans l’onglet ouvert par ERA. Vérifiez votre connexion internet puis recliquez.',
     NOT_LOGGED_IN: 'Connectez-vous à Vinted dans l’onglet qui vient de s’afficher, puis recliquez sur Importer.',

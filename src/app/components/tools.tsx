@@ -7,6 +7,8 @@ import { stagnationThreshold } from '@/intelligence/stagnation';
 import { Icon } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Field, Input, Money } from '@/ui/components/primitives';
+import { AUTO_FLOOR } from '@/data/budget-plan';
+import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
 import { analyzeItem } from '../market-run';
 import { useEra } from '../state';
 import { useMoneyField } from './forms';
@@ -177,6 +179,9 @@ export function ShieldChecker() {
 
 /* ── Bulk analysis ────────────────────────────────────────── */
 
+/** At most what one article's analysis asks Vinted: 2 searches, widened twice when too little is found. */
+const BULK_ITEM_MAX_CALLS = 4;
+
 export function useBulkAnalyze() {
   const { t } = useI18n();
   const era = useEra();
@@ -190,6 +195,14 @@ export function useBulkAnalyze() {
     let n = 0;
     try {
       for (const i of targets) {
+        // A batch on Vinted (up to 4 searches an article) stops before the calls kept for the seller's own actions.
+        if (era.mode === 'real') {
+          const b = await budgetStatus();
+          if (b && !b.halted && b.remaining < AUTO_FLOOR + BULK_ITEM_MAX_CALLS) {
+            toast('warning', t('bulk.stopped', { n, left: targets.length - n }), t('bulk.stoppedWhy', { remaining: b.remaining, reserve: AUTO_FLOOR }));
+            return;
+          }
+        }
         await analyzeItem(i.view, era.mode, era.model, era.learning, undefined, true);
         n++;
         setBusy({ done: n, total: targets.length });

@@ -159,6 +159,32 @@ test('offer calculator answers an offer', async ({ context, base }) => {
   await expect(page.getByText('Refuser', { exact: true })).toBeVisible();
 });
 
+test('tools: the forbidden-words shield flags another brand; the photo check reads a picture and gives a verdict', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/tools`);
+  await page.getByRole('button', { name: /Bouclier mots interdits/ }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('#shield-text').fill('Veste style Carhartt, taille M, très bon état');
+  await dialog.locator('#shield-brand').fill('Marlboro');
+  await expect(dialog).toContainText('une autre marque dans l’annonce');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  // A picture made here for the test (never a retouched one): the check reads its pixels and gives a verdict.
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 300;
+    c.height = 400;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#8a8a8a';
+    g.fillRect(0, 0, 300, 400);
+    return c.toDataURL('image/png').split(',')[1]!;
+  });
+  await page.getByRole('button', { name: /Contrôle photo/ }).click();
+  await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'veste.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.getByRole('dialog').getByText(/^(Bonne|À améliorer|À refaire)$/)).toBeVisible({ timeout: 15_000 });
+});
+
 test('theme: dark ↔ light', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

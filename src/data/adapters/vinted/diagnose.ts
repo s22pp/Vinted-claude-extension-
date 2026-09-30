@@ -12,7 +12,7 @@ export interface SearchProbe {
   via: 'PAGE' | 'LEARNED' | null;
 }
 
-export type DiagKey = 'worker' | 'tab' | 'session' | 'wardrobe' | 'catalog' | 'sold' | 'purchases' | 'notifications' | 'inbox' | 'listing';
+export type DiagKey = 'worker' | 'tab' | 'session' | 'wardrobe' | 'catalog' | 'sold' | 'purchases' | 'notifications' | 'inbox' | 'listing' | 'conversation' | 'address' | 'brands' | 'sizes';
 export interface DiagStep {
   key: DiagKey;
   ok: boolean;
@@ -94,8 +94,12 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
   if (!full) return steps;
 
   // Full check: every other read ERA relies on, once each. A failure here does not stop the rest — only a block does.
-  const probe = async (key: DiagKey, path: string | null, describe: (json: unknown) => { ok: boolean; info: string }) => {
-    if (!path) return push({ key, ok: false, info: 'rien à lire (aucune annonce dans la garde-robe)' });
+  const probe = async (key: DiagKey, path: string | null, describe: (json: unknown) => { ok: boolean; info: string }, none = 'rien à lire (aucune annonce dans la garde-robe)') => {
+    // Nothing to read here is said, and the next reads still go ahead (only a block stops them).
+    if (!path) {
+      push({ key, ok: false, info: none });
+      return true;
+    }
     try {
       push({ key, ...describe(await adapter.rawGet(path)) });
       return true;
@@ -126,7 +130,31 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
       },
     ],
   ];
-  for (const [key, path, describe] of steps2) if (!(await probe(key, path, describe))) break;
+  for (const [key, path, describe] of steps2) if (!(await probe(key, path, describe))) return steps;
+  // What the tools that write rely on, read only: an order's conversation and the default address (labels, parcels),
+  // brand search and a category's sizes (drafts). Never their content in the report — only whether the fields are there.
+  const sale = await db.sales.filter((s) => !s.isDemo && !!s.vintedConversationId).last();
+  const keysOf = (o: unknown) => (typeof o === 'object' && o !== null ? Object.keys(o).sort() : []);
+  const steps3: [DiagKey, string | null, (j: unknown) => { ok: boolean; info: string }, string?][] = [
+    [
+      'conversation',
+      sale ? `/api/v2/conversations/${sale.vintedConversationId}` : null,
+      (j) => {
+        const c = (j as { conversation?: Record<string, unknown> })?.conversation ?? {};
+        const tx = (c.transaction ?? {}) as Record<string, unknown>;
+        const shipment = tx.shipment_id ?? (tx.shipment as Record<string, unknown> | undefined)?.id;
+        return { ok: keysOf(c).length > 0, info: `transaction ${tx.id !== undefined ? 'présente' : 'absente'} · expédition ${shipment !== undefined && shipment !== null ? 'présente' : 'absente'} · champs : ${keysOf(c).slice(0, 20).join(', ')}` };
+      },
+      'rien à lire (aucune vente avec sa conversation : importez vos ventes)',
+    ],
+    ['address', '/api/v2/user_addresses/default_shipping_address', (j) => {
+      const a = (j as { user_address?: Record<string, unknown> })?.user_address;
+      return { ok: !!a && a.id !== undefined, info: a ? 'adresse d’expédition par défaut présente (contenu non repris ici)' : `pas d’adresse par défaut · clés : ${keysOf(j).join(', ')}` };
+    }],
+    ['brands', '/api/v2/item_upload/brands?keyword=ralph', (j) => count(j, ['brands'])],
+    ['sizes', '/api/v2/item_upload/size_groups?catalog_ids=1812', (j) => count(j, ['size_groups'])],
+  ];
+  for (const [key, path, describe, none] of steps3) if (!(await probe(key, path, describe, none))) break;
   return steps;
 }
 

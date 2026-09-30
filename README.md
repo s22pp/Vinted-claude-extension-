@@ -71,6 +71,7 @@ Chaque écran est isolé : une erreur d'affichage montre ce qui s'est passé ave
 
 - Lecture : endpoints vérifiés, `GET`, via la session de l'onglet ouvert. Écriture : seulement les automatisations activées (ci-dessous).
 - Budget : 60 appels / session · 12 / min · 1,2 s d'espacement · 2 pages max. **403/429 = arrêt total 6 h.**
+- « Analyser le stock » (jusqu'à 4 recherches par article) s'arrête avant d'entamer la même réserve et dit combien d'articles restent pour plus tard.
 - Réserve pour vos clics : ce qui tourne tout seul (actualisation, alertes d'achat, automatisations) ne démarre plus sous 20 appels restants ; un passage sauté est écrit une fois dans le journal, comme une limite d'ERA. À côté de chaque programmation, ERA affiche ce qu'elle lit au minimum par heure et en combien d'heures elle atteint la réserve, navigateur ouvert.
 - ERA ne publie jamais une annonce, ne suit personne et ne change jamais un prix automatiquement. Il ne supprime qu'une **ancienne annonce republiée**, sans favoris, une fois la copie en ligne, après votre confirmation.
 - Modifier le prix d'une annonce depuis la fiche article : **EXPERIMENTAL**, un article à la fois, après confirmation explicite.
@@ -229,7 +230,7 @@ Ventes → Comptabilité → **Dépenses** : emballages, envois, boosts, trajets
 
 ## Vérification complète du compte
 
-Réglages → Diagnostic → **« Vérification complète (8 lectures) »** : chaque lecture dont ERA dépend est essayée une fois, en lecture seule (session, garde-robe, recherche, ventes, achats, notifications, messagerie, une annonce en entier) ; une erreur n'arrête pas les suivantes, sauf un blocage. Le résultat s'affiche à côté de chaque intégration (« Vérifié le … : lu sur votre compte » ou « échec »).
+Réglages → Diagnostic → **« Vérification complète (12 lectures) »** (ou « Vérifier maintenant » dans la carte Intégrations) : chaque lecture dont ERA dépend est essayée une fois, en lecture seule — session, garde-robe, recherche, ventes, achats, notifications, messagerie, une annonce en entier, et ce dont les outils d'écriture ont besoin : la conversation d'une vente (bordereaux, colis), l'adresse d'expédition par défaut (jamais son contenu dans le rapport), la recherche de marque et les tailles d'une catégorie (brouillons) ; une erreur n'arrête pas les suivantes, sauf un blocage. Le résultat s'affiche à côté de chaque intégration (« Vérifié le … : lu sur votre compte » ou « échec »).
 
 ## Objectif : le plan mensuel
 

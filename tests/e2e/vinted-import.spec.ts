@@ -1084,6 +1084,26 @@ test('scheduled automations stop short of the reserve kept for the seller’s cl
   await expect.poll(writes, { timeout: 30_000 }).toBeGreaterThan(0);
 });
 
+test('analyse the whole stock on Vinted (search read on the page): stops short of the reserve, then every listed article analysed', async ({ context, base }) => {
+  test.setTimeout(200_000);
+  await fakeVinted(context, { loggedIn: true, searchPageCards: true });
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/tools`);
+  const run = page.getByRole('button', { name: 'Analyser le stock (2)' });
+  // 20 calls left: a batch of up to 4 searches an article would eat the seller's reserve — nothing started, said.
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 40, halted: null } }));
+  await run.click();
+  await expect(page.getByText('0 articles analysés, 2 laissés pour plus tard')).toBeVisible({ timeout: 20_000 });
+  // Enough left: both listed articles analysed, from the search page's cards.
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 0, halted: null } }));
+  await run.click();
+  await expect(page.getByText('2 articles analysés', { exact: true })).toBeVisible({ timeout: 180_000 });
+});
+
 test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {
   test.setTimeout(120_000);
   const calls = await fakeVinted(context, { loggedIn: true, searchPageCards: true });
@@ -1109,13 +1129,16 @@ test('account check: every read ERA relies on, once each, read-only; the result 
   const calls = await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
-  await page.getByRole('button', { name: 'Vérification complète (8 lectures)' }).click();
+  await page.getByRole('button', { name: 'Vérification complète (12 lectures)' }).click();
   const diag = page.locator('#diagnostic');
-  await expect(diag.getByText('Une de vos annonces en entier')).toBeVisible({ timeout: 60_000 });
-  await expect(diag.locator('li')).toHaveCount(10);
+  await expect(diag.getByText('Tailles d’une catégorie (brouillons)')).toBeVisible({ timeout: 60_000 });
+  await expect(diag.locator('li')).toHaveCount(14);
+  // The reads the writing tools rely on: an order's conversation (none yet: said), the address (never its content).
+  await expect(diag).toContainText('aucune vente avec sa conversation');
+  await expect(diag).toContainText('adresse d’expédition par défaut présente (contenu non repris ici)');
   await expect(diag).toContainText('description lue');
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
-  expect(calls.length).toBeLessThanOrEqual(10);
+  expect(calls.length).toBeLessThanOrEqual(14);
   const stock = page.locator('.integ__row', { hasText: 'Import du stock' });
   await expect(stock).toContainText('lu sur votre compte');
   // The fixture's wardrobe carries no reservation flag: said, not assumed.
