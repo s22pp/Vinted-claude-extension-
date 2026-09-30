@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -98,6 +98,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/conversations' && method === 'POST') return json({ conversation: { id: 9001 } });
     if (url.pathname === '/api/v2/conversations/9001')
       return json({ conversation: { messages: [], opposite_user: { id: 555, login: 'alice' }, transaction: { id: 7001, item_title: 'Veste Harrington Ralph Lauren M', offer_price: { amount: '59.0' } } } });
+    if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) && opts.replyFails) return json({ code: 500 }, 500);
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
@@ -955,6 +956,23 @@ test('bundle offer: one member favourites two listings — one message for both,
   // Costs unknown: the bundle is proposed without a promised price.
   expect(JSON.parse(writes()[1]!.body!).reply.body).toBe('Hello ! J’ai vu tes favoris sur la veste Ralph Lauren et le jean Levi’s 🙂 Si tu les prends ensemble en lot, je te fais un prix : dis-moi !');
   await expect(page.getByTestId('auto-log')).toContainText('Offre groupée');
+});
+
+test('bundle message refused by Vinted (500): never re-sent article by article in the same pass', async ({ context, base }) => {
+  test.setTimeout(180_000);
+  const calls = await fakeVinted(context, { loggedIn: true, bundleFavs: true, replyFails: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  await page.getByLabel('Activer pour les nouveaux favoris').check();
+  await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
+  await expect(page.getByTestId('auto-log')).toContainText('Offre groupée', { timeout: 60_000 });
+  // The pass's end (its summary line): writes are 12 s apart, so what would follow has had its time.
+  await expect(page.getByTestId('auto-log')).toContainText('Passage', { timeout: 90_000 });
+  // One conversation, one refused reply — then nothing: the member is not messaged once per article.
+  expect(calls.filter((c) => c.method !== 'GET').map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
 });
 
 test('parcels to watch: a parcel sent long ago and still not delivered is flagged, with its conversation', async ({ context, base }) => {

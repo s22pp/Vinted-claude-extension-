@@ -130,7 +130,11 @@ export async function repostAsDraft(itemId: string, now = Date.now()): Promise<R
       const { code, detail } = errorInfo(e);
       throw new MarketplaceError(code, `copie en brouillon ${draftId} créée sur Vinted, relecture impossible (${detail ?? code}) : vérifiez-la sur Vinted avant de la publier`);
     }
-    if (typeof back.title === 'string' && back.title.trim() !== src.title.trim()) throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
+    if (typeof back.title === 'string' && back.title.trim() !== src.title.trim()) {
+      // It exists all the same: kept waiting (never made twice on a retry; « Abandonner » on the card lets it go).
+      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
+      throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
+    }
     const photosBack = Array.isArray(back.photos) ? back.photos.length : null;
 
     await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);

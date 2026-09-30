@@ -59,8 +59,17 @@ export async function getShippingLabel(conversationId: string, title: string, so
     if (!url) {
       const address = idText(obj(obj(await adapter.rawGet('/api/v2/user_addresses/default_shipping_address')).user_address).id);
       if (!address) throw new MarketplaceError('NOT_APPLIED', 'aucune adresse d’expédition par défaut sur votre compte Vinted');
-      await vintedWrite('PUT', `/api/v2/transactions/${txId}/shipment/order`, { seller_address_id: Number(address), drop_off_type: null, label_type: 'printable' });
-      await repo.setSetting(LABEL_ORDERED_KEY, { ...(await repo.getSetting<Record<string, number>>(LABEL_ORDERED_KEY, {})), [shipmentId]: Date.now() });
+      const remember = async () => repo.setSetting(LABEL_ORDERED_KEY, { ...(await repo.getSetting<Record<string, number>>(LABEL_ORDERED_KEY, {})), [shipmentId]: Date.now() });
+      try {
+        await vintedWrite('PUT', `/api/v2/transactions/${txId}/shipment/order`, { seller_address_id: Number(address), drop_off_type: null, label_type: 'printable' });
+      } catch (e) {
+        // Sent, but the answer was lost or unreadable (server error, not JSON, the tab gone): Vinted may have taken it.
+        // Remembered like an order, so a retry looks for the label instead of ordering a second one.
+        const { code, detail } = errorInfo(e);
+        if (code === 'UNAVAILABLE' || (code === 'NO_VINTED_TAB' && detail === 'CONTENT_SCRIPT_UNREACHABLE')) await remember();
+        throw e;
+      }
+      await remember();
       // Vinted makes the label asynchronously: a few spaced looks, not a hammering.
       for (const ms of [2000, 4000, 7000, 11000]) {
         await waitAlive(ms);

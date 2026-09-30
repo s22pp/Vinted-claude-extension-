@@ -80,6 +80,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
     const notices = parseFavoriteNotifications(await adapter.rawGet('/web/api/notifications/notifications?page=1&per_page=50'));
     const items = await itemsByVintedId();
     let sentToday = await favToday(now);
+    // A bundle that failed is tried again next pass, as a bundle: never one message per article in this one.
+    const tryLater = new Set<string>();
     // Several of your articles favourited by one member: one message for the bundle, not one per article.
     for (const b of planBundles(notices, items, cfg, { seen, sentToday, now })) {
       if (out.done >= PER_RUN || sentToday >= cfg.fav.perDay) break;
@@ -114,6 +116,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         out.done++;
       } catch (e) {
         out.failed++;
+        for (const n of b.notices) tryLater.add(n.key);
         const { code, detail } = errorInfo(e);
         await log({ kind: 'FAV_BUNDLE', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
         const stop = stopReason(e);
@@ -125,6 +128,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
     }
     for (const n of notices) {
       if (out.done >= PER_RUN) break;
+      if (tryLater.has(n.key)) continue;
       const item = items.get(n.itemId) ?? null;
       const plan = planFavorite(n, item, cfg, { seen, sentToday, now });
       if (!plan.send) {
@@ -181,12 +185,14 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         } else if (plan.note) {
           await log({ kind: 'SKIP', dryRun, ok: true, target, detail: plan.note });
         }
+        // Marked seen either way: trying again would only reopen the same conversation. Counted in the day's messages,
+        // and as done, only when something reached the member (a message or an offer).
         seen.add(n.key);
-        sentToday++;
-        await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
-        // Done only when something reached the member (a message or an offer).
-        if (plan.message || offerSent) out.done++;
-        else out.failed++;
+        if (plan.message || offerSent) {
+          sentToday++;
+          await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
+          out.done++;
+        } else out.failed++;
       } catch (e) {
         out.failed++;
         const { code, detail } = errorInfo(e);

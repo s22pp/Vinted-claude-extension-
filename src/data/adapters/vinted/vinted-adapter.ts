@@ -24,7 +24,7 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
   const existing = await findVintedTab();
   if (existing !== null && (await ping(existing))) return { tabId: existing, created: false };
   // A scheduled pass never opens, reloads or navigates a tab by itself: the seller may be typing in theirs.
-  if (isScheduledRun()) throw new MarketplaceError('NO_VINTED_TAB', 'passage automatique : aucun onglet vinted.fr ne répond, ERA n’en ouvre ni n’en recharge aucun tout seul');
+  if (isScheduledRun()) throw new MarketplaceError('NO_VINTED_TAB', 'aucun onglet vinted.fr ne répond, et un passage automatique est en cours (ERA n’ouvre ni ne recharge d’onglet pendant ce temps) : réessayez dans une minute');
   // A vinted.fr tab opened before ERA was installed has no content script: reload it. Otherwise open one.
   const tabId = existing ?? (await browser.tabs.create({ url: 'https://www.vinted.fr/', active: false })).id!;
   // Vinted pages are heavy: give a slow connection up to ~15 s before retrying once.
