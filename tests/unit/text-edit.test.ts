@@ -10,6 +10,10 @@ describe('title and description changed by an operation, applied to what Vinted 
   it('a prefix on a title; already at the start (any case) → nothing to change', () => {
     expect(applyTextOp('Veste Harrington', { kind: 'prefix', text: 'E1C4G' }, 'title')).toBe('E1C4G Veste Harrington');
     expect(applyTextOp('e1c4g Veste Harrington', { kind: 'prefix', text: 'E1C4G' }, 'title')).toBeNull();
+    // Whole words only: "Vin" is not already at the start of "Vintage", nor "age" at the end of "Vintage".
+    expect(applyTextOp('Vintage Levi’s 501', { kind: 'prefix', text: 'Vin' }, 'title')).toBe('Vin Vintage Levi’s 501');
+    expect(applyTextOp('Levi’s 501 Vintage', { kind: 'suffix', text: 'age' }, 'title')).toBe('Levi’s 501 Vintage age');
+    expect(applyTextOp('Levi’s 501 · vintage', { kind: 'suffix', text: 'Vintage' }, 'title')).toBeNull();
   });
 
   it('a description gets its addition as a paragraph of its own; the seller’s text is kept as it is', () => {

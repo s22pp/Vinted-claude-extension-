@@ -15,6 +15,10 @@ export type TextOp =
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
 const norm = (s: string) => s.replace(/\r\n?/g, '\n').trim();
+/** A separator between words: "Vin" is not already at the start of "Vintage". */
+const SEP = /[\s.,;:!?·|/()\-–—]/;
+const startsWithWord = (s: string, w: string) => s.toLowerCase().startsWith(w.toLowerCase()) && (s.length === w.length || SEP.test(s[w.length]!) || SEP.test(w[w.length - 1]!));
+const endsWithWord = (s: string, w: string) => s.toLowerCase().endsWith(w.toLowerCase()) && (s.length === w.length || SEP.test(s[s.length - w.length - 1]!) || SEP.test(w[0]!));
 
 /** Why an operation is refused before anything is opened (null: it can be sent). */
 export function textOpProblem(field: TextField, op: TextOp): string | null {
@@ -43,11 +47,11 @@ export function applyTextOp(before: string, op: TextOp, field: TextField): strin
       after = add;
       break;
     case 'prefix':
-      if (cur.toLowerCase().startsWith(add.toLowerCase())) return null;
+      if (startsWithWord(cur, add)) return null;
       after = cur ? `${add}${sep}${cur}` : add;
       break;
     case 'suffix':
-      if (cur.toLowerCase().endsWith(add.toLowerCase())) return null;
+      if (endsWithWord(cur, add)) return null;
       after = cur ? `${cur}${sep}${add}` : add;
       break;
     case 'replace':
