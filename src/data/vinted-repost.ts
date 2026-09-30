@@ -9,6 +9,8 @@ import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adap
 import { type AutoLogRow, db, uid } from './db';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
+import { priceCents } from './adapters/vinted/parse';
+import { eurText } from '@/domain/money';
 
 /**
  * Repost WITHOUT losing anything, in two steps, each from one click of the seller. EXPERIMENTAL.
@@ -83,12 +85,16 @@ async function copyPhoto(url: string, index: number, tempUuid: string, tabId: nu
   return id;
 }
 
-/** Step 1 — the draft copy. The original listing is not touched. */
-export async function repostAsDraft(itemId: string, now = Date.now()): Promise<RepostResult> {
+/**
+ * Step 1 — the draft copy. The original listing is not touched. `newPrice` (cents): the copy's price, when the seller
+ * chose another one (a planned price cut); the draft is read back with it.
+ */
+export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: number | null = null): Promise<RepostResult> {
   const item = await db.items.get(itemId);
   const title = item?.title ?? itemId;
   try {
     if (!item || item.isDemo) throw new MarketplaceError('NOT_APPLIED', 'article inconnu');
+    if (newPrice !== null && (!Number.isInteger(newPrice) || newPrice <= 0)) throw new MarketplaceError('NOT_APPLIED', 'prix de la copie invalide');
     if (item.status !== 'LISTED') throw new MarketplaceError('NOT_APPLIED', 'seule une annonce en ligne, ni réservée ni masquée, se republie');
     if ((await pendingReposts(now)).some((p) => p.itemId === itemId)) throw new MarketplaceError('NOT_APPLIED', 'une copie attend déjà d’être publiée pour cet article');
     const old = await liveVintedListing(itemId);
@@ -115,7 +121,10 @@ export async function repostAsDraft(itemId: string, now = Date.now()): Promise<R
     const ids: number[] = [];
     for (let i = 0; i < photos.length; i++) ids.push(await copyPhoto(photos[i]!, i, session, tabId));
 
-    const draft = { ...src.fields, id: null, assigned_photos: ids.map((id) => ({ id, orientation: 0 })), temp_uuid: session };
+    const oldPrice = priceCents(src.fields.price);
+    const price = newPrice !== null && newPrice !== oldPrice ? newPrice : null;
+    const fields = price === null ? src.fields : { ...src.fields, price: (price / 100).toFixed(2) };
+    const draft = { ...fields, id: null, assigned_photos: ids.map((id) => ({ id, orientation: 0 })), temp_uuid: session };
     const res = obj(await vintedWrite('POST', '/api/v2/item_upload/drafts', { draft, feedback_id: null, parcel: null, upload_session_id: session }));
     const draftId = idText(obj(res.draft).id) ?? idText(res.id);
     if (!draftId) throw new MarketplaceError('UNAVAILABLE', 'Vinted n’a pas renvoyé de brouillon');
@@ -136,10 +145,14 @@ export async function repostAsDraft(itemId: string, now = Date.now()): Promise<R
       throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
     }
     const photosBack = Array.isArray(back.photos) ? back.photos.length : null;
-
+    const priceBack = priceCents(back.price);
     await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
-    await log({ kind: 'REPOST', ok: true, target: title, detail: `copie en brouillon ${draftId} · ${ids.length} photo(s) envoyée(s)${photosBack !== null ? `, ${photosBack} relue(s)` : ''} · ancienne annonce ${old.platformListingId} intacte` });
-    return { ok: true, draftId, photos: ids.length, photosBack };
+    // A new price asked and another one read back: the copy exists (kept waiting), its price is to be fixed on Vinted.
+    if (price !== null && priceBack !== null && priceBack !== price)
+      throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu à ${eurText(priceBack, 2)} au lieu de ${eurText(price, 2)} : corrigez le prix sur Vinted avant de publier`);
+    const priceNote = price === null ? '' : ` · prix ${oldPrice !== null ? `${eurText(oldPrice, 2)} → ` : ''}${eurText(price, 2)}${priceBack === null ? ' (prix non relu)' : ', relu'}`;
+    await log({ kind: 'REPOST', ok: true, target: title, detail: `copie en brouillon ${draftId} · ${ids.length} photo(s) envoyée(s)${photosBack !== null ? `, ${photosBack} relue(s)` : ''}${priceNote} · ancienne annonce ${old.platformListingId} intacte` });
+    return { ok: true, draftId, photos: ids.length, photosBack, priceBack: price === null ? null : priceBack };
   } catch (e) {
     const { code, detail } = errorInfo(e);
     await log({ kind: 'REPOST', ok: false, target: title, detail: `${code}${detail ? ` · ${detail}` : ''}` });

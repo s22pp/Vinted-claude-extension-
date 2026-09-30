@@ -90,7 +90,7 @@ export type EraMessage =
   | { type: 'era:details:read'; ids: string[] }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
-  | { type: 'era:repost:create'; itemId: string }
+  | { type: 'era:repost:create'; itemId: string; priceCents?: number }
   | { type: 'era:repost:finish'; itemId: string }
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
@@ -187,7 +187,7 @@ export type HideResult = { ok: true; verified: boolean | null } | { ok: false; c
 
 /** A repost prepared as a draft copy: photos uploaded again, never published by ERA. */
 export type RepostResult =
-  | { ok: true; draftId: string; photos: number; photosBack: number | null }
+  | { ok: true; draftId: string; photos: number; photosBack: number | null; priceBack?: number | null }
   | { ok: false; code: MarketplaceErrorCode; detail?: string };
 /** The old listing deleted once its copy is live; `verified`: Vinted no longer returns it. */
 export type RepostFinishResult = { ok: true; verified: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };

@@ -362,7 +362,7 @@ export default defineBackground(() => {
           return undefined;
         }
         if (msg.type === 'era:draft:create') return answer(createVintedDraft(msg.input), unavailable);
-        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId) : finishRepost(msg.itemId)).finally(() => {
+        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId, Date.now(), msg.priceCents ?? null) : finishRepost(msg.itemId)).finally(() => {
           reposting = null;
         });
         return answer(reposting, unavailable);

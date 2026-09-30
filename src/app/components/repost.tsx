@@ -7,7 +7,10 @@ import { isLiveListing } from '@/domain/status';
 import { useI18n } from '@/i18n';
 import type { ItemView } from '@/intelligence/portfolio';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
-import { Button, Card } from '@/ui/components/primitives';
+import { Button, Card, Field, Input } from '@/ui/components/primitives';
+import { useEra } from '../state';
+import { useMoneyField } from './forms';
+import { dueStep } from './markdown';
 import { vintedIdOf } from './vinted-price';
 import { RouteFlag } from './route-flag';
 
@@ -24,14 +27,19 @@ const openOnVinted = (id: string) => window.open(`https://www.vinted.fr/items/${
 
 /** "Republier sans rien perdre": a draft copy, same fields and photos; refused when the listing has favourites. */
 export function RepostButton({ v }: { v: ItemView }) {
-  const { t } = useI18n();
+  const { t, money } = useI18n();
   const toast = useToast();
   const errorToast = useErrorToast();
+  const era = useEra();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const price = useMoneyField(v.askPrice);
   const pending = usePendingRepost(v.item.id);
   const favs = v.current?.favorites ?? null;
   if (!vintedIdOf(v) || v.item.status !== 'LISTED' || pending) return null;
+  // The planned price cut due now, offered for the copy (never applied without the seller choosing it).
+  const cut = dueStep(era.markdown.get(v.item.id));
+  const newPrice = price.cents !== null && price.cents !== v.askPrice ? price.cents : null;
   const blocked = favs !== null && favs > 0;
   return (
     <>
@@ -46,6 +54,18 @@ export function RepostButton({ v }: { v: ItemView }) {
           <li>{t('repost.step2')}</li>
           <li>{t('repost.step3')}</li>
         </ol>
+        <Field label={t('repost.price')} htmlFor="repost-price" error={price.invalid ? t('add.invalidAmount') : null}>
+          <Input id="repost-price" money value={price.raw} onChange={(e) => price.setRaw(e.target.value)} disabled={busy} style={{ width: 140 }} />
+        </Field>
+        {cut && cut.targetCents !== price.cents && (
+          <p className="t-small t-muted row wrap" style={{ gap: 8 }}>
+            <span>{t('repost.cut', { price: money(cut.targetCents) })}</span>
+            <Button size="sm" variant="ghost" onClick={() => price.setRaw(String(cut.targetCents / 100).replace('.', ','))}>
+              {t('repost.useCut')}
+            </Button>
+          </p>
+        )}
+        <p className="t-small t-faint">{newPrice !== null ? t('repost.priceNew', { from: money(v.askPrice ?? 0), to: money(newPrice) }) : t('repost.priceSame')}</p>
         <p className="t-small t-faint">{t('repost.budget')}</p>
         <p className="t-small t-faint row" style={{ gap: 6 }}>
           <RouteFlag kinds={['REPOST', 'DELETE']} /> {t('repost.experimental')}
@@ -58,10 +78,11 @@ export function RepostButton({ v }: { v: ItemView }) {
             variant="primary"
             icon="check"
             loading={busy}
+            disabled={price.invalid}
             onClick={async () => {
               setBusy(true);
               try {
-                const r = (await browser.runtime.sendMessage({ type: 'era:repost:create', itemId: v.item.id } satisfies EraMessage)) as RepostResult;
+                const r = (await browser.runtime.sendMessage({ type: 'era:repost:create', itemId: v.item.id, ...(newPrice !== null ? { priceCents: newPrice } : {}) } satisfies EraMessage)) as RepostResult;
                 if (!r.ok) {
                   errorToast(r);
                   return;

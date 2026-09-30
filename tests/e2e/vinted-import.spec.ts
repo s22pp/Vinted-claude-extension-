@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -135,8 +135,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ draft: { id: 555 } });
     }
     if (url.pathname === '/api/v2/item_upload/items/555') {
-      const d = state.draft as { title?: string; assigned_photos?: { id: number }[] } | null;
-      return json({ item: { id: 555, title: d?.title, is_draft: !state.published555, photos: (d?.assigned_photos ?? []).map((p) => ({ id: p.id, full_size_url: `https://images1.vinted.net/t/copy/${p.id}.jpeg` })) } });
+      const d = state.draft as { title?: string; price?: string; assigned_photos?: { id: number }[] } | null;
+      return json({ item: { id: 555, title: d?.title, price: opts.draftPriceLocked ? '25.0' : d?.price, is_draft: !state.published555, photos: (d?.assigned_photos ?? []).map((p) => ({ id: p.id, full_size_url: `https://images1.vinted.net/t/copy/${p.id}.jpeg` })) } });
     }
     // Test fixture only: a listing with no favourite, its photos, the upload route and the delete route.
     if (url.pathname === '/api/v2/photos' && method === 'POST') return json({ photo: { id: 7001 + state.photos++, url: 'https://images1.vinted.net/t/new.jpeg' } });
@@ -762,6 +762,44 @@ test('repost without loss: a draft copy with the same photos, the old listing de
   await page.goto(`${base}#/stock?filter=all`);
   await expect(page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Chemise Pierre Cardin L' })).toHaveCount(1);
 });
+
+for (const locked of [false, true])
+  test(`repost at a new price: the copy sent at that price${locked ? ', Vinted reading back another → said, the copy kept waiting' : ', read back'}`, async ({ context, base }) => {
+    test.setTimeout(120_000);
+    const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true }] };
+    const calls = await fakeVinted(context, { loggedIn: true, extra: [shirt], draftPriceLocked: locked });
+    const page = await context.newPage();
+    await page.goto(`${base}#/settings`);
+    await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+    await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+    await page.goto(`${base}#/stock?filter=all`);
+    await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Chemise Pierre Cardin L' }).click();
+    await page.evaluate(() => {
+      window.open = () => null;
+    });
+    await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('Prix de la copie')).toHaveValue(/^25(,00)?$/);
+    await expect(dialog).toContainText('La copie garde le prix actuel');
+    await dialog.getByLabel('Prix de la copie').fill('22');
+    await expect(dialog).toContainText(/La copie partira à 22\s€ au lieu de 25\s€/);
+    await dialog.getByRole('button', { name: 'Créer la copie en brouillon' }).click();
+    const draft = async () => JSON.parse(calls.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')?.body ?? '{}').draft;
+    if (!locked) {
+      await expect(page.getByText('Copie créée en brouillon')).toBeVisible({ timeout: 40_000 });
+      expect(await draft()).toMatchObject({ title: 'Chemise Pierre Cardin L', price: '22.00', brand_id: 5575 });
+      await page.goto(`${base}#/automations`);
+      await expect(page.getByText(/prix 25,00\s€ → 22,00\s€, relu/)).toBeVisible();
+    } else {
+      await expect(page.getByText(/relu à 25,00\s€ au lieu de 22,00\s€/).first()).toBeVisible({ timeout: 40_000 });
+      expect(await draft()).toMatchObject({ price: '22.00' });
+      // The copy exists on Vinted: kept waiting (never made twice), never announced as done.
+      await expect(page.getByText('Copie créée en brouillon')).toHaveCount(0);
+      await expect(page.getByTestId('repost-pending')).toContainText('brouillon');
+    }
+    // The old listing is never touched here.
+    expect(calls.some((c) => c.path.endsWith('/delete'))).toBe(false);
+  });
 
 test('repost refused when the listing has favourites: no button action, nothing sent', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true });
