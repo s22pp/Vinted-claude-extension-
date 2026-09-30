@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeLabelServer, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -102,6 +102,11 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
     if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 177293623, login: 'era-archives' } }) : json({ code: 100 }, 401);
+    // A full first page of the wardrobe (96 listings), then page 2 unavailable.
+    if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items') && opts.wardrobePage2Down) {
+      if (url.searchParams.get('page') === '2') return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      return json({ items: Array.from({ length: 96 }, (_, i) => ({ id: 5000 + i, title: `Article ${i}`, price: '20.0', view_count: 1, favourite_count: 0, is_draft: false, is_closed: false, is_hidden: false, photos: [] })) });
+    }
     if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items'))
       return json({
         items: [
@@ -982,6 +987,16 @@ test('search page whose links name the listing only by image: the price read fro
   const catalog = page.locator('#diagnostic li').filter({ hasText: 'Recherche de comparables' });
   await expect(catalog.getByText('✓')).toBeVisible({ timeout: 60_000 });
   await expect(catalog).toContainText('2 comparables · total ? · via la page de recherche Vinted');
+});
+
+test('wardrobe page 2 unavailable: page 1 imported, nothing taken as gone, never a failed import', async ({ context, base }) => {
+  const calls = await fakeVinted(context, { loggedIn: true, wardrobePage2Down: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  // Before: page 2's 404 failed the whole import.
+  await expect(page.getByText(/96 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  expect(calls.some((c) => c.path.includes('/wardrobe/') && c.path.includes('page=2'))).toBe(true);
 });
 
 test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {

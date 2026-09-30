@@ -28,7 +28,7 @@ export function DiagnosticCard() {
       `ERA v${browser.runtime.getManifest().version} · ${navigator.userAgent}`,
       ...steps.map((s) => `${s.ok ? '✓' : '✗'} ${t(`vinted.diagStep.${s.key}`)} — ${s.info}`),
       lastError ? `Dernière erreur d’import (${new Date(lastError.at).toLocaleString()}) : ${lastError.code} · ${lastError.detail ?? ''}` : '',
-      ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})`),
+      ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})${j.count && j.count > 1 ? ` · ×${j.count} depuis ${new Date(j.first ?? j.at).toLocaleString()}` : ''}`),
       // ERA's own errors (a screen that failed, a service worker operation that threw), newest first.
       ...uiErrors.slice(0, 5).map((e) => `${e.where.startsWith('service-worker') ? 'Erreur interne' : 'Affichage'} ${new Date(e.at).toLocaleString()} · ${e.where} · ${e.message}\n${e.stack.split('\n').slice(0, 6).join('\n')}`),
     ]
@@ -105,6 +105,7 @@ export function DiagnosticCard() {
             {journal.slice(0, 6).map((j) => (
               <li key={j.at + j.path} className="t-small">
                 <span className="t-faint num">{new Date(j.at).toLocaleString()}</span> <b>{j.code}</b> <span className="t-muted">{j.detail}</span>
+                {j.count && j.count > 1 ? <span className="t-faint num"> · ×{j.count}</span> : null}
               </li>
             ))}
           </ul>

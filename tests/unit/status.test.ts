@@ -182,3 +182,14 @@ describe('photo check (scores real photos, generates nothing)', () => {
     expect(rep.verdict).toBe('RETAKE');
   });
 });
+
+describe('Vinted error journal', () => {
+  it('the same error again: one line on top with its count, the others kept', async () => {
+    const { addVintedError } = await import('@/data/adapters/vinted/vinted-adapter');
+    let j = addVintedError([], 'NOT_LOGGED_IN', 'HTTP 401', '/api/v2/users/current', 1);
+    for (let i = 0; i < 20; i++) j = addVintedError(j, 'UNAVAILABLE', 'HTTP 404', '/api/v2/catalog/items?search_text=x', 10 + i);
+    expect(j).toHaveLength(2);
+    expect(j[0]).toMatchObject({ code: 'UNAVAILABLE', path: '/api/v2/catalog/items', count: 20, first: 10, at: 29 });
+    expect(j[1]).toMatchObject({ code: 'NOT_LOGGED_IN' });
+  });
+});

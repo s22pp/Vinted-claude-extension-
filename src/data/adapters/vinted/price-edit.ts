@@ -4,7 +4,8 @@ import { reserve, reserveWrite } from './budget-store';
 import { firstArray, priceCents } from './parse';
 import type { DescEditResult, EditFormResult, EraMessage, PriceEditResult, PriceStage } from './protocol';
 import { sameText } from './edit-form';
-import { db, uid } from '../../db';
+import { db } from '../../db';
+import { journal as writeJournal } from '../../journal';
 import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
 import { eurText } from '@/domain/money';
 
@@ -126,7 +127,7 @@ function failText(e: unknown): string {
 
 /** Every price or description sent is written in the local journal (what was done, or why not), like the other writes. */
 function journal(kind: 'PRICE' | 'DESCRIPTION', ok: boolean, listingId: string, detail: string) {
-  return db.autoLog.put({ id: uid('al'), at: Date.now(), kind, dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
+  return writeJournal({ kind, dryRun: false, ok, target: `annonce ${listingId}`, detail }).catch(() => undefined);
 }
 
 /** Verified read of one of MY listings' description (item_upload, `.item.description`). */

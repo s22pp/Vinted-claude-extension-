@@ -3,7 +3,7 @@ import { STATUS_ID_OF, pickBrandId, pickCatalogId, pickPackageId, pickSizeId, re
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import type { DraftInput, DraftResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
-import { db, uid } from './db';
+import { journal } from './journal';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
 
@@ -79,11 +79,11 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
       throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre`);
 
     await repo.savePrep(input.itemId, { vintedDraftId: draftId });
-    await db.autoLog.put({ id: uid('al'), at: Date.now(), kind: 'DRAFT', dryRun: false, ok: true, target: input.title, detail: `brouillon ${draftId} · rempli : ${filled.join(', ')}${missing.length ? ` · à compléter sur Vinted : ${missing.join(', ')}` : ''}` });
+    await journal({ kind: 'DRAFT', dryRun: false, ok: true, target: input.title, detail: `brouillon ${draftId} · rempli : ${filled.join(', ')}${missing.length ? ` · à compléter sur Vinted : ${missing.join(', ')}` : ''}` });
     return { ok: true, draftId, filled, missing };
   } catch (e) {
     const { code, detail } = errorInfo(e);
-    await db.autoLog.put({ id: uid('al'), at: Date.now(), kind: 'DRAFT', dryRun: false, ok: false, target: input.title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+    await journal({ kind: 'DRAFT', dryRun: false, ok: false, target: input.title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
     return { ok: false, code, detail: detail ?? undefined };
   }
 }

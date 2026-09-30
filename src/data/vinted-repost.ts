@@ -1,4 +1,5 @@
 import type { Listing } from '@/domain/entities';
+import { journal } from './journal';
 import { isLiveListing } from '@/domain/status';
 import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
@@ -21,7 +22,7 @@ import { vintedWrite } from './vinted-write';
 type Json = Record<string, unknown>;
 const obj = (x: unknown): Json => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Json) : {});
 const idText = (x: unknown): string | null => (typeof x === 'number' ? String(x) : typeof x === 'string' && /^\d+$/.test(x) ? x : null);
-const log = (row: Omit<AutoLogRow, 'id' | 'at' | 'dryRun'>) => db.autoLog.put({ id: uid('al'), at: Date.now(), dryRun: false, ...row });
+const log = (row: Omit<AutoLogRow, 'id' | 'at' | 'dryRun'>) => journal({ dryRun: false, ...row });
 
 export const PENDING_REPOSTS_KEY = 'pendingReposts';
 /** A draft copy nobody published within this delay is forgotten by ERA (the draft stays on Vinted). */

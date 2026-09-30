@@ -64,14 +64,26 @@ export interface VintedErrorEntry {
   code: string;
   detail: string;
   path: string;
+  /** The same error seen again: how many times, since when (absent: once). */
+  count?: number;
+  first?: number;
 }
 
-/** Local technical journal of the last Vinted errors, so the exact cause can be copied in one click. */
+/**
+ * Local technical journal of the last Vinted errors, so the exact cause can be copied in one click. The same error
+ * again moves to the top with its count, so a burst of identical failures never pushes the others out.
+ */
+export function addVintedError(cur: VintedErrorEntry[], code: string, detail: string, path: string, at = Date.now()): VintedErrorEntry[] {
+  const p = path.split('?')[0]!;
+  const same = cur.find((e) => e.code === code && e.detail === detail && e.path === p);
+  const entry: VintedErrorEntry = same ? { at, code, detail, path: p, count: (same.count ?? 1) + 1, first: same.first ?? same.at } : { at, code, detail, path: p };
+  return [entry, ...cur.filter((e) => e !== same)].slice(0, 15);
+}
+
 export async function logVintedError(code: string, detail: string, path: string): Promise<void> {
   try {
     const cur = ((await db.settings.get(ERROR_LOG_KEY))?.value as VintedErrorEntry[] | undefined) ?? [];
-    const entry: VintedErrorEntry = { at: Date.now(), code, detail, path: path.split('?')[0]! };
-    await db.settings.put({ key: ERROR_LOG_KEY, value: [entry, ...cur].slice(0, 15) });
+    await db.settings.put({ key: ERROR_LOG_KEY, value: addVintedError(cur, code, detail, path) });
   } catch {
     /* the journal must never break the call itself */
   }
@@ -171,7 +183,14 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const out: InventorySnapshotItem[] = [];
     this.inventoryComplete = false;
     for (let page = 1; page <= 2; page++) {
-      const raw = firstArray(await this.api(`/api/v2/wardrobe/${uid}/items?page=${page}&per_page=96`), ['items']);
+      // Page 2 unavailable: page 1 is kept, and the wardrobe stays "not read in full" (nothing is taken as gone).
+      // A block or a logout still stops everything.
+      const json = await this.api(`/api/v2/wardrobe/${uid}/items?page=${page}&per_page=96`).catch((e) => {
+        if (page > 1 && e instanceof MarketplaceError && e.code === 'UNAVAILABLE') return null;
+        throw e;
+      });
+      if (json === null) break;
+      const raw = firstArray(json, ['items']);
       for (const it of raw) {
         for (const k of Object.keys(it)) this.wardrobeKeys.add(k);
         const p = parseWardrobeItem(it);

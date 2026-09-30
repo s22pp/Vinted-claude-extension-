@@ -1,4 +1,5 @@
 import type { AutoLogRow } from './db';
+import { isUnconfirmed } from './journal';
 import type { VintedErrorEntry } from './adapters/vinted/vinted-adapter';
 
 /**
@@ -81,7 +82,6 @@ const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', '
 const OWN_LIMIT = /BUDGET_EXHAUSTED|WRITE_COOLDOWN|plafond du jour|opération Vinted est en cours/;
 
 /** Rows written before 0.31.1 carry no `unconfirmed`: their detail said it. */
-const isUnconfirmed = (r: IntegrationRecords['log'][number]) => r.unconfirmed === true || /non (vérifié|confirmé)/.test(r.detail);
 
 const latest = (xs: (Failure | null)[]): Failure | null =>
   xs.filter((x): x is Failure => x !== null).sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? null;

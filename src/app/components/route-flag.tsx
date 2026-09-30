@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AutoLogRow, db } from '@/data/db';
+import { isVerified } from '@/data/journal';
 import { useI18n } from '@/i18n';
 import { Badge, Flag } from '@/ui/components/primitives';
 
@@ -11,7 +12,7 @@ export function RouteFlag({ kinds }: { kinds: AutoLogRow['kind'][] }) {
   const { t } = useI18n();
   const verified = useLiveQuery(
     async () => {
-      const ok = await db.autoLog.filter((r) => r.ok && !r.dryRun && !r.unconfirmed && !/non (vérifié|confirmé)/.test(r.detail) && kinds.includes(r.kind)).toArray();
+      const ok = await db.autoLog.filter((r) => isVerified(r) && kinds.includes(r.kind)).toArray();
       return kinds.every((k) => ok.some((r) => r.kind === k));
     },
     [kinds.join()],

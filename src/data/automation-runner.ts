@@ -1,10 +1,11 @@
 import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
+import { journal } from './journal';
 import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import { currentUserId, priceCents } from './adapters/vinted/parse';
 import type { AutoRunResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter, findVintedTab, ping } from './adapters/vinted/vinted-adapter';
-import { type AutoLogRow, db, uid } from './db';
+import { type AutoLogRow, db } from './db';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
 import { eurText } from '@/domain/money';
@@ -23,11 +24,7 @@ export async function loadAutoConfig(): Promise<AutoConfig> {
   return withDefaults(await repo.getSetting<Partial<AutoConfig> | null>('automations', null));
 }
 
-async function log(row: Omit<AutoLogRow, 'id' | 'at'>): Promise<void> {
-  await db.autoLog.put({ id: uid('al'), at: Date.now(), ...row });
-  const n = await db.autoLog.count();
-  if (n > 600) await db.autoLog.orderBy('at').limit(n - 500).delete();
-}
+const log = (row: Omit<AutoLogRow, 'id' | 'at'>): Promise<void> => journal(row);
 
 const write = (method: 'POST' | 'PUT', path: string, body: unknown) => vintedWrite(method, path, body);
 

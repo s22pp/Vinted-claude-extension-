@@ -1,4 +1,5 @@
 import { labelFileName } from '@/intelligence/shipping';
+import { journal } from './journal';
 import { PARCEL_INFO_KEY, type ParcelInfo, pointsIn, trackingIn } from '@/intelligence/parcels';
 import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, type MarketplaceErrorCode, errorInfo } from './adapters/marketplace';
@@ -20,7 +21,7 @@ const urlOf = (j: unknown): string | null => {
   const u = obj(j).label_url;
   return typeof u === 'string' && /^https:\/\//.test(u) ? u : null;
 };
-const log = (row: Omit<AutoLogRow, 'id' | 'at' | 'dryRun'>) => db.autoLog.put({ id: uid('al'), at: Date.now(), dryRun: false, ...row });
+const log = (row: Omit<AutoLogRow, 'id' | 'at' | 'dryRun'>) => journal({ dryRun: false, ...row });
 
 /**
  * The printable label of one order, like "Obtenir le bordereau" on Vinted: an existing label is simply fetched;
