@@ -138,4 +138,22 @@ describe('Vinted integrations: what the records on this device prove', () => {
       ['DELETE', 0, 1],
     ]);
   });
+  it('search failures journaled as "catalog" are the current state; INFO lines (read on the page) are not failures', () => {
+    const ok = { searches: [{ at: NOW - DAY, via: 'PAGE' as const }], searchMode: 'PAGE' as const };
+    const failed = base({ ...ok, errors: [{ at: NOW, code: 'UNAVAILABLE', detail: 'page de recherche lue mais aucune annonce reconnue', path: 'catalog' }] });
+    expect(get(failed, 'search')).toMatchObject({ state: 'FAILING', lastFail: { at: NOW } });
+    const info = base({ ...ok, errors: [{ at: NOW, code: 'INFO', detail: 'comparables lus sur la page de recherche', path: 'catalog' }] });
+    expect(get(info, 'search').state).toBe('VERIFIED');
+  });
+
+  it('a page search that worked after the API’s 404 (buy alerts, scanner): verified by the recorded success, not failing', () => {
+    const r = base({
+      searchMode: 'PAGE',
+      errors: [{ at: NOW - 2000, code: 'UNAVAILABLE', detail: 'HTTP 404', path: '/api/v2/catalog/items' }],
+      searchOk: { PAGE: { n: 3, at: NOW - 1000 } },
+    });
+    expect(get(r, 'search')).toMatchObject({ state: 'VERIFIED', n: 3 });
+    // Two tallies of the same searches: the larger, never the sum.
+    expect(get({ ...r, searches: [{ at: NOW - 1500, via: 'PAGE' }] }, 'search').n).toBe(3);
+  });
 });

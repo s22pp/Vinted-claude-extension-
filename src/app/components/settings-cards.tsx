@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { ACCOUNT_CHECK_KEY, type AccountCheck, type DiagKey, type DiagStep, SEARCH_PROBE_KEY, type SearchProbe, runVintedDiagnostic } from '@/data/adapters/vinted/diagnose';
-import { ERROR_LOG_KEY, SEARCH_DOWN_KEY, SEARCH_MODE_KEY, SEARCH_PAUSE_MS, SEARCH_TEMPLATE_KEY, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
+import { DEFAULT_SEARCH_TEMPLATE, ERROR_LOG_KEY, PLAIN_SEARCH_TEMPLATE, SEARCH_DOWN_KEY, SEARCH_MODE_KEY, SEARCH_OK_KEY, SEARCH_PAUSE_MS, SEARCH_TEMPLATE_KEY, type SearchOk, type VintedErrorEntry } from '@/data/adapters/vinted/vinted-adapter';
 import { type IntegStatus, type IntegrationRecords, integrationStatus } from '@/data/integrations';
 import { type SellerIdentity, db } from '@/data/db';
 import { repo } from '@/data/repo';
@@ -121,6 +121,8 @@ const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'],
 
 const STATE_TONE = { VERIFIED: 'emerald', PARTIAL: 'amber', FAILING: 'coral', UNAVAILABLE: 'neutral' } as const;
 
+const isLearned = (t: string | null) => !!t && t !== DEFAULT_SEARCH_TEMPLATE && t !== PLAIN_SEARCH_TEMPLATE;
+
 /** Everything ERA recorded on this device that says whether a Vinted route works. */
 async function integrationRecords(): Promise<IntegrationRecords> {
   const setting = async <T,>(key: string, fallback: T) => ((await db.settings.get(key))?.value as T | undefined) ?? fallback;
@@ -137,7 +139,9 @@ async function integrationRecords(): Promise<IntegrationRecords> {
     reserved: await db.items.filter((i) => !i.isDemo && i.status === 'RESERVED' && i.meta.status?.p === 'OBSERVED').count(),
     wardrobeKeys: await setting<string[] | null>('vintedWardrobeKeys', null),
     searches: [...analyses.map((a) => ({ at: a.at, via: a.analysis.via ?? null })), ...(probe ? [probe] : [])],
-    searchMode: (await setting(SEARCH_MODE_KEY, null)) ? 'PAGE' : (await setting(SEARCH_TEMPLATE_KEY, null)) ? 'LEARNED' : 'API',
+    searchOk: await setting<SearchOk>(SEARCH_OK_KEY, {}),
+    // A stored template is a learned address only when it is neither of ERA's own two forms (default, plain).
+    searchMode: (await setting(SEARCH_MODE_KEY, null)) ? 'PAGE' : isLearned(await setting<string | null>(SEARCH_TEMPLATE_KEY, null)) ? 'LEARNED' : 'API',
     searchDown: down ? { ...down, at: down.until - SEARCH_PAUSE_MS } : null,
     errors: await setting<VintedErrorEntry[]>(ERROR_LOG_KEY, []),
     purchases: await db.purchases.count(),

@@ -44,6 +44,20 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
 }
 
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
+/** Searches that brought listings, by the way they were read: what proves each route works on this account. */
+export const SEARCH_OK_KEY = 'vintedSearchOk';
+export type SearchRoute = 'API' | 'LEARNED' | 'PAGE';
+export type SearchOk = Partial<Record<SearchRoute, { n: number; at: number }>>;
+
+async function recordSearchOk(route: SearchRoute, found: number): Promise<void> {
+  if (found === 0) return;
+  try {
+    const cur = ((await db.settings.get(SEARCH_OK_KEY))?.value as SearchOk | undefined) ?? {};
+    await db.settings.put({ key: SEARCH_OK_KEY, value: { ...cur, [route]: { n: (cur[route]?.n ?? 0) + 1, at: Date.now() } } satisfies SearchOk });
+  } catch {
+    /* a record must never break the search itself */
+  }
+}
 /**
  * After every known form of the search answered 404: the search is paused for a while, its explanation kept.
  * Calls that can only fail again are not spent against the budget (nor seen by Vinted); the diagnostic lifts it.
@@ -304,6 +318,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
           await db.settings.put({ key: SEARCH_MODE_KEY, value: { at: Date.now() } });
           await db.settings.delete(SEARCH_TEMPLATE_KEY);
           await logVintedError('INFO', `recherche par l’API indisponible (${attempts.join(' · ')}) : comparables lus sur la page de recherche`, 'catalog');
+          await recordSearchOk('PAGE', cards.length);
           return { candidates: cards, totalEntries: null, totalCapped: false, fetchedAt: Date.now(), via: 'PAGE' };
         }
         const pageFacts = visit.page ? ` · page de recherche : ${pageSummary(visit.page)}` : ' · page de recherche : non lue';
@@ -332,6 +347,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const { total, capped } = parseTotalEntries(json);
     // The API answers again: back to it.
     await db.settings.delete(SEARCH_MODE_KEY);
+    await recordSearchOk(learnedUsed ? 'LEARNED' : 'API', candidates.length);
     return { candidates, totalEntries: total, totalCapped: capped, fetchedAt: Date.now(), via: learnedUsed ? 'LEARNED' : null };
   }
 
@@ -354,6 +370,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
       await logVintedError(err.code, err.message, 'catalog');
       throw err;
     }
+    await recordSearchOk('PAGE', candidates.length);
     return { candidates, totalEntries: null, totalCapped: false, fetchedAt: Date.now(), via: 'PAGE' };
   }
 

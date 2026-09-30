@@ -1,6 +1,6 @@
 import type { AutoLogRow } from './db';
 import { isUnconfirmed } from './journal';
-import type { VintedErrorEntry } from './adapters/vinted/vinted-adapter';
+import type { SearchOk, VintedErrorEntry } from './adapters/vinted/vinted-adapter';
 
 /**
  * What of the Vinted integration has been seen working on THIS device, route by route, from ERA's own records:
@@ -56,6 +56,8 @@ export interface IntegrationRecords {
   wardrobeKeys: string[] | null;
   /** Searches that gave comparables, and how they were read. */
   searches: { at: number; via: 'PAGE' | 'LEARNED' | null }[];
+  /** Every search that brought listings, by route, as the adapter records it (from 0.31.2; `searches` holds the older). */
+  searchOk?: SearchOk;
   searchMode: 'API' | 'LEARNED' | 'PAGE';
   /** The search paused after a full failure: since `at`, until `until`. */
   searchDown: { at: number; until: number; detail: string } | null;
@@ -120,7 +122,8 @@ export function integrationStatus(rec: IntegrationRecords): IntegStatus[] {
   const out = new Map<IntegKey, IntegStatus>();
   const importFail = rec.importError ? { at: rec.importError.at, detail: `${rec.importError.code}${rec.importError.detail ? ` · ${rec.importError.detail}` : ''}` } : null;
   const journalFail = (test: (path: string) => boolean): Failure | null => {
-    const e = rec.errors.filter((x) => test(x.path)).sort((a, b) => b.at - a.at)[0];
+    // INFO lines say how a search was read (the page after the API): not failures.
+    const e = rec.errors.filter((x) => x.code !== 'INFO' && test(x.path)).sort((a, b) => b.at - a.at)[0];
     return e ? { at: e.at, detail: `${e.code} · ${e.detail}` } : null;
   };
 
@@ -141,12 +144,17 @@ export function integrationStatus(rec: IntegrationRecords): IntegStatus[] {
   const searchRoutes: RouteStatus[] = (['API', 'LEARNED', 'PAGE'] as const)
     .map((k) => {
       const hits = rec.searches.filter((s) => (s.via ?? 'API') === k);
-      return { key: k, ok: hits.length, unconfirmed: 0, lastOk: hits.length ? Math.max(...hits.map((s) => s.at)) : null, lastFail: null };
+      const rec2 = rec.searchOk?.[k];
+      // Two partial tallies of the same searches (analyses kept, every search since 0.31.2): the larger, never the sum.
+      const ok = Math.max(hits.length, rec2?.n ?? 0);
+      const at = Math.max(hits.length ? Math.max(...hits.map((s) => s.at)) : 0, rec2?.at ?? 0);
+      return { key: k, ok, unconfirmed: 0, lastOk: ok > 0 ? at : null, lastFail: null };
     })
     .filter((r) => r.ok > 0 || r.key === rec.searchMode);
   const current = searchRoutes.find((r) => r.key === rec.searchMode)!;
   const searchFail = latest([
-    journalFail((p) => p.startsWith('/api/v2/catalog') || /search/i.test(p)),
+    // The adapter journals a failed search as 'catalog'; the calls themselves under their path.
+    journalFail((p) => p === 'catalog' || p.startsWith('/api/v2/catalog') || /search/i.test(p)),
     rec.searchDown && rec.searchDown.until > rec.now ? { at: rec.searchDown.at, detail: rec.searchDown.detail } : null,
   ]);
   current.lastFail = searchFail;
@@ -156,7 +164,7 @@ export function integrationStatus(rec: IntegrationRecords): IntegStatus[] {
   out.set('search', {
     key: 'search',
     write: false,
-    n: rec.searches.length,
+    n: searchRoutes.reduce((s, r) => s + r.ok, 0),
     state: paused || failing(current.lastOk, searchFail) ? 'FAILING' : current.ok > 0 ? 'VERIFIED' : searchOk.length ? 'PARTIAL' : 'UNTESTED',
     lastOk: searchLastOk,
     lastFail: searchFail,
