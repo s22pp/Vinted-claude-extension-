@@ -1029,8 +1029,9 @@ test('scheduled automations stop short of the reserve kept for the seller’s cl
   await page.goto(`${base}#/automations`);
   await expect(page.getByTestId('auto-log')).toContainText('gardées pour vos actions', { timeout: 20_000 });
   expect(favReads()).toBe(0);
-  // The cost of the schedule is said next to it.
+  // The cost of the schedule is said next to it, and the pause with the calls left.
   await expect(page.getByTestId('schedule-cost')).toContainText('requêtes par heure');
+  await expect(page.getByTestId('budget-left')).toContainText('Programmations en pause');
   // 21 left: the pass starts, reads once (21 → 20), then every further call is refused — nothing sent.
   const writes = () => calls.filter((c) => c.method !== 'GET').length;
   await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 39, halted: null } }));

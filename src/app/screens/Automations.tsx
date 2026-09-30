@@ -198,7 +198,7 @@ export function Automations() {
             </Button>
           </div>
           <div style={{ marginTop: 10 }}>
-            <ScheduleCost auto={cfg} />
+            <ScheduleCost auto={cfg} showLeft />
           </div>
           <p className="t-small t-faint" style={{ marginTop: 10 }}>
             {t('auto.schedule.hint')} {t('auto.marginHint')}
