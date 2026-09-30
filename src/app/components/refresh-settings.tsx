@@ -5,6 +5,7 @@ import { REFRESH_DEFAULTS, REFRESH_KEY, type RefreshConfig } from '@/data/refres
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { Select } from '@/ui/components/primitives';
+import { ScheduleCost } from './schedule-cost';
 
 /** Automatic read-only refresh (a vinted.fr tab already open) and its notifications. Off until switched on. */
 export function RefreshSettings() {
@@ -43,6 +44,11 @@ export function RefreshSettings() {
             <input id="rf-notify" type="checkbox" className="checkbox" checked={cfg.notify} onChange={(e) => void save({ notify: e.target.checked })} />
             {t('refresh.notify')}
           </label>
+        </div>
+      )}
+      {cfg.enabled && (
+        <div style={{ paddingLeft: 28 }}>
+          <ScheduleCost />
         </div>
       )}
     </div>

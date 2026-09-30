@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { ScheduleCost } from '../components/schedule-cost';
 import { useEffect, useState } from 'react';
 import type { AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
 import { db } from '@/data/db';
@@ -195,6 +196,9 @@ export function Automations() {
             <Button variant={dirty ? 'primary' : 'ghost'} icon="check" disabled={!dirty || margin.invalid} onClick={() => void save().then(() => toast('success', t('auto.saved'), cfg.enabled ? t('auto.savedOn', { n: cfg.everyMinutes }) : t('auto.savedOff')))}>
               {t('auto.save')}
             </Button>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <ScheduleCost auto={cfg} />
           </div>
           <p className="t-small t-faint" style={{ marginTop: 10 }}>
             {t('auto.schedule.hint')} {t('auto.marginHint')}

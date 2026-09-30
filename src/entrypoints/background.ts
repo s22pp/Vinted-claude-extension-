@@ -17,6 +17,8 @@ import { recordError } from '@/data/error-journal';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
 import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
 import { repo } from '@/data/repo';
+import { AUTO_FLOOR, autoAllowed } from '@/data/budget-plan';
+import { journal } from '@/data/journal';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -63,7 +65,7 @@ async function updateBadge(): Promise<void> {
 async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise<void> {
   await updateBadge();
   // Scheduled refresh: the buy alerts run right after, if switched on (a few budgeted searches).
-  if (auto && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && !(await budget.status()).halted) {
+  if (auto && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('Alertes d’achat'))) {
     const { deals, via } = await runBuyAlerts();
     if (deals.length && (await loadRefreshConfig()).notify)
       await browser.notifications
@@ -138,11 +140,28 @@ async function scheduleRefresh(): Promise<void> {
   if (cfg.enabled) await browser.alarms.create(REFRESH_ALARM, { periodInMinutes: Math.max(60, cfg.everyHours * 60) });
 }
 
+/**
+ * A scheduled run may start only while the session keeps more than its reserve for the seller's own clicks. Below it,
+ * the run is skipped — said once per browser session in the journal, as ERA's own limit (never as a Vinted error).
+ */
+async function scheduledRunAllowed(what: string): Promise<boolean> {
+  const s = await budget.status();
+  if (s.halted) return false;
+  if (autoAllowed(s.remaining)) return true;
+  const { eraAutoFloorSaid } = (await browser.storage.session.get('eraAutoFloorSaid')) as { eraAutoFloorSaid?: boolean };
+  if (!eraAutoFloorSaid) {
+    await browser.storage.session.set({ eraAutoFloorSaid: true });
+    await journal({ kind: 'STOP', dryRun: false, ok: false, target: what, detail: `BUDGET_EXHAUSTED · programmations en pause : ${s.remaining} requêtes restantes, gardées pour vos actions (réserve de ${AUTO_FLOOR}) jusqu’au redémarrage du navigateur` }).catch(() => undefined);
+  }
+  return false;
+}
+
 async function onRefreshAlarm(): Promise<void> {
   if (!(await loadRefreshConfig()).enabled) return;
-  // Never opens Vinted by itself, never while blocked, never on top of another Vinted operation.
-  if ((await budget.status()).halted || !(await vintedTabOpen())) return;
+  // Never opens Vinted by itself, never while blocked, never on top of another Vinted operation, never into the reserve.
+  if (!(await vintedTabOpen())) return;
   if (vintedBusy()) return;
+  if (!(await scheduledRunAllowed('Actualisation automatique'))) return;
   await runImport(true);
 }
 
@@ -209,10 +228,12 @@ async function scheduleAuto(): Promise<void> {
 async function onAutoAlarm(): Promise<void> {
   const cfg = await loadAutoConfig();
   if (!cfg.enabled) return;
-  // Blocked by Vinted, or no vinted.fr tab open: nothing happens (a scheduled pass never opens Vinted itself).
-  if ((await budget.status()).halted || !(await vintedTabOpen())) return;
+  // Blocked by Vinted, no vinted.fr tab open, or the reserve reached: nothing happens (a scheduled pass never opens
+  // Vinted itself, never spends the calls kept for the seller's clicks).
+  if (!(await vintedTabOpen())) return;
+  if (!(await scheduledRunAllowed('Automatisations'))) return;
   if (cfg.offers.enabled) await runAuto('OFFERS', false);
-  if (cfg.fav.enabled) await runAuto('FAV', false);
+  if (cfg.fav.enabled && (await scheduledRunAllowed('Automatisations'))) await runAuto('FAV', false);
 }
 
 /** One Vinted operation at a time: an import, an automation run, a price edit, a repost or labels. */

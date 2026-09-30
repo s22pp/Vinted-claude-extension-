@@ -2328,6 +2328,9 @@ export const fr = {
     listMin: 'Fiche (si non mesurée)',
     note: 'Le temps de fiche est mesuré dans l’Atelier (fenêtre ouverte et active) ; l’envoi et le sourcing sont vos estimations. Une niche lente mais chère peut rapporter moins par heure qu’une niche rapide à petit prix.',
   },
+  budgetPlan: {
+    cost: 'Vos programmations lisent au moins ≈ {perHour} requêtes par heure, même sans rien à faire. Navigateur ouvert, elles atteignent en ≈ {hours} h la réserve de {reserve} requêtes (sur {total} par session) gardée pour vos propres actions, puis s’arrêtent seules jusqu’au redémarrage du navigateur.',
+  },
   alerts: {
     title: 'Alertes d’achat',
     hint: 'Vos {n} meilleures niches cherchées sur Vinted après chaque actualisation automatique',

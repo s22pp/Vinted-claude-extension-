@@ -999,6 +999,44 @@ test('wardrobe page 2 unavailable: page 1 imported, nothing taken as gone, never
   expect(calls.some((c) => c.path.includes('/wardrobe/') && c.path.includes('page=2'))).toBe(true);
 });
 
+test('scheduled automations stop short of the reserve kept for the seller’s clicks; above it they run', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // Favourites automation switched on, as the Automations screen saves it.
+  await page.evaluate(async () => {
+    const req = indexedDB.open('era-intelligence');
+    const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+    await new Promise((r) => {
+      const tx = db.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put({ key: 'automations', value: { enabled: true, everyMinutes: 30, fav: { enabled: true }, offers: { enabled: false } } });
+      tx.oncomplete = r;
+    });
+  });
+  // A scheduled pass needs a vinted.fr tab the seller has open (the one the import left may not answer under the test
+  // browser): one, as the seller would have it.
+  const vinted = await context.newPage();
+  await vinted.goto('https://www.vinted.fr/');
+  const favReads = () => calls.filter((c) => c.path.startsWith('/web/api/notifications')).length;
+  const fire = () => sw.evaluate(() => chrome.alarms.create('era-auto', { when: Date.now() + 200 }));
+  // 15 calls left in the session: under the reserve of 20, the scheduled pass does not start — and says why, once.
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 45, halted: null } }));
+  await fire();
+  await page.goto(`${base}#/automations`);
+  await expect(page.getByTestId('auto-log')).toContainText('gardées pour vos actions', { timeout: 20_000 });
+  expect(favReads()).toBe(0);
+  // The cost of the schedule is said next to it.
+  await expect(page.getByTestId('schedule-cost')).toContainText('requêtes par heure');
+  // 50 left: the pass runs.
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 10, halted: null } }));
+  await fire();
+  await expect.poll(favReads, { timeout: 30_000 }).toBeGreaterThan(0);
+});
+
 test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {
   test.setTimeout(120_000);
   const calls = await fakeVinted(context, { loggedIn: true, searchPageCards: true });
