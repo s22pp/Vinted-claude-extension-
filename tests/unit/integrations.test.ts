@@ -156,4 +156,8 @@ describe('Vinted integrations: what the records on this device prove', () => {
     // Two tallies of the same searches: the larger, never the sum.
     expect(get({ ...r, searches: [{ at: NOW - 1500, via: 'PAGE' }] }, 'search').n).toBe(3);
   });
+  it('a skipped refresh or skipped buy alerts are not the automations’ stops', () => {
+    const r = base({ log: [row('FAV_MESSAGE', NOW - DAY), { kind: 'STOP', at: NOW, ok: false, dryRun: false, target: 'Actualisation automatique', detail: 'BUDGET_EXHAUSTED · passage sauté' }] });
+    expect(get(r, 'auto')).toMatchObject({ state: 'PARTIAL', note: null, lastFail: null });
+  });
 });

@@ -37,8 +37,27 @@ export async function uses(): Promise<Partial<Record<BudgetUse, number>>> {
   return (((await browser.storage.session.get(USE_KEY)) as Record<string, Partial<Record<BudgetUse, number>> | undefined>)[USE_KEY] ?? {});
 }
 
+/**
+ * While a scheduled run is going on (refresh, buy alerts, automations), each of its calls is refused once the session
+ * is down to the reserve kept for the seller's clicks — checked call by call, not only when the run starts. A counter:
+ * runs may overlap.
+ */
+let scheduledRuns = 0;
+let reserveFloor = 0;
+export async function asScheduled<T>(floor: number, run: () => Promise<T>): Promise<T> {
+  scheduledRuns++;
+  reserveFloor = floor;
+  try {
+    return await run();
+  } finally {
+    scheduledRuns--;
+    if (scheduledRuns === 0) reserveFloor = 0;
+  }
+}
+
 export async function reserve(use: BudgetUse = 'OTHER'): Promise<ReserveResult> {
   const { budget } = await loadBudget();
+  if (scheduledRuns > 0 && budget.remaining <= reserveFloor) return { ok: false, code: 'BUDGET_EXHAUSTED' };
   try {
     const wait = budget.reserve();
     const u = await uses();

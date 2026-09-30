@@ -50,3 +50,16 @@ describe('where the session budget went', () => {
     expect(budget.useOf(undefined)).toBe('OTHER');
   });
 });
+
+describe('scheduled runs stop short of the reserve, call by call', () => {
+  it('21 calls left: a scheduled run gets one, then is refused at 20; the seller’s own click still goes through', async () => {
+    for (let i = 0; i < 39; i++) await budget.reserve();
+    expect((await budget.status()).remaining).toBe(21);
+    const got = await budget.asScheduled(20, async () => [await budget.reserve('IMPORT'), await budget.reserve('IMPORT')]);
+    expect(got[0]!.ok).toBe(true);
+    expect(got[1]).toEqual({ ok: false, code: 'BUDGET_EXHAUSTED' });
+    // Outside a scheduled run: the reserve is the seller's.
+    expect((await budget.reserve('WRITE')).ok).toBe(true);
+    expect((await budget.status()).remaining).toBe(19);
+  });
+});

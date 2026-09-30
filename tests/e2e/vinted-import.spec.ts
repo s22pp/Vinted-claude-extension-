@@ -1031,10 +1031,18 @@ test('scheduled automations stop short of the reserve kept for the seller’s cl
   expect(favReads()).toBe(0);
   // The cost of the schedule is said next to it.
   await expect(page.getByTestId('schedule-cost')).toContainText('requêtes par heure');
+  // 21 left: the pass starts, reads once (21 → 20), then every further call is refused — nothing sent.
+  const writes = () => calls.filter((c) => c.method !== 'GET').length;
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 39, halted: null } }));
+  await fire();
+  await expect.poll(favReads, { timeout: 30_000 }).toBe(1);
+  await page.waitForTimeout(3000);
+  expect(writes()).toBe(0);
+  expect(await sw.evaluate(async () => ((await chrome.storage.session.get('eraBudget')) as { eraBudget: { total: number } }).eraBudget.total)).toBe(40);
   // 50 left: the pass runs.
   await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 10, halted: null } }));
   await fire();
-  await expect.poll(favReads, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(writes, { timeout: 30_000 }).toBeGreaterThan(0);
 });
 
 test('integrations card: one click checks the reads; the search seen working turns verified, by the route it used', async ({ context, base }) => {

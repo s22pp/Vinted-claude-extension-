@@ -64,7 +64,7 @@ export interface IntegrationRecords {
   errors: VintedErrorEntry[];
   purchases: number;
   purchasesError: string | null;
-  log: Pick<AutoLogRow, 'at' | 'kind' | 'ok' | 'dryRun' | 'detail' | 'unconfirmed'>[];
+  log: (Pick<AutoLogRow, 'at' | 'kind' | 'ok' | 'dryRun' | 'detail' | 'unconfirmed'> & { target?: string })[];
 }
 
 /** The routes behind each write, as the journal names them. */
@@ -79,6 +79,9 @@ export const WRITE_ROUTES: Partial<Record<IntegKey, AutoLogRow['kind'][]>> = {
 };
 
 const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto'];
+
+/** Stops journaled by the other schedules (a skipped refresh, skipped buy alerts): not the automations'. */
+const NOT_AUTOMATIONS = new Set(['Actualisation automatique', 'Alertes d’achat']);
 
 /** ERA's own limits (call budget, write spacing, daily cap, one operation at a time): a stop, not Vinted failing. */
 const OWN_LIMIT = /BUDGET_EXHAUSTED|WRITE_COOLDOWN|plafond du jour|opération Vinted est en cours/;
@@ -174,7 +177,7 @@ export function integrationStatus(rec: IntegrationRecords): IntegStatus[] {
 
   for (const [key, kinds] of Object.entries(WRITE_ROUTES) as [IntegKey, AutoLogRow['kind'][]][]) {
     const routes = kinds.map((k) => route(k, rec.log));
-    const mine = rec.log.filter((r) => !r.dryRun && !r.ok && (kinds.includes(r.kind) || (key === 'auto' && r.kind === 'STOP')));
+    const mine = rec.log.filter((r) => !r.dryRun && !r.ok && (kinds.includes(r.kind) || (key === 'auto' && r.kind === 'STOP' && !NOT_AUTOMATIONS.has(r.target ?? ''))));
     // An automation pass that stopped on Vinted's side (block, logged out) is the automations' last failure too.
     const stop = key === 'auto' ? mine.filter((r) => r.kind === 'STOP' && !OWN_LIMIT.test(r.detail)).sort((a, b) => b.at - a.at)[0] : undefined;
     const status = fromRoutes(key, routes, stop ? { at: stop.at, detail: stop.detail } : null);
