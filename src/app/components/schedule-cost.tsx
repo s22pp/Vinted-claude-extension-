@@ -13,7 +13,7 @@ import { type AutoConfig, withDefaults } from '@/intelligence/automation';
  * What the schedules spend by themselves at the least, and how long the session budget lasts at that pace before they
  * stop short of the reserve kept for the seller's clicks. `auto`: the automations as being edited (else as saved).
  */
-export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfig, 'enabled' | 'everyMinutes' | 'fav' | 'offers'>; showLeft?: boolean }) {
+export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfig, 'enabled' | 'everyMinutes' | 'fav' | 'offers' | 'delivered'>; showLeft?: boolean }) {
   const { t } = useI18n();
   // The calls left this session, followed live (a scheduled pass or a click elsewhere moves them).
   const [left, setLeft] = useState<BudgetStatus | null>(null);
@@ -38,6 +38,7 @@ export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfi
     autoEveryMinutes: a.enabled ? a.everyMinutes : null,
     fav: a.fav.enabled,
     offers: a.offers.enabled,
+    delivered: a.delivered.enabled,
     refreshEveryHours: saved.refresh.enabled ? saved.refresh.everyHours : null,
     alerts: saved.alerts,
   });

@@ -1,5 +1,6 @@
 import { priceCents } from '@/data/adapters/vinted/parse';
 import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER } from './fav-messages';
+import { DEFAULT_DELIVERED } from './delivered';
 import { eurText } from '@/domain/money';
 
 /**
@@ -44,6 +45,11 @@ export interface AutoConfig {
     /** Sent after an acceptance (empty = no message). */
     acceptMessage: string;
   };
+  /** Parcel delivered → one message to the buyer (validate, review, follow). */
+  delivered: {
+    enabled: boolean;
+    template: string;
+  };
 }
 
 export const DEFAULT_AUTO: AutoConfig = {
@@ -68,6 +74,7 @@ export const DEFAULT_AUTO: AutoConfig = {
     counterPct: 92,
     acceptMessage: 'Merci ! Offre acceptée, j’envoie dès le paiement reçu.',
   },
+  delivered: { enabled: false, template: DEFAULT_DELIVERED },
 };
 
 /** The single messages of versions ≤ 0.16, as they shipped (replaced by the new defaults when never edited). */
@@ -88,7 +95,7 @@ export function withDefaults(c: (Partial<Omit<AutoConfig, 'fav'>> & { fav?: Stor
     templates: f.templates?.length ? f.templates : legacy(template, DEFAULT_FAV_OFFER),
     templatesNoOffer: f.templatesNoOffer?.length ? f.templatesNoOffer : legacy(templateNoOffer, DEFAULT_FAV_NO_OFFER),
   };
-  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers } };
+  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered } };
 }
 
 type Json = Record<string, unknown>;

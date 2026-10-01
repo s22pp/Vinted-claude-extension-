@@ -16,6 +16,8 @@ export const IDLE_COST = {
   offers: 2,
   /** favourites notifications. */
   fav: 1,
+  /** the latest sales (my_orders, page 1), for parcels delivered. */
+  delivered: 1,
   /** profile, wardrobe, sales, purchases: typically 4 to 6. */
   refresh: 5,
   /** one search per niche, 3 niches. */
@@ -26,6 +28,8 @@ export interface SchedulePlan {
   autoEveryMinutes: number | null;
   fav: boolean;
   offers: boolean;
+  /** Parcel delivered → message (absent: off). */
+  delivered?: boolean;
   refreshEveryHours: number | null;
   alerts: boolean;
 }
@@ -35,7 +39,7 @@ export interface SchedulePlan {
  * A floor: a pass that sends messages or answers offers costs more.
  */
 export function scheduleCost(p: SchedulePlan): { perHour: number; hoursToReserve: number | null } {
-  const autoPass = (p.fav ? IDLE_COST.fav : 0) + (p.offers ? IDLE_COST.offers : 0);
+  const autoPass = (p.fav ? IDLE_COST.fav : 0) + (p.offers ? IDLE_COST.offers : 0) + (p.delivered ? IDLE_COST.delivered : 0);
   const auto = p.autoEveryMinutes && autoPass > 0 ? (autoPass * 60) / Math.max(15, p.autoEveryMinutes) : 0;
   const refresh = p.refreshEveryHours ? (IDLE_COST.refresh + (p.alerts ? IDLE_COST.alerts : 0)) / Math.max(1, p.refreshEveryHours) : 0;
   const perHour = Math.round((auto + refresh) * 10) / 10;

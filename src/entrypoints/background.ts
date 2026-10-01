@@ -2,11 +2,11 @@ import { errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { SEARCH_TAB_ALARM, closeIdleSearchTab, visitInWorker } from '@/data/adapters/vinted/search-page';
 import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult, TextEditResult } from '@/data/adapters/vinted/protocol';
+import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult, TextEditResult } from '@/data/adapters/vinted/protocol';
 import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
-import { loadAutoConfig, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
+import { loadAutoConfig, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
@@ -232,9 +232,9 @@ let labelling: Promise<LabelBatchResult> | null = null;
 let exportingPhotos: Promise<PhotoExportResult> | null = null;
 
 /** One automation pass at a time, never during an import or a price edit. */
-function runAuto(kind: 'FAV' | 'OFFERS', dryRun: boolean): Promise<AutoRunResult> {
+function runAuto(kind: AutoKind, dryRun: boolean): Promise<AutoRunResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
-  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : runOffers(dryRun)).finally(() => {
+  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : kind === 'OFFERS' ? runOffers(dryRun) : runDelivered(dryRun)).finally(() => {
     autoRunning = null;
   });
   return autoRunning;
@@ -246,7 +246,7 @@ const AUTO_ALARM = 'era-auto';
 async function scheduleAuto(): Promise<void> {
   const cfg = await loadAutoConfig();
   await browser.alarms.clear(AUTO_ALARM);
-  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
+  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled || cfg.delivered.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
 }
 
 async function onAutoAlarm(): Promise<void> {
@@ -259,6 +259,7 @@ async function onAutoAlarm(): Promise<void> {
   await budget.asScheduled(AUTO_FLOOR, async () => {
     if (cfg.offers.enabled) await runAuto('OFFERS', false);
     if (cfg.fav.enabled && (await scheduledRunAllowed('auto'))) await runAuto('FAV', false);
+    if (cfg.delivered.enabled && (await scheduledRunAllowed('auto'))) await runAuto('DELIVERED', false);
   });
 }
 

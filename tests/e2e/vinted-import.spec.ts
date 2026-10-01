@@ -2,10 +2,10 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
+  const state = { replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
   const descriptions: Record<string, string> = { '101': 'Veste Harrington, bon état.' };
   const titles: Record<string, string> = { '101': 'Veste Harrington Ralph Lauren M' };
@@ -105,6 +105,16 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/conversations/9001')
       return json({ conversation: { messages: [], opposite_user: { id: 555, login: 'alice' }, transaction: { id: 7001, item_title: 'Veste Harrington Ralph Lauren M', offer_price: { amount: '59.0' } } } });
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) && opts.replyFails) return json({ code: 500 }, 500);
+    // Test fixture only: the orders' conversations (94xx) keep the messages sent, and show them back (unless told not to).
+    if (/^\/api\/v2\/conversations\/94\d\d\/replies$/.test(url.pathname) && method === 'POST') {
+      const id = url.pathname.split('/')[4]!;
+      (state.replies[id] ??= []).push((JSON.parse(route.request().postData() ?? '{}') as { reply: { body: string } }).reply.body);
+      return json({});
+    }
+    if (/^\/api\/v2\/conversations\/94\d\d$/.test(url.pathname)) {
+      const id = url.pathname.split('/')[4]!;
+      return json({ conversation: { id: Number(id), messages: opts.replyHidden ? [] : (state.replies[id] ?? []).map((body, i) => ({ id: i + 1, entity_type: 'message', entity: { body } })) } });
+    }
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
@@ -647,6 +657,53 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
   expect(counter.map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/transactions/7100/offers']);
   expect(JSON.parse(counter[0]!.body!)).toEqual({ offer: { price: '55.00', currency: 'EUR' } });
 });
+
+for (const hidden of [false, true])
+  test(`parcel delivered → one message to the buyer, once${hidden ? '; not shown back in the conversation → said not confirmed' : ', read back in the conversation'}`, async ({ context, base }) => {
+    test.setTimeout(120_000);
+    const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+    const calls = await fakeVinted(context, {
+      loggedIn: true,
+      replyHidden: hidden,
+      orders: [
+        { title: 'Jean Levi’s 501 W32', price: { amount: '30.0' }, date: day(3), status: 'Colis livré', conversation_id: 9401, transaction_id: 7401 },
+        { title: 'Chemise Oxford Ralph Lauren L', price: { amount: '25.0' }, date: day(2), status: 'En cours de livraison', conversation_id: 9402, transaction_id: 7402 },
+        { title: 'Pull Lacoste L', price: { amount: '22.0' }, date: day(4), status: 'Colis livré' },
+        { title: 'Sweat Nike M', price: { amount: '18.0' }, date: day(40), status: 'Colis livré', conversation_id: 9403, transaction_id: 7403 },
+      ],
+    });
+    const page = await context.newPage();
+    await page.goto(`${base}#/settings`);
+    await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+    await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+    await page.goto(`${base}#/automations`);
+    const card = page.getByTestId('auto-delivered');
+    await card.getByLabel('Activer le message après livraison').check();
+    await expect(card.getByTestId('auto-delivered-preview')).toContainText('Votre colis est bien arrivé. Si l’article vous plaît, n’hésitez pas à valider la commande et à me laisser une évaluation.');
+    const log = page.getByTestId('auto-log');
+    const writes = () => calls.filter((c) => c.method !== 'GET');
+
+    // Simulation: reads only; the delivered order is found, the one on its way is not.
+    await card.getByRole('button', { name: 'Simuler' }).click();
+    await expect(log).toContainText('Jean Levi’s 501 W32 · Colis livré', { timeout: 30_000 });
+    await expect(log).toContainText('Vinted ne donne pas la conversation de cette commande');
+    await expect(log).toContainText('commande trop ancienne');
+    expect(writes()).toEqual([]);
+
+    // Real run: one message, in that order's conversation, nothing else.
+    await card.getByRole('button', { name: 'Lancer maintenant' }).click();
+    await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(1);
+    expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
+    const body = JSON.parse(writes()[0]!.body!).reply.body as string;
+    expect(body).toMatch(/^Bonjour ! Votre colis est bien arrivé\./);
+    expect(body).toMatch(/abonner à mon compte\. Bonne (journée|soirée) !$/);
+    await expect(log).toContainText(hidden ? 'envoyé, pas relu dans la conversation (non confirmé)' : 'relu dans la conversation', { timeout: 30_000 });
+
+    // Another pass: the same order is never messaged twice.
+    await card.getByRole('button', { name: 'Lancer maintenant' }).click();
+    await expect(log.locator('tr', { hasText: 'Colis livré → message' }).first()).toContainText('0 faites', { timeout: 60_000 });
+    expect(writes()).toHaveLength(1);
+  });
 
 test('price analysis without a brand on Vinted: searches the title’s words, never "inconnue", and learns the brand', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 106, title: 'Chemise Bonobo lin L', price: '20.0', view_count: 12, favourite_count: 0, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] }] });

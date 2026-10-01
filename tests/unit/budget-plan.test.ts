@@ -21,5 +21,7 @@ describe('the session budget shared between schedules and the seller’s clicks'
 
   it('never below the 15-minute floor the schedule itself applies', () => {
     expect(scheduleCost({ autoEveryMinutes: 5, fav: true, offers: false, refreshEveryHours: null, alerts: false }).perHour).toBe(4);
+    // Parcels delivered: one more read per pass (the latest sales).
+    expect(scheduleCost({ autoEveryMinutes: 30, fav: false, offers: false, delivered: true, refreshEveryHours: null, alerts: false }).perHour).toBe(2);
   });
 });

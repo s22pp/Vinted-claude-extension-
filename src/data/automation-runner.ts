@@ -2,7 +2,8 @@ import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, f
 import { journal } from './journal';
 import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
-import { currentUserId, priceCents } from './adapters/vinted/parse';
+import { currentUserId, firstArray, parseOrder, priceCents } from './adapters/vinted/parse';
+import { type DeliveredOrder, deliveredText, planDelivered } from '@/intelligence/delivered';
 import type { AutoRunResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter, findVintedTab, ping } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db } from './db';
@@ -284,6 +285,88 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
     await repo.setSetting('autoOfferState', state);
   }
   await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Offres reçues', detail: summary(out) });
+  return out;
+}
+
+/** The seller's sales, page 1 (the latest 20): the ones whose parcel was just delivered are there. */
+async function latestSoldOrders(adapter: VintedTabAdapter): Promise<DeliveredOrder[]> {
+  const path = (all: boolean) => `/api/v2/my_orders?type=sold${all ? '&status=all' : ''}&page=1&per_page=20`;
+  const json = await adapter.rawGet(path(true)).catch((e) => {
+    // Same fallback as the import: Vinted refusing `status=all` gets the plain list, once.
+    if (e instanceof MarketplaceError && e.code === 'UNAVAILABLE') return adapter.rawGet(path(false));
+    throw e;
+  });
+  return firstArray(json, ['my_orders', 'orders'])
+    .map((o) => parseOrder(o))
+    .filter((o): o is NonNullable<typeof o> => o !== null);
+}
+
+/**
+ * A parcel delivered → one message in the order's conversation (the seller's text): thanks, validate the order if the
+ * article suits, a review, the account to follow. Once per order, never twice; within the automations' limits. The
+ * message is read back in the conversation: shown there → done; not shown → sent, not confirmed. EXPERIMENTAL.
+ */
+export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<AutoRunResult> {
+  const cfg = await loadAutoConfig();
+  const out: AutoRunResult = { ok: true, kind: 'DELIVERED', dryRun, done: 0, skipped: 0, failed: 0, stopped: null };
+  const adapter = new VintedTabAdapter();
+  const sent = new Set(await repo.getSetting<string[]>('autoDeliveredSent', []));
+  const noted = new Set(await repo.getSetting<string[]>('autoDeliveredNoted', []));
+  try {
+    const plans = planDelivered(await latestSoldOrders(adapter), sent, now);
+    for (const p of plans) {
+      if (out.done >= PER_RUN) break;
+      const o = p.order;
+      const target = `${o.title} · ${o.status ?? 'statut inconnu'}`;
+      if (!p.send) {
+        out.skipped++;
+        // Said once per order, not at every pass.
+        const note = p.key ?? `o:${o.title}|${o.date ?? ''}`;
+        if (dryRun || !noted.has(note)) {
+          await log({ kind: 'SKIP', dryRun, ok: true, target, detail: p.reason === 'TOO_OLD' ? 'commande trop ancienne : pas de message' : 'Vinted ne donne pas la conversation de cette commande : rien envoyé' });
+          if (!dryRun) noted.add(note);
+        }
+        continue;
+      }
+      const text = deliveredText(cfg.delivered.template, o, now);
+      if (dryRun) {
+        await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
+        out.done++;
+        continue;
+      }
+      try {
+        await write('POST', `/api/v2/conversations/${o.conversationId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
+        // Sent: never again for this order, whatever the read-back says.
+        sent.add(p.key);
+        let shown = false;
+        try {
+          const conv = JSON.stringify(await adapter.rawGet(`/api/v2/conversations/${o.conversationId}`));
+          shown = conv.includes(JSON.stringify(text.slice(0, 60)).slice(1, -1));
+        } catch {
+          /* not read back: said as not confirmed */
+        }
+        await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: true, unconfirmed: !shown, target, detail: `« ${text} »${shown ? ' · relu dans la conversation' : ' · envoyé, pas relu dans la conversation (non confirmé)'}` });
+        out.done++;
+      } catch (e) {
+        out.failed++;
+        const { code, detail } = errorInfo(e);
+        await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        const stop = stopReason(e);
+        if (stop) {
+          out.stopped = stop;
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    out.ok = false;
+    out.stopped = stopReason(e) ?? `${errorInfo(e).code} · ${errorInfo(e).detail ?? ''}`;
+  }
+  if (!dryRun) {
+    await repo.setSetting('autoDeliveredSent', [...sent].slice(-500));
+    await repo.setSetting('autoDeliveredNoted', [...noted].slice(-500));
+  }
+  await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Colis livré → message', detail: summary(out) });
   return out;
 }
 

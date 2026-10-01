@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ScheduleCost } from '../components/schedule-cost';
 import { useEffect, useState } from 'react';
-import type { AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
+import type { AutoKind, AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
+import { DEFAULT_DELIVERED, deliveredText } from '@/intelligence/delivered';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -61,7 +62,7 @@ export function Automations() {
     return next;
   };
 
-  const run = async (kind: 'FAV' | 'OFFERS', dryRun: boolean) => {
+  const run = async (kind: AutoKind, dryRun: boolean) => {
     setBusy(`${kind}:${dryRun}`);
     try {
       await save();
@@ -73,7 +74,7 @@ export function Automations() {
         const known = /^[A-Z_0-9]+$/.test(code ?? '');
         toast('error', known ? t(`errors.${code}`) : t('auto.stopped'), known ? `${line} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : `${line} · ${r.stopped}`);
       }
-      else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : 'auto.offers.title'), line);
+      else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : kind === 'OFFERS' ? 'auto.offers.title' : 'auto.delivered.title'), line);
     } catch (e) {
       toast('error', t('auto.stopped'), e instanceof Error ? e.message : String(e));
     } finally {
@@ -81,7 +82,7 @@ export function Automations() {
     }
   };
 
-  const runButtons = (kind: 'FAV' | 'OFFERS', enabled: boolean) => (
+  const runButtons = (kind: AutoKind, enabled: boolean) => (
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
       <Button size="sm" variant="ghost" icon="eye" loading={busy === `${kind}:true`} disabled={!!busy} onClick={() => run(kind, true)}>
         {t('auto.simulate')}
@@ -181,6 +182,32 @@ export function Automations() {
               <textarea id="a-accmsg" className="input" rows={2} style={{ height: 'auto', resize: 'vertical' }} value={cfg.offers.acceptMessage} onChange={(e) => set((c) => ({ ...c, offers: { ...c.offers, acceptMessage: e.target.value } }))} />
             </Field>
             {runButtons('OFFERS', cfg.offers.enabled)}
+          </div>
+        </Card>
+
+        <Card className="span-12" title={t('auto.delivered.title')} hint={t('auto.delivered.hint')} icon="check" tone="emerald">
+          <div className="stack-3" data-testid="auto-delivered">
+            {check('a-dlv', cfg.delivered.enabled, (v) => set((c) => ({ ...c, delivered: { ...c.delivered, enabled: v } })), t('auto.delivered.enable'))}
+            <Field label={t('auto.delivered.message')} htmlFor="a-dlvmsg">
+              <textarea id="a-dlvmsg" className="input" rows={3} style={{ height: 'auto', resize: 'vertical' }} value={cfg.delivered.template} onChange={(e) => set((c) => ({ ...c, delivered: { ...c.delivered, template: e.target.value } }))} />
+            </Field>
+            <p className="t-small t-muted" data-testid="auto-delivered-preview">
+              {t('auto.delivered.preview', { text: deliveredText(cfg.delivered.template, { title: example.title }, Date.now()) })}
+            </p>
+            <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+              <span className="t-small t-faint grow">{t('auto.delivered.vars')}</span>
+              {cfg.delivered.template !== DEFAULT_DELIVERED && (
+                <Button size="sm" variant="ghost" onClick={() => set((c) => ({ ...c, delivered: { ...c.delivered, template: DEFAULT_DELIVERED } }))}>
+                  {t('auto.delivered.reset')}
+                </Button>
+              )}
+            </div>
+            <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }}>
+              <li>{t('auto.delivered.how')}</li>
+              <li>{t('auto.delivered.once')}</li>
+              <li>{t('auto.delivered.unverified')}</li>
+            </ul>
+            {runButtons('DELIVERED', cfg.delivered.enabled)}
           </div>
         </Card>
 

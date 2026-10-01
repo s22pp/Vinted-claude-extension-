@@ -74,7 +74,7 @@ export type EraMessage =
   | { type: 'era:page' }
   | { type: 'era:api'; path: string }
   | { type: 'era:write'; method: 'POST' | 'PUT'; path: string; body: unknown }
-  | { type: 'era:auto:run'; kind: 'FAV' | 'OFFERS'; dryRun: boolean }
+  | { type: 'era:auto:run'; kind: AutoKind; dryRun: boolean }
   | { type: 'era:auto:schedule' }
   | { type: 'era:refresh:schedule' }
   | { type: 'era:backup:schedule' }
@@ -144,9 +144,12 @@ export interface BudgetStatus {
 }
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
 
+/** New favourites, offers received, parcels delivered. */
+export type AutoKind = 'FAV' | 'OFFERS' | 'DELIVERED';
+
 export interface AutoRunResult {
   ok: boolean;
-  kind: 'FAV' | 'OFFERS';
+  kind: AutoKind;
   dryRun: boolean;
   done: number;
   skipped: number;
