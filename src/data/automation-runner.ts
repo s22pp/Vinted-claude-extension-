@@ -336,8 +336,10 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
       }
       try {
         await write('POST', `/api/v2/conversations/${o.conversationId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
-        // Sent: never again for this order, whatever the read-back says.
+        // Sent: never again for this order, whatever the read-back says — saved at once, not at the end of the pass
+        // (a worker stopped mid-pass must not send it twice).
         sent.add(p.key);
+        await repo.setSetting('autoDeliveredSent', [...sent].slice(-500));
         let shown = false;
         try {
           const conv = JSON.stringify(await adapter.rawGet(`/api/v2/conversations/${o.conversationId}`));
