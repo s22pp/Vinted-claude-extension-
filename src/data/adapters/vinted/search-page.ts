@@ -1,7 +1,7 @@
 import { MarketplaceError } from '../marketplace';
 import * as budget from './budget-store';
 import type { CatalogPageRead, EraMessage, ReserveResult } from './protocol';
-import { ping, waitForLoad } from './tabs';
+import { answersWithin, ping, waitForLoad } from './tabs';
 
 /**
  * Visits of Vinted's public search page, owned by the service worker. One background tab is reused from one search
@@ -63,8 +63,8 @@ async function visit(q: string): Promise<SearchPageVisit> {
   await browser.storage.session.set({ [TAB_KEY]: { id: tabId, at: Date.now() } });
   try {
     await waitForLoad(tabId, 15_000);
-    // First load failed (network hiccup, interstitial): no content script answers. Navigate once more right away.
-    if (!(await ping(tabId))) {
+    // First load failed (network hiccup, interstitial): no content script answers within a few seconds. Navigate once more.
+    if (!(await answersWithin(tabId, 5_000))) {
       await browser.tabs.update(tabId, { url });
       await waitForLoad(tabId, 15_000);
     }

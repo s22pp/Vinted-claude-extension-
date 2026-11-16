@@ -11,6 +11,16 @@ export async function ping(tabId: number): Promise<boolean> {
   }
 }
 
+/** ERA's content script answers in this tab within `ms` (a page still starting is given that long). */
+export async function answersWithin(tabId: number, ms: number): Promise<boolean> {
+  const end = Date.now() + ms;
+  for (;;) {
+    if (await ping(tabId)) return true;
+    if (Date.now() >= end) return false;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
 export function waitForLoad(tabId: number, timeoutMs = 25_000): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {

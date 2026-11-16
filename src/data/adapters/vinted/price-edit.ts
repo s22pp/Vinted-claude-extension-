@@ -7,7 +7,8 @@ import { type TextField, type TextOp, sameFieldText, textOpProblem } from '@/int
 import { readCents, sameText } from './edit-form';
 import { db } from '../../db';
 import { journal as writeJournal } from '../../journal';
-import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
+import { VintedTabAdapter, waitForLoad } from './vinted-adapter';
+import { answersWithin } from './tabs';
 import { eurText } from '@/domain/money';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -64,19 +65,21 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
   }
 }
 
-/** The edit page of one of the seller's listings, in a background tab, with ERA's content script answering. */
+/**
+ * The edit page of one of the seller's listings, in a background tab, with ERA's content script answering. The page is
+ * given 15 s to answer once loaded (a heavy page on a slow machine), and reloaded once only if it does not (a first
+ * load that failed) — never reloaded while it may still be starting.
+ */
 async function openEditTab(platformListingId: string): Promise<number> {
   const url = `https://www.vinted.fr/items/${platformListingId}/edit`;
   const tabId = (await browser.tabs.create({ url, active: false })).id!;
-  await waitForLoad(tabId, 20_000);
-  if (!(await ping(tabId))) {
-    await browser.tabs.update(tabId, { url });
+  const answers = async () => {
     await waitForLoad(tabId, 20_000);
-  }
-  for (let i = 0; i < 40; i++) {
-    if (await ping(tabId)) return tabId;
-    await sleep(250);
-  }
+    return answersWithin(tabId, 15_000);
+  };
+  if (await answers()) return tabId;
+  await browser.tabs.update(tabId, { url }).catch(() => undefined);
+  if (await answers()) return tabId;
   await browser.tabs.remove(tabId).catch(() => undefined);
   throw new MarketplaceError('NO_VINTED_TAB', 'la page de modification n’a pas répondu');
 }

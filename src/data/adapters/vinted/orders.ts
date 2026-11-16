@@ -3,7 +3,8 @@ import { MarketplaceError } from '../marketplace';
 import { reserve } from './budget-store';
 import { type SoldOrder, firstArray, parseOrder } from './parse';
 import type { EraMessage } from './protocol';
-import { VintedTabAdapter, ping, waitForLoad } from './vinted-adapter';
+import { VintedTabAdapter, waitForLoad } from './vinted-adapter';
+import { answersWithin } from './tabs';
 
 export const PURCHASES_TEMPLATE_KEY = 'vintedPurchasesTemplate';
 
@@ -31,7 +32,7 @@ export async function discoverPurchasesTemplate(): Promise<{ template: string | 
   const tabId = tab.id!;
   try {
     await waitForLoad(tabId, 15_000);
-    if (!(await ping(tabId))) {
+    if (!(await answersWithin(tabId, 5_000))) {
       await browser.tabs.update(tabId, { url });
       await waitForLoad(tabId, 15_000);
     }
