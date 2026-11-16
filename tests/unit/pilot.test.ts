@@ -23,6 +23,7 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(n.title).toBe('Tournée de 12 h faite');
     expect(n.lines).toEqual(['Stock lu : 18 annonces, 3 ventes', 'Fait : 2 offres traitées · 1 message colis livré · sauvegarde faite', 'Pour vous : 3 colis à envoyer (bordereaux dans Ventes) · 1 colis à retirer']);
     expect(pilotNotice(round).lines.slice(1)).toEqual(['Fait : rien à traiter', 'Pour vous : rien d’urgent']);
+    expect(pilotNotice({ ...round, priceCuts: 2, toList: 1 }).lines[2]).toBe('Pour vous : 2 baisses de prix prévues (Stock → « Baisse à faire », un clic chacune) · 1 article à mettre en ligne (Atelier)');
     expect(pilotNotice({ ...round, labels: 2, labelsNotSaved: 1, toShip: 3 }).lines.slice(1)).toEqual([
       'Fait : 2 bordereaux enregistrés (Téléchargements/ERA-bordereaux)',
       'Pour vous : 1 bordereau à télécharger depuis Ventes · 3 colis à envoyer (bordereaux dans Ventes)',

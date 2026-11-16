@@ -14,6 +14,7 @@ import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, w
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
 import { PILOT_KEY, PILOT_LATE_MS, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
 import { parcelAlerts } from '@/intelligence/shipping';
+import { pilotMissions } from '@/data/pilot-missions';
 import { db } from '@/data/db';
 import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
 import { DIGEST_ALARM, digestEnabled, nextMonday9, runDigest } from '@/data/digest';
@@ -375,6 +376,8 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
   r.toShip = sales.filter((s) => s.needsAction && s.status !== 'REFUNDED').length;
   r.late = parcelAlerts(sales, now).length;
   r.toCollect = (await db.purchases.toArray()).filter((p) => !p.dismissed && parcelStage(p.status) === 'AT_PICKUP').length;
+  // The seller's own plan for today (price cuts, articles to list): from ERA's data, no Vinted call.
+  Object.assign(r, await pilotMissions(now).catch(() => ({})));
   return r;
 }
 

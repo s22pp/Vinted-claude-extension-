@@ -52,6 +52,9 @@ export interface PilotRound {
   toShip: number;
   late: number;
   toCollect: number;
+  /** Price cuts due by the seller's plan (one click each), articles waiting in the workshop. */
+  priceCuts?: number;
+  toList?: number;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -71,6 +74,8 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.toShip && `${plural(r.toShip, 'colis', 'colis')} à envoyer (bordereaux dans Ventes)`,
     r.late && `${plural(r.late, 'colis', 'colis')} à surveiller`,
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,
+    r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
+    r.toList && `${plural(r.toList, 'article', 'articles')} à mettre en ligne (Atelier)`,
   ].filter((x): x is string => !!x);
   const title = r.stopped ? `Tournée de ${r.hour} h arrêtée` : `Tournée de ${r.hour} h faite`;
   return {
