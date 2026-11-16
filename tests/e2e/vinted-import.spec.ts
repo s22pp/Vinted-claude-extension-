@@ -984,6 +984,36 @@ test('all labels at once: each order handled in turn, each PDF saved under a cle
   await closeCarrier();
 });
 
+test('autopilot with labels: the labels of the orders to ship are ready as PDF at the end of the round', async ({ context, base }) => {
+  test.setTimeout(180_000);
+  const closeCarrier = await fakeLabelServer();
+  const sold = (id: number, title: string) => ({ id, title, price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] });
+  const calls = await fakeVinted(context, {
+    loggedIn: true,
+    extra: [sold(104, 'Sweat Nike vintage L'), sold(106, 'Polo Lacoste M')],
+    orders: [
+      { title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' },
+      { title: 'Polo Lacoste M', price: { amount: '30.0' }, date: '2026-09-21', status: 'Envoi à préparer', item_id: 106, conversation_id: 9201, transaction_user_status: 'needs_action' },
+    ],
+  });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const pilot = page.getByTestId('pilot');
+  await pilot.getByLabel('Activer les tournées automatiques').check();
+  await pilot.getByLabel(/Préparer les bordereaux des colis à envoyer/).check();
+  await expect(pilot).toContainText('Bordereaux ✓');
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
+  await expect(row).toContainText('2 bordereaux enregistrés (Téléchargements/ERA-bordereaux)', { timeout: 150_000 });
+  await expect(row).toContainText('2 colis à envoyer');
+  // The ready label only fetched, the other one ordered like Vinted's own button: the only write of the round.
+  expect(calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/v2/transactions/7200/shipment/order']);
+  await closeCarrier();
+});
+
 test('a label the browser cannot download is reported as not saved, never as saved', async ({ context, base }) => {
   test.setTimeout(120_000);
   // No carrier server running: Vinted gives a label URL, the download fails.

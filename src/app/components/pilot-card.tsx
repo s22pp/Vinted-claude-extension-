@@ -51,6 +51,7 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
     ['offers', auto.offers.enabled],
     ['fav', auto.fav.enabled],
     ['delivered', auto.delivered.enabled],
+    ['labels', cfg.labels],
     ['alerts', others.alerts],
     ['backup', others.backup],
   ];
@@ -69,6 +70,12 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
             </Field>
           ))}
         </div>
+        <label htmlFor="pilot-labels" className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input id="pilot-labels" type="checkbox" className="checkbox" checked={cfg.labels} disabled={!others.real} onChange={(e) => void save({ ...cfg, labels: e.target.checked })} style={{ marginTop: 2 }} />
+          <span>
+            {t('pilot.labels')} <span className="t-small t-faint">{t('pilot.labelsHint')}</span>
+          </span>
+        </label>
         {cfg.enabled && <p className="t-small t-muted" data-testid="pilot-next">{t('pilot.next', { when: dateLong(nextPilotAt(Date.now(), cfg.hours)), hour: new Date(nextPilotAt(Date.now(), cfg.hours)).getHours() })}</p>}
         <div className="row wrap" style={{ gap: 6 }} aria-label={t('pilot.tasks')}>
           {tasks.map(([k, on]) => (

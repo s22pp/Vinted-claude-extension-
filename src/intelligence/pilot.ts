@@ -9,12 +9,14 @@ export interface PilotConfig {
   enabled: boolean;
   /** Local hours of the rounds, 0–23. */
   hours: number[];
+  /** Labels of the orders to ship fetched (or ordered, like Vinted's button) and saved as PDF. Off by default. */
+  labels: boolean;
 }
-export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [12, 21] };
+export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [12, 21], labels: false };
 
 export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotConfig {
   const hours = [...new Set((c?.hours ?? PILOT_DEFAULTS.hours).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b);
-  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours };
+  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true };
 }
 
 /** The next round strictly after `now`, at one of the hours (local time), minute 0. */
@@ -42,6 +44,9 @@ export interface PilotRound {
   favourites: number;
   delivered: number;
   deals: number;
+  /** Labels saved as PDF, and labels Vinted gave that the browser could not save. */
+  labels: number;
+  labelsNotSaved: number;
   backup: boolean;
   /** Left for the seller, read after the round. */
   toShip: number;
@@ -58,9 +63,11 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.favourites && plural(r.favourites, 'message favori', 'messages favoris'),
     r.delivered && plural(r.delivered, 'message colis livré', 'messages colis livré'),
     r.deals && plural(r.deals, 'affaire repérée', 'affaires repérées'),
+    r.labels && `${plural(r.labels, 'bordereau enregistré', 'bordereaux enregistrés')} (Téléchargements/ERA-bordereaux)`,
     r.backup && 'sauvegarde faite',
   ].filter((x): x is string => !!x);
   const todo = [
+    r.labelsNotSaved && `${plural(r.labelsNotSaved, 'bordereau', 'bordereaux')} à télécharger depuis Ventes`,
     r.toShip && `${plural(r.toShip, 'colis', 'colis')} à envoyer (bordereaux dans Ventes)`,
     r.late && `${plural(r.late, 'colis', 'colis')} à surveiller`,
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,

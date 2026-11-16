@@ -186,8 +186,9 @@ Outils → Automatisations → **Pilote automatique** (désactivé par défaut, 
 
 1. lit votre stock et vos ventes ;
 2. fait les automatisations que vous avez activées et enregistrées : offres reçues, favoris, message « colis livré » ;
-3. lance les alertes d'achat et la sauvegarde si elles sont activées ;
-4. termine par **une notification** : ce qui a été fait, et ce qui reste pour vous (colis à envoyer avec leurs bordereaux, colis à surveiller, colis à retirer). Un clic l'ouvre dans ERA.
+3. si vous l'avez coché, **prépare les bordereaux** des colis à envoyer : récupérés, ou commandés comme le bouton de Vinted, puis enregistrés en PDF dans `Téléchargements/ERA-bordereaux/` (il ne reste qu'à imprimer et déposer) ;
+4. lance les alertes d'achat et la sauvegarde si elles sont activées ;
+5. termine par **une notification** : ce qui a été fait, et ce qui reste pour vous (colis à envoyer avec leurs bordereaux, colis à surveiller, colis à retirer). Un clic l'ouvre dans ERA.
 
 - **Chrome doit être ouvert** à l'heure de la tournée (une extension ne tourne pas navigateur fermé). Chrome fermé à l'heure : la tournée est faite à l'ouverture si elle date de moins de 3 h, sinon la suivante vient.
 - **Onglet vinted.fr** : ERA utilise le vôtre s'il répond ; sinon il en ouvre un **en arrière-plan** (il recharge une fois une première ouverture ratée) et le **referme** après. Il ne recharge ni ne navigue jamais vos onglets.

@@ -318,7 +318,7 @@ async function pilotTab(): Promise<number | null> {
  * Then one notification: what was done, what is left for the seller.
  */
 async function runPilotRound(hour: number): Promise<PilotRound> {
-  const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
+  const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
   let openedTab: number | null = null;
   const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
   try {
@@ -332,6 +332,7 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
     }
     openedTab = await pilotTab();
     const cfg = await loadAutoConfig();
+    const pilot = await loadPilot();
     await budget.asScheduled(AUTO_FLOOR, async () => {
       const imp = await runImport(false);
       await importFollowUp;
@@ -348,6 +349,13 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
       r.offers = await auto('OFFERS', cfg.offers.enabled);
       r.favourites = await auto('FAV', cfg.fav.enabled);
       r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
+      // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
+      if (pilot.labels && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        const b = await getAllLabels();
+        r.labels = b.results.filter((x) => x.ok && x.file).length;
+        r.labelsNotSaved = b.results.filter((x) => x.ok && !x.file).length;
+        if (b.stopped && STOP.test(b.stopped)) r.stopped = b.stopped;
+      }
       if (!r.stopped?.match(STOP) && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('alerts'))) {
         const a = await runBuyAlerts();
         r.deals = a.deals.length;
@@ -529,10 +537,10 @@ export default defineBackground(() => {
       case 'era:pilot:run':
         // The seller's click: the same round, now (an import or another operation running: said, not queued).
         if (vintedBusy()) {
-          sendResponse({ hour: new Date().getHours(), stopped: BUSY, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 } satisfies PilotRound);
+          sendResponse({ hour: new Date().getHours(), stopped: BUSY, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 } satisfies PilotRound);
           return undefined;
         }
-        return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+        return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
       case 'era:digest:schedule':
         return answer(scheduleDigest().then(() => ({ ok: true })), unavailable);
       case 'era:backup:schedule':
