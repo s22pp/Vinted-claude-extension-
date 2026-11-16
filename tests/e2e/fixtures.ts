@@ -1,13 +1,19 @@
 import { type BrowserContext, test as base, chromium } from '@playwright/test';
 import { execFileSync, execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 // ERA_EXT: another build to load (the source-mapped one of `npm run analyze`, to profile).
 const EXT = path.resolve(process.env.ERA_EXT ?? '.output/chrome-mv3');
+
+/**
+ * The browser: Playwright's own when installed; else ERA_CHROME, or a Chromium preinstalled on the machine (a cloud
+ * container ships one for another Playwright version).
+ */
+const BROWSER = process.env.ERA_CHROME ?? (existsSync(chromium.executablePath()) ? undefined : ['/opt/pw-browsers/chromium'].find((p) => existsSync(p)));
 
 /**
  * The extension's ID, fixed by the public key in its manifest (see wxt.config.ts): read from the build instead of
@@ -46,7 +52,7 @@ export async function fakeLabelServer(): Promise<() => Promise<void>> {
 export const test = base.extend<{ context: BrowserContext; extId: string; base: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium',
+      ...(BROWSER ? { executablePath: BROWSER } : { channel: 'chromium' }),
       headless: true,
       // Everything the tests need is local (routed pages, fake carrier): no outbound proxy for the test browser.
       env: Object.fromEntries(Object.entries(process.env).filter(([k, v]) => !/proxy/i.test(k) && v !== undefined)) as Record<string, string>,
