@@ -1098,6 +1098,8 @@ export const fr = {
     stageVERIFYING: 'Vérification',
     stageDONE: 'Fait',
     success: 'Prix mis à jour sur Vinted : {price}',
+    unconfirmed: 'Prix {price} enregistré, non confirmé',
+    unconfirmedHint: 'Le formulaire a été enregistré mais Vinted n’a pas pu être relu : vérifiez le prix sur l’annonce (le prochain import l’alignera dans ERA).',
     verified: 'Vérifié sur Vinted ({from} → {to}).',
     onlyVinted: 'Disponible pour les articles importés depuis Vinted',
   },

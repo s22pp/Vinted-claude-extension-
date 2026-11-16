@@ -2,10 +2,10 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
+  const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
   const descriptions: Record<string, string> = { '101': 'Veste Harrington, bon état.' };
   const titles: Record<string, string> = { '101': 'Veste Harrington Ralph Lauren M' };
@@ -45,6 +45,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       const id = url.searchParams.get('id')!;
       const saved = JSON.parse(route.request().postData() ?? '{}') as { price: string; title: string; description: string };
       if (!opts.lockPrice) prices[id] = saved.price.replace(',', '.');
+      state.saved = true;
       if (!opts.lockTitle) titles[id] = saved.title;
       descriptions[id] = saved.description;
       return route.fulfill({ status: 204 });
@@ -119,6 +120,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
+    // Test fixture only: once the form is saved, Vinted cannot be read back (a server error on every read of the listing).
+    if (opts.readBackDown && state.saved && (url.pathname === '/api/v2/item_upload/items/101' || url.pathname.startsWith('/api/v2/wardrobe/'))) return json({ code: 500 }, 500);
     if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 177293623, login: 'era-archives' } }) : json({ code: 100 }, 401);
     // A full first page of the wardrobe (96 listings), then page 2 unavailable.
     if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items') && opts.wardrobePage2Down) {
@@ -580,6 +583,21 @@ test('ambiguous form: nothing is saved on Vinted', async ({ context, base }) => 
   await page.getByRole('button', { name: 'Appliquer sur Vinted', exact: true }).click();
   await expect(page.getByText('Modification annulée avant enregistrement')).toBeVisible({ timeout: 40_000 });
   expect(fake.prices['101']).toBe('59.0');
+});
+
+test('price saved but Vinted cannot be read back: said "not confirmed", never done nor failed', async ({ context, base }) => {
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok', readBackDown: true });
+  const page = await context.newPage();
+  await importThenOpen(page, base);
+  await page.getByRole('button', { name: 'Modifier le prix sur Vinted' }).click();
+  await page.getByLabel('Nouveau prix').fill('49');
+  await page.getByRole('button', { name: 'Appliquer sur Vinted', exact: true }).click();
+  await expect(page.getByText('Prix 49 € enregistré, non confirmé')).toBeVisible({ timeout: 40_000 });
+  expect(fake.prices['101']).toBe('49');
+  // ERA's own copy is left as it was (not verified): the next import aligns it.
+  await expect(page.locator('header').getByText('59 €')).toBeVisible();
+  await page.goto(`${base}#/settings`);
+  await expect(page.locator('.integ__row', { hasText: 'Modification de prix' })).not.toHaveAttribute('data-state', 'VERIFIED');
 });
 
 test('Vinted refuses the price: ERA says so instead of claiming success', async ({ context, base }) => {

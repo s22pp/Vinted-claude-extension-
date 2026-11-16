@@ -43,7 +43,15 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
     await leftEditPage(tabId);
 
     onStage('VERIFYING');
-    const after = await readListingPrice(platformListingId);
+    // Saved on the page: a read-back that cannot be made is "not confirmed", never a failure (it may be on Vinted).
+    let after: number | null;
+    try {
+      after = await readListingPrice(platformListingId);
+    } catch (e) {
+      await writeJournal({ kind: 'PRICE', dryRun: false, ok: true, unconfirmed: true, target: `annonce ${platformListingId}`, detail: `${eurText(cents, 2)} enregistré sur la page, relecture impossible (${failText(e)}) : vérifiez l’annonce (non confirmé)` }).catch(() => undefined);
+      onStage('DONE');
+      return { ok: true, before, after: cents, unconfirmed: true };
+    }
     if (after !== cents) {
       keepOpen = true; // let the seller see what Vinted shows
       await browser.tabs.update(tabId, { active: true }).catch(() => undefined);

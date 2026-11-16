@@ -35,7 +35,8 @@ export function useVintedPriceEdit() {
       r = { ok: false, code: 'UNAVAILABLE', detail: `service worker : ${e instanceof Error ? e.message : String(e)}` };
     }
     setStage(null);
-    if (r.ok) toast('success', t('vintedPrice.success', { price: r.after }), t('vintedPrice.verified', { from: r.before ?? v.askPrice ?? 0, to: r.after }));
+    if (r.ok && r.unconfirmed) toast('warning', t('vintedPrice.unconfirmed', { price: r.after }), t('vintedPrice.unconfirmedHint'));
+    else if (r.ok) toast('success', t('vintedPrice.success', { price: r.after }), t('vintedPrice.verified', { from: r.before ?? v.askPrice ?? 0, to: r.after }));
     else errorToast(r);
     void money;
     return r.ok;
