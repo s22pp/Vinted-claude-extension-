@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ScheduleCost } from '../components/schedule-cost';
+import { PilotCard } from '../components/pilot-card';
 import { useEffect, useState } from 'react';
 import type { AutoKind, AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
 import { DEFAULT_DELIVERED, deliveredText, statusReport } from '@/intelligence/delivered';
@@ -120,6 +121,8 @@ export function Automations() {
             </ul>
           </div>
         </Card>
+
+        <PilotCard auto={cfg} />
 
         <Card className="span-6" title={t('auto.fav.title')} hint={t('auto.fav.hint')} icon="heart" tone="pink">
           <div className="stack-3">

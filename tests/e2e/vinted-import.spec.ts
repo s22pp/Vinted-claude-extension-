@@ -734,6 +734,39 @@ test('parcel delivered: a send that failed without a clear refusal is looked for
   expect(calls.state.replies['9401']).toHaveLength(1);
 });
 
+test('autopilot round: refresh, then the automations switched on, then what is left — the Vinted tab it opened is closed', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+  const calls = await fakeVinted(context, { loggedIn: true, orders: [{ title: 'Jean Levi’s 501 W32', price: { amount: '30.0' }, date: day(3), status: 'Colis livré', conversation_id: 9401, transaction_id: 7401 }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  // The delivered message switched on and saved: the round runs it.
+  await page.getByTestId('auto-delivered').getByLabel('Activer le message après livraison').check();
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  const pilot = page.getByTestId('pilot');
+  await pilot.getByLabel('Activer les tournées automatiques').check();
+  await expect(pilot.getByTestId('pilot-next')).toContainText(/Prochaine tournée : .* à (12|21) h\./);
+  await expect(pilot).toContainText('Colis livrés ✓');
+  await expect(pilot).toContainText('Offres reçues (désactivé)');
+  const before = calls.length;
+  // Counted as Chrome sees them (a tab on an error page still has its vinted.fr address).
+  const vintedTabs = () => context.serviceWorkers().at(-1)!.evaluate(() => chrome.tabs.query({ url: 'https://www.vinted.fr/*' }).then((ts) => ts.length));
+  const tabsBefore = await vintedTabs();
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first()).toContainText(/Tournée de \d+ h faite/, { timeout: 90_000 });
+  const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
+  await expect(row).toContainText('Fait : 1 message colis livré');
+  // The round read the stock and sales again, then sent the one message, nothing else.
+  const mine = calls.slice(before);
+  expect(mine.some((c) => c.path.startsWith('/api/v2/wardrobe/'))).toBe(true);
+  expect(mine.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
+  // A tab the round opened in the background is closed again: no more vinted.fr tabs than before.
+  await expect.poll(vintedTabs, { timeout: 10_000 }).toBeLessThanOrEqual(tabsBefore);
+});
+
 test('price analysis without a brand on Vinted: searches the title’s words, never "inconnue", and learns the brand', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 106, title: 'Chemise Bonobo lin L', price: '20.0', view_count: 12, favourite_count: 0, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] }] });
   const page = await context.newPage();

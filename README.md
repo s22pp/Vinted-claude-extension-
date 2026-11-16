@@ -180,6 +180,21 @@ Stock → **Qualité** → « Lire N descriptions sur Vinted » (lecture budgét
 - une mesure qu'ERA ne connaît pas reste **« __ cm »** : vous la lisez sur le vêtement et la tapez — **ERA n'invente aucune mesure ni composition** ; rien ne part sur Vinted tant qu'il reste un « __ » ;
 - **Copier** pour coller vous-même sur Vinted, ou **« Remplacer sur Vinted »** (EXPERIMENTAL) : après confirmation, une annonce à la fois, ERA ouvre la page de modification en arrière-plan, écrit **le champ description seul** (jamais la catégorie, le prix ou les photos ; au moindre doute sur la page, rien n'est enregistré), enregistre, puis **relit Vinted** : « fait » seulement si le nouveau texte y apparaît. Chaque envoi compte dans le budget d'appels et s'écrit dans le journal.
 
+## Pilote automatique : deux tournées par jour (EXPERIMENTAL)
+
+Outils → Automatisations → **Pilote automatique** (désactivé par défaut, vraies données seulement) : à vos deux heures (12 h et 21 h par défaut), ERA fait une tournée **dans votre Chrome** :
+
+1. lit votre stock et vos ventes ;
+2. fait les automatisations que vous avez activées et enregistrées : offres reçues, favoris, message « colis livré » ;
+3. lance les alertes d'achat et la sauvegarde si elles sont activées ;
+4. termine par **une notification** : ce qui a été fait, et ce qui reste pour vous (colis à envoyer avec leurs bordereaux, colis à surveiller, colis à retirer). Un clic l'ouvre dans ERA.
+
+- **Chrome doit être ouvert** à l'heure de la tournée (une extension ne tourne pas navigateur fermé). Chrome fermé à l'heure : la tournée est faite à l'ouverture si elle date de moins de 3 h, sinon la suivante vient.
+- **Onglet vinted.fr** : ERA utilise le vôtre s'il répond ; sinon il en ouvre un **en arrière-plan** (il recharge une fois une première ouverture ratée) et le **referme** après. Il ne recharge ni ne navigue jamais vos onglets.
+- Mêmes garde-fous que tout le reste : budget de la session et sa réserve pour vos clics, 12 s entre deux envois, 40 par jour, **arrêt immédiat** sur un blocage (403/429) ou une déconnexion, journal de chaque action.
+- **Jamais seul** : déposer les colis, prendre les photos, publier, baisser un prix ou republier — un clic chacun. La notification de fin de tournée vous les rappelle.
+- Aucune tâche dans le cloud ne touche votre compte : tout se passe dans votre navigateur, avec votre session.
+
 ## Titres et descriptions en série (EXPERIMENTAL)
 
 Outils → **« Titres et descriptions en série »** : le même changement sur plusieurs annonces en ligne — un texte **ajouté au début**, **ajouté à la fin**, ou **un texte remplacé** (exactement, majuscules comprises ; vide = supprimé).

@@ -82,7 +82,7 @@ export const WRITE_ROUTES: Partial<Record<IntegKey, AutoLogRow['kind'][]>> = {
 const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'titleEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto'];
 
 /** Stops journaled by the other schedules (a skipped refresh, skipped buy alerts): not the automations'. */
-const NOT_AUTOMATIONS = new Set(['Actualisation automatique', 'Alertes d’achat']);
+const NOT_AUTOMATIONS = new Set(['Actualisation automatique', 'Alertes d’achat', 'Pilote automatique']);
 
 /** ERA's own limits (call budget, write spacing, daily cap, one operation at a time): a stop, not Vinted failing. */
 const OWN_LIMIT = /BUDGET_EXHAUSTED|WRITE_COOLDOWN|plafond du jour|opération Vinted est en cours/;

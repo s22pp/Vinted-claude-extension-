@@ -11,9 +11,15 @@ export { templateFromObserved, visitSearchPage } from './search-page';
 import type { MarketCandidate } from '@/domain/entities';
 import { db } from '../../db';
 
+/**
+ * The vinted.fr tab ERA talks through: one where its content script answers (the active one first) — a tab Chrome
+ * put to sleep or left on an error page is passed over when another answers; none answers: the first one.
+ */
 export async function findVintedTab(): Promise<number | null> {
   const tabs = await browser.tabs.query({ url: 'https://www.vinted.fr/*' });
-  return tabs.find((t) => t.active)?.id ?? tabs[0]?.id ?? null;
+  const ordered = [...tabs.filter((t) => t.active), ...tabs.filter((t) => !t.active)].filter((t) => t.id !== undefined);
+  for (const t of ordered) if (await ping(t.id!)) return t.id!;
+  return ordered[0]?.id ?? null;
 }
 
 /**

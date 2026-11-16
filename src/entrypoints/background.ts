@@ -1,6 +1,7 @@
-import { errorInfo } from '@/data/adapters/marketplace';
+import { MarketplaceError, errorInfo } from '@/data/adapters/marketplace';
 import * as budget from '@/data/adapters/vinted/budget-store';
 import { SEARCH_TAB_ALARM, closeIdleSearchTab, visitInWorker } from '@/data/adapters/vinted/search-page';
+import { ping, waitForLoad } from '@/data/adapters/vinted/tabs';
 import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from '@/data/adapters/vinted/price-edit';
 import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult, TextEditResult } from '@/data/adapters/vinted/protocol';
 import type { TextField, TextOp } from '@/intelligence/text-edit';
@@ -10,7 +11,9 @@ import { loadAutoConfig, runDelivered, runFavorites, runOffers, vintedTabOpen } 
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
-import { type ParcelStage, arrivedAtPickup } from '@/intelligence/parcels';
+import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
+import { PILOT_KEY, PILOT_LATE_MS, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
+import { parcelAlerts } from '@/intelligence/shipping';
 import { db } from '@/data/db';
 import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
 import { DIGEST_ALARM, digestEnabled, nextMonday9, runDigest } from '@/data/digest';
@@ -146,7 +149,7 @@ async function scheduleRefresh(): Promise<void> {
  * A scheduled run may start only while the session keeps more than its reserve for the seller's own clicks. Below it,
  * the run is skipped — said once per browser session in the journal, as ERA's own limit (never as a Vinted error).
  */
-const SCHEDULE_NAME = { refresh: 'Actualisation automatique', alerts: 'Alertes d’achat', auto: 'Automatisations' } as const;
+const SCHEDULE_NAME = { refresh: 'Actualisation automatique', alerts: 'Alertes d’achat', auto: 'Automatisations', pilot: 'Pilote automatique' } as const;
 
 async function scheduledRunAllowed(which: keyof typeof SCHEDULE_NAME): Promise<boolean> {
   const s = await budget.status();
@@ -263,6 +266,153 @@ async function onAutoAlarm(): Promise<void> {
   });
 }
 
+/* ── Autopilot: rounds at the seller's hours ─────────────── */
+
+const PILOT_ALARM = 'era-pilot';
+const PILOT_RETRY_ALARM = 'era-pilot-retry';
+/** While no vinted.fr tab answers or another operation runs: tried again every 10 min, for an hour at most. */
+const PILOT_RETRIES = 6;
+
+async function loadPilot(): Promise<PilotConfig> {
+  return pilotConfig(await repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null));
+}
+
+/** The next round's alarm. `keep`: at the worker's start, a round already due (Chrome was closed) is not pushed back. */
+async function schedulePilot(keep = false): Promise<void> {
+  const cfg = await loadPilot();
+  if (keep && cfg.enabled && (await browser.alarms.get(PILOT_ALARM))) return;
+  await browser.alarms.clear(PILOT_ALARM);
+  if (cfg.enabled) await browser.alarms.create(PILOT_ALARM, { when: nextPilotAt(Date.now(), cfg.hours) });
+}
+
+let piloting: Promise<PilotRound> | null = null;
+
+/**
+ * A vinted.fr tab that answers: the seller's when one does (null returned: nothing to close), else one the pilot opens
+ * in the background (its id returned, closed after the round). The seller's tabs are never reloaded or navigated.
+ */
+async function pilotTab(): Promise<number | null> {
+  if (await vintedTabOpen()) return null;
+  const url = 'https://www.vinted.fr/';
+  const tabId = (await browser.tabs.create({ url, active: false })).id!;
+  const answers = async () => {
+    await waitForLoad(tabId, 25_000);
+    for (let i = 0; i < 60; i++) {
+      if (await ping(tabId)) return true;
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    return false;
+  };
+  // A first load that failed (network hiccup, interstitial) is tried once more — in the pilot's own tab only.
+  if (await answers()) return tabId;
+  await browser.tabs.update(tabId, { url }).catch(() => undefined);
+  if (await answers()) return tabId;
+  await browser.tabs.remove(tabId).catch(() => undefined);
+  throw new MarketplaceError('NO_VINTED_TAB', 'vinted.fr n’a pas répondu dans l’onglet ouvert par le pilote');
+}
+
+/**
+ * One round, in the seller's Chrome: refresh, then the automations switched on (offers, favourites, delivered parcels),
+ * the buy alerts and the backup if on — within the session's budget and its reserve, stopped by any block or logout.
+ * A vinted.fr tab is opened in the background only when none exists (never a reload of the seller's), and closed after.
+ * Then one notification: what was done, what is left for the seller.
+ */
+async function runPilotRound(hour: number): Promise<PilotRound> {
+  const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
+  let openedTab: number | null = null;
+  const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
+  try {
+    if ((await repo.getSetting('dataMode', 'empty')) !== 'real') {
+      r.stopped = 'pas de données Vinted importées (démo ou vide)';
+      return r;
+    }
+    if (!(await scheduledRunAllowed('pilot'))) {
+      r.stopped = 'budget de la session gardé pour vos clics (réserve) ou Vinted en pause après un blocage';
+      return r;
+    }
+    openedTab = await pilotTab();
+    const cfg = await loadAutoConfig();
+    await budget.asScheduled(AUTO_FLOOR, async () => {
+      const imp = await runImport(false);
+      await importFollowUp;
+      if (!imp.ok) {
+        r.stopped = `${imp.code}${imp.detail ? ` · ${imp.detail}` : ''}`;
+        if (STOP.test(imp.code)) return;
+      } else r.imported = { listings: imp.items + imp.updated, sold: imp.sales };
+      const auto = async (kind: AutoKind, on: boolean) => {
+        if (!on || r.stopped?.match(STOP) || !(await scheduledRunAllowed('pilot'))) return 0;
+        const a = await runAuto(kind, false);
+        if (a.stopped && STOP.test(a.stopped)) r.stopped = a.stopped;
+        return a.done;
+      };
+      r.offers = await auto('OFFERS', cfg.offers.enabled);
+      r.favourites = await auto('FAV', cfg.fav.enabled);
+      r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
+      if (!r.stopped?.match(STOP) && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('alerts'))) {
+        const a = await runBuyAlerts();
+        r.deals = a.deals.length;
+      }
+    });
+  } catch (e) {
+    const { code, detail } = errorInfo(e);
+    r.stopped = `${code}${detail ? ` · ${detail}` : ''}`;
+  } finally {
+    if (openedTab !== null) await browser.tabs.remove(openedTab).catch(() => undefined);
+  }
+  // The backup is local (no Vinted call): made even after a stop, when due.
+  r.backup = (await runAutoBackup().catch(() => ({ ok: false }))).ok;
+  // What is left for the seller, from what ERA holds now.
+  const now = Date.now();
+  const sales = await db.sales.filter((s) => !s.isDemo).toArray();
+  r.toShip = sales.filter((s) => s.needsAction && s.status !== 'REFUNDED').length;
+  r.late = parcelAlerts(sales, now).length;
+  r.toCollect = (await db.purchases.toArray()).filter((p) => !p.dismissed && parcelStage(p.status) === 'AT_PICKUP').length;
+  return r;
+}
+
+/** The round, its journal line and its notification; one at a time. */
+function pilotRound(hour: number): Promise<PilotRound> {
+  if (piloting) return piloting;
+  piloting = runPilotRound(hour)
+    .then(async (r) => {
+      const n = pilotNotice(r);
+      await journal({ kind: r.stopped ? 'STOP' : 'RUN', dryRun: false, ok: !r.stopped, target: 'Pilote automatique', detail: `${n.title} · ${n.lines.join(' · ')}` }).catch(() => undefined);
+      await browser.notifications
+        .create(`era-pilot-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: n.title, message: n.lines.join('\n'), priority: 1 })
+        .catch(() => undefined);
+      await updateBadge().catch(() => undefined);
+      return r;
+    })
+    .finally(() => {
+      piloting = null;
+    });
+  return piloting;
+}
+
+async function onPilotAlarm(alarm: { name: string; scheduledTime: number }): Promise<void> {
+  const cfg = await loadPilot();
+  if (!cfg.enabled) return;
+  const retry = alarm.name === PILOT_RETRY_ALARM;
+  const state = ((await browser.storage.session.get('eraPilotRetry')) as { eraPilotRetry?: { hour: number; tries: number } }).eraPilotRetry;
+  const hour = retry && state ? state.hour : new Date(alarm.scheduledTime).getHours();
+  if (!retry) {
+    await schedulePilot();
+    // Chrome was closed at the round's hour, long ago: the next round comes instead.
+    if (Date.now() - alarm.scheduledTime > PILOT_LATE_MS) return;
+  }
+  // Another Vinted operation running: tried again in 10 min (an hour at most).
+  if (vintedBusy() || piloting) {
+    const tries = retry && state ? state.tries + 1 : 1;
+    if (tries <= PILOT_RETRIES) {
+      await browser.storage.session.set({ eraPilotRetry: { hour, tries } });
+      await browser.alarms.create(PILOT_RETRY_ALARM, { delayInMinutes: 10 });
+    }
+    return;
+  }
+  await browser.storage.session.remove('eraPilotRetry');
+  await pilotRound(hour);
+}
+
 /** One Vinted operation at a time: an import, an automation run, a price edit, a repost or labels. */
 function vintedBusy(): boolean {
   return !!(autoRunning || importing || editing || reposting || labelling);
@@ -274,6 +424,7 @@ export default defineBackground(() => {
     if (a.name === REFRESH_ALARM) void onRefreshAlarm();
     if (a.name === BACKUP_ALARM) void runAutoBackup().catch(() => undefined);
     if (a.name === DIGEST_ALARM) void runDigest().catch((e) => recordError('service-worker:digest', e));
+    if (a.name === PILOT_ALARM || a.name === PILOT_RETRY_ALARM) void onPilotAlarm(a).catch((e) => recordError('service-worker:pilot', e));
     if (a.name === SEARCH_TAB_ALARM) void closeIdleSearchTab().catch(() => undefined);
   });
   // A search tab left from before the worker slept: closed if idle.
@@ -282,6 +433,7 @@ export default defineBackground(() => {
   void scheduleRefresh();
   void scheduleBackup();
   void scheduleDigest();
+  void schedulePilot(true);
   void updateBadge().catch(() => undefined);
   // A notification opens what it announces.
   browser.notifications?.onClicked.addListener((id) => {
@@ -289,6 +441,7 @@ export default defineBackground(() => {
     if (id.startsWith('era-deals-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/buy?tab=scan` });
     if (id.startsWith('era-parcel-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/parcels` });
     if (id.startsWith('era-digest-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/insights?tab=review` });
+    if (id.startsWith('era-pilot-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/today` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
@@ -371,6 +524,15 @@ export default defineBackground(() => {
         return answer(scheduleAuto().then(() => ({ ok: true })), unavailable);
       case 'era:refresh:schedule':
         return answer(scheduleRefresh().then(() => ({ ok: true })), unavailable);
+      case 'era:pilot:schedule':
+        return answer(schedulePilot().then(() => ({ ok: true })), unavailable);
+      case 'era:pilot:run':
+        // The seller's click: the same round, now (an import or another operation running: said, not queued).
+        if (vintedBusy()) {
+          sendResponse({ hour: new Date().getHours(), stopped: BUSY, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 } satisfies PilotRound);
+          return undefined;
+        }
+        return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
       case 'era:digest:schedule':
         return answer(scheduleDigest().then(() => ({ ok: true })), unavailable);
       case 'era:backup:schedule':
