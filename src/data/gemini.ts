@@ -38,17 +38,22 @@ export async function clearGemini(): Promise<void> {
 /** "…wYQ": enough to recognise a key, never enough to use it. */
 export const keyHint = (key: string) => `…${key.slice(-4)}`;
 
+/** A request Google does not answer within this delay is given up (the button never stays busy for ever). */
+const TIMEOUT_MS = 60_000;
+
 async function call(key: string, path: string, body?: unknown): Promise<{ ok: true; json: unknown } | GeminiFailure> {
   let res: Response;
   try {
     res = await fetch(`${API}/${path}`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
       method: body === undefined ? 'GET' : 'POST',
       // The key in a header, never in the address (addresses end up in logs).
       headers: { 'x-goog-api-key': key, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (e) {
-    return { ok: false, code: 'NETWORK', detail: `Google injoignable : ${e instanceof Error ? e.message : String(e)}` };
+    const timedOut = e instanceof DOMException && e.name === 'TimeoutError';
+    return { ok: false, code: 'NETWORK', detail: timedOut ? `Google n’a pas répondu en ${TIMEOUT_MS / 1000} s : réessayez` : `Google injoignable : ${e instanceof Error ? e.message : String(e)}` };
   }
   const json = await res.json().catch(() => null);
   if (res.ok) return { ok: true, json };

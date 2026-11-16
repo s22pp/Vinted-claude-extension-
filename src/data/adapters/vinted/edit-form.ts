@@ -143,7 +143,7 @@ export async function editDescriptionOnPage(text: string, expectBefore?: string)
   const input = settled;
   const before = input.value;
   // Built on the description ERA read: changed on Vinted since, the seller's newer text is never overwritten.
-  if (expectBefore !== undefined && !sameText(before, expectBefore)) return { ok: false, detail: 'la description a changé sur Vinted depuis la lecture d’ERA : rien n’a été enregistré (relisez les descriptions)' };
+  if (expectBefore !== undefined && !sameWords(before, expectBefore)) return { ok: false, detail: 'la description a changé sur Vinted depuis la lecture d’ERA : rien n’a été enregistré (relisez les descriptions)' };
   nativeSet(input, text);
   await sleep(400);
   if (sameText(input.value, text) === false) return { ok: false, detail: 'le champ description ne contient pas le texte après saisie : rien n’a été enregistré' };
@@ -183,6 +183,12 @@ export async function editTextOnPage(field: TextField, op: TextOp): Promise<Edit
   btn.scrollIntoView({ block: 'center' });
   btn.click();
   return { ok: true, before, after };
+}
+
+/** The same words in the same order, whatever spaces, line breaks or non-breaking spaces separate them. */
+export function sameWords(a: string, b: string): boolean {
+  const w = (s: string) => s.replace(/[\s\u00a0\u202f]+/g, ' ').trim();
+  return w(a) === w(b);
 }
 
 /** Two descriptions are the same text when they match once line endings and outer spaces are set aside. */

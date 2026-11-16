@@ -7,7 +7,7 @@ import { Button } from '@/ui/components/primitives';
 import { useEra } from '../state';
 import { CopyButton } from './tools';
 import { RouteFlag } from './route-flag';
-import { DraftIssues, factsOf, useGeminiConfig } from './gemini';
+import { DraftIssues, ackOf, factsOf, useGeminiConfig } from './gemini';
 import { geminiWrite } from '@/data/gemini';
 import { checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd } from '@/intelligence/ai-draft';
 import { replyContextOf } from '../reply-kit';
@@ -37,12 +37,11 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
   const gemini = useGeminiConfig();
   const [aiUsed, setAiUsed] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
-  const [ack, setAck] = useState(false);
+  const [ackFor, setAckFor] = useState<string | null>(null);
   useEffect(() => {
     setEdited(null);
     setConfirming(false);
     setAiUsed(false);
-    setAck(false);
   }, [itemId]);
   if (!v || !proposal) return null;
   const text = edited ?? proposal.text;
@@ -53,7 +52,8 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
   const facts = intel ? factsOf(intel, replyContextOf(intel, era.preps, era.model, { t, money }), era.preps.get(itemId)?.material.trim() || v.item.material || null) : null;
   // A text Gemini wrote in: what it says beyond ERA's facts and the seller's own text is flagged, to be acknowledged.
   const issues = aiUsed && facts ? checkDraft(text, `${factLines(facts).join('\n')}\n${current}`, v.item.brand) : [];
-  const canSend = era.mode === 'real' && !!listingId && /^\d+$/.test(listingId) && blanks === 0 && !unchanged && text.trim().length > 0 && (issues.length === 0 || ack);
+  const [ack, setAck] = ackOf(issues, ackFor, setAckFor);
+  const canSend = era.mode === 'real' && !!listingId && /^\d+$/.test(listingId) && blanks === 0 && !unchanged && text.trim().length > 0 && ack;
   const writeWithGemini = async () => {
     if (!facts) return;
     setAiBusy(true);
@@ -81,7 +81,8 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
     setBusy(false);
     setConfirming(false);
     if (r.ok) {
-      toast('success', t('describe.done'), t('describe.verified'));
+      if (r.unconfirmed) toast('warning', t('describe.unconfirmed'), t('describe.unconfirmedHint'));
+      else toast('success', t('describe.done'), t('describe.verified'));
       // The next listing to complete, right away; the last one closes the window.
       if (next) setItemId(next);
       else onClose();
@@ -128,7 +129,7 @@ export function DescriptionModal({ queue, startId, onClose }: { queue: readonly 
             {t('gemini.writeDesc')}
           </Button>
         )}
-        {(issues.length === 0 || ack) && <CopyButton text={text} />}
+        {ack && <CopyButton text={text} />}
         {listingId && /^\d+$/.test(listingId) && (
           <Button variant="ghost" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${listingId}/edit`, '_blank', 'noopener')}>
             {t('describe.open')}

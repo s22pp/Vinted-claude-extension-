@@ -9,6 +9,8 @@ describe('parcel delivered → one message to the buyer', () => {
   it('delivered read strictly: "livré", "livrée", "récupéré"; never on its way, planned, cancelled or already validated', () => {
     for (const s of ['Colis livré', 'Commande livrée', 'Livré, en attente de confirmation de l’acheteur', 'Colis récupéré par l’acheteur', 'Delivered']) expect(isDelivered(s)).toBe(true);
     for (const s of ['En cours de livraison', 'Livraison prévue le 3 oct.', 'Colis non livré', 'Commande terminée', 'Annulée', 'Remboursée', 'En attente d’envoi', 'Envoyé', null]) expect(isDelivered(s)).toBe(false);
+    // Collected BY the carrier has just left; a claim open is never the time to ask for a review.
+    for (const s of ['Colis récupéré par le transporteur', 'Picked up by courier', 'Livré · réclamation en cours', 'Livré, problème signalé']) expect(isDelivered(s)).toBe(false);
   });
 
   it('once per order: an order already messaged is left out; one without a conversation is said, never sent', () => {

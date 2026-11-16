@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
+import { checkDecision, checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
 import { apiError, parseGeneration, parseModels, pickModel } from '@/intelligence/gemini-parse';
 
 const facts = { title: 'Veste Harrington Ralph Lauren M', brand: 'Ralph Lauren', size: 'M', condition: 'très bon état', defects: null, material: '100 % coton', measures: 'longueur 70 cm · aisselle-aisselle 55 cm', price: '59 €' };
@@ -74,8 +74,21 @@ describe('drafts held to what ERA knows', () => {
     expect(offerInMessage('Bonjour, je vous propose 40 € ?')).toBe(4000);
     expect(offerInMessage('35,50 euros ça irait ?')).toBe(3550);
     expect(offerInMessage('Vous pouvez faire un prix ?')).toBeNull();
+    // Several amounts: the one the offer word leads to, else the lowest.
+    expect(offerInMessage('Je l’ai vu à 45 € ailleurs, je vous propose 30 €')).toBe(3000);
+    expect(offerInMessage('Je propose 30 €, il est à 45 € ailleurs')).toBe(3000);
+    expect(offerInMessage('Il est à 45 €, 30 € ?')).toBe(3000);
     expect(cleanDraft('Description : « **Veste** en très bon état. »')).toBe('Veste en très bon état.');
     expect(nothingToAdd('RIEN')).toBe(true);
     expect(nothingToAdd('Rien à signaler sur la doublure.')).toBe(false);
+  });
+
+  it('a reply that accepts an offer ERA declined or countered is flagged; saying it cannot be accepted is not', () => {
+    const declined = { verdict: 'DECLINE', offer: '1 €', ask: '59 €' } as const;
+    expect(checkDecision('D’accord pour 1 €, je vous l’envoie demain.', declined)).toEqual([{ kind: 'DECISION', text: 'D’accord pour 1 €, je vous l’envoie demain' }]);
+    expect(checkDecision('Merci pour votre offre de 1 €, mais je ne peux pas l’accepter. Le prix reste 59 €.', declined)).toEqual([]);
+    expect(checkDecision('Ok pour 40 €', { verdict: 'COUNTER', offer: '40 €', counter: '55 €' })).toHaveLength(1);
+    expect(checkDecision('Je vous le laisse à 55 €.', { verdict: 'COUNTER', offer: '40 €', counter: '55 €' })).toEqual([]);
+    expect(checkDecision('D’accord pour 40 €', { verdict: 'ACCEPT', offer: '40 €' })).toEqual([]);
   });
 });

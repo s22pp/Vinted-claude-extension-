@@ -9,6 +9,11 @@ describe('parcels on their way', () => {
     expect(parcelStage('Colis en cours de livraison')).toBe('IN_TRANSIT');
     expect(parcelStage('Colis disponible au point relais')).toBe('AT_PICKUP');
     expect(parcelStage('Livré')).toBe('DELIVERED');
+    // Planned is not delivered; collected by the carrier is sent; a claim on a delivered parcel is still delivered here.
+    expect(parcelStage('Livraison prévue le 3 oct.')).toBe('IN_TRANSIT');
+    expect(parcelStage('Colis récupéré par le transporteur')).toBe('SENT');
+    expect(parcelStage('Livré · réclamation en cours')).toBe('DELIVERED');
+    expect(parcelStage('Ready for pickup')).toBe('AT_PICKUP');
     expect(parcelStage('Envoyé')).toBe('SENT');
     expect(parcelStage('Commande terminée')).toBe('DONE');
     expect(parcelStage('Remboursée')).toBe('CANCELLED');

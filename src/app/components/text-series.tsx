@@ -11,7 +11,16 @@ import { useEra } from '../state';
 import { RouteFlag } from './route-flag';
 
 type OpKind = TextOp['kind'];
-type Outcome = { itemId: string; state: 'DONE' | 'ALREADY' | 'FAILED' | 'SKIPPED'; detail?: string };
+type Outcome = { itemId: string; state: 'DONE' | 'UNCONFIRMED' | 'ALREADY' | 'FAILED' | 'SKIPPED'; detail?: string };
+
+/**
+ * A word the shield blocks in the new text and not already in the old one: a title that already says "type" can still
+ * get "vintage" added (the shield flags it on the listing itself, not here).
+ */
+function newBlockedWord(before: string, after: string, brand: string | null): string | null {
+  const had = new Set(shieldCheck(before, brand).filter((i) => i.severity === 'block').map((i) => i.match.toLowerCase()));
+  return shieldCheck(after, brand).find((i) => i.severity === 'block' && !had.has(i.match.toLowerCase()))?.match ?? null;
+}
 
 const liveId = (v: ItemView) => {
   const id = v.current?.platformListingId ?? null;
@@ -54,11 +63,11 @@ export function TextSeries() {
     return { after: problem ? null : applyTextOp(cur, op, field), known: true };
   };
 
-  /** A word that gets listings removed (counterfeit term, another brand, contact off Vinted): never sent. */
+  /** A word the change brings that gets listings removed (counterfeit term, another brand, contact off Vinted): never sent. */
   const blocked = (v: ItemView): string | null => {
     const p = preview(v);
-    const text = field === 'title' && p.after ? p.after : op.text;
-    return shieldCheck(text, v.item.brand).find((i) => i.severity === 'block')?.match ?? null;
+    if (field === 'title' && p.after) return newBlockedWord(v.current?.title ?? '', p.after, v.item.brand);
+    return shieldCheck(op.text, v.item.brand).find((i) => i.severity === 'block')?.match ?? null;
   };
 
   if (era.mode !== 'real') return <p className="t-small t-muted">{t('series.demo')}</p>;
@@ -84,7 +93,7 @@ export function TextSeries() {
       setReadyAt(at + WRITE_SPACING_MS);
       setNow(at);
       if (r.ok) {
-        setDone((d) => [...d, { itemId, state: r.changed ? 'DONE' : 'ALREADY', detail: r.after }]);
+        setDone((d) => [...d, { itemId, state: !r.changed ? 'ALREADY' : r.unconfirmed ? 'UNCONFIRMED' : 'DONE', detail: r.after }]);
         setQueue(queue.slice(1));
       } else {
         // A stop on Vinted's side or one of ERA's limits: the series pauses on this listing (never skipped silently).
@@ -143,7 +152,7 @@ export function TextSeries() {
           <ul className="stack t-small" style={{ gap: 4, margin: 0, paddingLeft: 18 }} data-testid="series-done">
             {done.map((o, i) => (
               <li key={`${o.itemId}-${i}`}>
-                <Badge tone={o.state === 'DONE' ? 'emerald' : o.state === 'FAILED' ? 'coral' : 'neutral'}>{t(`series.state.${o.state}`)}</Badge> {era.viewById.get(o.itemId)?.item.title ?? o.itemId}
+                <Badge tone={o.state === 'DONE' ? 'emerald' : o.state === 'FAILED' ? 'coral' : o.state === 'UNCONFIRMED' ? 'amber' : 'neutral'}>{t(`series.state.${o.state}`)}</Badge> {era.viewById.get(o.itemId)?.item.title ?? o.itemId}
                 {o.detail && <span className="t-faint"> · {o.detail}</span>}
               </li>
             ))}
@@ -256,7 +265,7 @@ export function TitleOnVinted({ v, title }: { v: ItemView; title: string }) {
   const id = liveId(v);
   if (era.mode !== 'real' || !id) return null;
   const same = (v.current?.title ?? '').replace(/\s+/g, ' ').trim() === title.replace(/\s+/g, ' ').trim();
-  const block = shieldCheck(title, v.item.brand).find((i) => i.severity === 'block');
+  const blockWord = newBlockedWord(v.current?.title ?? '', title, v.item.brand);
   const send = async () => {
     setBusy(true);
     let r: TextEditResult;
@@ -267,21 +276,21 @@ export function TitleOnVinted({ v, title }: { v: ItemView; title: string }) {
     }
     setBusy(false);
     setConfirming(false);
-    if (r.ok) toast('success', r.changed ? t('series.titleDone') : t('series.already'), r.after);
+    if (r.ok) toast(r.unconfirmed ? 'warning' : 'success', !r.changed ? t('series.already') : r.unconfirmed ? t('series.state.UNCONFIRMED') : t('series.titleDone'), r.after);
     else errorToast(r);
   };
   if (same) return null;
   return (
     <div className="stack" style={{ gap: 6 }} data-testid="title-on-vinted">
-      {block && <p className="t-small t-warn">{t('series.blocked', { word: block.match })}</p>}
+      {blockWord && <p className="t-small t-warn">{t('series.blocked', { word: blockWord })}</p>}
       {confirming && <p className="t-small">{t('series.titleConfirm', { from: v.current?.title ?? '', to: title })}</p>}
       <div>
         {confirming ? (
-          <Button size="sm" variant="primary" icon="check" loading={busy} disabled={!!block} onClick={() => void send()}>
+          <Button size="sm" variant="primary" icon="check" loading={busy} disabled={!!blockWord} onClick={() => void send()}>
             {t('series.titleSend')}
           </Button>
         ) : (
-          <Button size="sm" variant="ghost" icon="upload" disabled={!!block} onClick={() => setConfirming(true)}>
+          <Button size="sm" variant="ghost" icon="upload" disabled={!!blockWord} onClick={() => setConfirming(true)}>
             {t('series.titleReplace')} <RouteFlag kinds={['TITLE']} />
           </Button>
         )}

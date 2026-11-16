@@ -113,7 +113,14 @@ export async function applyDescriptionOnVinted(platformListingId: string, text: 
     const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:desc', text, ...(expectBefore !== undefined ? { expectBefore } : {}) } satisfies EraMessage)) as EditFormResult;
     if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
     await leftEditPage(tabId);
-    const after = await readListingDescription(platformListingId);
+    // Saved on the page: a read-back that cannot be made is "not confirmed", never a failure (it may be on Vinted).
+    let after: string | null;
+    try {
+      after = await readListingDescription(platformListingId);
+    } catch (e) {
+      await writeJournal({ kind: 'DESCRIPTION', dryRun: false, ok: true, unconfirmed: true, target: `annonce ${platformListingId}`, detail: `enregistrée sur la page, relecture impossible (${failText(e)}) : vérifiez l’annonce (non confirmé)` }).catch(() => undefined);
+      return { ok: true, unconfirmed: true };
+    }
     if (after === null || !sameText(after, text)) {
       keepOpen = true; // let the seller see what Vinted shows
       await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
@@ -151,7 +158,6 @@ export async function applyTextOnVinted(platformListingId: string, field: TextFi
     await journal(kind, false, platformListingId, failText(e));
     throw e;
   }
-  let keepOpen = false;
   try {
     const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:text', field, op } satisfies EraMessage)) as EditTextResult;
     if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail);
@@ -159,10 +165,16 @@ export async function applyTextOnVinted(platformListingId: string, field: TextFi
     if (res.after === null) return { ok: true, changed: false, before: res.before, after: res.before };
     const after = res.after;
     await leftEditPage(tabId);
-    const shown = field === 'title' ? await readListingTitle(platformListingId) : await readListingDescription(platformListingId);
+    // Saved on the page: a read-back that cannot be made is "not confirmed", never a failure (it may be on Vinted).
+    let shown: string | null;
+    try {
+      shown = field === 'title' ? await readListingTitle(platformListingId) : await readListingDescription(platformListingId);
+    } catch (e) {
+      await writeJournal({ kind, dryRun: false, ok: true, unconfirmed: true, target: `annonce ${platformListingId}`, detail: `enregistré sur la page, relecture impossible (${failText(e)}) : vérifiez l’annonce (non confirmé)` }).catch(() => undefined);
+      return { ok: true, changed: true, before: res.before, after, unconfirmed: true };
+    }
     if (shown === null || !sameFieldText(field, shown, after)) {
-      keepOpen = true; // let the seller see what Vinted shows
-      await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+      // Said with what Vinted shows; the page is closed (a series never piles up tabs or pulls the seller out of ERA).
       const what = field === 'title' ? 'titre' : 'description';
       throw new MarketplaceError('NOT_APPLIED', shown === null ? `${what} introuvable à la relecture` : `Vinted affiche toujours ${field === 'title' ? 'l’ancien titre' : 'l’ancienne description'}`);
     }
@@ -178,7 +190,7 @@ export async function applyTextOnVinted(platformListingId: string, field: TextFi
     await journal(kind, false, platformListingId, failText(e));
     throw e;
   } finally {
-    if (!keepOpen) await browser.tabs.remove(tabId).catch(() => undefined);
+    await browser.tabs.remove(tabId).catch(() => undefined);
   }
 }
 

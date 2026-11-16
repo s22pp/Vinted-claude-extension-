@@ -98,12 +98,22 @@ export function replyRequest(f: DraftFacts, buyer: string, d: ReplyDecision): Ai
   };
 }
 
-/** An offer written in the buyer's message ("je vous propose 40 €", "35 euros ?"), in cents; null when none is clear. */
+/**
+ * The offer written in the buyer's message ("je vous propose 40 €", "35 euros ?"), in cents; null when none is clear.
+ * Several amounts ("vu à 45 € ailleurs, je propose 30 €"): the one an offer word leads to, else the lowest.
+ */
 export function offerInMessage(text: string): number | null {
-  const m = /(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euros?\b)/i.exec(text);
-  if (!m) return null;
-  const n = Number(m[1]!.replace(',', '.'));
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+  const matches = [...text.matchAll(/(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euros?\b)/gi)];
+  // The words leading to each amount: since the amount before it (at most 30 characters), never across it.
+  const found = matches
+    .map((m, i) => {
+      const prevEnd = i > 0 ? matches[i - 1]!.index! + matches[i - 1]![0].length : 0;
+      return { cents: Math.round(Number(m[1]!.replace(',', '.')) * 100), before: text.slice(Math.max(prevEnd, m.index! - 30), m.index) };
+    })
+    .filter((x) => Number.isFinite(x.cents) && x.cents > 0);
+  if (!found.length) return null;
+  const offered = found.filter((x) => /propos|offr|donne|fai[st]?\b|faire|laiss|prendr|pai|pay|budget|max/i.test(x.before));
+  return (offered.length ? offered[offered.length - 1]! : found.reduce((a, b) => (b.cents < a.cents ? b : a))).cents;
 }
 
 /** The model's text as the seller will read it: no Markdown bold, no quotes around it, no label before it. */
@@ -120,7 +130,7 @@ export function cleanDraft(text: string): string {
 /** The model answered that the seller's text already says everything. */
 export const nothingToAdd = (text: string) => /^rien\.?$/i.test(text.trim());
 
-export type DraftIssue = { kind: 'NUMBER' | 'MATERIAL' | 'CLAIM' | 'SHIELD'; text: string };
+export type DraftIssue = { kind: 'NUMBER' | 'MATERIAL' | 'CLAIM' | 'SHIELD' | 'DECISION'; text: string };
 
 const MATERIALS = ['coton', 'laine', 'polyester', 'cuir', 'lin', 'soie', 'cachemire', 'viscose', 'elasthanne', 'nylon', 'acrylique', 'daim', 'denim', 'velours', 'polaire', 'merinos', 'gore-tex', 'alpaga', 'mohair', 'lyocell', 'modal'];
 const CLAIMS = ['authentique', 'original', 'certifie', 'garanti', 'jamais porte', 'neuf', 'vintage', 'rare', 'edition limitee'];
@@ -150,4 +160,21 @@ export function checkDraft(draft: string, known: string, brand: string | null, p
   for (const c of CLAIMS) if (has(d, c) && !has(k, c)) out.push({ kind: 'CLAIM', text: c });
   for (const i of shieldCheck(draft, brand)) if (i.severity === 'block') out.push({ kind: 'SHIELD', text: i.match });
   return out;
+}
+
+const ACCEPT_WORDS = /d.?accord|j.?accepte|accept[ée]e?|ok pour|ça marche|ca marche|c.?est bon|march[ée] conclu|va pour|je vous le laisse|je te le laisse|vendu/i;
+
+/**
+ * The reply goes against ERA's decision: an offer ERA declined or countered, accepted in the same sentence that names
+ * its amount ("D'accord pour 1 €"). The amount alone is allowed (the reply may say it cannot accept it).
+ */
+export function checkDecision(draft: string, d: ReplyDecision): DraftIssue[] {
+  if (d.verdict !== 'DECLINE' && d.verdict !== 'COUNTER') return [];
+  const offer = [...numbersIn(d.offer)][0];
+  if (offer === undefined) return [];
+  for (const sentence of draft.split(/[.!?\n]+/)) {
+    if (ACCEPT_WORDS.test(sentence) && numbersIn(sentence).has(offer) && !/(ne|n')\s*\S*\s*(peux|pourrai|accepte|vais)\s*pas/i.test(sentence))
+      return [{ kind: 'DECISION', text: sentence.trim() }];
+  }
+  return [];
 }

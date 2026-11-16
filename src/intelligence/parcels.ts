@@ -1,3 +1,5 @@
+import { saysDelivered } from './delivered';
+
 /**
  * Parcels on their way — to the seller (purchases) and from the seller (sales) — read from what ERA really has:
  * Vinted's own status words (UNVERIFIED wording), the day each status appeared, and, when the seller asks for it,
@@ -16,10 +18,11 @@ export function parcelStage(status: string | null | undefined, needsAction = fal
   const s = status.toLowerCase();
   if (/annul|rembours|cancel|refund/.test(s)) return 'CANCELLED';
   if (/termin|complet|finalis|completed/.test(s)) return 'DONE';
-  if (/en cours de livraison|en transit|transit|en route|achemin|out for delivery/.test(s)) return 'IN_TRANSIT';
-  if (/point relais|disponible|à retirer|a retirer|à récupérer|a recuperer|pick.?up|locker|consigne/.test(s)) return 'AT_PICKUP';
-  if (/livr|delivered|récupér|recuper/.test(s)) return 'DELIVERED';
-  if (/envoy|expédi|expedi|déposé|depose|pris en charge|shipped|sent/.test(s)) return 'SENT';
+  if (/en cours de livraison|en transit|transit|en route|achemin|out for delivery|livraison prévue|livraison prevue|estim/.test(s)) return 'IN_TRANSIT';
+  if (/point relais|disponible|à retirer|a retirer|à récupérer|a recuperer|pick.?up point|(for|ready).{0,6}pick.?up|locker|consigne/.test(s)) return 'AT_PICKUP';
+  // The same strict reading as the "parcel delivered" message: collected by the carrier is sent, not delivered.
+  if (saysDelivered(status)) return 'DELIVERED';
+  if (/envoy|expédi|expedi|déposé|depose|pris en charge|shipped|sent|transporteur|courier|carrier|picked up/.test(s)) return 'SENT';
   if (/bordereau|à envoyer|a envoyer|attente d.envoi|en attente|paiement|payé|paye/.test(s)) return 'TO_SHIP';
   return 'UNKNOWN';
 }

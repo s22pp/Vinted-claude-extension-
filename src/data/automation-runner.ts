@@ -312,6 +312,10 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
   const adapter = new VintedTabAdapter();
   const sent = new Set(await repo.getSetting<string[]>('autoDeliveredSent', []));
   const noted = new Set(await repo.getSetting<string[]>('autoDeliveredNoted', []));
+  // Sends that failed without a clear refusal (timeout, server error): Vinted may have kept the message.
+  const uncertain = new Set(await repo.getSetting<string[]>('autoDeliveredUncertain', []));
+  // The message as it stands in a conversation (its start: the greeting at the end depends on the hour).
+  const inConversation = async (convId: string, text: string) => JSON.stringify(await adapter.rawGet(`/api/v2/conversations/${convId}`)).includes(JSON.stringify(text.slice(0, 60)).slice(1, -1));
   try {
     const plans = planDelivered(await latestSoldOrders(adapter), sent, now);
     for (const p of plans) {
@@ -335,15 +339,24 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
         continue;
       }
       try {
+        // An earlier send ended without a clear answer: look in the conversation before sending it again.
+        if (uncertain.has(p.key) && (await inConversation(o.conversationId!, text))) {
+          sent.add(p.key);
+          uncertain.delete(p.key);
+          await repo.setSetting('autoDeliveredSent', [...sent].slice(-500));
+          await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: true, target, detail: 'déjà dans la conversation (envoi précédent arrivé) : rien renvoyé' });
+          out.skipped++;
+          continue;
+        }
         await write('POST', `/api/v2/conversations/${o.conversationId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
         // Sent: never again for this order, whatever the read-back says — saved at once, not at the end of the pass
         // (a worker stopped mid-pass must not send it twice).
         sent.add(p.key);
+        uncertain.delete(p.key);
         await repo.setSetting('autoDeliveredSent', [...sent].slice(-500));
         let shown = false;
         try {
-          const conv = JSON.stringify(await adapter.rawGet(`/api/v2/conversations/${o.conversationId}`));
-          shown = conv.includes(JSON.stringify(text.slice(0, 60)).slice(1, -1));
+          shown = await inConversation(o.conversationId!, text);
         } catch {
           /* not read back: said as not confirmed */
         }
@@ -352,6 +365,11 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
       } catch (e) {
         out.failed++;
         const { code, detail } = errorInfo(e);
+        // No clear refusal (an HTTP 4xx, a block, a logout): the message may have arrived — checked before any resend.
+        if (!/HTTP 4\d\d\b/.test(detail ?? '') && !STOPPING.has(code)) {
+          uncertain.add(p.key);
+          await repo.setSetting('autoDeliveredUncertain', [...uncertain].slice(-200));
+        }
         await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
         const stop = stopReason(e);
         if (stop) {
@@ -367,6 +385,7 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
   if (!dryRun) {
     await repo.setSetting('autoDeliveredSent', [...sent].slice(-500));
     await repo.setSetting('autoDeliveredNoted', [...noted].slice(-500));
+    await repo.setSetting('autoDeliveredUncertain', [...uncertain].slice(-200));
   }
   await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Colis livré → message', detail: summary(out) });
   return out;

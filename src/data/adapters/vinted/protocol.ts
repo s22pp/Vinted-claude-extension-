@@ -121,11 +121,12 @@ export interface CatalogPageRead {
 
 export type PriceStage = 'OPENING' | 'FILLING' | 'SAVING' | 'VERIFYING' | 'DONE';
 export type EditFormResult = { ok: true; before: string } | { ok: false; detail: string };
-export type DescEditResult = { ok: true } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+/** unconfirmed: saved on the edit page, but Vinted could not be read back (look at the listing). */
+export type DescEditResult = { ok: true; unconfirmed?: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 /** The page's field before, and after (null: nothing to change, nothing saved). */
 export type EditTextResult = { ok: true; before: string; after: string | null } | { ok: false; detail: string };
 /** changed false: the text was already there on Vinted, nothing was saved. */
-export type TextEditResult = { ok: true; changed: boolean; before: string; after: string } | { ok: false; code: MarketplaceErrorCode; detail?: string };
+export type TextEditResult = { ok: true; changed: boolean; before: string; after: string; unconfirmed?: boolean } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 export type PriceEditResult = { ok: true; before: number | null; after: number } | { ok: false; code: MarketplaceErrorCode; detail?: string };
 
 export type ImportStage = 'CONNECTING' | 'READING' | 'MATCHING' | 'COMPLETE';

@@ -127,7 +127,8 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
         const st = statusReport(orders.map((o) => o.status))
           .map((s) => `« ${s.status} »${s.n > 1 ? ` ×${s.n}` : ''}${s.delivered ? ' (lu livré)' : ''}`)
           .join(', ');
-        return { ...count(j, ['my_orders', 'orders']), info: `${count(j, ['my_orders', 'orders']).info} · conversation sur ${withConv}/${orders.length} · statuts : ${st || 'aucun'}` };
+        const read = count(j, ['my_orders', 'orders']);
+        return { ...read, info: `${read.info} · conversation sur ${withConv}/${orders.length} · statuts : ${st || 'aucun'}` };
       },
     ],
     ['purchases', purchases, (j) => count(j, ['my_orders', 'orders'])],

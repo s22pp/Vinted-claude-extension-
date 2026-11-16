@@ -54,10 +54,14 @@ export function applyTextOp(before: string, op: TextOp, field: TextField): strin
       if (endsWithWord(cur, add)) return null;
       after = cur ? `${cur}${sep}${add}` : add;
       break;
-    case 'replace':
-      if (!before.includes(op.find)) return null;
-      after = clean(before.split(op.find).join(op.text));
+    case 'replace': {
+      // A replacement that contains what it replaces ("Veste" → "Veste vintage") is applied only outside the places it
+      // already stands: running it again (a retry, a second series) never doubles it.
+      const pieces = op.text && op.text.includes(op.find) ? before.split(op.text) : [before];
+      if (!pieces.some((p) => p.includes(op.find))) return null;
+      after = clean(pieces.map((p) => p.split(op.find).join(op.text)).join(op.text));
       break;
+    }
   }
   return after === cur ? null : after;
 }

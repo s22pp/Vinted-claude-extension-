@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { GEMINI_STORE, type GeminiConfig, clearGemini, geminiConfig, geminiWrite, keyHint, saveGemini, testGeminiKey } from '@/data/gemini';
 import { useI18n } from '@/i18n';
-import { type DraftFacts, type DraftIssue, type ReplyDecision, checkDraft, cleanDraft, factLines, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
+import { type DraftFacts, type DraftIssue, type ReplyDecision, checkDecision, checkDraft, cleanDraft, factLines, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
 import type { ItemIntel } from '@/intelligence/decision';
 import { evaluateOffer } from '@/intelligence/offer';
 import { stagnationThreshold } from '@/intelligence/stagnation';
@@ -106,6 +106,21 @@ export function GeminiCard() {
   );
 }
 
+/**
+ * The seller's acknowledgement of a draft's issues, valid for THOSE issues only: a new one (the draft edited after the
+ * box was ticked) asks again.
+ */
+export function useAck(issues: DraftIssue[]): [boolean, (v: boolean) => void] {
+  const [ackFor, setAckFor] = useState<string | null>(null);
+  return ackOf(issues, ackFor, setAckFor);
+}
+
+/** The same, for a component that keeps `ackFor` itself (its issues are known only after an early return). */
+export function ackOf(issues: DraftIssue[], ackFor: string | null, setAckFor: (s: string | null) => void): [boolean, (v: boolean) => void] {
+  const sig = issues.map((i) => `${i.kind}:${i.text}`).join('|');
+  return [issues.length === 0 || ackFor === sig, (v: boolean) => setAckFor(v ? sig : null)];
+}
+
 /** What a draft says that ERA's facts do not: shown, and to be acknowledged before the text is used. */
 export function DraftIssues({ issues, ack, onAck }: { issues: DraftIssue[]; ack: boolean; onAck: (v: boolean) => void }) {
   const { t } = useI18n();
@@ -139,8 +154,10 @@ export function AiReply({ intel }: { intel: ItemIntel }) {
   const [buyer, setBuyer] = useState('');
   const offer = useMoneyField(null);
   const [draft, setDraft] = useState<string | null>(null);
-  const [issues, setIssues] = useState<DraftIssue[]>([]);
-  const [ack, setAck] = useState(false);
+  // What the draft may draw on, kept from the generation: the draft is checked again at every edit.
+  const [basis, setBasis] = useState<{ known: string; priced: string; decision: ReplyDecision } | null>(null);
+  const issues: DraftIssue[] = draft !== null && basis ? [...checkDraft(draft, basis.known, intel.view.item.brand, basis.priced), ...checkDecision(draft, basis.decision)] : [];
+  const [ack, setAck] = useAck(issues);
   const [busy, setBusy] = useState(false);
   const detected = offerInMessage(buyer);
   // The amount typed wins over the one read in the message.
@@ -163,11 +180,10 @@ export function AiReply({ intel }: { intel: ItemIntel }) {
     const r = await geminiWrite(replyRequest(facts, buyer, decision));
     setBusy(false);
     if (!r.ok) return toast('error', t('gemini.failed'), r.detail);
-    const text = cleanDraft(r.text);
     const priced = [...factLines(facts), JSON.stringify(decision)].join('\n');
-    setDraft(text);
     // The buyer's message may be quoted, never its prices: a price must be ERA's.
-    setIssues(checkDraft(text, `${priced}\n${buyer}`, v.item.brand, priced));
+    setBasis({ known: `${priced}\n${buyer}`, priced, decision });
+    setDraft(cleanDraft(r.text));
     setAck(false);
   };
   return (
@@ -192,7 +208,7 @@ export function AiReply({ intel }: { intel: ItemIntel }) {
         <>
           <textarea className="input" rows={4} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={t('gemini.draft')} data-testid="ai-draft" />
           <DraftIssues issues={issues} ack={ack} onAck={setAck} />
-          <div className="row" style={{ gap: 8 }}>{(issues.length === 0 || ack) && <CopyButton text={draft} />}</div>
+          <div className="row" style={{ gap: 8 }}>{ack && <CopyButton text={draft} />}</div>
         </>
       )}
       <p className="t-small t-faint">{t('gemini.replyNever')}</p>

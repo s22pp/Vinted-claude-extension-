@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -109,7 +109,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (/^\/api\/v2\/conversations\/94\d\d\/replies$/.test(url.pathname) && method === 'POST') {
       const id = url.pathname.split('/')[4]!;
       (state.replies[id] ??= []).push((JSON.parse(route.request().postData() ?? '{}') as { reply: { body: string } }).reply.body);
-      return json({});
+      // Vinted kept the message, but the answer is a server error: the send looks failed.
+      return opts.replyStoredButFails ? json({ code: 500 }, 500) : json({});
     }
     if (/^\/api\/v2\/conversations\/94\d\d$/.test(url.pathname)) {
       const id = url.pathname.split('/')[4]!;
@@ -709,6 +710,29 @@ for (const hidden of [false, true])
     await expect(log.locator('tr', { hasText: 'Colis livré → message' }).first()).toContainText('0 faites', { timeout: 60_000 });
     expect(writes()).toHaveLength(1);
   });
+
+test('parcel delivered: a send that failed without a clear refusal is looked for in the conversation, never sent twice', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+  const calls = await fakeVinted(context, { loggedIn: true, replyStoredButFails: true, orders: [{ title: 'Jean Levi’s 501 W32', price: { amount: '30.0' }, date: day(3), status: 'Colis livré', conversation_id: 9401, transaction_id: 7401 }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const card = page.getByTestId('auto-delivered');
+  await card.getByLabel('Activer le message après livraison').check();
+  const log = page.getByTestId('auto-log');
+  const writes = () => calls.filter((c) => c.method !== 'GET');
+  await card.getByRole('button', { name: 'Lancer maintenant' }).click();
+  await expect(log).toContainText('HTTP 500', { timeout: 60_000 });
+  expect(writes()).toHaveLength(1);
+  // Next pass: the message is in the conversation (Vinted kept it): nothing is sent again.
+  await card.getByRole('button', { name: 'Lancer maintenant' }).click();
+  await expect(log).toContainText('déjà dans la conversation (envoi précédent arrivé) : rien renvoyé', { timeout: 60_000 });
+  expect(writes()).toHaveLength(1);
+  expect(calls.state.replies['9401']).toHaveLength(1);
+});
 
 test('price analysis without a brand on Vinted: searches the title’s words, never "inconnue", and learns the brand', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 106, title: 'Chemise Bonobo lin L', price: '20.0', view_count: 12, favourite_count: 0, brand_title: '', is_draft: false, is_closed: false, is_hidden: false, photos: [] }] });

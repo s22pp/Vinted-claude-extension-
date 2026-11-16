@@ -28,6 +28,10 @@ describe('title and description changed by an operation, applied to what Vinted 
     expect(applyTextOp('Veste Carhartt Detroit Carhartt', { kind: 'replace', find: 'Carhartt', text: 'Marlboro' }, 'title')).toBe('Veste Marlboro Detroit Marlboro');
     expect(applyTextOp('Veste carhartt', { kind: 'replace', find: 'Carhartt', text: 'Marlboro' }, 'title')).toBeNull();
     expect(applyTextOp('Veste neuve Harrington', { kind: 'replace', find: 'neuve', text: '' }, 'title')).toBe('Veste Harrington');
+    // A replacement containing what it replaces is applied once: a second run changes nothing.
+    const once = applyTextOp('Veste Harrington M', { kind: 'replace', find: 'Veste', text: 'Veste vintage' }, 'title');
+    expect(once).toBe('Veste vintage Harrington M');
+    expect(applyTextOp(once!, { kind: 'replace', find: 'Veste', text: 'Veste vintage' }, 'title')).toBeNull();
   });
 
   it('refused before anything is opened: empty text, blanks to fill, a title on two lines, a no-op replacement', () => {

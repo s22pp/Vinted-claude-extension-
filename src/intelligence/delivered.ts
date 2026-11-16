@@ -11,15 +11,29 @@ export const DEFAULT_DELIVERED =
 /** An order older than this is never messaged, whatever its status says (a stale status is not a delivery). */
 export const DELIVERED_MAX_DAYS = 21;
 
-/** Vinted's status says delivered (or collected), and nothing else: "livré(e)", "delivered", "récupéré(e)". */
-export function isDelivered(status: string | null | undefined): boolean {
+/**
+ * The status says the parcel reached the buyer: "livré(e)", "delivered", "récupéré(e)" — never collected BY the
+ * carrier (it has just left), planned or estimated, on its way, or not delivered. Shared with the Colis screen.
+ */
+export function saysDelivered(status: string | null | undefined): boolean {
   if (!status) return false;
   const s = status.toLowerCase();
   if (/\b(non|pas)\s+(encore\s+)?(livr|récup|recup)/.test(s)) return false;
-  // Cancelled or already completed (validated: nothing left to ask), or still on its way.
-  if (/annul|rembours|cancel|refund|termin|complet|finalis/.test(s)) return false;
-  if (/en cours de livraison|en cours d.achemin|transit|prévu|prevu|estim|attente d.envoi|attente de paiement|à envoyer|a envoyer/.test(s)) return false;
+  if (/transporteur|livreur|coursier|courier|carrier|chauffeur|driver/.test(s)) return false;
+  if (/en cours de livraison|en cours d.achemin|transit|prévu|prevu|estim/.test(s)) return false;
   return /livr[ée]|delivered|r[ée]cup[ée]r[ée]|picked up/.test(s);
+}
+
+/**
+ * Delivered, and the message still makes sense: not cancelled, not already validated (nothing left to ask), no claim
+ * or dispute open (never a review request then), not still waiting to be sent.
+ */
+export function isDelivered(status: string | null | undefined): boolean {
+  if (!saysDelivered(status)) return false;
+  const s = status!.toLowerCase();
+  if (/annul|rembours|cancel|refund|termin|complet|finalis/.test(s)) return false;
+  if (/réclamation|reclamation|litige|problème|probleme|signal|retour|dispute|claim|issue/.test(s)) return false;
+  return !/attente d.envoi|attente de paiement|à envoyer|a envoyer/.test(s);
 }
 
 export interface DeliveredOrder {
