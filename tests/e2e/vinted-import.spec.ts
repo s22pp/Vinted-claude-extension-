@@ -680,6 +680,11 @@ for (const hidden of [false, true])
     const card = page.getByTestId('auto-delivered');
     await card.getByLabel('Activer le message après livraison').check();
     await expect(card.getByTestId('auto-delivered-preview')).toContainText('Votre colis est bien arrivé. Si l’article vous plaît, n’hésitez pas à valider la commande et à me laisser une évaluation.');
+    // The status words of the imported sales, and how ERA reads them, without a call.
+    const seen = card.getByTestId('auto-delivered-statuses');
+    await expect(seen).toContainText(/Colis livré ×\d ✓/);
+    await expect(seen).toContainText('En cours de livraison');
+    await expect(seen).not.toContainText('En cours de livraison ✓');
     const log = page.getByTestId('auto-log');
     const writes = () => calls.filter((c) => c.method !== 'GET');
 
@@ -1257,6 +1262,8 @@ test('account check: every read ERA relies on, once each, read-only; the result 
   await expect(diag).toContainText('aucune vente avec sa conversation');
   await expect(diag).toContainText('adresse d’expédition par défaut présente (contenu non repris ici)');
   await expect(diag).toContainText('description lue');
+  // What the "parcel delivered" message relies on, from the same read: the status words and the order's conversation.
+  await expect(diag).toContainText('conversation sur 0/1 · statuts : « Terminée »');
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
   expect(calls.length).toBeLessThanOrEqual(14);
   const stock = page.locator('.integ__row', { hasText: 'Import du stock' });

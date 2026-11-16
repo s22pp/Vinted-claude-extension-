@@ -60,3 +60,12 @@ export function deliveredText(template: string, order: Pick<DeliveredOrder, 'tit
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
+
+/** The status texts Vinted gave the seller's orders, how often, and whether ERA reads each as delivered. */
+export function statusReport(statuses: readonly (string | null | undefined)[]): { status: string; n: number; delivered: boolean }[] {
+  const counts = new Map<string, number>();
+  for (const s of statuses) if (s && s.trim()) counts.set(s.trim(), (counts.get(s.trim()) ?? 0) + 1);
+  return [...counts]
+    .map(([status, n]) => ({ status, n, delivered: isDelivered(status) }))
+    .sort((a, b) => Number(b.delivered) - Number(a.delivered) || b.n - a.n || a.status.localeCompare(b.status));
+}

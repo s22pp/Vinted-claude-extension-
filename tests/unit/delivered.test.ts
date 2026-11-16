@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DELIVERED, deliveredText, isDelivered, planDelivered } from '@/intelligence/delivered';
+import { DEFAULT_DELIVERED, deliveredText, isDelivered, planDelivered, statusReport } from '@/intelligence/delivered';
 
 const DAY = 86_400_000;
 const NOW = new Date(2026, 9, 1, 20, 30).getTime();
@@ -33,5 +33,13 @@ describe('parcel delivered → one message to the buyer', () => {
     expect(DEFAULT_DELIVERED).toMatch(/valider la commande/);
     expect(DEFAULT_DELIVERED).toMatch(/évaluation/);
     expect(DEFAULT_DELIVERED).toMatch(/abonner à mon compte/);
+  });
+
+  it('the statuses seen on the sales, counted, those read as delivered first', () => {
+    expect(statusReport(['Terminée', 'Colis livré', 'Terminée', null, ' ', 'En cours de livraison', 'Colis livré'])).toEqual([
+      { status: 'Colis livré', n: 2, delivered: true },
+      { status: 'Terminée', n: 2, delivered: false },
+      { status: 'En cours de livraison', n: 1, delivered: false },
+    ]);
   });
 });

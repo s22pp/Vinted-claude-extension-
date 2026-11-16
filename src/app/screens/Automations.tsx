@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ScheduleCost } from '../components/schedule-cost';
 import { useEffect, useState } from 'react';
 import type { AutoKind, AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
-import { DEFAULT_DELIVERED, deliveredText } from '@/intelligence/delivered';
+import { DEFAULT_DELIVERED, deliveredText, statusReport } from '@/intelligence/delivered';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -37,6 +37,8 @@ export function Automations() {
   }, [stored]);
 
   const log = useLiveQuery(() => db.autoLog.orderBy('at').reverse().limit(60).toArray(), []);
+  // The status words Vinted gave your imported sales: whether ERA reads "delivered" in them is seen here, without a call.
+  const statuses = useLiveQuery(async () => statusReport((await db.sales.filter((s) => !s.isDemo).toArray()).map((s) => s.vintedStatus)), []);
   if (!cfg) return null;
   // Previews use one of the seller's own listings (the most favourited), else a plain example.
   const listed = era.views.filter((v) => v.current && !v.item.isDemo).sort((a, b) => (b.current!.favorites ?? 0) - (a.current!.favorites ?? 0))[0];
@@ -200,6 +202,23 @@ export function Automations() {
                 <Button size="sm" variant="ghost" onClick={() => set((c) => ({ ...c, delivered: { ...c.delivered, template: DEFAULT_DELIVERED } }))}>
                   {t('auto.delivered.reset')}
                 </Button>
+              )}
+            </div>
+            <div className="t-small" data-testid="auto-delivered-statuses">
+              {statuses?.length ? (
+                <>
+                  <span className="t-muted">{t('auto.delivered.seen')}</span>{' '}
+                  {statuses.slice(0, 12).map((s) => (
+                    <Badge key={s.status} tone={s.delivered ? 'emerald' : 'neutral'} title={s.delivered ? t('auto.delivered.readDelivered') : t('auto.delivered.readOther')}>
+                      {s.status}
+                      {s.n > 1 ? ` ×${s.n}` : ''}
+                      {s.delivered ? ' ✓' : ''}
+                    </Badge>
+                  ))}
+                  {!statuses.some((s) => s.delivered) && <p className="t-faint" style={{ marginTop: 4 }}>{t('auto.delivered.noneSeen')}</p>}
+                </>
+              ) : (
+                <span className="t-faint">{t('auto.delivered.noStatus')}</span>
               )}
             </div>
             <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }}>

@@ -2,7 +2,8 @@ import { errorInfo } from '../marketplace';
 import { db } from '../../db';
 import { DEFAULT_SEARCH_TEMPLATE, SEARCH_DOWN_KEY, SEARCH_TEMPLATE_KEY, VintedTabAdapter, ensureVintedTab, findVintedTab } from './vinted-adapter';
 import { PURCHASES_TEMPLATE_KEY } from './orders';
-import { currentUserId, firstArray } from './parse';
+import { currentUserId, firstArray, parseOrder } from './parse';
+import { statusReport } from '@/intelligence/delivered';
 import type { BudgetStatus, EraMessage } from './protocol';
 
 /** The last diagnostic search that gave comparables on the real account: proof the search works here, and how. */
@@ -116,7 +117,19 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
   };
   const purchases = ((await db.settings.get(PURCHASES_TEMPLATE_KEY))?.value as string | undefined)?.replace('{page}', '1') ?? '/api/v2/my_orders?type=purchased&status=all&page=1&per_page=5';
   const steps2: [DiagKey, string | null, (j: unknown) => { ok: boolean; info: string }][] = [
-    ['sold', '/api/v2/my_orders?type=sold&status=all&page=1&per_page=5', (j) => count(j, ['my_orders', 'orders'])],
+    [
+      'sold',
+      '/api/v2/my_orders?type=sold&status=all&page=1&per_page=20',
+      (j) => {
+        // What the "parcel delivered" message relies on: the order's status words and its conversation.
+        const orders = firstArray(j, ['my_orders', 'orders']).map((o) => parseOrder(o)).filter((o): o is NonNullable<typeof o> => o !== null);
+        const withConv = orders.filter((o) => o.conversationId !== null).length;
+        const st = statusReport(orders.map((o) => o.status))
+          .map((s) => `« ${s.status} »${s.n > 1 ? ` ×${s.n}` : ''}${s.delivered ? ' (lu livré)' : ''}`)
+          .join(', ');
+        return { ...count(j, ['my_orders', 'orders']), info: `${count(j, ['my_orders', 'orders']).info} · conversation sur ${withConv}/${orders.length} · statuts : ${st || 'aucun'}` };
+      },
+    ],
     ['purchases', purchases, (j) => count(j, ['my_orders', 'orders'])],
     ['notifications', '/web/api/notifications/notifications?page=1&per_page=5', (j) => count(j, ['notifications'])],
     ['inbox', '/api/v2/inbox?page=1&per_page=5', (j) => count(j, ['conversations'])],
