@@ -720,7 +720,7 @@ for (const hidden of [false, true])
     expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
     const body = JSON.parse(writes()[0]!.body!).reply.body as string;
     expect(body).toMatch(/^Bonjour ! Votre colis est bien arrivé : merci beaucoup pour votre achat !/);
-    expect(body).toMatch(/abonner à mon compte\. Bonne (journée|soirée) !$/);
+    expect(body).toMatch(/abonnez-vous à mon compte pour ne pas les manquer\. Bonne (journée|soirée) !$/);
     await expect(log).toContainText(hidden ? 'envoyé, pas relu dans la conversation (non confirmé)' : 'relu dans la conversation', { timeout: 30_000 });
 
     // Another pass: the same order is never messaged twice.
@@ -767,7 +767,7 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   const pilot = page.getByTestId('pilot');
   await pilot.getByLabel('Activer les tournées automatiques').check();
   await expect(pilot.getByTestId('pilot-next')).toContainText(/Prochaine tournée : .* à (9|13|21) h\./);
-  await expect(pilot.getByLabel('Tournée 3')).toHaveValue('21');
+  await expect(pilot.getByLabel('Tournée 3', { exact: true })).toHaveValue('21');
   await expect(pilot).toContainText('Colis livrés ✓');
   await expect(pilot).toContainText('Offres reçues (désactivé)');
   const before = calls.length;
@@ -777,7 +777,11 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
   await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first()).toContainText(/Tournée de \d+ h faite/, { timeout: 90_000 });
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
-  await expect(row).toContainText('Fait : 1 message colis livré');
+  await expect(row).toContainText('Fait pour vous : 1 remerciement (colis livré)');
+  // The round's footprint on Vinted, said in the notice; the message sent is in the contacts database, shown measured.
+  await expect(row).toContainText(/Vinted : \d+ requêtes pour toute la tournée/);
+  await expect(page.getByTestId('outcomes-messages')).toContainText('Colis livré → remerciement');
+  await expect(page.getByTestId('outcomes-messages')).toContainText('1 en attente');
   // The round read the stock and sales again, then sent the one message, nothing else.
   const mine = calls.slice(before);
   expect(mine.some((c) => c.path.startsWith('/api/v2/wardrobe/'))).toBe(true);
@@ -1008,8 +1012,8 @@ test('autopilot with labels: the labels of the orders to ship are ready as PDF a
   await expect(pilot).toContainText('Bordereaux ✓');
   await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
-  await expect(row).toContainText('2 bordereaux enregistrés (Téléchargements/ERA-bordereaux)', { timeout: 150_000 });
-  await expect(row).toContainText('2 colis à envoyer');
+  await expect(row).toContainText('2 bordereaux prêts (Téléchargements/ERA-bordereaux)', { timeout: 150_000 });
+  await expect(row).toContainText('2 colis à déposer');
   // The ready label only fetched, the other one ordered like Vinted's own button: the only write of the round.
   expect(calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/v2/transactions/7200/shipment/order']);
   await closeCarrier();

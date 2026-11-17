@@ -1,4 +1,5 @@
 import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
+import { awaitingReply, noteInbox, recentInbox, recordContact, settleContacts } from './contacts';
 import { journal } from './journal';
 import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
@@ -34,6 +35,15 @@ const obj = (x: unknown): Json => (typeof x === 'object' && x !== null && !Array
 const idOf = (x: unknown): string | null => (typeof x === 'number' ? String(x) : typeof x === 'string' && /^\d+$/.test(x) ? x : null);
 const eur = (cents: number) => eurText(cents, 2);
 
+/** The seller's Vinted id, read once and kept 6 h by this worker: the agents of a round share it (one call, not one each). */
+let me: { id: string; at: number } | null = null;
+async function sellerId(adapter: VintedTabAdapter, now: number): Promise<string | null> {
+  if (me && now - me.at < 6 * 3_600_000) return me.id;
+  const id = currentUserId(await adapter.rawGet('/api/v2/users/current'));
+  if (id) me = { id, at: now };
+  return id;
+}
+
 /** ERA's view of the seller's live listings, by Vinted id: title, price and known cost (for the floor). */
 async function itemsByVintedId(): Promise<Map<string, FavItem>> {
   const listings = await db.listings.filter((l) => !l.isDemo && l.platformListingId !== null && (l.status === 'ACTIVE' || l.status === 'RESERVED' || l.status === 'HIDDEN')).toArray();
@@ -41,17 +51,18 @@ async function itemsByVintedId(): Promise<Map<string, FavItem>> {
   return new Map(
     listings.map((l) => {
       const it = items.get(l.inventoryItemId);
-      return [l.platformListingId!, { title: l.title, priceCents: l.priceCents, costCents: it?.purchasePriceCents ?? null, brand: it?.brand ?? null }];
+      return [l.platformListingId!, { title: l.title, priceCents: l.priceCents, costCents: it?.purchasePriceCents ?? null, brand: it?.brand ?? null, itemId: l.inventoryItemId }];
     }),
   );
 }
 
 /** One of the seller's chosen messages for this favourite, filled in. */
-function favText(cfg: AutoConfig, key: string, offerCents: number | null, v: { pseudo: string | null; title: string; brand: string | null; price: number | null }): string {
+function favPick(cfg: AutoConfig, key: string, offerCents: number | null, v: { pseudo: string | null; title: string; brand: string | null; price: number | null }): { text: string; tpl: string } {
   const list = offerCents === null ? cfg.fav.templatesNoOffer : cfg.fav.templates;
   const tpl = pickMessage(list, key) ?? pickMessage(offerCents === null ? DEFAULT_FAV_NO_OFFER : DEFAULT_FAV_OFFER, key)!;
-  return fillTemplate(tpl, { pseudo: v.pseudo, titre: cleanTitle(v.title), article: articleOf(v.title, v.brand), prix: v.price, prixOffre: offerCents });
+  return { text: fillTemplate(tpl, { pseudo: v.pseudo, titre: cleanTitle(v.title), article: articleOf(v.title, v.brand), prix: v.price, prixOffre: offerCents }), tpl };
 }
+const favText = (...a: Parameters<typeof favPick>) => favPick(...a).text;
 
 function stopReason(e: unknown): string | null {
   const { code, detail } = errorInfo(e);
@@ -112,6 +123,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         // Seen only once the message is sent: a failed reply is tried again, never dropped.
         for (const n of b.notices) seen.add(n.key);
         await log({ kind: 'FAV_BUNDLE', dryRun, ok: true, target, detail: `« ${text} »` });
+        await recordContact({ at: now, kind: 'FAV_BUNDLE', conversationId: convId, itemId: its[0]?.itemId ?? null, title: its.map((i) => i.title).join(' + '), variant: tpl, askCents: b.totalCents ?? null, offerCents: b.bundleCents, delayMs: now - Math.max(...b.notices.map((x) => x.at)) }).catch(() => undefined);
         sentToday++;
         await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
         out.done++;
@@ -169,9 +181,10 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         const title = item?.title ?? (typeof tx.item_title === 'string' ? tx.item_title : `annonce ${n.itemId}`);
         const price = item?.priceCents ?? priceCents(tx.offer_price);
         if (plan.message) {
-          const text = favText(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price });
+          const { text, tpl } = favPick(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price });
           await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
           await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
+          await recordContact({ at: now, kind: 'FAV_MESSAGE', conversationId: convId, itemId: item?.itemId ?? null, title, variant: tpl, askCents: price, offerCents: plan.offerCents, delayMs: now - n.at }).catch(() => undefined);
         }
         const txId = idOf(tx.id);
         let offerSent = false;
@@ -179,6 +192,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
           step = 'FAV_OFFER';
           await write('POST', `/api/v2/transactions/${txId}/offers`, { offer: { price: (plan.offerCents / 100).toFixed(2), currency: 'EUR' } });
           await log({ kind: 'FAV_OFFER', dryRun, ok: true, target, detail: `offre ${eur(plan.offerCents)}${price !== null ? ` au lieu de ${eur(price)}` : ''}` });
+          await recordContact({ at: now, kind: 'FAV_OFFER', conversationId: convId, itemId: item?.itemId ?? null, title, variant: null, askCents: price, offerCents: plan.offerCents, delayMs: now - n.at }).catch(() => undefined);
           offerSent = true;
         } else if (plan.offerCents !== null) {
           // The offer was planned but Vinted gives no transaction for this conversation: said, never counted as sent.
@@ -222,8 +236,14 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
   const adapter = new VintedTabAdapter();
   const state = await repo.getSetting<OfferState>('autoOfferState', {});
   try {
-    const me = currentUserId(await adapter.rawGet('/api/v2/users/current'));
-    const offers = parseInboxOffers(await adapter.rawGet('/api/v2/inbox?page=1&per_page=20'), me);
+    const me = await sellerId(adapter, now);
+    const inbox = await adapter.rawGet('/api/v2/inbox?page=1&per_page=20');
+    // The same read settles the answers to earlier contacts (no extra call).
+    if (!dryRun) {
+      noteInbox(inbox, me, now);
+      await settleContacts({ json: inbox, me }, now).catch(() => undefined);
+    }
+    const offers = parseInboxOffers(inbox, me);
     const items = await itemsByVintedId();
     for (const o of offers) {
       if (out.done >= PER_RUN) break;
@@ -263,6 +283,7 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
           state[o.offerId] = { ...state[o.offerId], logged: true, at: now };
         }
         await log({ kind, dryRun, ok: true, target, detail: `${what}${floorTxt}` });
+        await recordContact({ at: now, kind, conversationId: o.conversationId, itemId: item?.itemId ?? null, title: o.itemTitle, variant: d.action === 'ACCEPT' && cfg.offers.acceptMessage.trim() ? cfg.offers.acceptMessage : null, askCents: o.itemPriceCents, offerCents: d.action === 'COUNTER' ? d.counterCents : o.offerCents, delayMs: null }).catch(() => undefined);
         out.done++;
       } catch (e) {
         out.failed++;
@@ -286,6 +307,22 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
   }
   await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Offres reçues', detail: summary(out) });
   return out;
+}
+
+/**
+ * Settles the contacts database at the end of a round: sales from what ERA holds (no call); answers from the inbox an
+ * automation just read, else from one read of the inbox (2 calls: who the seller is, the inbox) — only when contacts of
+ * the last 7 days still wait for an answer.
+ */
+export async function refreshContacts(now = Date.now()): Promise<{ replied: number; sold: number }> {
+  let inbox: { json: unknown; me: string | null } | null = recentInbox(now);
+  if (!inbox && (await awaitingReply(now)) > 0) {
+    const adapter = new VintedTabAdapter();
+    const me = await sellerId(adapter, now);
+    inbox = { json: await adapter.rawGet('/api/v2/inbox?page=1&per_page=20'), me };
+    noteInbox(inbox.json, me, now);
+  }
+  return settleContacts(inbox, now);
 }
 
 /** The seller's sales, page 1 (the latest 20): the ones whose parcel was just delivered are there. */
@@ -361,6 +398,7 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
           /* not read back: said as not confirmed */
         }
         await log({ kind: 'DELIVERED_MESSAGE', dryRun, ok: true, unconfirmed: !shown, target, detail: `« ${text} »${shown ? ' · relu dans la conversation' : ' · envoyé, pas relu dans la conversation (non confirmé)'}` });
+        await recordContact({ at: now, kind: 'DELIVERED', conversationId: o.conversationId, itemId: null, title: o.title, variant: cfg.delivered.template, askCents: null, offerCents: null, delayMs: null }).catch(() => undefined);
         out.done++;
       } catch (e) {
         out.failed++;

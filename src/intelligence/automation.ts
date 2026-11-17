@@ -140,6 +140,8 @@ export interface FavItem {
   costCents: number | null;
   /** Known brand (for "la veste Ralph Lauren" in messages), null when unknown. */
   brand?: string | null;
+  /** ERA's article (inventory id): a sale of it after a message is the message's outcome. */
+  itemId?: string;
 }
 
 export type FavPlan =

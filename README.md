@@ -180,21 +180,32 @@ Stock → **Qualité** → « Lire N descriptions sur Vinted » (lecture budgét
 - une mesure qu'ERA ne connaît pas reste **« __ cm »** : vous la lisez sur le vêtement et la tapez — **ERA n'invente aucune mesure ni composition** ; rien ne part sur Vinted tant qu'il reste un « __ » ;
 - **Copier** pour coller vous-même sur Vinted, ou **« Remplacer sur Vinted »** (EXPERIMENTAL) : après confirmation, une annonce à la fois, ERA ouvre la page de modification en arrière-plan, écrit **le champ description seul** (jamais la catégorie, le prix ou les photos ; au moindre doute sur la page, rien n'est enregistré), enregistre, puis **relit Vinted** : « fait » seulement si le nouveau texte y apparaît. Chaque envoi compte dans le budget d'appels et s'écrit dans le journal.
 
-## Pilote automatique : deux tournées par jour (EXPERIMENTAL)
+## Pilote automatique : vos tournées, à vos heures (EXPERIMENTAL)
 
-Outils → Automatisations → **Pilote automatique** (désactivé par défaut, vraies données seulement) : à vos deux heures (12 h et 21 h par défaut), ERA fait une tournée **dans votre Chrome** :
+Outils → Automatisations → **Pilote automatique** (désactivé par défaut, vraies données seulement) : à vos heures (**9 h, 13 h et 21 h** par défaut ; de 1 à 4 tournées, « Ajouter une tournée » / ✕), ERA fait une tournée **dans votre Chrome**. Chaque tâche est un agent spécialisé, sans IA sauf les réponses Gemini (votre clé) : **zéro jeton Claude** par tournée, et les agents partagent leurs lectures (votre identifiant Vinted, la messagerie) pour envoyer le moins de requêtes possible :
 
 1. lit votre stock et vos ventes ;
-2. fait les automatisations que vous avez activées et enregistrées : offres reçues, favoris, message « colis livré » ;
+2. fait les automatisations que vous avez activées et enregistrées : offres reçues, favoris (message et offre), remerciement « colis livré » (merci, évaluation si l'article a plu, abonnement au compte) ;
 3. si vous l'avez coché, **prépare les bordereaux** des colis à envoyer : récupérés, ou commandés comme le bouton de Vinted, puis enregistrés en PDF dans `Téléchargements/ERA-bordereaux/` (il ne reste qu'à imprimer et déposer) ;
 4. lance les alertes d'achat et la sauvegarde si elles sont activées ;
-5. termine par **une notification** : ce qui a été fait, et ce qui reste pour vous (colis à envoyer avec leurs bordereaux, colis à surveiller, colis à retirer). Un clic l'ouvre dans ERA.
+5. relève **ce qui a suivi** les messages et offres (réponses, ventes) dans la base des contacts (voir plus bas) ;
+6. termine par **une notification calme** : ce qui a été fait, la suite de vos messages, ce qui reste pour vous (colis à déposer d'abord), et le nombre de requêtes Vinted de toute la tournée. Un arrêt est expliqué simplement (« Vinted a demandé une pause… vos données sont intactes »). Un clic l'ouvre dans ERA.
 
-- **Chrome doit être ouvert** à l'heure de la tournée (une extension ne tourne pas navigateur fermé). Chrome fermé à l'heure : la tournée est faite à l'ouverture si elle date de moins de 3 h, sinon la suivante vient.
+- **Chrome doit être ouvert** à l'heure de la tournée (une extension ne tourne pas navigateur fermé). Chrome fermé à l'heure : la tournée est faite à l'ouverture si elle date de moins de 3 h et que la suivante n'est pas dans moins d'1 h, sinon la suivante vient.
 - **Onglet vinted.fr** : ERA utilise le vôtre s'il répond ; sinon il en ouvre un **en arrière-plan** (il recharge une fois une première ouverture ratée) et le **referme** après. Il ne recharge ni ne navigue jamais vos onglets.
+- **Session** : 60 requêtes par session, 12 par minute, inchangé. Une session finit avec Chrome **ou après 3 h sans aucune requête à Vinted** : chaque tournée de la journée repart avec son budget, même Chrome resté ouvert des jours (avant, les tournées s'arrêtaient dès le 2ᵉ jour). Après un blocage (403/429), rien ne repart seul : il faut redémarrer Chrome.
 - Mêmes garde-fous que tout le reste : budget de la session et sa réserve pour vos clics, 12 s entre deux envois, 40 par jour, **arrêt immédiat** sur un blocage (403/429) ou une déconnexion, journal de chaque action.
 - **Jamais seul** : déposer les colis, prendre les photos, publier, baisser un prix ou republier — un clic chacun. La notification de fin de tournée vous les rappelle.
-- Aucune tâche dans le cloud ne touche votre compte : tout se passe dans votre navigateur, avec votre session.
+- Aucune tâche dans le cloud ne touche votre compte : tout se passe dans votre navigateur, avec votre session. Une tâche Claude dans le cloud ne peut pas se connecter à votre Vinted sans votre mot de passe, depuis un serveur : exactement l'activité automatisée qui a fait bloquer le compte.
+
+## Ce qui fait répondre et acheter (base des contacts)
+
+Automatisations → **Ce qui fait répondre et acheter**. Chaque message, offre et réponse **vraiment envoyés** par ERA (jamais une simulation) est gardé dans une base locale (`contacts`, incluse dans les sauvegardes) avec ce qui a suivi :
+
+- **réponse** de l'acheteur : lue dans la messagerie Vinted que l'agent des offres lit déjà, sinon une seule lecture en fin de tournée quand des contacts des 7 derniers jours attendent une réponse (EXPERIMENTAL : champs de la messagerie non vérifiés sur votre compte) ;
+- **vente** de l'article dans les 14 jours : d'après vos ventes importées, sans requête.
+
+Quatre tableaux : les **messages** mot pour mot (lequel obtient le plus de réponses), les **offres** par profondeur (95 %, 90 %, 85 %… du prix : lesquelles font acheter), le **délai** entre le favori et votre message, et les **republications** par délai depuis la mise en ligne précédente (vendus en 14 jours, délai médian, d'après vos annonces). Pas de pourcentage sous 5 envois mesurés : un chiffre n'est pas une conclusion. Ce sont des tendances, pas des preuves.
 
 ## Titres et descriptions en série (EXPERIMENTAL)
 

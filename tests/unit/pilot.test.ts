@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPilotHour, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
+import { addPilotHour, calmStop, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
 
 const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).getTime();
 const round = { hour: 12, stopped: null, imported: { listings: 18, sold: 3 }, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
@@ -38,18 +38,28 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(runLateRound(at(16, 13), at(16, 16, 30), at(16, 21))).toBe(false);
   });
 
-  it('the notice: what was done, then what only the seller can do', () => {
+  it('the notice, calm: what was done, what followed, then what only the seller can do — parcels first', () => {
     const n = pilotNotice({ ...round, offers: 2, delivered: 1, backup: true, toShip: 3, toCollect: 1 });
     expect(n.title).toBe('Tournée de 12 h faite');
-    expect(n.lines).toEqual(['Stock lu : 18 annonces, 3 ventes', 'Fait : 2 offres traitées · 1 message colis livré · sauvegarde faite', 'Pour vous : 3 colis à envoyer (bordereaux dans Ventes) · 1 colis à retirer']);
-    expect(pilotNotice(round).lines.slice(1)).toEqual(['Fait : rien à traiter', 'Pour vous : rien d’urgent']);
+    expect(n.lines).toEqual(['Stock à jour : 18 annonces, 3 ventes', 'Fait pour vous : 2 offres traitées · 1 remerciement (colis livré) · sauvegarde faite', 'Pour vous : 3 colis à déposer (bordereaux dans Ventes) · 1 colis à retirer']);
+    expect(pilotNotice(round).lines.slice(1)).toEqual(['Fait pour vous : rien de nouveau à traiter', 'Pour vous : rien à faire, tout est à jour']);
     expect(pilotNotice({ ...round, priceCuts: 2, toList: 1 }).lines[2]).toBe('Pour vous : 2 baisses de prix prévues (Stock → « Baisse à faire », un clic chacune) · 1 article à mettre en ligne (Atelier)');
     expect(pilotNotice({ ...round, labels: 2, labelsNotSaved: 1, toShip: 3 }).lines.slice(1)).toEqual([
-      'Fait : 2 bordereaux enregistrés (Téléchargements/ERA-bordereaux)',
-      'Pour vous : 1 bordereau à télécharger depuis Ventes · 3 colis à envoyer (bordereaux dans Ventes)',
+      'Fait pour vous : 2 bordereaux prêts (Téléchargements/ERA-bordereaux)',
+      'Pour vous : 3 colis à déposer · 1 bordereau à télécharger depuis Ventes',
     ]);
+    expect(pilotNotice({ ...round, replies: 2, toAnswer: 1, outcomes: { replied: 3, sold: 1 } }).lines.slice(1)).toEqual([
+      'Fait pour vous : 2 réponses aux acheteurs',
+      'Suite de vos messages : 3 réponses reçues · 1 vente',
+      'Pour vous : 1 message à lire vous-même (Vinted → Messages)',
+    ]);
+  });
+
+  it('a stop said calmly: what happened, nothing lost, what comes next', () => {
     const stopped = pilotNotice({ ...round, imported: null, stopped: 'NOT_LOGGED_IN · session expirée' });
-    expect(stopped.title).toBe('Tournée de 12 h arrêtée');
-    expect(stopped.lines[0]).toBe('Arrêt : NOT_LOGGED_IN · session expirée');
+    expect(stopped.title).toBe('Tournée de 12 h interrompue');
+    expect(stopped.lines[0]).toBe('Vinted vous a déconnecté : reconnectez-vous sur vinted.fr, la tournée suivante reprendra normalement.');
+    expect(calmStop('NETWORK_403 · refus')).toMatch(/pause.*6 h.*intactes/);
+    expect(calmStop('UNAVAILABLE · HTTP 500')).toBe('Tournée interrompue (UNAVAILABLE · HTTP 500) : rien n’est perdu, la suivante réessaiera.');
   });
 });

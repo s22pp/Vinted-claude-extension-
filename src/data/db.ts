@@ -1,3 +1,4 @@
+import type { ContactRow } from '@/intelligence/outcomes';
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   ActivationEvent,
@@ -101,6 +102,8 @@ export class EraDatabase extends Dexie {
   invoices!: EntityTable<InvoiceRow, 'saleId'>;
   autoLog!: EntityTable<AutoLogRow, 'id'>;
   expenses!: EntityTable<ExpenseRow, 'id'>;
+  /** Every contact ERA made for the seller, and what followed (answer, sale): see intelligence/outcomes. */
+  contacts!: EntityTable<ContactRow, 'id'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -121,6 +124,7 @@ export class EraDatabase extends Dexie {
     this.version(4).stores({ invoices: 'saleId, year, seq' });
     this.version(5).stores({ autoLog: 'id, at, kind' });
     this.version(6).stores({ expenses: 'id, date, category' });
+    this.version(7).stores({ contacts: 'id, at, kind, conversationId, itemId' });
   }
 }
 

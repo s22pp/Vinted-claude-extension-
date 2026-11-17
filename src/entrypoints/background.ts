@@ -7,7 +7,7 @@ import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage
 import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
-import { loadAutoConfig, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
+import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
@@ -321,6 +321,7 @@ async function pilotTab(): Promise<number | null> {
 async function runPilotRound(hour: number): Promise<PilotRound> {
   const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
   let openedTab: number | null = null;
+  let callsBefore: number | null = null;
   const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
   try {
     if ((await repo.getSetting('dataMode', 'empty')) !== 'real') {
@@ -331,6 +332,7 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
       r.stopped = 'budget de la session gardé pour vos clics (réserve) ou Vinted en pause après un blocage';
       return r;
     }
+    callsBefore = Object.values(await budget.uses()).reduce((a, b) => a + (b ?? 0), 0);
     openedTab = await pilotTab();
     const cfg = await loadAutoConfig();
     const pilot = await loadPilot();
@@ -361,12 +363,22 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
         const a = await runBuyAlerts();
         r.deals = a.deals.length;
       }
+      // What followed the contacts (answers, sales): the measures of what makes people answer and buy.
+      if (!r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        const c = await refreshContacts().catch(() => null);
+        if (c) r.outcomes = c;
+      }
     });
   } catch (e) {
     const { code, detail } = errorInfo(e);
     r.stopped = `${code}${detail ? ` · ${detail}` : ''}`;
   } finally {
     if (openedTab !== null) await browser.tabs.remove(openedTab).catch(() => undefined);
+  }
+  // The round's footprint on Vinted, every agent together (a new session restarts the count: then what it holds now).
+  if (callsBefore !== null) {
+    const after = Object.values(await budget.uses()).reduce((a, b) => a + (b ?? 0), 0);
+    r.calls = after >= callsBefore ? after - callsBefore : after;
   }
   // The backup is local (no Vinted call): made even after a stop, when due.
   r.backup = (await runAutoBackup().catch(() => ({ ok: false }))).ok;
