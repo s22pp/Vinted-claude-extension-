@@ -676,7 +676,7 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
 
   // Simulation: reads only; the purchase cost is unknown, so no offer is planned.
   const before = calls.length;
-  await page.getByRole('button', { name: 'Simuler' }).first().click();
+  await page.getByRole('button', { name: 'Simuler', exact: true }).first().click();
   await expect(log).toContainText('coût d’achat inconnu', { timeout: 30_000 });
   expect(calls.slice(before).every((c) => c.method === 'GET')).toBe(true);
 
@@ -731,7 +731,7 @@ for (const hidden of [false, true])
     const writes = () => calls.filter((c) => c.method !== 'GET');
 
     // Simulation: reads only; the delivered order is found, the one on its way is not.
-    await card.getByRole('button', { name: 'Simuler' }).click();
+    await card.getByRole('button', { name: 'Simuler', exact: true }).click();
     await expect(log).toContainText('Jean Levi’s 501 W32 · Colis livré', { timeout: 30_000 });
     await expect(log).toContainText('Vinted ne donne pas la conversation de cette commande');
     await expect(log).toContainText('commande trop ancienne');
