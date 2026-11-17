@@ -13,10 +13,10 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
   });
 
   it('settings: off by default, 9 h, 13 h and 21 h, hours kept valid and ordered, four at the most', () => {
-    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, v: 2 });
+    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, v: 2 });
     expect(pilotConfig({ weekly: false, weekDay: 9 })).toMatchObject({ weekly: false, weekDay: 1 });
     expect(pilotConfig({ weekDay: 0 }).weekDay).toBe(0);
-    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true, v: 2 })).toEqual({ enabled: true, hours: [8, 21], labels: true, weekly: true, weekDay: 1, v: 2 });
+    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true, v: 2 })).toEqual({ enabled: true, hours: [8, 21], labels: true, weekly: true, weekDay: 1, priceCuts: false, v: 2 });
     expect(pilotConfig({ hours: [] }).hours).toEqual([9, 13, 21]);
     expect(pilotConfig({ hours: [23, 7, 9, 11, 13, 15], v: 2 }).hours).toEqual([7, 9, 11, 13]);
   });
@@ -55,6 +55,14 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
       'Suite de vos messages : 3 réponses reçues · 1 vente',
       'Pour vous : 1 message à voir dans ERA (Automatisations → Messages à voir)',
     ]);
+  });
+
+  it('price cuts made by ERA: the one done, the ones coming, a failed one retried', () => {
+    const n = pilotNotice({ ...round, priceCutsAuto: true, priceCut: { title: 'Veste', from: 5900, to: 5300, unconfirmed: false }, priceCuts: 2 });
+    expect(n.lines).toContain('Fait pour vous : prix baissé : Veste 59,00 € → 53,00 €');
+    expect(n.lines).toContain('À venir : 2 baisses de prix prévues, une par tournée');
+    expect(n.lines.at(-1)).toBe('Pour vous : rien à faire, tout est à jour');
+    expect(pilotNotice({ ...round, priceCutsAuto: true, priceCutFailed: 'Veste : NOT_APPLIED' }).lines.at(-1)).toBe('Pour vous : baisse de prix non faite (Veste : NOT_APPLIED) : réessayée à la tournée suivante');
   });
 
   it('a stop said calmly: what happened, nothing lost, what comes next', () => {

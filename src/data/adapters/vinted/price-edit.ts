@@ -18,7 +18,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * open the edit page in a background tab → set only the price → save → read Vinted back to verify.
  * Never reports success without seeing the new price in Vinted's own data.
  */
-export async function applyPriceOnVinted(platformListingId: string, cents: number, itemId: string, onStage: (s: PriceStage) => void): Promise<PriceEditResult> {
+/** `quiet`: a round of the autopilot — the edit tab is never brought to the front, and always closed. */
+export async function applyPriceOnVinted(platformListingId: string, cents: number, itemId: string, onStage: (s: PriceStage) => void, { quiet = false } = {}): Promise<PriceEditResult> {
   if (!/^\d+$/.test(platformListingId)) throw new MarketplaceError('EDIT_FORM', 'annonce sans identifiant Vinted');
   await reserveWrite();
   const r = await reserve('WRITE');
@@ -53,8 +54,10 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
       return { ok: true, before, after: cents, unconfirmed: true };
     }
     if (after !== cents) {
-      keepOpen = true; // let the seller see what Vinted shows
-      await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+      if (!quiet) {
+        keepOpen = true; // let the seller see what Vinted shows
+        await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+      }
       throw new MarketplaceError('NOT_APPLIED', after === null ? 'prix introuvable à la relecture' : `Vinted affiche toujours ${eurText(after, 2)}`);
     }
     // Vinted shows the new price: done, whatever happens to ERA's own copy (the next import aligns it).

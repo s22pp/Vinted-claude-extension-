@@ -1926,3 +1926,45 @@ test('buyers’ messages: a plain question answered from ERA’s facts, a proble
   await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'envoyé depuis ERA' }).first()).toBeVisible();
   await expect(page.getByTestId('outcomes-messages')).toContainText('Réponse à un acheteur');
 });
+
+test('autopilot price cut: the one the plan says is due, verified on Vinted — never without a known cost', async ({ context, base }) => {
+  test.setTimeout(200_000);
+  const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const pilot = page.getByTestId('pilot');
+  await pilot.getByLabel('Activer les tournées automatiques').check();
+  await pilot.getByLabel(/Faire les baisses de prix prévues par votre plan/).check();
+  await expect(pilot).toContainText('Baisses de prix ✓');
+  const rows = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' });
+  // No cost known: nothing is cut by itself, whatever the plan says.
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  await expect(rows.first()).toContainText(/Tournée de \d+ h faite/, { timeout: 90_000 });
+  await expect(rows.first()).not.toContainText('prix baissé');
+  expect(fake.prices['101']).toBe('59.0');
+  // The cost entered: the plan's cut due is made, one, read back on Vinted, never under the floor (cost + margin).
+  await page.evaluate(
+    () =>
+      new Promise<void>((done, fail) => {
+        const req = indexedDB.open('era-intelligence');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('items', 'readwrite');
+          const st = tx.objectStore('items');
+          const all = st.getAll();
+          all.onsuccess = () => {
+            for (const it of all.result as { title: string; purchasePriceCents: number | null }[]) if (/Ralph Lauren/.test(it.title)) st.put({ ...it, purchasePriceCents: 1500 });
+          };
+          tx.oncomplete = () => (req.result.close(), done());
+          tx.onerror = () => fail(tx.error);
+        };
+      }),
+  );
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  await expect(rows.first()).toContainText('prix baissé : Veste Harrington Ralph Lauren M 59,00 €', { timeout: 120_000 });
+  const now = Number(fake.prices['101']);
+  expect(now).toBeLessThan(59);
+  expect(now).toBeGreaterThanOrEqual(15);
+});

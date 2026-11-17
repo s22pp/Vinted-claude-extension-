@@ -255,9 +255,19 @@ répondre.
 ## Tout confier à ERA
 
 Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favoris, remerciement colis livré, réponses aux
-messages, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le physique : photos, emballage,
-dépôt, impression des bordereaux. ERA ne publie pas, ne baisse pas un prix et ne republie pas seul (un clic chacun dans
-ERA).
+messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le
+physique : photos, emballage, dépôt, impression des bordereaux. ERA ne publie pas et ne republie pas seul (un clic
+chacun dans ERA).
+
+### Baisses de prix prévues, faites par ERA (EXPERIMENTAL)
+
+Case « Faire les baisses de prix prévues par votre plan » (carte Pilote, désactivée par défaut, cochée par « Tout
+confier à ERA ») : à chaque tournée, **une** baisse — celle de votre plan de baisse (Stock → Plan de baisse) la plus en
+retard —, jamais enchaînées (une par tournée, des heures d'écart), **seulement pour un article dont le coût d'achat est
+connu**, jamais sous votre prix plancher (coût + marge minimale). Même chemin que le bouton « Modifier le prix sur
+Vinted » : page de modification ouverte en arrière-plan (jamais mise au premier plan), seul le prix changé, puis relu
+sur Vinted ; « non confirmé » quand la relecture est impossible. Au journal et dans la notification (« prix baissé :
+… 59 € → 53 € », « À venir : 2 baisses prévues, une par tournée »).
 
 ## Ce qui fait répondre et acheter (base des contacts)
 

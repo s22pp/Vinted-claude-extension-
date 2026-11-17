@@ -1,3 +1,5 @@
+import { eurText } from '@/domain/money';
+
 /**
  * The autopilot: rounds at the seller's chosen hours (9 h, 13 h and 21 h by default), run by ERA in the seller's own
  * Chrome — refresh, offers, favourites, delivered parcels, labels, buy alerts, backup — then one notification: what was
@@ -16,12 +18,14 @@ export interface PilotConfig {
   labels: boolean;
   /** The week's task (review, what worked, the week's to-do, data saved as CSV) in the first round of `weekDay`. */
   weekly: boolean;
+  /** The price cuts the seller's plan says are due: one per round, known cost only, never under the floor. Off by default. */
+  priceCuts: boolean;
   /** 0 = Sunday … 6 = Saturday; Monday by default. */
   weekDay: number;
   /** 2: hours set since three rounds became the default (an older 12 h + 21 h is the former default, not a choice). */
   v?: number;
 }
-export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, v: 2 };
+export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, v: 2 };
 const FORMER_DEFAULT = [12, 21];
 
 export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotConfig {
@@ -29,7 +33,7 @@ export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotCo
   if (c?.v !== 2 && raw.length === FORMER_DEFAULT.length && raw.every((h, i) => h === FORMER_DEFAULT[i])) raw = PILOT_DEFAULTS.hours;
   const hours = [...new Set(raw.filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b).slice(0, PILOT_MAX_ROUNDS);
   const weekDay = Number.isInteger(c?.weekDay) && c!.weekDay! >= 0 && c!.weekDay! <= 6 ? c!.weekDay! : PILOT_DEFAULTS.weekDay;
-  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, weekly: c?.weekly !== false, weekDay, v: 2 };
+  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, weekly: c?.weekly !== false, weekDay, priceCuts: c?.priceCuts === true, v: 2 };
 }
 
 /**
@@ -97,6 +101,11 @@ export interface PilotRound {
   outcomes?: { replied: number; sold: number };
   /** Requests sent to Vinted by the round, all agents together. */
   calls?: number;
+  /** The price cut made this round (the plan's, one per round), or why the one due was not made. */
+  priceCut?: { title: string; from: number; to: number; unconfirmed: boolean };
+  priceCutFailed?: string;
+  /** Price cuts are ERA's (the seller ticked them): the ones left are said as coming, not as the seller's. */
+  priceCutsAuto?: boolean;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -119,6 +128,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.favourites && plural(r.favourites, 'message aux favoris', 'messages aux favoris'),
     r.replies && plural(r.replies, 'réponse à un acheteur', 'réponses aux acheteurs'),
     r.delivered && plural(r.delivered, 'remerciement (colis livré)', 'remerciements (colis livrés)'),
+    r.priceCut && `prix baissé : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,
     r.deals && plural(r.deals, 'affaire repérée', 'affaires repérées'),
     r.labels && `${plural(r.labels, 'bordereau prêt', 'bordereaux prêts')} (Téléchargements/ERA-bordereaux)`,
     r.backup && 'sauvegarde faite',
@@ -130,7 +140,8 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.toAnswer && `${plural(r.toAnswer, 'message', 'messages')} à voir dans ERA (Automatisations → Messages à voir)`,
     r.late && `${plural(r.late, 'colis', 'colis')} à surveiller`,
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,
-    r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
+    r.priceCutFailed && `baisse de prix non faite (${r.priceCutFailed}) : réessayée à la tournée suivante`,
+    !r.priceCutsAuto && r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
     r.toList && `${plural(r.toList, 'article', 'articles')} à mettre en ligne (Atelier)`,
   ].filter((x): x is string => !!x);
   const title = r.stopped ? `Tournée de ${r.hour} h interrompue` : `Tournée de ${r.hour} h faite`;
@@ -141,6 +152,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
       ...(r.imported ? [`Stock à jour : ${plural(r.imported.listings, 'annonce', 'annonces')}, ${plural(r.imported.sold, 'vente', 'ventes')}`] : []),
       done.length ? `Fait pour vous : ${done.join(' · ')}` : 'Fait pour vous : rien de nouveau à traiter',
       ...(followed.length ? [`Suite de vos messages : ${followed.join(' · ')}`] : []),
+      ...(r.priceCutsAuto && r.priceCuts ? [`À venir : ${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')}, une par tournée`] : []),
       todo.length ? `Pour vous : ${todo.join(' · ')}` : 'Pour vous : rien à faire, tout est à jour',
       ...(typeof r.calls === 'number' ? [`Vinted : ${plural(r.calls, 'requête', 'requêtes')} pour toute la tournée`] : []),
     ],

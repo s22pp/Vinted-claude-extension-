@@ -68,7 +68,7 @@ export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Prom
   /** Everything ERA can do, switched on in one click: the automations, the rounds, the labels, the week's task. */
   const giveAll = async () => {
     await onAll();
-    await save({ ...cfg, enabled: true, labels: true, weekly: true });
+    await save({ ...cfg, enabled: true, labels: true, weekly: true, priceCuts: true });
     toast('success', t('pilot.allDone'), t('pilot.allDoneHint'));
   };
   const tasks: [string, boolean][] = [
@@ -78,6 +78,7 @@ export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Prom
     ['delivered', auto.delivered.enabled],
     ['replies', auto.replies.enabled],
     ['labels', cfg.labels],
+    ['priceCuts', cfg.priceCuts],
     ['alerts', others.alerts],
     ['backup', others.backup],
     ['weekly', cfg.weekly],
@@ -119,6 +120,12 @@ export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Prom
           <input id="pilot-labels" type="checkbox" className="checkbox" checked={cfg.labels} disabled={!others.real} onChange={(e) => void save({ ...cfg, labels: e.target.checked })} style={{ marginTop: 2 }} />
           <span>
             {t('pilot.labels')} <span className="t-small t-faint">{t('pilot.labelsHint')}</span>
+          </span>
+        </label>
+        <label htmlFor="pilot-cuts" className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input id="pilot-cuts" type="checkbox" className="checkbox" checked={cfg.priceCuts} disabled={!others.real} onChange={(e) => void save({ ...cfg, priceCuts: e.target.checked })} style={{ marginTop: 2 }} />
+          <span>
+            {t('pilot.priceCuts')} <span className="t-small t-faint">{t('pilot.priceCutsHint')}</span>
           </span>
         </label>
         <div className="row wrap" style={{ gap: 10, alignItems: 'flex-end' }}>

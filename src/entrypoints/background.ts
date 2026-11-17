@@ -16,6 +16,7 @@ import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/p
 import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
 import { weeklyDue } from '@/intelligence/weekly';
 import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
+import { duePriceCuts } from '@/data/price-cuts';
 import { AUTO_UPDATE_KEY, UPDATE_ALARM, firstSeen, fromFolder, justUpdated, pagesOpen, reloadOnto, updateState } from '@/data/self-update';
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
@@ -365,6 +366,25 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
         if (m.stopped && STOP.test(m.stopped)) r.stopped = m.stopped;
       }
       // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
+      // The plan's price cut due first (oldest), one per round — never chained, known cost only, never under the floor.
+      r.priceCutsAuto = pilot.priceCuts;
+      if (pilot.priceCuts && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        const c = (await duePriceCuts())[0];
+        if (c) {
+          try {
+            const run = applyPriceOnVinted(c.platformListingId, c.toCents, c.itemId, () => undefined, { quiet: true });
+            editing = run;
+            const res = await run;
+            if (res.ok) r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: !!res.unconfirmed };
+          } catch (e) {
+            const { code, detail } = errorInfo(e);
+            if (STOP.test(code)) r.stopped = `${code}${detail ? ` · ${detail}` : ''}`;
+            else r.priceCutFailed = `${c.title} : ${code}`;
+          } finally {
+            editing = null;
+          }
+        }
+      }
       if (pilot.labels && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
         const b = await getAllLabels();
         r.labels = b.results.filter((x) => x.ok && x.file).length;
