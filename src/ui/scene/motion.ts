@@ -6,30 +6,44 @@ export const reducedMotion = () => document.documentElement.dataset.motion === '
 
 let walking = 0;
 
+/** Where the new page comes from, by the direction of the walk (the camera of the shop walks the same way). */
+const ENTER: Record<Walk, string> = {
+  fwd: 'perspective(1400px) translate3d(5%, 8px, -180px) rotateY(-8deg)',
+  back: 'perspective(1400px) translate3d(-5%, 8px, -180px) rotateY(8deg)',
+  in: 'perspective(1400px) translate3d(0, 16px, -200px) rotateX(6deg)',
+  out: 'perspective(1400px) translate3d(0, -6px, 140px)',
+};
+
 /**
- * Changes the page as a walk in the shop (View Transitions, composited by the browser: the old page recedes, the new one
- * comes forward, in the direction of the walk). Without the API, with reduced motion or with no walk: changed at once.
- * Another click mid-walk: the browser ends the first one where it is and starts the next — never a blank page.
+ * Changes the page as a walk in the shop: the page is changed at once — clickable from the first instant, never a frozen
+ * image in between — and comes forward from the depth, in the direction of the walk (Web Animations: transform and
+ * opacity only, composited; nothing kept once done). The shop's camera walks the same way behind it: no cut.
+ * With reduced motion, or with no walk (same page, a page outside the shop): changed at once, nothing moves.
  */
 export function walkTo(walk: Walk | null, apply: () => void) {
-  const doc = document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void>; updateCallbackDone: Promise<void>; finished: Promise<void> } };
-  if (!walk || !doc.startViewTransition || reducedMotion() || document.hidden) {
+  if (!walk || reducedMotion() || document.hidden) {
     apply();
     return;
   }
   const root = document.documentElement;
   const id = ++walking;
   root.dataset.eraWalk = walk;
-  const vt = doc.startViewTransition(() => flushSync(apply));
-  // A click mid-walk skips this walk: the browser rejects its promises (« Transition was skipped ») — expected, the
-  // page has changed all the same. Each one handled, so it is never reported as a script error.
-  void vt.ready.catch(() => undefined);
-  void vt.updateCallbackDone.catch(() => undefined);
-  void vt.finished
-    .catch(() => undefined)
-    .finally(() => {
-      if (walking === id) delete root.dataset.eraWalk;
-    });
+  // Rendered now, so the new page is animated before it is ever painted (no flash of it in place).
+  flushSync(apply);
+  const page = document.getElementById('main');
+  const done = () => {
+    if (walking === id) delete root.dataset.eraWalk;
+  };
+  if (!page?.animate) return done();
+  const anim = page.animate(
+    [
+      { opacity: 0, transform: ENTER[walk] },
+      { opacity: 1, transform: 'none' },
+    ],
+    { duration: 440, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' },
+  );
+  // Cancelled by the next click (the page replaced mid-walk): expected, handled — never a script error.
+  void anim.finished.catch(() => undefined).finally(done);
 }
 
 let opened = false;
