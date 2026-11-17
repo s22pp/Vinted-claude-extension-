@@ -44,3 +44,17 @@ describe('buyer messages: read, sorted, answered only when sure', () => {
     expect(replyVerdict('Bonjour, elle mesure 70 cm.', [{ kind: 'NUMBER' }])).toBe('UNSURE');
   });
 });
+
+describe('messages waiting for the seller, in ERA', () => {
+  const p = (conv: string, at: number, buyer = 'Taille ?'): import('@/intelligence/buyer-messages').PendingReply => ({ key: `${conv}:${at}`, conversationId: conv, at, title: 'Veste', buyer, draft: null, why: 'SENSITIVE' });
+  it('one per conversation, the latest; none older than 7 days', async () => {
+    const { mergePending } = await import('@/intelligence/buyer-messages');
+    const l = mergePending([p('a', NOW - 2 * H), p('b', NOW - 8 * 24 * H)], p('a', NOW - H, 'Et la couleur ?'), NOW);
+    expect(l.map((x) => [x.conversationId, x.buyer])).toEqual([['a', 'Et la couleur ?']]);
+  });
+  it('gone once the seller wrote in the conversation since', async () => {
+    const { prunePending } = await import('@/intelligence/buyer-messages');
+    const inbox = new Map([['a', { updatedAt: NOW - H, fromOther: false }], ['b', { updatedAt: NOW - H, fromOther: true }]]);
+    expect(prunePending([p('a', NOW - 2 * H), p('b', NOW - 2 * H), p('c', NOW - 2 * H)], inbox, NOW).map((x) => x.conversationId)).toEqual(['b', 'c']);
+  });
+});

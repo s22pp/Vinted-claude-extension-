@@ -107,3 +107,33 @@ export function replyVerdict(draft: string, issues: readonly unknown[]): 'OK' | 
   if (/v[ée]rifi|reviens vers|revenir vers|je regarde|je vous (redis|tiens au courant|confirme)|je ne sais pas|pas s[ûu]r|aucune information|je n.ai pas (cette|l.)info/i.test(draft)) return 'DEFER';
   return issues.length ? 'UNSURE' : 'OK';
 }
+
+/** A buyer's message ERA did not answer by itself: shown in ERA with a drafted answer (when one is possible), sent on
+ * the seller's click — the seller never has to open Vinted for it. */
+export interface PendingReply {
+  key: string;
+  conversationId: string;
+  /** When the buyer wrote (or when ERA read it). */
+  at: number;
+  title: string | null;
+  buyer: string;
+  /** The answer ERA proposes, null when none is possible (a problem with an order: the seller writes it). */
+  draft: string | null;
+  why: 'SENSITIVE' | 'CONTACT' | 'OFFER' | 'ORDER' | 'NO_ITEM' | 'UNSURE' | 'DEFER' | 'NO_KEY' | 'AI_FAILED';
+  /** What the checks found in the draft (a number, a material… not in ERA's facts). */
+  issues?: string[];
+}
+
+/** One waiting message per conversation (the latest), none older than 7 days. */
+export function mergePending(list: readonly PendingReply[], p: PendingReply, now: number): PendingReply[] {
+  return [...list.filter((x) => x.conversationId !== p.conversationId), p].filter((x) => now - x.at <= 7 * 24 * 3_600_000).sort((a, b) => b.at - a.at);
+}
+
+/** Drops what no longer waits: the seller (or ERA) wrote in the conversation since, per the inbox. */
+export function prunePending(list: readonly PendingReply[], inbox: ReadonlyMap<string, { updatedAt: number | null; fromOther: boolean | null }>, now: number): PendingReply[] {
+  return list.filter((p) => {
+    if (now - p.at > 7 * 24 * 3_600_000) return false;
+    const a = inbox.get(p.conversationId);
+    return !(a && a.fromOther === false && a.updatedAt !== null && a.updatedAt > p.at);
+  });
+}
