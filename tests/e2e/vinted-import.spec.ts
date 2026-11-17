@@ -890,7 +890,7 @@ test('repost without loss: a draft copy with the same photos, the old listing de
   // Two imports and two spaced writes (≥ 12 s apart), under the 12-calls-per-minute limit, as on a real account.
   test.setTimeout(300_000);
   const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true }] };
-  const calls = await fakeVinted(context, { loggedIn: true, extra: [shirt] });
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [shirt] });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
@@ -912,7 +912,8 @@ test('repost without loss: a draft copy with the same photos, the old listing de
   const draft = JSON.parse(calls.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')!.body!).draft;
   expect(draft).toMatchObject({ title: 'Chemise Pierre Cardin L', price: '25.00', brand_id: 5575, size_id: 209, catalog_id: 1803, status_id: 2, package_size_id: 1, color_ids: [9], assigned_photos: [{ id: 7001, orientation: 0 }, { id: 7002, orientation: 0 }] });
   expect(calls.filter((c) => c.method === 'POST').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts']);
-  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://www.vinted.fr/items/555/edit']);
+  // Vinted is not opened: the copy is published from ERA.
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([]);
   await expect(page.getByTestId('repost-pending')).toContainText('brouillon');
 
   // Not published yet: ERA refuses to delete the old listing.
@@ -922,8 +923,10 @@ test('repost without loss: a draft copy with the same photos, the old listing de
   expect(calls.some((c) => c.path.endsWith('/delete'))).toBe(false);
   await page.keyboard.press('Escape');
 
-  // The seller publishes the copy on Vinted: the next import joins it to the SAME article.
-  calls.state.published555 = true;
+  // The copy published from ERA (the draft page's « Ajouter », read back): the next import joins it to the SAME article.
+  await page.getByRole('button', { name: 'Publier la copie sur Vinted' }).click();
+  await expect(page.getByText('Copie publiée sur Vinted')).toBeVisible({ timeout: 60_000 });
+  expect(calls.state.published555).toBe(true);
   calls.state.add.push({ ...shirt, id: 555, view_count: 0 });
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Actualiser/ }).first().click();

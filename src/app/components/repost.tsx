@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import type { EraMessage, PendingRepost, RepostFinishResult, RepostResult } from '@/data/adapters/vinted/protocol';
+import type { EraMessage, PendingRepost, RepostFinishResult, RepostResult, PublishResult } from '@/data/adapters/vinted/protocol';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { isLiveListing } from '@/domain/status';
@@ -93,7 +93,6 @@ export function RepostButton({ v }: { v: ItemView }) {
                   t('repost.created'),
                   r.photosBack !== null && r.photosBack !== r.photos ? t('repost.photosMismatch', { back: r.photosBack, n: r.photos }) : t('repost.createdHint', { n: r.photos }),
                 );
-                openOnVinted(r.draftId);
               } finally {
                 setBusy(false);
               }
@@ -115,6 +114,7 @@ export function RepostPending({ v }: { v: ItemView }) {
   const pending = usePendingRepost(v.item.id);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   if (!pending) return null;
   const live = v.listings.some((l) => l.platformListingId === pending.draftId && isLiveListing(l.status));
   const text = pending.deleteSentAt ? t('repost.pendingSent') : live ? t('repost.pendingLive') : t('repost.pendingDraft', { date: date(pending.at) });
@@ -123,6 +123,27 @@ export function RepostPending({ v }: { v: ItemView }) {
       <div className="stack-3" data-testid="repost-pending">
         <p className="t-small">{text}</p>
         <div className="row wrap" style={{ gap: 8 }}>
+          {!live && !pending.deleteSentAt && (
+            <Button
+              size="sm"
+              variant="primary"
+              icon="upload"
+              loading={publishing}
+              disabled={publishing}
+              onClick={async () => {
+                setPublishing(true);
+                try {
+                  const r = (await browser.runtime.sendMessage({ type: 'era:draft:publish', draftId: pending.draftId, itemId: v.item.id } satisfies EraMessage)) as PublishResult;
+                  if (!r.ok) errorToast(r);
+                  else toast('success', t('repost.copyPublished'), t('repost.copyPublishedHint'));
+                } finally {
+                  setPublishing(false);
+                }
+              }}
+            >
+              {t('repost.publishCopy')}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" icon="external" onClick={() => openOnVinted(pending.draftId)}>
             {t('repost.openDraft')}
           </Button>
