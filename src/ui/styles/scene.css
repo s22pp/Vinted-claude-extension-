@@ -1,0 +1,138 @@
+/* ── The shop behind the pages ─────────────────────────────────────────────────────────────────────────────────
+   A WebGL layer (scene-engine.ts) between the atmosphere and the app: decorative, never in the way of a click. */
+.era-scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  /* Softer behind the top of the page, where the titles are. */
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.55) 0%, #000 38%);
+}
+:root[data-theme='light'] .era-scene {
+  opacity: 0.8;
+}
+
+/* ── Changing page: a walk in the shop (View Transitions) ─────────────────────────────────────────────────────
+   Only the page moves; the menu and the top bar stay where they are. The old page recedes into the depth, the new one
+   comes forward — from the right going down the menu, from the left going up, from the depth going into a room. */
+.page {
+  view-transition-name: era-page;
+}
+:root[data-era-walk] .page {
+  /* The page's own small entrance would play twice. */
+  animation: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(era-page) {
+  animation: none;
+}
+::view-transition-image-pair(era-page) {
+  perspective: 1400px;
+  /* The page moves inside its own area: never over the menu. */
+  overflow: clip;
+}
+/* The top bar stays on top of the moving page, as it does when scrolling (and it does not move). */
+.topbar {
+  view-transition-name: era-top;
+}
+::view-transition-group(era-top),
+::view-transition-new(era-top) {
+  animation: none;
+}
+::view-transition-old(era-top) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-old(era-page) {
+  animation: era-leave 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  transform-origin: 50% 30%;
+}
+::view-transition-new(era-page) {
+  animation: era-enter 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 20%;
+}
+:root[data-era-walk='back']::view-transition-old(era-page) {
+  animation-name: era-leave-back;
+}
+:root[data-era-walk='back']::view-transition-new(era-page) {
+  animation-name: era-enter-back;
+}
+:root[data-era-walk='in']::view-transition-old(era-page) {
+  animation-name: era-leave-in;
+}
+:root[data-era-walk='in']::view-transition-new(era-page) {
+  animation-name: era-enter-in;
+}
+:root[data-era-walk='out']::view-transition-old(era-page) {
+  animation-name: era-leave-out;
+}
+:root[data-era-walk='out']::view-transition-new(era-page) {
+  animation-name: era-enter-out;
+}
+@keyframes era-leave {
+  to {
+    opacity: 0;
+    transform: translate3d(-4%, 0, -220px) rotateY(7deg);
+  }
+}
+@keyframes era-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(5%, 8px, -180px) rotateY(-8deg);
+  }
+}
+@keyframes era-leave-back {
+  to {
+    opacity: 0;
+    transform: translate3d(4%, 0, -220px) rotateY(-7deg);
+  }
+}
+@keyframes era-enter-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-5%, 8px, -180px) rotateY(8deg);
+  }
+}
+@keyframes era-leave-in {
+  to {
+    opacity: 0;
+    transform: translate3d(0, 0, 120px);
+  }
+}
+@keyframes era-enter-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, -200px) rotateX(6deg);
+  }
+}
+@keyframes era-leave-out {
+  to {
+    opacity: 0;
+    transform: translate3d(0, 10px, -200px) rotateX(-4deg);
+  }
+}
+@keyframes era-enter-out {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0, 120px);
+  }
+}
+
+/* Reduced motion (the system's or ERA's setting): the page simply changes. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+:root[data-motion='reduced']::view-transition-group(*),
+:root[data-motion='reduced']::view-transition-old(*),
+:root[data-motion='reduced']::view-transition-new(*) {
+  animation: none !important;
+}
