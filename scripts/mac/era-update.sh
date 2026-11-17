@@ -1,7 +1,7 @@
 #!/bin/bash
 # ERA — mise à jour automatique sur Mac. Lancé toutes les heures par launchd (voir install-auto-update.sh).
-# Lit la version publiée sur GitHub ; si elle diffère de celle du dossier, télécharge la nouvelle et remplace le
-# dossier d'un coup. ERA, chargé depuis ce dossier, voit la nouvelle version et se recharge seul quand rien ne tourne.
+# Lit la version publiée sur GitHub ; si elle diffère de celle du dossier, télécharge la nouvelle et la copie dans le
+# dossier. ERA, chargé depuis ce dossier, voit la nouvelle version et propose « Mettre à jour ERA » (un clic).
 # Aucun mot de passe : le dépôt est public. Rien d'autre n'est touché sur le Mac.
 set -euo pipefail
 REPO="s22pp/Vinted-claude-extension-"
@@ -22,10 +22,10 @@ src=$(ls -d "$tmp"/*/extension | head -1)
 got=$(ver < "$src/manifest.json")
 if [ "$got" != "$remote" ]; then echo "$(date '+%F %T') version inattendue ($got au lieu de $remote) : rien remplacé"; exit 1; fi
 
-mkdir -p "$(dirname "$DEST")"
-rm -rf "$DEST.new" "$DEST.old"
-cp -R "$src" "$DEST.new"
-if [ -d "$DEST" ]; then mv "$DEST" "$DEST.old"; fi
-mv "$DEST.new" "$DEST"
-rm -rf "$DEST.old"
+# Copied INTO the folder, never swapped: an ERA page open on the old version keeps finding its files (old files stay
+# until 30 days after they stopped being published); the manifest last, so a half-copied folder never shows a new version.
+mkdir -p "$DEST"
+(cd "$src" && find . -type f ! -name manifest.json -print0 | while IFS= read -r -d '' f; do mkdir -p "$DEST/$(dirname "$f")"; cp -f "$f" "$DEST/$f"; done)
+cp -f "$src/manifest.json" "$DEST/manifest.json.new" && mv -f "$DEST/manifest.json.new" "$DEST/manifest.json"
+find "$DEST" -type f -mtime +30 ! -name manifest.json -delete 2>/dev/null || true
 echo "$(date '+%F %T') ERA ${current:-absent} → $remote"

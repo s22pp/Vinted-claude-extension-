@@ -989,6 +989,18 @@ export const fr = {
     runNow: 'Lancer une tournée maintenant',
     failed: 'Tournée impossible',
   },
+  update: {
+    ready: 'Nouvelle version d’ERA prête : {next} (vous avez la {current}). Un clic, vos données restent.',
+    now: 'Mettre à jour ERA',
+    notNow: 'Mise à jour pas maintenant',
+    stateReady: 'Version {current} en marche · la {next} est prête dans le dossier d’ERA.',
+    stateCurrent: 'Version {current} · chargée depuis un dossier : à jour.',
+    stateStore: 'Version {current} · installée autrement que depuis un dossier : la mise à jour sans ZIP ne s’applique pas.',
+    auto: 'Mettre à jour tout seul',
+    autoHint: '(quand une nouvelle version est prête, que rien ne tourne sur Vinted et qu’aucune page d’ERA n’est ouverte ; sinon une notification et un clic)',
+    howTo: 'Mise à jour sans ZIP sur Mac : une seule fois, collez cette ligne dans le Terminal (Applications → Utilitaires), puis chargez le dossier ERA-extension de votre dossier personnel dans chrome://extensions (« Charger l’extension non empaquetée »).',
+    howTo2: 'Ensuite, chaque nouvelle version publiée (testée sur le faux Vinted) arrive seule dans ce dossier, toutes les heures ; ERA vous propose de la prendre en un clic.',
+  },
   outcomes: {
     title: 'Ce qui fait répondre et acheter',
     hint: 'Chaque message, offre et réponse vraiment envoyés par ERA, puis ce qui a suivi : une réponse de l’acheteur (lue dans la messagerie Vinted, EXPERIMENTAL), une vente de l’article dans les 14 jours (vos ventes importées). Base locale, dans vos sauvegardes.',

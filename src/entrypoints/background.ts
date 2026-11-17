@@ -15,6 +15,7 @@ import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/p
 import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
 import { weeklyDue } from '@/intelligence/weekly';
 import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
+import { AUTO_UPDATE_KEY, UPDATE_ALARM, firstSeen, fromFolder, justUpdated, pagesOpen, reloadOnto, updateState } from '@/data/self-update';
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
 import { db } from '@/data/db';
@@ -452,6 +453,39 @@ async function onPilotAlarm(alarm: { name: string; scheduledTime: number }): Pro
   await pilotRound(hour);
 }
 
+/* ── Updates without a ZIP: ERA loaded from a folder the seller's updater keeps current ── */
+
+/** A new version in ERA's folder: one click (notification, banner), or by itself when the seller chose it and nothing runs. */
+async function onUpdateAlarm(): Promise<void> {
+  const s = await updateState();
+  if (!s.ready || !s.onDisk) return;
+  if (s.auto && !vintedBusy() && !piloting && !(await pagesOpen())) return reloadOnto(s, false);
+  if (await firstSeen(s.onDisk))
+    await browser.notifications
+      .create(`era-update-ready-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: `Nouvelle version d’ERA prête : ${s.onDisk}`, message: `Vous avez la ${s.running}. Cliquez pour mettre à jour (un clic, vos données restent).`, priority: 1 })
+      .catch(() => undefined);
+}
+
+/** The seller's click: now, unless a Vinted operation or a round is running (never cut in the middle). */
+async function updateNow(): Promise<{ ok: boolean; detail?: string }> {
+  const s = await updateState();
+  if (!s.ready) return { ok: false, detail: 'pas de nouvelle version dans le dossier d’ERA' };
+  if (vintedBusy() || piloting) return { ok: false, detail: 'une opération Vinted est en cours : réessayez dans une minute' };
+  setTimeout(() => void reloadOnto(s, true), 300);
+  return { ok: true };
+}
+
+async function startUpdates(): Promise<void> {
+  const done = await justUpdated();
+  if (done) {
+    await browser.notifications
+      .create(`era-updated-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: `ERA mis à jour : ${done.from} → ${done.to}`, message: 'Vos données sont là. Les tournées et automatisations continuent comme avant.', priority: 0 })
+      .catch(() => undefined);
+    if (done.reopen) await browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/today` }).catch(() => undefined);
+  }
+  if (await fromFolder()) await browser.alarms.create(UPDATE_ALARM, { periodInMinutes: 5, delayInMinutes: 1 });
+}
+
 /** One Vinted operation at a time: an import, an automation run, a price edit, a repost or labels. */
 function vintedBusy(): boolean {
   return !!(autoRunning || importing || editing || reposting || labelling);
@@ -463,6 +497,7 @@ export default defineBackground(() => {
     if (a.name === REFRESH_ALARM) void onRefreshAlarm();
     if (a.name === BACKUP_ALARM) void runAutoBackup().catch(() => undefined);
     if (a.name === DIGEST_ALARM) void runDigest().catch((e) => recordError('service-worker:digest', e));
+    if (a.name === UPDATE_ALARM) void onUpdateAlarm().catch((e) => recordError('service-worker:update', e));
     if (a.name === PILOT_ALARM || a.name === PILOT_RETRY_ALARM) void onPilotAlarm(a).catch((e) => recordError('service-worker:pilot', e));
     if (a.name === SEARCH_TAB_ALARM) void closeIdleSearchTab().catch(() => undefined);
   });
@@ -473,6 +508,7 @@ export default defineBackground(() => {
   void scheduleBackup();
   void scheduleDigest();
   void schedulePilot(true);
+  void startUpdates().catch((e) => recordError('service-worker:update', e));
   void updateBadge().catch(() => undefined);
   // A notification opens what it announces.
   browser.notifications?.onClicked.addListener((id) => {
@@ -481,6 +517,7 @@ export default defineBackground(() => {
     if (id.startsWith('era-parcel-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/parcels` });
     if (id.startsWith('era-digest-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/insights?tab=review` });
     if (id.startsWith('era-pilot-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/today` });
+    if (id.startsWith('era-update-ready-')) void updateNow().then((r) => (r.ok ? undefined : browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/settings` })));
     if (id.startsWith('era-weekly-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/automations` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
@@ -573,6 +610,12 @@ export default defineBackground(() => {
           return undefined;
         }
         return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+      case 'era:update:status':
+        return answer(updateState(), unavailable);
+      case 'era:update:now':
+        return answer(updateNow(), unavailable);
+      case 'era:update:auto':
+        return answer(browser.storage.local.set({ [AUTO_UPDATE_KEY]: msg.on }).then(() => ({ ok: true })), unavailable);
       case 'era:weekly:run':
         // The seller's click: the week's task now, whatever the day (no Vinted call).
         return answer(weeklyTask(), unavailable);

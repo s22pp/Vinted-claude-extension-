@@ -21,6 +21,7 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 ];
 
 import { CommandPalette } from './components/palette';
+import { UpdateBanner } from './components/update-banner';
 
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
@@ -67,6 +68,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
       </aside>
       <div className="main">
         {era.mode === 'demo' && <DemoBannerBar />}
+        <UpdateBanner />
         <Topbar />
         <main id="main" key={route} className="page" tabIndex={-1}>
           {children}

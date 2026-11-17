@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { UpdateCard } from '../components/update-card';
 import { useEffect, useState } from 'react';
 import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
 import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
@@ -117,15 +118,7 @@ export function Settings() {
             </div>
           </Card>
           <Card title={t('settings.update')} icon="repost" tone="cobalt">
-            <p className="t-small t-muted" style={{ marginBottom: 12 }}>
-              {t('settings.updateHint')}
-            </p>
-            <code className="listing-box" style={{ marginBottom: 12 }}>
-              cd ~/ERA && git pull
-            </code>
-            <Button icon="repost" onClick={() => browser.runtime.reload()}>
-              {t('settings.reload')}
-            </Button>
+            <UpdateCard />
           </Card>
           <Card title={t('settings.about')} icon="info" tone="neutral">
             <div className="row" style={{ gap: 14 }}>

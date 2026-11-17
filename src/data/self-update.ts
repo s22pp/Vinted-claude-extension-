@@ -9,6 +9,22 @@ import { isNewer } from '@/intelligence/version';
 export const UPDATE_ALARM = 'era-update';
 /** Set just before the reload: the version left and the one coming, and whether to open the dashboard again. */
 export const UPDATED_KEY = 'eraUpdated';
+/** The seller's choice: reload by itself when a new version is ready (off: a notification and one click). */
+export const AUTO_UPDATE_KEY = 'eraAutoUpdate';
+/** The version already announced (one notification per version). */
+const NOTIFIED_KEY = 'eraUpdateNotified';
+
+export async function autoUpdate(): Promise<boolean> {
+  return ((await browser.storage.local.get(AUTO_UPDATE_KEY)) as Record<string, boolean | undefined>)[AUTO_UPDATE_KEY] === true;
+}
+
+/** True once per version: the first time it is seen ready. */
+export async function firstSeen(version: string): Promise<boolean> {
+  const seen = ((await browser.storage.local.get(NOTIFIED_KEY)) as Record<string, string | undefined>)[NOTIFIED_KEY];
+  if (seen === version) return false;
+  await browser.storage.local.set({ [NOTIFIED_KEY]: version });
+  return true;
+}
 
 export interface Updated {
   from: string;
@@ -49,13 +65,16 @@ export interface UpdateState {
   onDisk: string | null;
   /** A newer version waits in the folder: a reload takes it. */
   ready: boolean;
+  /** Loaded from a folder (the only install that can update this way). */
+  folder?: boolean;
+  auto?: boolean;
 }
 
 export async function updateState(): Promise<UpdateState> {
   const running = browser.runtime.getManifest().version;
-  if (!(await fromFolder())) return { running, onDisk: null, ready: false };
+  if (!(await fromFolder())) return { running, onDisk: null, ready: false, folder: false, auto: false };
   const onDisk = await versionOnDisk();
-  return { running, onDisk, ready: isNewer(onDisk, running) };
+  return { running, onDisk, ready: isNewer(onDisk, running), folder: true, auto: await autoUpdate() };
 }
 
 /** Reloads ERA on the new version, remembering it to say so once restarted. */

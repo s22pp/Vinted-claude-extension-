@@ -49,8 +49,10 @@ export async function fakeLabelServer(): Promise<() => Promise<void>> {
   return () => new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
-export const test = base.extend<{ context: BrowserContext; extId: string; base: string }>({
-  context: async ({}, use) => {
+export const test = base.extend<{ extPath: string; context: BrowserContext; extId: string; base: string }>({
+  // The extension's folder: the build, or a copy a test changes (updates without a ZIP).
+  extPath: [EXT, { option: true }],
+  context: async ({ extPath }, use) => {
     const context = await chromium.launchPersistentContext('', {
       ...(BROWSER ? { executablePath: BROWSER } : { channel: 'chromium' }),
       headless: true,
@@ -58,8 +60,8 @@ export const test = base.extend<{ context: BrowserContext; extId: string; base: 
       env: Object.fromEntries(Object.entries(process.env).filter(([k, v]) => !/proxy/i.test(k) && v !== undefined)) as Record<string, string>,
       viewport: { width: 1440, height: 900 },
       args: [
-        `--disable-extensions-except=${EXT}`,
-        `--load-extension=${EXT}`,
+        `--disable-extensions-except=${extPath}`,
+        `--load-extension=${extPath}`,
         // Test browser only: files the browser itself downloads (shipping labels) come from a local fake carrier.
         // Vinted, its images and the map tiles resolve nowhere: a request the tests' fakes did not catch fails at
         // once instead of reaching the real site.

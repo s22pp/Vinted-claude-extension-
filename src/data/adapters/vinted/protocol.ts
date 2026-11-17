@@ -82,6 +82,9 @@ export type EraMessage =
   | { type: 'era:pilot:schedule' }
   | { type: 'era:pilot:run' }
   | { type: 'era:weekly:run' }
+  | { type: 'era:update:status' }
+  | { type: 'era:update:now' }
+  | { type: 'era:update:auto'; on: boolean }
   | { type: 'era:badge:update' }
   | { type: 'era:alerts:run' }
   | { type: 'era:photos:export'; scope: 'LIVE' | 'ALL' }

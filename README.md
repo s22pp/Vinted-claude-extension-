@@ -28,9 +28,15 @@ Ensuite, plus rien à faire :
 - toutes les heures (et au démarrage du Mac), un petit script lancé par macOS (`launchd`) lit la version publiée sur
   GitHub ; quand elle change, il télécharge la nouvelle et remplace le dossier `~/ERA-extension` d'un coup (dépôt
   public : aucun mot de passe ; journal dans `~/Library/Application Support/ERA/update.log`) ;
-- ERA voit la nouvelle version dans son dossier (toutes les 5 minutes) et **se recharge seul** dès que rien ne tourne
-  (aucune opération Vinted, aucune tournée) et qu'aucune page d'ERA n'est ouverte (un rechargement les fermerait) ;
-  sinon le tableau de bord affiche « Nouvelle version prête » avec **Redémarrer ERA**, qui rouvre le tableau de bord ;
+- ERA voit la nouvelle version dans son dossier (toutes les 5 minutes) : une notification « Nouvelle version d'ERA
+  prête » et un bandeau dans le tableau de bord avec **Mettre à jour ERA** — **un clic**, ERA se recharge et rouvre le
+  tableau de bord (jamais au milieu d'une opération Vinted ou d'une tournée) ;
+- au choix (Réglages → Mettre à jour ERA → **Mettre à jour tout seul**, désactivé par défaut) : ERA se recharge seul
+  dès que rien ne tourne et qu'aucune page d'ERA n'est ouverte (un rechargement les fermerait). Désactivé par défaut
+  tant que le rechargement n'a pas été vu marcher sur votre Mac : dans le navigateur de test, Chrome ne relance pas
+  une extension chargée en ligne de commande après un rechargement, donc cette étape n'y est pas prouvée ;
+- les fichiers sont **copiés dans** le dossier, jamais remplacés d'un coup, et le manifeste en dernier : une page
+  d'ERA ouverte sur l'ancienne version retrouve toujours ses fichiers (gardés 30 jours) ;
 - une notification dit « ERA mis à jour : 0.37.0 → 0.38.0 ».
 
 Retirer la mise à jour automatique (le dossier et ERA restent tels quels) :
