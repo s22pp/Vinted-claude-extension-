@@ -805,6 +805,12 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await expect(row).toContainText(/Vinted : \d+ requêtes pour toute la tournée/);
   await expect(page.getByTestId('outcomes-messages')).toContainText('Colis livré → remerciement');
   await expect(page.getByTestId('outcomes-messages')).toContainText('1 en attente');
+  // Today: the day on one rail — this round shown as done (at its hour), what is left for the seller as big cards.
+  await page.goto(`${base}#/today`);
+  const timeline = page.getByTestId('day-timeline');
+  await expect(timeline).toContainText(`${new Date().getHours()} h · faite`);
+  await expect(timeline.getByTestId('day-physical')).toContainText('colis à emballer et déposer');
+  await page.goto(`${base}#/automations`);
   // The week's task, on demand: the review, and the data gathered saved as a CSV in the downloads — no Vinted call.
   await expect(pilot).toContainText('Tâche de la semaine ✓');
   const callsBeforeWeek = calls.length;

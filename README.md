@@ -252,6 +252,16 @@ répondre.
   automatiques par jour, arrêt sur un blocage. Chaque envoi au journal et dans la base des contacts.
 - Champs de la messagerie Vinted **non vérifiés** sur votre compte : le premier passage réel le dira (journal).
 
+## La journée d'ERA (écran Aujourd'hui)
+
+En haut d'**Aujourd'hui** (vraies données) : votre journée sur une ligne. Les tournées du pilote à leurs heures — faite
+(✓), interrompue (!), en retard (Chrome fermé ?, elle peut encore passer dans les 3 h), manquée, prochaine avec son
+compte à rebours — et une tournée lancée à la main là où elle a eu lieu. Chaque action réelle d'ERA (messages, offres,
+prix, bordereaux, publications) est un point à son heure ; survol : l'heure, le type, l'article ; une simulation n'y
+figure jamais. Clic sur une tournée : ce qu'elle a fait, ligne par ligne comme sa notification. Dessous, **ce qui
+reste pour vous**, en grand : colis à emballer et déposer, articles à photographier et mettre en ligne, messages à voir
+— un clic mène au bon écran. Tout vient du journal et des données d'ERA.
+
 ## La boutique en 3D
 
 Stock → **Boutique 3D** : votre stock comme une boutique. Un portant par catégorie (10 vêtements au plus, sinon

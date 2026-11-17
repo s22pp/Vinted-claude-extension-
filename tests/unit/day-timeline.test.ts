@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type JournalLike, dayTimeline, untilText } from '@/intelligence/day-timeline';
+import { type JournalLike, dayTimeline, noticeLines, untilText } from '@/intelligence/day-timeline';
 
 const at = (h: number, m = 0) => new Date(2026, 10, 17, h, m).getTime();
 const row = (p: Partial<JournalLike>): JournalLike => ({ at: at(9, 5), kind: 'RUN', ok: true, dryRun: false, target: 'Pilote automatique', detail: '', ...p });
@@ -39,6 +39,25 @@ describe('the day of ERA: rounds and actions on one line', () => {
       ['PRICE', true, '123'],
     ]);
     expect(events[2]!.x).toBeCloseTo((13 + 2 / 60) / 24, 5);
+  });
+
+  it('a round run by hand outside the hours is shown when it ran', () => {
+    const { rounds } = dayTimeline([row({ at: at(11, 20), detail: 'Tournée de 11 h faite · Fait pour vous : rien de nouveau à traiter' })], [9, 13], at(12));
+    expect(rounds.map((r) => [r.hour, r.status])).toEqual([
+      [9, 'MISSED'],
+      [11, 'DONE'],
+      [13, 'NEXT'],
+    ]);
+    expect(rounds[1]!.x).toBeCloseTo((11 + 20 / 60) / 24, 5);
+  });
+
+  it('the notice’s lines rebuilt from the journal (its pieces joined with « · »)', () => {
+    expect(noticeLines('Tournée de 9 h faite · Stock à jour : 3 annonces, 0 ventes · Fait pour vous : 1 offre traitée · 1 remerciement (colis livré) · Pour vous : 1 colis à déposer · Vinted : 20 requêtes pour toute la tournée')).toEqual([
+      'Stock à jour : 3 annonces, 0 ventes',
+      'Fait pour vous : 1 offre traitée · 1 remerciement (colis livré)',
+      'Pour vous : 1 colis à déposer',
+      'Vinted : 20 requêtes pour toute la tournée',
+    ]);
   });
 
   it('the wait until the next round, in words', () => {

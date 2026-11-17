@@ -64,6 +64,17 @@ const startOfDay = (t: number) => {
 };
 const xOf = (t: number, day0: number) => Math.min(1, Math.max(0, (t - day0) / 86_400_000));
 
+/** The notice's lines start so; a piece that does not belongs to the line before (the journal joins both with « · »). */
+const LINE_START = /^(Stock à jour|Fait pour vous|Pour vous|Suite de vos messages|À venir|Vinted :|ERA ferait|Vinted a demandé|Vinted vous a|Le budget|vinted\.fr|Importez|Les requêtes|Tournée interrompue)/;
+export function noticeLines(detail: string): string[] {
+  const out: string[] = [];
+  for (const piece of detail.split(' · ').slice(1)) {
+    if (!out.length || LINE_START.test(piece)) out.push(piece);
+    else out[out.length - 1] += ` · ${piece}`;
+  }
+  return out;
+}
+
 /** A round's line in the journal: « Tournée de 13 h faite · … » / « … interrompue · … » (never a simulation). */
 const ROUND = /^Tournée de (\d{1,2}) h (faite|interrompue)/;
 
@@ -82,14 +93,17 @@ export function dayTimeline(rows: readonly JournalLike[], hours: readonly number
     .map((hour) => {
       const due = day0 + hour * 3_600_000;
       const line = ran.filter((r) => Number(ROUND.exec(r.detail)![1]) === hour).sort((a, b) => b.at - a.at)[0];
-      if (line) {
-        const [, ...rest] = line.detail.split(' · ');
-        return { hour, x: xOf(due, day0), status: ROUND.exec(line.detail)![2] === 'faite' ? 'DONE' : 'STOPPED', at: line.at, lines: rest };
-      }
+      if (line) return { hour, x: xOf(due, day0), status: ROUND.exec(line.detail)![2] === 'faite' ? 'DONE' : 'STOPPED', at: line.at, lines: noticeLines(line.detail) };
       const status: RoundStatus = due > now ? (hour === nextHour ? 'NEXT' : 'LATER') : now - due < graceMs ? 'LATE' : 'MISSED';
       return { hour, x: xOf(due, day0), status, at: null, lines: [] };
     });
-  return { events, rounds, nowX: xOf(now, day0) };
+  // A round run by hand (« Lancer une tournée maintenant ») outside the hours: shown when it ran.
+  const extra: DayRound[] = ran
+    .filter((r) => !hours.includes(Number(ROUND.exec(r.detail)![1])))
+    .map((r) => ({ hour: Number(ROUND.exec(r.detail)![1]), x: xOf(r.at, day0), status: (ROUND.exec(r.detail)![2] === 'faite' ? 'DONE' : 'STOPPED') as RoundStatus, at: r.at, lines: noticeLines(r.detail) }));
+  const byHour = new Map<number, DayRound>();
+  for (const r of extra.sort((a, b) => a.at! - b.at!)) byHour.set(r.hour, r);
+  return { events, rounds: [...rounds, ...byHour.values()].sort((a, b) => a.x - b.x), nowX: xOf(now, day0) };
 }
 
 /** « dans 2 h 15 » / « dans 12 min » until a time, for the next round. */

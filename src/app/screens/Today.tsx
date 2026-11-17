@@ -10,6 +10,7 @@ import { ActivationProgress, ACTIVATION_STEPS, RecommendationCard } from '../com
 import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
 import { DailyRun } from '../components/daily-run';
+import { DayTimeline } from '../components/day-timeline';
 import { useBulkAnalyze } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { PageHead } from '../Shell';
@@ -82,6 +83,8 @@ export function Today() {
 
       <div className="stack-4">
         {!activationDone && <ActivationProgress done={era.activation} />}
+        {/* What ERA did today and what is left for the seller (real data only: a demo has no rounds). */}
+        {era.mode === 'real' && <DayTimeline />}
 
         <section className="cockpit" aria-label={t('today.overview')}>
           <div className="cockpit__capital">

@@ -81,7 +81,8 @@ export function DayTimeline() {
               <title>{`${new Date(e.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · ${t(`day.g.${e.group}`)}${e.ok ? '' : ` (${t('day.failed')})`} · ${e.target}`}</title>
             </circle>
           ))}
-          {rounds.map((r) => (
+          {/* The rounds already run drawn last: on top of a scheduled one at nearly the same time. */}
+          {[...rounds].sort((a, b) => Number(a.status === 'DONE' || a.status === 'STOPPED') - Number(b.status === 'DONE' || b.status === 'STOPPED')).map((r) => (
             <g key={r.hour} style={{ cursor: 'pointer' }} onClick={() => setOpen(open === r.hour ? null : r.hour)}>
               <circle cx={px(r.x)} cy={TRACK} r={13} fill={roundFill(r)} stroke={roundStroke(r)} strokeWidth={2.5} strokeDasharray={r.status === 'LATE' ? '4 3' : undefined} />
               <text x={px(r.x)} y={TRACK + 4.5} textAnchor="middle" fontSize={12} fontWeight={700} fill={r.status === 'DONE' || r.status === 'STOPPED' ? 'var(--text-inverse)' : 'var(--text-2)'}>
@@ -102,14 +103,14 @@ export function DayTimeline() {
               {r.status === 'NEXT' ? ` (${untilText(day0 + r.hour * 3_600_000, now)})` : ''}
             </button>
           ))}
-          <span className="t-small t-faint grow" style={{ textAlign: 'right' }}>
-            {(['MESSAGE', 'OFFER', 'PRICE', 'LABEL', 'PUBLISH'] as EventGroup[]).map((g) => (
-              <span key={g} style={{ marginLeft: 10, whiteSpace: 'nowrap' }}>
+        </div>
+        <div className="row wrap t-small t-faint" style={{ gap: 14 }} aria-label={t('day.legend')}>
+          {(['MESSAGE', 'OFFER', 'PRICE', 'LABEL', 'PUBLISH'] as EventGroup[]).map((g) => (
+              <span key={g} style={{ whiteSpace: 'nowrap' }}>
                 <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 8, background: GROUP_COLOR[g], marginRight: 4 }} />
                 {t(`day.g.${g}`)} · {events.filter((e) => e.group === g).length}
               </span>
             ))}
-          </span>
         </div>
         {open !== null && (
           <ul className="t-small stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }} data-testid="day-round-detail">
