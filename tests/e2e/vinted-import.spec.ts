@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -14,6 +14,17 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
   await context.route('https://images1.vinted.net/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]) }));
   await context.route('https://www.vinted.fr/**', (route) => {
     const url = new URL(route.request().url());
+    // Test fixture only: the draft's page — « Enregistrer le brouillon » and « Ajouter » (publish); publishing leaves /edit.
+    if (opts.publishPage && url.pathname === '/items/555/edit')
+      return route.fulfill({
+        contentType: 'text/html; charset=utf-8',
+        body: `<html><body><form action="/items/555/published" method="get"><label for="title">Titre</label><input id="title" type="text" value="brouillon">
+          <button type="button">Enregistrer le brouillon</button><button type="button">Supprimer le brouillon</button><button type="submit">Ajouter</button></form></body></html>`,
+      });
+    if (opts.publishPage && url.pathname === '/items/555/published') {
+      state.published555 = true;
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<html><body>Annonce publiée</body></html>' });
+    }
     if (/^\/items\/\d+\/edit$/.test(url.pathname) && opts.editForm) {
       const id = url.pathname.split('/')[2]!;
       // Test fixture only: a form with a price field, a description, a delete button, a boost button and a save button.
@@ -1967,4 +1978,39 @@ test('autopilot price cut: the one the plan says is due, verified on Vinted — 
   const now = Number(fake.prices['101']);
   expect(now).toBeLessThan(59);
   expect(now).toBeGreaterThanOrEqual(15);
+});
+
+test('workshop → my photos chosen in ERA, the draft made with them, published from ERA and read back — Vinted never opened', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const fake = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [{ id: 107, title: 'Pull Ralph Lauren M', price: '0', view_count: 0, favourite_count: 0, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: true, is_closed: false, is_hidden: false, photos: [] }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/workshop`);
+  await page.locator('.wq__row', { hasText: 'Pull Ralph Lauren M' }).first().click();
+  await page.getByLabel('Prix', { exact: true }).fill('35');
+  await page.evaluate(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = (u?: string | URL) => (w.__opened.push(String(u)), null);
+  });
+  // The seller's own photos, as taken, in their order.
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]);
+  await page.getByLabel('Choisir mes photos').setInputFiles([
+    { name: 'face.jpg', mimeType: 'image/jpeg', buffer: jpeg },
+    { name: 'etiquette.jpg', mimeType: 'image/jpeg', buffer: jpeg },
+  ]);
+  await expect(page.getByText('2 photo(s) choisie(s)')).toBeVisible();
+  await page.getByRole('button', { name: 'Créer le brouillon sur Vinted' }).click();
+  await expect(page.getByText('Brouillon créé sur Vinted')).toBeVisible({ timeout: 40_000 });
+  const draft = JSON.parse(fake.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')!.body!).draft;
+  expect(draft.assigned_photos).toEqual([{ id: 7001, orientation: 0 }, { id: 7002, orientation: 0 }]);
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([]);
+  // Published from ERA: the draft page's « Ajouter », never « Enregistrer le brouillon » nor « Supprimer » — then read back.
+  await page.getByRole('button', { name: 'Publier sur Vinted' }).click();
+  await expect(page.getByText('Publiée sur Vinted')).toBeVisible({ timeout: 60_000 });
+  expect(fake.state.published555).toBe(true);
+  await page.goto(`${base}#/automations`);
+  await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'brouillon 555 publié' }).first()).toContainText('relu sur Vinted');
 });

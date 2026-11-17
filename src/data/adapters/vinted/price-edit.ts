@@ -81,7 +81,7 @@ export async function applyPriceOnVinted(platformListingId: string, cents: numbe
  * given 15 s to answer once loaded (a heavy page on a slow machine), and reloaded once only if it does not (a first
  * load that failed) — never reloaded while it may still be starting.
  */
-async function openEditTab(platformListingId: string): Promise<number> {
+export async function openEditTab(platformListingId: string): Promise<number> {
   const url = `https://www.vinted.fr/items/${platformListingId}/edit`;
   const tabId = (await browser.tabs.create({ url, active: false })).id!;
   const answers = async () => {
@@ -96,7 +96,7 @@ async function openEditTab(platformListingId: string): Promise<number> {
 }
 
 /** Saving navigates away from /edit. Wait for it (or give up after ~15 s and verify anyway). */
-async function leftEditPage(tabId: number): Promise<void> {
+export async function leftEditPage(tabId: number): Promise<void> {
   for (let i = 0; i < 30; i++) {
     await sleep(500);
     const t = await browser.tabs.get(tabId).catch(() => null);

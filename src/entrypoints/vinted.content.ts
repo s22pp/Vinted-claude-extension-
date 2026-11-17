@@ -1,6 +1,6 @@
 import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type CatalogPageRead, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
-import { editDescriptionOnPage, editPriceOnPage, editTextOnPage } from '@/data/adapters/vinted/edit-form';
+import { editDescriptionOnPage, editPriceOnPage, editTextOnPage, publishOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
  * Runs on vinted.fr pages:
@@ -73,6 +73,14 @@ export default defineContentScript({
           return;
         }
         return reply(editPriceOnPage(msg.cents));
+      }
+      if (msg.type === 'era:edit:publish') {
+        // The seller's click in ERA: the one publish button of the draft's page, nothing else.
+        if (!/\/items\/\d+\/edit/.test(location.pathname)) {
+          sendResponse({ ok: false, detail: `pas sur la page du brouillon (${location.pathname})` });
+          return;
+        }
+        return reply(publishOnPage());
       }
       if (msg.type === 'era:edit:desc') {
         // Same rule as the price: only on the edit page, only when ERA's background asked (one click, one listing).

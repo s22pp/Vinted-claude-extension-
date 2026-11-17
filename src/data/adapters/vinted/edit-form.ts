@@ -129,6 +129,36 @@ export async function editPriceOnPage(cents: number): Promise<EditFormResult> {
   return { ok: true, before };
 }
 
+const PUBLISH = /(ajouter|publier|mettre en ligne|publish|upload)/i;
+const NOT_PUBLISH = /(brouillon|draft|photo)/i;
+
+/**
+ * The draft page's publish button — « Ajouter » / « Publier » —, exactly one, never « Enregistrer le brouillon », never
+ * one that deletes, boosts or cancels; else nothing is clicked.
+ */
+export function findPublishButton(doc: Document = document): HTMLButtonElement | { error: string } {
+  const buttons = [...doc.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.disabled && visible(b));
+  const ok = buttons.filter((b) => PUBLISH.test(b.textContent ?? '') && !NOT_PUBLISH.test(b.textContent ?? '') && !FORBIDDEN.test(b.textContent ?? ''));
+  if (ok.length === 1) return ok[0]!;
+  const submit = ok.filter((b) => b.type === 'submit');
+  if (submit.length === 1) return submit[0]!;
+  return { error: ok.length === 0 ? 'bouton de publication introuvable sur la page du brouillon' : 'plusieurs boutons de publication : rien n’a été cliqué' };
+}
+
+/** The draft published like the seller's click on its page: the one publish button, once the page has loaded. */
+export async function publishOnPage(): Promise<{ ok: true } | { ok: false; detail: string }> {
+  let btn: ReturnType<typeof findPublishButton> = { error: 'page non chargée' };
+  for (let i = 0; i < 30; i++) {
+    btn = findPublishButton();
+    if (!('error' in btn)) break;
+    await sleep(500);
+  }
+  if ('error' in btn) return { ok: false, detail: btn.error };
+  btn.scrollIntoView({ block: 'center' });
+  btn.click();
+  return { ok: true };
+}
+
 /** Same as the price, for the description: the whole text written at once, checked, then saved. */
 export async function editDescriptionOnPage(text: string, expectBefore?: string): Promise<EditFormResult> {
   let found: ReturnType<typeof findDescriptionInput> = { error: 'page non chargée' };

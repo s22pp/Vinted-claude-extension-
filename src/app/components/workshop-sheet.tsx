@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Condition, Prep } from '@/domain/entities';
 import { newPrep } from '@/domain/entities';
-import type { DraftInput, DraftResult, EraMessage } from '@/data/adapters/vinted/protocol';
+import type { DraftInput, DraftResult, EraMessage, PublishResult } from '@/data/adapters/vinted/protocol';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { buildPrediction } from '@/intelligence/precision';
@@ -124,15 +124,25 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
     }
   };
 
-  // A Vinted DRAFT prefilled from the sheet: the seller adds the photos and publishes on Vinted (EXPERIMENTAL).
+  // A Vinted DRAFT prefilled from the sheet, with the seller's own photos when chosen here; published from ERA on the
+  // seller's click (EXPERIMENTAL).
   const [drafting, setDrafting] = useState(false);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [publishing, setPublishing] = useState(false);
+  const asBase64 = (f: File) =>
+    new Promise<{ base64: string; mime: string }>((done, fail) => {
+      const r = new FileReader();
+      r.onload = () => done({ base64: String(r.result).split(',')[1] ?? '', mime: f.type || 'image/jpeg' });
+      r.onerror = () => fail(r.error);
+      r.readAsDataURL(f);
+    });
   const createDraft = async () => {
     if (chosen === null) return;
     setDrafting(true);
     try {
       await repo.savePrep(item.id, { priceCents: chosen, packageSize: pkg });
       const tpl = prep.template?.listingId ? { listingId: prep.template.listingId, sameSize: (prep.template.size ?? '') === (item.size ?? '') } : null;
-      const input: DraftInput = { itemId: item.id, title, description, priceCents: chosen, brand: item.brand, size: item.size, condition: item.condition, packageSize: pkg, template: tpl };
+      const input: DraftInput = { itemId: item.id, title, description, priceCents: chosen, brand: item.brand, size: item.size, condition: item.condition, packageSize: pkg, template: tpl, photos: await Promise.all(photos.map(asBase64)) };
       const res = (await browser.runtime.sendMessage({ type: 'era:draft:create', input } satisfies EraMessage)) as DraftResult;
       if (!res.ok) {
         errorToast(res);
@@ -140,9 +150,26 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
       }
       const todo = res.missing.map((k) => t(`workshop.draftField.${k}`)).join(', ');
       toast('success', t('workshop.draftDone'), res.missing.length ? t('workshop.draftTodo', { fields: todo }) : t('workshop.draftAllSet'));
-      window.open(`https://www.vinted.fr/items/${res.draftId}/edit`, '_blank', 'noopener');
+      // Without the seller's photos, the draft is completed on Vinted; with them, it can be published from here.
+      if (!photos.length) window.open(`https://www.vinted.fr/items/${res.draftId}/edit`, '_blank', 'noopener');
     } finally {
       setDrafting(false);
+    }
+  };
+
+  const publishOnVinted = async () => {
+    if (!prep.vintedDraftId) return;
+    setPublishing(true);
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'era:draft:publish', draftId: prep.vintedDraftId, itemId: item.id } satisfies EraMessage)) as PublishResult;
+      if (!res.ok) {
+        errorToast(res);
+        return;
+      }
+      toast('success', t('workshop.publishedOnVinted'), res.verified ? t('workshop.publishedVerified') : t('workshop.publishedUnconfirmed'));
+      await publish();
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -379,13 +406,24 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
         </div>
         {era.mode === 'real' &&
           (prep.vintedDraftId ? (
-            <Button variant="ghost" size="sm" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${prep.vintedDraftId}/edit`, '_blank', 'noopener')}>
-              {t('workshop.draftOpen')}
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" icon="external" onClick={() => window.open(`https://www.vinted.fr/items/${prep.vintedDraftId}/edit`, '_blank', 'noopener')}>
+                {t('workshop.draftOpen')}
+              </Button>
+              <Button variant="primary" size="sm" icon="upload" loading={publishing} disabled={publishing} onClick={() => void publishOnVinted()}>
+                {t('workshop.publishOnVinted')}
+              </Button>
+            </>
           ) : (
-            <Button variant="ghost" size="sm" icon="upload" loading={drafting} disabled={chosen === null || !title.trim()} onClick={createDraft}>
-              {t('workshop.draftCreate')}
-            </Button>
+            <>
+              <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple aria-label={t('workshop.photosPick')} style={{ display: 'none' }} onChange={(e) => setPhotos([...(e.target.files ?? [])].slice(0, 20))} />
+                {photos.length ? t('workshop.photosChosen', { n: photos.length }) : t('workshop.photosPick')}
+              </label>
+              <Button variant="ghost" size="sm" icon="upload" loading={drafting} disabled={chosen === null || !title.trim()} onClick={createDraft}>
+                {t('workshop.draftCreate')}
+              </Button>
+            </>
           ))}
         {!r.ready && (
           <Button variant="ghost" size="sm" onClick={publish}>

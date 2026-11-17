@@ -256,8 +256,19 @@ répondre.
 
 Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favoris, remerciement colis livré, réponses aux
 messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le
-physique : photos, emballage, dépôt, impression des bordereaux. ERA ne publie pas et ne republie pas seul (un clic
-chacun dans ERA).
+physique : photos, emballage, dépôt, impression des bordereaux. Publier une nouveauté se fait depuis l'Atelier (vos photos
+choisies dans ERA, puis « Publier sur Vinted ») ; ERA ne republie pas seul.
+
+### Publier depuis ERA, avec vos photos (EXPERIMENTAL)
+
+Atelier → la fiche prête : **Choisir mes photos** (celles de votre ordinateur, telles quelles, dans votre ordre : la
+première est la principale ; jamais retouchées ni générées), puis **Créer le brouillon sur Vinted** : les photos sont
+envoyées par l'onglet vinted.fr (la route d'envoi du formulaire de Vinted), le brouillon est créé avec elles et relu.
+Puis **Publier sur Vinted** : la page du brouillon est ouverte en arrière-plan et son unique bouton de publication
+(« Ajouter ») cliqué — jamais « Enregistrer le brouillon », « Supprimer » ni un bouton payant —, puis l'annonce est
+relue : publiée seulement quand Vinted ne la donne plus comme brouillon. Si Vinted garde le brouillon (un champ
+obligatoire manque), sa page s'ouvre pour le compléter. Une annonce par clic, jamais enchaînées. Page du brouillon et
+bouton **non vérifiés** sur votre compte : la première publication le dira (journal).
 
 ### Baisses de prix prévues, faites par ERA (EXPERIMENTAL)
 

@@ -115,7 +115,9 @@ export type EraMessage =
   | { type: 'era:desc:edit'; platformListingId: string; text: string; expectBefore?: string }
   | { type: 'era:edit:desc'; text: string; expectBefore?: string }
   | { type: 'era:text:edit'; platformListingId: string; field: TextField; op: TextOp }
-  | { type: 'era:edit:text'; field: TextField; op: TextOp };
+  | { type: 'era:edit:text'; field: TextField; op: TextOp }
+  | { type: 'era:draft:publish'; draftId: string; itemId: string }
+  | { type: 'era:edit:publish' };
 
 /** The listing links Vinted's search page shows, read as they are (link + accessible title): parsed by ERA, not here. */
 export interface CatalogPageRead {
@@ -180,7 +182,12 @@ export interface DraftInput {
   packageSize: 'SMALL' | 'MEDIUM' | 'LARGE';
   /** Relisting a similar article: its model's Vinted listing, whose own ids (category, brand, size) are reused. */
   template?: { listingId: string; sameSize: boolean } | null;
+  /** The seller's own photos, chosen in ERA (as taken, in their order: the first is the main one). */
+  photos?: { base64: string; mime: string }[];
 }
+
+/** A draft published from ERA: `verified`, Vinted no longer lists it as a draft. */
+export type PublishResult = { ok: true; verified: boolean } | { ok: false; code: import('../marketplace').MarketplaceErrorCode; detail?: string };
 
 export type DraftResult =
   | { ok: true; draftId: string; filled: string[]; missing: string[] }

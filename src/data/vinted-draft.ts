@@ -1,8 +1,10 @@
 import { normalizeText } from '@/intelligence/normalize';
 import { STATUS_ID_OF, pickBrandId, pickCatalogId, pickPackageId, pickSizeId, repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
-import type { DraftInput, DraftResult } from './adapters/vinted/protocol';
-import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
+import * as budget from './adapters/vinted/budget-store';
+import { leftEditPage, openEditTab } from './adapters/vinted/price-edit';
+import type { ApiResult, DraftInput, DraftResult, EraMessage, PublishResult } from './adapters/vinted/protocol';
+import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
 import { journal } from './journal';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
@@ -14,9 +16,35 @@ const idText = (x: unknown): string | null => (typeof x === 'number' ? String(x)
 /**
  * Background-only. A DRAFT on the seller's Vinted account from a ready workshop sheet: ids come from Vinted's own
  * upload helpers (category suggested for the title, brand search, the category's sizes and package sizes); what
- * cannot be matched stays empty for the seller. Never published: photos and "Ajouter" stay on Vinted, by hand.
- * Read back before being reported: no "created" without Vinted showing it. EXPERIMENTAL.
+ * cannot be matched stays empty for the seller. With the seller's own photos when chosen in ERA (uploaded as they are,
+ * in their order); published only by the seller's click « Publier sur Vinted » (publishDraft). Read back before being
+ * reported: no "created" or "published" without Vinted showing it. EXPERIMENTAL.
  */
+
+const MAX_PHOTOS = 20;
+const MAX_PHOTO_BYTES = 12_000_000;
+
+/** The seller's photos sent to Vinted through the vinted.fr tab (the upload route of Vinted's own form), their ids back. */
+async function uploadPhotos(photos: readonly { base64: string; mime: string }[], session: string): Promise<number[]> {
+  const { tabId } = await ensureVintedTab();
+  const ids: number[] = [];
+  for (let i = 0; i < photos.length; i++) {
+    const p = photos[i]!;
+    if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(p.mime)) throw new MarketplaceError('NOT_APPLIED', `photo ${i + 1} : format ${p.mime} non accepté`);
+    if (!p.base64 || p.base64.length * 0.75 > MAX_PHOTO_BYTES) throw new MarketplaceError('NOT_APPLIED', `photo ${i + 1} vide ou trop lourde`);
+    let r: ApiResult;
+    try {
+      r = (await browser.tabs.sendMessage(tabId, { type: 'era:photo:upload', base64: p.base64, mime: p.mime, tempUuid: session, name: `photo${i + 1}.jpg` } satisfies EraMessage)) as ApiResult;
+    } catch {
+      throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+    }
+    if (!r.ok) throw new MarketplaceError(r.code, `photo ${i + 1} · ${r.detail ?? r.code}`);
+    const id = Number(idText(obj(r.json).id) ?? idText(obj(obj(r.json).photo).id));
+    if (!id) throw new MarketplaceError('UNAVAILABLE', `photo ${i + 1} : Vinted n’a pas renvoyé d’identifiant`);
+    ids.push(id);
+  }
+  return ids;
+}
 export async function createVintedDraft(input: DraftInput): Promise<DraftResult> {
   const adapter = new VintedTabAdapter();
   // A helper Vinted does not answer (not found, odd reply) leaves its field for the seller; a block, a logout, an
@@ -59,6 +87,16 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
     filled.unshift('title', 'description', 'price');
 
     const session = globalThis.crypto.randomUUID();
+    // The seller's photos first (all or nothing: never a draft with half of them), within the read budget.
+    const photos = (input.photos ?? []).slice(0, MAX_PHOTOS);
+    if (photos.length) {
+      const b = await budget.status();
+      if (b.halted) throw new MarketplaceError(b.halted);
+      if (b.remaining < photos.length + 2) throw new MarketplaceError('BUDGET_EXHAUSTED', `${photos.length + 2} appels nécessaires, ${b.remaining} restants`);
+    }
+    const photoIds = photos.length ? await uploadPhotos(photos, session) : [];
+    if (photoIds.length) filled.push('photos');
+    else missing.push('photos');
     const draft = {
       id: null,
       title: input.title,
@@ -73,7 +111,7 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
       package_size_id: packageId,
       color_ids: [],
       is_unisex: false,
-      assigned_photos: [],
+      assigned_photos: photoIds.map((id) => ({ id, orientation: 0 })),
       temp_uuid: session,
     };
     const res = obj(await vintedWrite('POST', '/api/v2/item_upload/drafts', { draft, feedback_id: null, parcel: null, upload_session_id: session }));
@@ -98,6 +136,43 @@ export async function createVintedDraft(input: DraftInput): Promise<DraftResult>
   } catch (e) {
     const { code, detail } = errorInfo(e);
     await journal({ kind: 'DRAFT', dryRun: false, ok: false, target: input.title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+    return { ok: false, code, detail: detail ?? undefined };
+  }
+}
+
+/**
+ * The seller's click « Publier sur Vinted »: the draft's page opened in the background, its one publish button clicked
+ * (as the seller would on Vinted), then read back — published only when Vinted no longer lists it as a draft. One draft
+ * per click, never chained. When Vinted keeps it as a draft (a field it requires), the page is shown to the seller.
+ */
+export async function publishDraft(draftId: string, itemId: string, title: string): Promise<PublishResult> {
+  try {
+    if (!/^\d+$/.test(draftId)) throw new MarketplaceError('NOT_APPLIED', 'brouillon sans identifiant Vinted');
+    await budget.reserveWrite();
+    const r = await budget.reserve('WRITE');
+    if (!r.ok) throw new MarketplaceError(r.code);
+    const tabId = await openEditTab(draftId);
+    let keep = false;
+    try {
+      const res = (await browser.tabs.sendMessage(tabId, { type: 'era:edit:publish' } satisfies EraMessage)) as { ok: boolean; detail?: string };
+      if (!res.ok) throw new MarketplaceError('EDIT_FORM', res.detail ?? 'bouton de publication introuvable');
+      await leftEditPage(tabId);
+      const back = obj(obj(await new VintedTabAdapter().rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
+      if (back.is_draft === true) {
+        keep = true;
+        await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
+        throw new MarketplaceError('NOT_APPLIED', 'Vinted garde le brouillon (un champ obligatoire manque ?) : la page est ouverte pour le compléter');
+      }
+      const verified = back.is_draft === false;
+      await repo.savePrep(itemId, { publishedAt: Date.now() });
+      await journal({ kind: 'PUBLISH', dryRun: false, ok: true, unconfirmed: !verified, target: title, detail: `brouillon ${draftId} publié${verified ? ', relu sur Vinted (plus un brouillon)' : ' · relecture sans réponse claire (non confirmé)'}` });
+      return { ok: true, verified };
+    } finally {
+      if (!keep) await browser.tabs.remove(tabId).catch(() => undefined);
+    }
+  } catch (e) {
+    const { code, detail } = errorInfo(e);
+    await journal({ kind: 'PUBLISH', dryRun: false, ok: false, target: title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
     return { ok: false, code, detail: detail ?? undefined };
   }
 }

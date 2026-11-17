@@ -9,7 +9,7 @@ import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
-import { createVintedDraft } from '@/data/vinted-draft';
+import { createVintedDraft, publishDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
@@ -614,6 +614,21 @@ export default defineBackground(() => {
           labelling = null;
         });
         return answer(labelling, (detail) => ({ results: [], stopped: detail, left: 0 }) satisfies LabelBatchResult);
+      case 'era:draft:publish': {
+        // The seller's click: one draft, published like on Vinted's page, read back. Never during another operation.
+        if (vintedBusy()) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
+          return undefined;
+        }
+        const run = db.items.get(msg.itemId).then((it) => publishDraft(msg.draftId, msg.itemId, it?.title ?? `brouillon ${msg.draftId}`));
+        editing = run;
+        return answer(
+          run.finally(() => {
+            editing = null;
+          }),
+          unavailable,
+        );
+      }
       case 'era:draft:create':
       case 'era:repost:create':
       case 'era:repost:finish':
