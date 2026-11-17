@@ -283,6 +283,15 @@ réduits : saut direct. three.js n'est chargé que sur cette vue ; WebGL indispo
 `.claude/skills/era-visuel/SKILL.md` (celle du blueprint « Stadium » d'Omnya Lab, **adaptée** à un stock de vêtements,
 pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
+## Le Pilote, dans le menu
+
+**Pilote** est dans le menu de gauche, juste sous Today, avec le nombre de messages qui vous attendent. Son panneau :
+un grand interrupteur (activé / désactivé) avec la prochaine tournée et son compte à rebours, les heures des tournées
+et le jour de la tâche de la semaine, puis **une tuile par agent** (offres, favoris, colis livrés, messages, baisses de
+prix, republications, bordereaux, tâche de la semaine) : allumée en vert quand l'agent travaille, son interrupteur, une
+ligne qui dit ce qu'il fait, « Détails » et « Régler » (la carte de l'agent plus bas). « Tout confier à ERA » disparaît
+quand tout est allumé. Dessous : Lancer une tournée, Simuler, Tâche de la semaine.
+
 ## Simuler une tournée (avant de tout confier)
 
 Carte Pilote → **Simuler une tournée (rien n'est envoyé)** : la tournée entière sur votre vrai compte, en lecture seule —

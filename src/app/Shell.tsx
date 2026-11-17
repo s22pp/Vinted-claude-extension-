@@ -13,6 +13,8 @@ import { type RouteName, go, useEra } from './state';
 
 const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
   { name: 'today', icon: 'today', tone: 'violet' },
+  // The autopilot: what ERA does by itself, and the messages waiting for the seller.
+  { name: 'automations', icon: 'repost', tone: 'violet' },
   { name: 'stock', icon: 'stock', tone: 'cobalt' },
   { name: 'market', icon: 'market', tone: 'cobalt' },
   { name: 'buy', icon: 'buy', tone: 'violet' },
@@ -26,7 +28,7 @@ import { UpdateBanner } from './components/update-banner';
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
   const era = useEra();
-  const active = route === 'item' || route === 'capital' || route === 'workshop' ? 'stock' : route === 'accounting' || route === 'parcels' ? 'sales' : route === 'automations' ? 'tools' : route;
+  const active = route === 'item' || route === 'capital' || route === 'workshop' ? 'stock' : route === 'accounting' || route === 'parcels' ? 'sales' : route;
   const navRef = useRef<HTMLElement>(null);
   const [marker, setMarker] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -34,6 +36,8 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
     setMarker(el ? el.offsetTop : null);
   }, [active]);
   const urgent = era.priorities.filter((p) => p.tone === 'risk' || p.tone === 'warning').length;
+  // Buyers' messages waiting for the seller in ERA (the reply agent's list).
+  const waiting = useLiveQuery(async () => ((await repo.getSetting<unknown[]>('autoRepliesPending', [])) ?? []).length, []) ?? 0;
   useMilestones();
 
   return (
@@ -52,6 +56,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
               <IconTile name={n.icon} tone={n.tone} size="sm" />
               <span className="nav__label">{t(`nav.${n.name}`)}</span>
               {n.name === 'today' && urgent > 0 && <span className="nav__count num">{urgent}</span>}
+              {n.name === 'automations' && waiting > 0 && <span className="nav__count num" title={t('nav.waiting', { n: waiting })}>{waiting}</span>}
             </a>
           ))}
         </nav>

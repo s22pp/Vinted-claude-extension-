@@ -87,6 +87,15 @@ export function Automations() {
     }
   };
 
+  /** One agent switched from the pilot's panel: saved at once (only its switch — the rest of a draft stays a draft). */
+  const agent = async (k: 'offers' | 'fav' | 'delivered' | 'replies', on: boolean) => {
+    // Shown at once, then saved.
+    setCfg((c) => (c ? ({ ...c, [k]: { ...c[k], enabled: on } } as AutoConfig) : c));
+    const saved = withDefaults(await repo.getSetting<Partial<AutoConfig> | null>('automations', null));
+    await repo.setSetting('automations', { ...saved, [k]: { ...saved[k], enabled: on } });
+    await browser.runtime.sendMessage({ type: 'era:auto:schedule' } satisfies EraMessage).catch(() => undefined);
+  };
+
   /** « Tout confier à ERA »: every automation on and saved, in one click (the pilot card switches its own part on). */
   const all = async () => {
     const next: AutoConfig = { ...cfg, minMarginCents: margin.cents ?? cfg.minMarginCents, offers: { ...cfg.offers, enabled: true }, fav: { ...cfg.fav, enabled: true }, delivered: { ...cfg.delivered, enabled: true }, replies: { enabled: true } };
@@ -133,12 +142,12 @@ export function Automations() {
           </div>
         </Card>
 
-        <PilotCard auto={cfg} onAll={all} />
+        <PilotCard auto={cfg} onAll={all} onAgent={agent} />
         <PendingReplies />
         <OutcomesCard />
 
         <Card className="span-6" title={t('auto.fav.title')} hint={t('auto.fav.hint')} icon="heart" tone="pink">
-          <div className="stack-3">
+          <div className="stack-3" data-testid="auto-fav">
             {check('a-fav', cfg.fav.enabled, (v) => set((c) => ({ ...c, fav: { ...c.fav, enabled: v } })), t('auto.fav.enable'))}
             <Segmented<FavMode>
               label={t('auto.fav.mode')}
@@ -182,7 +191,7 @@ export function Automations() {
         </Card>
 
         <Card className="span-6" title={t('auto.offers.title')} hint={t('auto.offers.hint')} icon="scale" tone="amber">
-          <div className="stack-3">
+          <div className="stack-3" data-testid="auto-offers">
             {check('a-off', cfg.offers.enabled, (v) => set((c) => ({ ...c, offers: { ...c.offers, enabled: v } })), t('auto.offers.enable'))}
             <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               <Field label={t('auto.offers.accept')} htmlFor="a-acc">
