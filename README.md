@@ -296,6 +296,12 @@ pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
 - **Messages comptés justement** : un message parti chez un membre reste compté comme envoyé, même si l'offre qui le suit est arrêtée (budget, 429). Une offre acceptée reste comptée même si le remerciement qui suit est arrêté. Le favori est noté « traité » dès l'envoi : jamais un second message.
 
+## Ce qui a déjà marché sur votre compte (Pilote)
+
+- Chaque agent du Pilote dit, d'après le journal d'ERA seulement, ce qu'il a déjà fait **pour de vrai sur votre compte** : « Vu marcher sur votre compte · 3 » (accepté par Vinted), « Envoyé sur votre compte, pas encore relu sur Vinted », « Marché 1 fois ici, dernier essai refusé par Vinted » (la raison de Vinted au survol), ou « Pas encore essayé sur votre compte ».
+- Une simulation ne compte jamais, et les tests sur un faux Vinted non plus : ils prouvent la logique d'ERA, pas votre compte. Les limites d'ERA elles-mêmes (budget, espacement, plafond du jour) ne sont pas des refus de Vinted.
+- La carte Intégrations (Réglages) compte aussi les réponses aux acheteurs et les brouillons publiés.
+
 ## Le Pilote, dans le menu
 
 **Pilote** est dans le menu de gauche, juste sous Today, avec le nombre de messages qui vous attendent. Son panneau :

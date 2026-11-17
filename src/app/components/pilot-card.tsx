@@ -4,7 +4,9 @@ import type { BudgetStatus, EraMessage } from '@/data/adapters/vinted/protocol';
 import { AUTO_FLOOR, MANUAL_FLOOR, SESSION_CALLS } from '@/data/budget-plan';
 import { AUTO_BACKUP_KEY } from '@/data/auto-backup';
 import { BUY_ALERTS_KEY } from '@/data/buy-alerts';
+import { db } from '@/data/db';
 import { repo } from '@/data/repo';
+import { type AgentProof, type PilotAgent, AGENT_KINDS, agentProof } from '@/intelligence/agent-proof';
 import { useI18n } from '@/i18n';
 import type { AutoConfig } from '@/intelligence/automation';
 import { PILOT_KEY, type PilotConfig, type PilotRound, addPilotHour, nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
@@ -24,6 +26,8 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
   const { t, dateLong } = useI18n();
   const toast = useToast();
   const stored = useLiveQuery(() => repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null), []);
+  // The journal: what each agent has already done for real on this account.
+  const journalRows = useLiveQuery(() => db.autoLog.toArray(), []) ?? [];
   const others = useLiveQuery(async () => ({
     alerts: !!(await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled,
     backup: !!(await repo.getSetting<{ enabled?: boolean } | null>(AUTO_BACKUP_KEY, null))?.enabled,
@@ -156,6 +160,7 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
                     {t(`pilot.task.${a.key}`)} {a.on ? '✓' : t('pilot.off')}
                   </strong>
                   <span className="t-small t-muted">{t(`pilot.short.${a.key}`)}</span>
+                  {others.real && a.key in AGENT_KINDS && <ProofLine agent={a.key as PilotAgent} proof={agentProof(journalRows, a.key as PilotAgent)} />}
                 </span>
                 <input type="checkbox" role="switch" className="checkbox" aria-label={a.label} checked={a.on} disabled={!others.real} onChange={(e) => a.toggle(e.target.checked)} style={{ marginTop: 2 }} />
               </div>
@@ -246,3 +251,27 @@ function BudgetGauge({ b }: { b: BudgetStatus }) {
     </div>
   );
 }
+
+/**
+ * One line per agent: what it has already done for real on the seller's own Vinted account (the journal), so a test on
+ * a fake Vinted is never taken for a proof — proven here, sent but not shown back, refused last time, or never tried.
+ */
+function ProofLine({ agent, proof }: { agent: PilotAgent; proof: AgentProof }) {
+  const { t, dateLong } = useI18n();
+  const tone = { PROVEN: 'var(--emerald)', UNCONFIRMED: 'var(--amber)', REFUSED: 'var(--coral)', UNSEEN: 'var(--text-2)' }[proof.state];
+  const text =
+    proof.state === 'PROVEN'
+      ? t('pilot.proof.proven', { n: proof.n })
+      : proof.state === 'REFUSED'
+        ? t(proof.n > 0 ? 'pilot.proof.refusedAfter' : 'pilot.proof.refused', { n: proof.n })
+        : t(proof.state === 'UNCONFIRMED' ? 'pilot.proof.unconfirmed' : 'pilot.proof.unseen');
+  const title =
+    proof.state === 'REFUSED' && proof.lastFail ? `${dateLong(proof.lastFail.at)} · ${proof.lastFail.detail}` : proof.lastOk ? t('pilot.proof.last', { at: dateLong(proof.lastOk) }) : undefined;
+  return (
+    <span className="row t-small" style={{ gap: 6, marginTop: 4, alignItems: 'flex-start', color: proof.state === 'UNSEEN' ? 'var(--text-2)' : tone }} data-testid={`proof-${agent}`} data-state={proof.state} title={title}>
+      <span aria-hidden="true" style={{ width: 7, height: 7, marginTop: 6, borderRadius: 4, flex: 'none', background: tone, opacity: proof.state === 'UNSEEN' ? 0.5 : 1 }} />
+      {text}
+    </span>
+  );
+}
+

@@ -12,7 +12,7 @@ let walking = 0;
  * Another click mid-walk: the browser ends the first one where it is and starts the next — never a blank page.
  */
 export function walkTo(walk: Walk | null, apply: () => void) {
-  const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void>; updateCallbackDone: Promise<void>; finished: Promise<void> } };
   if (!walk || !doc.startViewTransition || reducedMotion() || document.hidden) {
     apply();
     return;
@@ -21,6 +21,10 @@ export function walkTo(walk: Walk | null, apply: () => void) {
   const id = ++walking;
   root.dataset.eraWalk = walk;
   const vt = doc.startViewTransition(() => flushSync(apply));
+  // A click mid-walk skips this walk: the browser rejects its promises (« Transition was skipped ») — expected, the
+  // page has changed all the same. Each one handled, so it is never reported as a script error.
+  void vt.ready.catch(() => undefined);
+  void vt.updateCallbackDone.catch(() => undefined);
   void vt.finished
     .catch(() => undefined)
     .finally(() => {

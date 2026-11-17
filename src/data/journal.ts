@@ -1,3 +1,4 @@
+import { isUnconfirmedRow } from '@/intelligence/agent-proof';
 import { type AutoLogRow, db, uid } from './db';
 
 /**
@@ -9,7 +10,7 @@ export const JOURNAL_MAX = 600;
 export const JOURNAL_KEEP = 500;
 
 /** Sent and accepted, but not shown back by Vinted (rows before 0.31.1 said it only in their detail). */
-export const isUnconfirmed = (r: Pick<AutoLogRow, 'unconfirmed' | 'detail'>) => r.unconfirmed === true || /non (vérifié|confirmé)/.test(r.detail);
+export const isUnconfirmed = (r: Pick<AutoLogRow, 'unconfirmed' | 'detail'>) => isUnconfirmedRow(r);
 
 /** Accepted by Vinted and shown back, for real (a simulation never proves anything). */
 export const isVerified = (r: Pick<AutoLogRow, 'ok' | 'dryRun' | 'unconfirmed' | 'detail'>) => r.ok && !r.dryRun && !isUnconfirmed(r);

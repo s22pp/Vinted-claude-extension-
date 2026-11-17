@@ -1261,6 +1261,10 @@ test('favourite: the message reached the member, the offer after it was stopped 
   await expect(log.locator('tr', { hasText: 'Favoris → message / offre' }).first()).toContainText('1 faites', { timeout: 30_000 });
   await expect(log.locator('tr', { hasText: 'Favoris → message / offre' }).first()).toContainText('0 échecs');
   expect(calls.filter((c) => c.method !== 'GET').map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies', 'POST /api/v2/transactions/7001/offers']);
+  // The Pilote tile says it: worked once here, the last try refused by Vinted; an agent never run says so too.
+  await expect(page.getByTestId('proof-fav')).toHaveAttribute('data-state', 'REFUSED');
+  await expect(page.getByTestId('proof-fav')).toContainText('Marché 1 fois ici, dernier essai refusé par Vinted');
+  await expect(page.getByTestId('proof-replies')).toContainText('Pas encore essayé sur votre compte');
 });
 
 test('parcels to watch: a parcel sent long ago and still not delivered is flagged, with its conversation', async ({ context, base }) => {

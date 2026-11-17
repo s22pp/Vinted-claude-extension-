@@ -72,11 +72,11 @@ export const WRITE_ROUTES: Partial<Record<IntegKey, AutoLogRow['kind'][]>> = {
   priceEdit: ['PRICE'],
   titleEdit: ['TITLE'],
   description: ['DESCRIPTION'],
-  draft: ['DRAFT'],
+  draft: ['DRAFT', 'PUBLISH'],
   label: ['LABEL'],
   hide: ['HIDE', 'UNHIDE'],
   repost: ['REPOST', 'DELETE'],
-  auto: ['FAV_MESSAGE', 'FAV_BUNDLE', 'FAV_OFFER', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER', 'DELIVERED_MESSAGE'],
+  auto: ['FAV_MESSAGE', 'FAV_BUNDLE', 'FAV_OFFER', 'OFFER_ACCEPT', 'OFFER_REJECT', 'OFFER_COUNTER', 'DELIVERED_MESSAGE', 'REPLY'],
 };
 
 const ORDER: IntegKey[] = ['stock', 'sold', 'reserved', 'search', 'purchases', 'priceEdit', 'titleEdit', 'description', 'draft', 'label', 'hide', 'repost', 'auto'];
