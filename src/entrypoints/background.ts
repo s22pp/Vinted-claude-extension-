@@ -14,6 +14,7 @@ import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, l
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
 import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
+import { LIVE_ROUND_KEY, type RoundStep, finishRound, startRound, stepBegin, stepEnd } from '@/intelligence/round-live';
 import { weeklyDue } from '@/intelligence/weekly';
 import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
 import { duePriceCuts } from '@/data/price-cuts';
@@ -336,6 +337,26 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
   let openedTab: number | null = null;
   let callsBefore: number | null = null;
   const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
+  // The round, live: each step written as it begins and ends (with what it did and the requests used so far), for the
+  // Pilote panel. Written to the session only (gone with the browser), never to Vinted.
+  let live = startRound(Date.now(), dryRun, manual);
+  let liveOn = false;
+  const publish = async () => {
+    if (!liveOn) return;
+    if (callsBefore !== null) {
+      const u = Object.values(await budget.uses()).reduce((a, b) => a + (b ?? 0), 0);
+      live = { ...live, calls: u >= callsBefore ? u - callsBefore : u };
+    }
+    await browser.storage.session.set({ [LIVE_ROUND_KEY]: live }).catch(() => undefined);
+  };
+  const begin = async (s: RoundStep) => {
+    live = stepBegin(live, s, Date.now());
+    await publish();
+  };
+  const end = async (s: RoundStep, n: number | null, stopped = false) => {
+    live = stepEnd(live, s, Date.now(), n, stopped);
+    await publish();
+  };
   try {
     if ((await repo.getSetting('dataMode', 'empty')) !== 'real') {
       r.stopped = 'pas de données Vinted importées (démo ou vide)';
@@ -346,36 +367,49 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
       return r;
     }
     callsBefore = Object.values(await budget.uses()).reduce((a, b) => a + (b ?? 0), 0);
+    liveOn = true;
+    await publish();
     openedTab = await pilotTab();
     const cfg = await loadAutoConfig();
     const pilot = await loadPilot();
     await budget.asScheduled(floor, async () => {
+      await begin('refresh');
       const imp = await runImport(false);
       await importFollowUp;
       if (!imp.ok) {
         r.stopped = `${imp.code}${imp.detail ? ` · ${imp.detail}` : ''}`;
+        await end('refresh', null, true);
         if (STOP.test(imp.code)) return;
-      } else r.imported = { listings: imp.items + imp.updated, sold: imp.sales };
-      const auto = async (kind: AutoKind, on: boolean) => {
+      } else {
+        r.imported = { listings: imp.items + imp.updated, sold: imp.sales };
+        await end('refresh', imp.items + imp.updated);
+      }
+      const auto = async (kind: AutoKind, on: boolean, step: RoundStep) => {
         if ((!on && !dryRun) || r.stopped?.match(STOP) || !(await allowed())) return 0;
+        await begin(step);
         const a = await runAuto(kind, dryRun);
-        if (a.stopped && STOP.test(a.stopped)) r.stopped = a.stopped;
+        const stop = !!a.stopped && STOP.test(a.stopped);
+        if (stop) r.stopped = a.stopped;
+        await end(step, a.done, stop);
         return a.done;
       };
-      r.offers = await auto('OFFERS', cfg.offers.enabled);
-      r.favourites = await auto('FAV', cfg.fav.enabled);
-      r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
+      r.offers = await auto('OFFERS', cfg.offers.enabled, 'offers');
+      r.favourites = await auto('FAV', cfg.fav.enabled, 'fav');
+      r.delivered = await auto('DELIVERED', cfg.delivered.enabled, 'delivered');
       // Buyers' messages: plain questions answered when sure, the rest waiting in ERA with a draft.
       if ((cfg.replies.enabled || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
+        await begin('replies');
         const m = (await runAuto('REPLIES', dryRun)) as RepliesResult;
         r.replies = m.done;
         r.toAnswer = m.left;
         if (m.stopped && STOP.test(m.stopped)) r.stopped = m.stopped;
+        await end('replies', m.done, !!m.stopped && STOP.test(m.stopped));
       }
       // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
       // The plan's price cut due first (oldest), one per round — never chained, known cost only, never under the floor.
       r.priceCutsAuto = pilot.priceCuts || dryRun;
       if ((pilot.priceCuts || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
+        await begin('priceCut');
         const c = (await duePriceCuts())[0];
         // A simulation says the cut it would make, and makes none.
         if (c && dryRun) r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: false };
@@ -396,11 +430,13 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
             editing = null;
           }
         }
+        await end('priceCut', r.priceCut ? 1 : 0, !!r.stopped?.match(STOP));
       }
       // One repost of a listing that stalls (30 days, no favourite): copy, publish, then the old one deleted — each step
       // verified on Vinted; half-way, it is taken up next round. Never the article whose price was just cut.
       if ((pilot.reposts || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
         // The seller's writes stay ≥ 20 s apart: after a price cut, the repost waits its turn.
+        await begin('repost');
         if (r.priceCut && !dryRun) await new Promise((res) => setTimeout(res, 21_000));
         const skip = new Set<string>(r.priceCutItemId ? [r.priceCutItemId] : []);
         const run = autoRepost(dryRun, skip);
@@ -416,21 +452,28 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
         } finally {
           if (!dryRun) reposting = null;
         }
+        await end('repost', r.repost ? 1 : 0, !!r.stopped?.match(STOP));
       }
       if (pilot.labels && !dryRun && !r.stopped?.match(STOP) && (await allowed())) {
+        await begin('labels');
         const b = await getAllLabels();
         r.labels = b.results.filter((x) => x.ok && x.file).length;
         r.labelsNotSaved = b.results.filter((x) => x.ok && !x.file).length;
         if (b.stopped && STOP.test(b.stopped)) r.stopped = b.stopped;
+        await end('labels', r.labels, !!b.stopped && STOP.test(b.stopped));
       }
       if (!dryRun && !r.stopped?.match(STOP) && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('alerts'))) {
+        await begin('alerts');
         const a = await runBuyAlerts();
         r.deals = a.deals.length;
+        await end('alerts', r.deals);
       }
       // What followed the contacts (answers, sales): the measures of what makes people answer and buy.
       if (!dryRun && !r.stopped?.match(STOP) && (await allowed())) {
+        await begin('outcomes');
         const c = await refreshContacts().catch(() => null);
         if (c) r.outcomes = c;
+        await end('outcomes', c ? c.replied + c.sold : null);
       }
     });
   } catch (e) {
@@ -447,7 +490,9 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
   // The backup is local (no Vinted call): made even after a stop, when due.
   // Stopped for the budget: when it comes back (3 h without a call), said in the notice.
   if (r.stopped && /^(BUDGET_EXHAUSTED|budget de la session)/.test(r.stopped)) r.budgetResetAt = (await budget.status()).resetAt ?? undefined;
+  if (!dryRun && liveOn) await begin('backup');
   r.backup = dryRun ? false : (await runAutoBackup().catch(() => ({ ok: false }))).ok;
+  if (!dryRun && liveOn) await end('backup', null, !r.backup);
   r.simulated = dryRun;
   // What is left for the seller, from what ERA holds now.
   const now = Date.now();
@@ -457,6 +502,8 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
   r.toCollect = (await db.purchases.toArray()).filter((p) => !p.dismissed && parcelStage(p.status) === 'AT_PICKUP').length;
   // The seller's own plan for today (price cuts, articles to list): from ERA's data, no Vinted call.
   Object.assign(r, await pilotMissions(now).catch(() => ({})));
+  live = finishRound(live, Date.now(), r.stopped);
+  await publish();
   return r;
 }
 

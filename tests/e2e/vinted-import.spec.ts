@@ -2117,6 +2117,15 @@ test('simulated round: every agent reads and says what it would do — nothing s
   await expect(row).toContainText('ERA ferait :');
   await expect(row).toContainText('1 remerciement (colis livré)');
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual([]);
+  // Drawn on the panel as it went: each step done or skipped, the requests it used, nothing sent.
+  const live = page.getByTestId('round-live');
+  await expect(live).toHaveAttribute('data-running', 'false');
+  await expect(live).toContainText('Simulation terminée à');
+  await expect(live.locator('[data-step="refresh"]')).toHaveAttribute('data-state', 'DONE');
+  await expect(live.locator('[data-step="delivered"]')).toHaveAttribute('data-state', 'DONE');
+  await expect(live.locator('[data-step="delivered"]')).toHaveAttribute('aria-label', 'Colis livrés : fait · 1');
+  await expect(live.locator('[data-step="labels"]')).toHaveAttribute('data-state', 'SKIP');
+  await expect(page.getByTestId('round-live-calls')).toContainText(/\d+ requêtes Vinted/);
   await expect(page.getByTestId('pending-reply')).toHaveCount(0);
 });
 

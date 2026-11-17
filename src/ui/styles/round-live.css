@@ -1,0 +1,105 @@
+/* ── The round, live (Pilote) ───────────────────────────────────────────────────────────────────────────────── */
+.round-live {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+.round-live[data-running='true'] {
+  border-color: color-mix(in srgb, var(--violet) 55%, var(--border));
+}
+.round-live__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.round-live__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--brand-grad);
+  transition: width var(--t-slow) var(--ease);
+}
+.round-live__track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 10px 6px;
+}
+.round-live__step {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  min-width: 0;
+}
+.round-live__dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  transition:
+    background var(--t-normal) var(--ease),
+    border-color var(--t-normal) var(--ease),
+    color var(--t-normal) var(--ease);
+}
+.round-live__label {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.round-live__step[data-state='RUN'] .round-live__dot {
+  border-color: var(--violet);
+  background: var(--violet-soft);
+  animation: round-live-pulse 1.4s var(--ease-in-out) infinite;
+}
+.round-live__step[data-state='RUN'] .round-live__label {
+  color: var(--text);
+  font-weight: 600;
+}
+.round-live__step[data-state='DONE'] .round-live__dot {
+  border-color: var(--emerald);
+  background: var(--emerald-soft);
+  color: var(--emerald);
+}
+.round-live__step[data-state='STOP'] .round-live__dot {
+  border-color: var(--coral);
+  background: var(--coral-soft);
+  color: var(--coral);
+}
+.round-live__step[data-state='SKIP'] {
+  opacity: 0.45;
+}
+.round-live__step[data-state='SKIP'] .round-live__dot {
+  border-style: dashed;
+}
+@keyframes round-live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--violet) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--violet) 0%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-live__step[data-state='RUN'] .round-live__dot {
+    animation: none;
+  }
+}
+:root[data-motion='reduced'] .round-live__step[data-state='RUN'] .round-live__dot {
+  animation: none;
+}

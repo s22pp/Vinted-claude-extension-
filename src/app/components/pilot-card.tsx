@@ -15,6 +15,7 @@ import { useToast } from '@/ui/components/overlays';
 import { IconTile, type IconName, type TileTone } from '@/ui/components/icons';
 import { Badge, Button, Card, Field, Select } from '@/ui/components/primitives';
 import { untilText } from '@/intelligence/day-timeline';
+import { RoundLive } from './round-live';
 
 /**
  * The autopilot's settings: on/off and the two hours. The round runs what is switched on below (offers, favourites,
@@ -129,6 +130,7 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
           )}
         </div>
         {budget && <BudgetGauge b={budget} />}
+        <RoundLive />
         <div className="row wrap" style={{ gap: 10, alignItems: 'flex-end' }}>
           {cfg.hours.map((h, i) => (
             <div key={`${i}-${h}`} className="row" style={{ gap: 4, alignItems: 'flex-end' }}>

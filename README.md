@@ -296,6 +296,11 @@ pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
 - **Messages comptés justement** : un message parti chez un membre reste compté comme envoyé, même si l'offre qui le suit est arrêtée (budget, 429). Une offre acceptée reste comptée même si le remerciement qui suit est arrêté. Le favori est noté « traité » dès l'envoi : jamais un second message.
 
+## La tournée en direct (Pilote)
+
+- Pendant une tournée (lancée, simulée ou programmée, le panneau Pilote ouvert), chaque étape s'allume quand ERA la fait : Actualiser, Offres, Favoris, Colis livrés, Messages, Baisse, Republier, Bordereaux, Alertes, Mesures, Sauvegarde. Ce qu'elle a fait apparaît dès qu'elle est finie, les requêtes Vinted utilisées montent en direct ; les étapes coupées ou sans objet s'estompent, un arrêt est dit avec sa raison.
+- Rien n'est deviné : une étape n'est « faite » qu'une fois revenue. L'état est gardé dans la session du navigateur seulement ; une tournée finie reste affichée un quart d'heure.
+
 ## Ce qui a déjà marché sur votre compte (Pilote)
 
 - Chaque agent du Pilote dit, d'après le journal d'ERA seulement, ce qu'il a déjà fait **pour de vrai sur votre compte** : « Vu marcher sur votre compte · 3 » (accepté par Vinted), « Envoyé sur votre compte, pas encore relu sur Vinted », « Marché 1 fois ici, dernier essai refusé par Vinted » (la raison de Vinted au survol), ou « Pas encore essayé sur votre compte ».
