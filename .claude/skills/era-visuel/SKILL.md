@@ -9,6 +9,15 @@ Source : le blueprint gratuit d'Omnya Lab (« Stadium Method », 9 pages) — un
 choisit sa place. Ce qui compte n'est pas le stade : c'est **la façon dont ils font coder Claude**. Six règles, puis
 leur traduction dans ERA.
 
+## Règle zéro : adapter, jamais recopier
+
+Le stade est **leur** sujet. On reprend la méthode, pas l'image : chaque vue d'ERA prend la métaphore du métier du
+vendeur. Un revendeur de vêtements reconnaît ses articles à leur photo, sur un portant — pas à un bloc de couleur dans
+un stade. Première vue faite ainsi : **la boutique** (Stock → Boutique 3D) — un portant par catégorie, chaque article
+pendu avec sa vraie photo Vinted, une étiquette colorée par état, un portant « À envoyer » et un « Vendus ce mois ».
+Le vendeur l'a demandé explicitement : « Tu ne dois pas recopier le schéma 3D mais l'adapter à ce que tu penses être le
+mieux. »
+
 ## Les six règles
 
 1. **Décrire le résultat, pas le code.** Leurs prompts tiennent en 4 lignes : ce qu'il y a dans la scène, les
@@ -39,8 +48,11 @@ leur traduction dans ERA.
   distant (CSP MV3).
 - **Accessible** : la vue 3D a toujours son équivalent en liste/tableau ; navigation clavier (flèches, Entrée) ;
   `aria-label` sur le canvas, région `aria-live` pour l'article survolé ; contraste des cartes en clair et en sombre.
-- **Sobre en calcul** : une `InstancedMesh` par forme (jamais un mesh par article), rendu à la demande (pas de boucle
-  quand rien ne bouge), `devicePixelRatio` plafonné à 2, nettoyage (`dispose`) au démontage.
+- **Sobre en calcul** : une `InstancedMesh` par forme répétée (cintres, étiquettes) ; un mesh par article seulement
+  quand il porte sa propre photo (quelques dizaines à centaines, textures réduites à ~256 px) ; rendu à la demande (pas
+  de boucle quand rien ne bouge), `devicePixelRatio` plafonné à 2, nettoyage (`dispose`) au démontage.
+- **Photos** : celles de Vinted, lues par l'extension (permission `*.vinted.net`, jamais un CDN tiers), réduites pour la
+  texture ; sans photo, une silhouette neutre de la catégorie avec le titre — jamais une image inventée de l'article.
 - **Repli** : WebGL indisponible → message clair et lien vers la liste, jamais un écran vide.
 - **Tests** : la mise en page (positions, couleurs) est pure et testée en unitaire ; l'e2e passe par le clavier, pas
   par des coordonnées de pixels.

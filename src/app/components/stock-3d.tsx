@@ -3,32 +3,104 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useI18n } from '@/i18n';
 import { stagnationThreshold } from '@/intelligence/stagnation';
-import { ARC, ARC_START, HIGHLIGHT, type Placed, RADIUS, ROW_RISE, ROW_STEP, STATE_COLOR, type SceneFilter, type SceneSource, inFilter, layoutArena, nextAction, sceneItems } from '@/intelligence/stock-scene';
+import { HIGHLIGHT, type Hung, type Rack, STATE_COLOR, type SceneFilter, type SceneSource, inFilter, layoutRacks, nextAction, sceneItems } from '@/intelligence/stock-scene';
 import { Badge, Button } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
 
 const FILTERS: SceneFilter[] = ['ALL', 'TO_SHIP', 'CUT_DUE', 'REPOST', 'STALE', 'SOLD'];
-const HOME = { pos: new THREE.Vector3(0, 15, 22), target: new THREE.Vector3(0, 1.2, 0) };
+const RAIL_Y = 1.62;
+const W = 0.56;
+const H = 0.74;
+const TEX_W = 256;
+const TEX_H = 342;
 
 const reducedMotion = () => document.documentElement.dataset.motion === 'reduced' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
+/** Without a photo: a neutral garment silhouette with the title — never an invented picture of the article. */
+function silhouette(title: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = TEX_W;
+  c.height = TEX_H;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#e2e8f0';
+  g.fillRect(0, 0, TEX_W, TEX_H);
+  g.fillStyle = '#94a3b8';
+  g.beginPath();
+  // A plain top: shoulders, sleeves, body.
+  g.moveTo(88, 40);
+  g.lineTo(40, 70);
+  g.lineTo(18, 130);
+  g.lineTo(52, 142);
+  g.lineTo(66, 104);
+  g.lineTo(66, 250);
+  g.lineTo(190, 250);
+  g.lineTo(190, 104);
+  g.lineTo(204, 142);
+  g.lineTo(238, 130);
+  g.lineTo(216, 70);
+  g.lineTo(168, 40);
+  g.quadraticCurveTo(128, 72, 88, 40);
+  g.fill();
+  g.fillStyle = '#0f172a';
+  g.font = '600 22px system-ui, sans-serif';
+  g.textAlign = 'center';
+  const words = title.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    if (g.measureText(`${line} ${w}`.trim()).width > TEX_W - 24 && line) {
+      lines.push(line);
+      line = w;
+    } else line = `${line} ${w}`.trim();
+  }
+  if (line) lines.push(line);
+  lines.slice(0, 3).forEach((l, i) => g.fillText(l, TEX_W / 2, 284 + i * 24));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** The article's own Vinted photo, read by the extension (its permission on Vinted's image servers), cropped to the hanger. */
+async function photoTexture(url: string): Promise<THREE.CanvasTexture | null> {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || !(u.hostname === 'vinted.net' || u.hostname.endsWith('.vinted.net'))) return null;
+    const res = await fetch(url, { credentials: 'omit' });
+    if (!res.ok) return null;
+    const bmp = await createImageBitmap(await res.blob());
+    const c = document.createElement('canvas');
+    c.width = TEX_W;
+    c.height = TEX_H;
+    const g = c.getContext('2d')!;
+    const k = Math.max(TEX_W / bmp.width, TEX_H / bmp.height);
+    g.drawImage(bmp, (TEX_W - bmp.width * k) / 2, (TEX_H - bmp.height * k) / 2, bmp.width * k, bmp.height * k);
+    bmp.close();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * The stock as a stadium (skill « era-visuel »): every article a card on its stand (category), coloured by its state;
- * hover tells its price, a click flies the camera to it without a cut and opens its « ticket » with the next action.
- * The data are the only reference: the scene shows them, invents nothing. Keyboard: ← → to move, Entrée to open.
+ * The stock as a shop (skill « era-visuel »): a rack per category, every article hanging with its own Vinted photo and
+ * a tag coloured by its state; a rack « À envoyer » and a rack « Vendus ce mois ». Hover tells the price; a click takes
+ * the garment off the rail — the camera walks up to it without a cut — and its ticket says the next action. The data
+ * are the only reference. Keyboard: ← → to move, Entrée to open, Échap to step back.
  */
 export default function Stock3D() {
   const { t, money } = useI18n();
   const era = useEra();
   const host = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<SceneFilter>('ALL');
-  const [hover, setHover] = useState<{ p: Placed; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ p: Hung; x: number; y: number } | null>(null);
   const [sel, setSel] = useState<number | null>(null);
   const [noGl, setNoGl] = useState(false);
-  const api = useRef<{ paint: (f: SceneFilter, sel: number | null) => void; fly: (i: number | null) => void } | null>(null);
+  const api = useRef<{ paint: (f: SceneFilter) => void; select: (i: number | null) => void } | null>(null);
 
-  const { placed, stands } = useMemo(() => {
+  const { hung, racks } = useMemo(() => {
     const staleDays = stagnationThreshold(era.model);
     const sources: SceneSource[] = era.views.map((v) => {
       const plan = era.markdown.get(v.item.id);
@@ -48,13 +120,18 @@ export default function Stock3D() {
         cut: plan?.status === 'DUE' && v.askPrice !== null ? { from: v.askPrice, to: plan.step.targetCents } : null,
       };
     });
-    return layoutArena(sceneItems(sources, staleDays, era.now));
+    return layoutRacks(sceneItems(sources, staleDays, era.now));
   }, [era.views, era.markdown, era.model, era.now]);
 
-  // The scene: built once per layout, painted per filter, flown per selection.
+  const rackName = (r: Rack) => {
+    const base = r.kind === 'TO_SHIP' ? t('stock3d.rackShip') : r.kind === 'SOLD' ? t('stock3d.rackSold') : t(`category.${r.category}`);
+    const parts = racks.filter((x) => x.kind === r.kind && x.category === r.category).length;
+    return parts > 1 ? `${base} ${r.part}` : base;
+  };
+
   useEffect(() => {
     const el = host.current;
-    if (!el || !placed.length) return;
+    if (!el || !hung.length) return;
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -62,6 +139,7 @@ export default function Stock3D() {
       setNoGl(true);
       return;
     }
+    let alive = true;
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     const size = () => [el.clientWidth || 800, el.clientHeight || 520] as const;
     renderer.setSize(...size());
@@ -70,86 +148,122 @@ export default function Stock3D() {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, size()[0] / size()[1], 0.1, 200);
-    camera.position.copy(HOME.pos);
+    const rows = Math.max(...racks.map((r) => Math.round(-r.z / 3.4))) + 1;
+    const width = Math.max(...racks.map((r) => r.x1)) - Math.min(...racks.map((r) => r.x0));
+    const home = { pos: new THREE.Vector3(0, 2.4 + rows * 1.2, 4.5 + Math.max(width * 0.55, rows * 2.2)), target: new THREE.Vector3(0, 1, -(rows - 1) * 1.7) };
+    camera.position.copy(home.pos);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.copy(HOME.target);
-    controls.maxPolarAngle = Math.PI / 2.1;
-    controls.minDistance = 4;
+    controls.target.copy(home.target);
+    controls.maxPolarAngle = Math.PI / 2.05;
+    controls.minDistance = 1.5;
     controls.maxDistance = 60;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(8, 20, 10);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3f3a36, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(4, 9, 8);
     scene.add(sun);
-    // The pitch: plain, the articles are the show.
-    const pitch = new THREE.Mesh(new THREE.CircleGeometry(7.5, 64), new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.9 }));
-    pitch.rotation.x = -Math.PI / 2;
-    scene.add(pitch);
-    // Its markings: the halfway line and the centre circle.
-    const lines = new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.7 });
-    const circle = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 64 }, (_, i) => new THREE.Vector3(Math.cos((i / 64) * Math.PI * 2) * 1.6, 0.01, Math.sin((i / 64) * Math.PI * 2) * 1.6))), lines);
-    const halfway = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.01, -7.4), new THREE.Vector3(0, 0.01, 7.4)]), lines);
-    scene.add(circle, halfway);
-    // The bowl: concrete steps, one per row, on the stands' arc (open on the entrance side, like a stadium).
-    const maxRows = Math.max(...stands.map((s) => s.rows));
-    const profile: THREE.Vector2[] = [new THREE.Vector2(RADIUS - 0.7, 0)];
-    for (let r = 0; r < maxRows; r++) {
-      const inner = RADIUS + r * ROW_STEP - 0.55;
-      profile.push(new THREE.Vector2(inner, r * ROW_RISE), new THREE.Vector2(inner + ROW_STEP, r * ROW_RISE));
-      if (r < maxRows - 1) profile.push(new THREE.Vector2(inner + ROW_STEP, (r + 1) * ROW_RISE));
-    }
-    profile.push(new THREE.Vector2(RADIUS + maxRows * ROW_STEP - 0.55, -0.01));
-    const bowl = new THREE.Mesh(new THREE.LatheGeometry(profile, 96, Math.PI / 2 - (ARC_START + ARC), ARC), new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.95, side: THREE.DoubleSide }));
-    scene.add(bowl);
+    // The shop floor: warm, plain — the clothes are the show.
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width + 12, rows * 3.4 + 10), new THREE.MeshStandardMaterial({ color: 0x5b4636, roughness: 0.85 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, -(rows - 1) * 1.7);
+    scene.add(floor);
 
-    // Every article in ONE InstancedMesh: instance i is placed[i] (it knows its stand, row, seat, state).
-    const card = new THREE.BoxGeometry(0.8, 1, 0.08);
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 });
-    const mesh = new THREE.InstancedMesh(card, mat, placed.length);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    placed.forEach((p, i) => {
-      q.setFromEuler(new THREE.Euler(0, p.rotY, 0));
-      m.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(1, p.h, 1));
-      mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, new THREE.Color(STATE_COLOR[p.state]));
-    });
-    scene.add(mesh);
-    // The selected seat's marker.
-    const marker = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.5, 16), new THREE.MeshStandardMaterial({ color: HIGHLIGHT, emissive: HIGHLIGHT, emissiveIntensity: 0.4 }));
-    marker.rotation.x = Math.PI;
-    marker.visible = false;
-    scene.add(marker);
-    // Stand labels: the category, written once on a sprite.
-    const sprites: THREE.Sprite[] = stands.map((s) => {
+    const disposables: { dispose: () => void }[] = [floor.geometry, floor.material as THREE.Material];
+    // The racks: a chrome rail on two posts, and the rack's sign.
+    const metal = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.8, roughness: 0.3 });
+    disposables.push(metal);
+    for (const r of racks) {
+      const len = r.x1 - r.x0;
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, len, 12), metal);
+      rail.rotation.z = Math.PI / 2;
+      rail.position.set((r.x0 + r.x1) / 2, RAIL_Y, r.z);
+      scene.add(rail);
+      disposables.push(rail.geometry);
+      for (const x of [r.x0, r.x1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, RAIL_Y, 10), metal);
+        post.position.set(x, RAIL_Y / 2, r.z);
+        scene.add(post);
+        disposables.push(post.geometry);
+      }
       const c = document.createElement('canvas');
       c.width = 512;
       c.height = 96;
       const g = c.getContext('2d')!;
-      g.fillStyle = 'rgba(15,23,42,0.75)';
+      g.fillStyle = r.kind === 'TO_SHIP' ? 'rgba(109,40,217,0.9)' : r.kind === 'SOLD' ? 'rgba(4,120,87,0.9)' : 'rgba(15,23,42,0.85)';
       g.fillRect(0, 0, 512, 96);
       g.fillStyle = '#fff';
-      g.font = '600 44px system-ui, sans-serif';
+      g.font = '600 42px system-ui, sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.fillText(`${t(`category.${s.category}`)} · ${s.count}`, 256, 48);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
-      sp.scale.set(3.2, 0.6, 1);
-      // Above the back row of its stand, like the stand's own sign.
-      const r = RADIUS + s.rows * ROW_STEP + 0.4;
-      sp.position.set(Math.cos(s.angle) * r, s.rows * ROW_RISE + 1.6, Math.sin(s.angle) * r);
-      scene.add(sp);
-      return sp;
+      g.fillText(`${rackName(r)} · ${r.count}`, 256, 48);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+      sign.scale.set(Math.min(2.6, len), Math.min(2.6, len) * 0.19, 1);
+      sign.position.set((r.x0 + r.x1) / 2, RAIL_Y + 0.32, r.z);
+      scene.add(sign);
+      disposables.push(tex, sign.material);
+    }
+
+    // Repeated shapes in one InstancedMesh each: the hangers' bars and the tags (instance i = hung[i]).
+    const bars = new THREE.InstancedMesh(new THREE.BoxGeometry(W * 0.92, 0.022, 0.022), metal, hung.length);
+    const tagMat = new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide });
+    const tags = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.1, 0.14), tagMat, hung.length);
+    disposables.push(bars.geometry, tags.geometry, tagMat);
+    // The garments: one each, wearing its own photo (or the silhouette), and knowing which article it is.
+    const garmentGeo = new THREE.PlaneGeometry(W, H);
+    disposables.push(garmentGeo);
+    const garments = hung.map((h, i) => {
+      const tex = silhouette(h.title);
+      const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide });
+      const m = new THREE.Mesh(garmentGeo, mat);
+      m.position.set(h.x, h.y, h.z);
+      m.userData.index = i;
+      scene.add(m);
+      return m;
     });
+    const place = (i: number, dz: number) => {
+      const h = hung[i]!;
+      garments[i]!.position.z = h.z + dz;
+      const m = new THREE.Matrix4();
+      m.makeTranslation(h.x, h.y + H / 2 + 0.02, h.z + dz);
+      bars.setMatrixAt(i, m);
+      m.makeTranslation(h.x + W / 2 - 0.07, h.y + H / 2 - 0.1, h.z + dz + 0.012);
+      tags.setMatrixAt(i, m);
+      bars.instanceMatrix.needsUpdate = true;
+      tags.instanceMatrix.needsUpdate = true;
+    };
+    hung.forEach((_, i) => place(i, 0));
+    scene.add(bars, tags);
 
     const render = () => renderer.render(scene, camera);
     controls.addEventListener('change', render);
+    // The photos arrive a few at a time; each hanger changes clothes as soon as its own is read.
+    void (async () => {
+      const queue = hung.map((h, i) => [h, i] as const).filter(([h]) => !!h.photoUrl);
+      const worker = async () => {
+        while (alive && queue.length) {
+          const [h, i] = queue.shift()!;
+          const tex = await photoTexture(h.photoUrl!);
+          if (!alive || !tex) continue;
+          const mat = garments[i]!.material as THREE.MeshStandardMaterial;
+          mat.map?.dispose();
+          mat.map = tex;
+          mat.needsUpdate = true;
+          render();
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+    })();
+
     let raf = 0;
-    const flyTo = (pos: THREE.Vector3, target: THREE.Vector3) => {
+    let lifted: number | null = null;
+    const animate = (to: { pos: THREE.Vector3; target: THREE.Vector3 }, lift: { i: number; from: number; to: number }[]) => {
       cancelAnimationFrame(raf);
       if (reducedMotion()) {
-        camera.position.copy(pos);
-        controls.target.copy(target);
+        camera.position.copy(to.pos);
+        controls.target.copy(to.target);
+        for (const l of lift) place(l.i, l.to);
         controls.update();
         return render();
       }
@@ -157,9 +271,10 @@ export default function Stock3D() {
       const t0 = controls.target.clone();
       const start = performance.now();
       const step = (now: number) => {
-        const k = ease(Math.min(1, (now - start) / 1100));
-        camera.position.lerpVectors(p0, pos, k);
-        controls.target.lerpVectors(t0, target, k);
+        const k = ease(Math.min(1, (now - start) / 1000));
+        camera.position.lerpVectors(p0, to.pos, k);
+        controls.target.lerpVectors(t0, to.target, k);
+        for (const l of lift) place(l.i, l.from + (l.to - l.from) * k);
         controls.update();
         render();
         if (k < 1) raf = requestAnimationFrame(step);
@@ -167,25 +282,22 @@ export default function Stock3D() {
       raf = requestAnimationFrame(step);
     };
     api.current = {
-      paint: (f, s) => {
-        placed.forEach((p, i) => {
-          const on = f !== 'ALL' && inFilter(p, f);
-          const c = new THREE.Color(on ? HIGHLIGHT : STATE_COLOR[p.state]);
-          if (f !== 'ALL' && !on) c.multiplyScalar(0.3);
-          mesh.setColorAt(i, c);
+      paint: (f) => {
+        hung.forEach((h, i) => {
+          const on = f !== 'ALL' && inFilter(h, f);
+          tags.setColorAt(i, new THREE.Color(on ? HIGHLIGHT : STATE_COLOR[h.state]));
+          (garments[i]!.material as THREE.MeshStandardMaterial).color.setScalar(f === 'ALL' || on ? 1 : 0.32);
         });
-        mesh.instanceColor!.needsUpdate = true;
-        marker.visible = s !== null;
-        if (s !== null) marker.position.set(placed[s]!.x, placed[s]!.y + placed[s]!.h / 2 + 0.45, placed[s]!.z);
+        tags.instanceColor!.needsUpdate = true;
         render();
       },
-      // Down to the seat in one continuous move (no cut); null: back to the whole bowl.
-      fly: (i) => {
-        if (i === null) return flyTo(HOME.pos, HOME.target);
-        const p = placed[i]!;
-        const dir = new THREE.Vector3(p.x, 0, p.z).normalize();
-        const target = new THREE.Vector3(p.x, p.y, p.z);
-        flyTo(target.clone().sub(dir.multiplyScalar(6)).add(new THREE.Vector3(0, 2.4, 0)), target);
+      // Taken off the rail: the garment steps forward and the camera walks up to it, in one move; null: back to the shop.
+      select: (i) => {
+        const lift = [...(lifted !== null && lifted !== i ? [{ i: lifted, from: 0.45, to: 0 }] : []), ...(i !== null && i !== lifted ? [{ i, from: 0, to: 0.45 }] : [])];
+        lifted = i;
+        if (i === null) return animate(home, lift);
+        const h = hung[i]!;
+        animate({ pos: new THREE.Vector3(h.x, 1.35, h.z + 2.7), target: new THREE.Vector3(h.x, 1.15, h.z) }, lift);
       },
     };
 
@@ -195,22 +307,22 @@ export default function Stock3D() {
       const r = renderer.domElement.getBoundingClientRect();
       ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ptr, camera);
-      const hit = ray.intersectObject(mesh)[0];
-      return hit?.instanceId ?? null;
+      const hit = ray.intersectObjects(garments, false)[0];
+      return hit ? (hit.object.userData.index as number) : null;
     };
     const onMove = (e: PointerEvent) => {
       const i = pick(e);
       const r = el.getBoundingClientRect();
-      setHover(i === null ? null : { p: placed[i]!, x: e.clientX - r.left, y: e.clientY - r.top });
+      setHover(i === null ? null : { p: hung[i]!, x: e.clientX - r.left, y: e.clientY - r.top });
     };
     let down = { x: 0, y: 0 };
     const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
     const onUp = (e: PointerEvent) => {
-      // A click, not the end of a drag of the camera.
       if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
       const i = pick(e);
       if (i !== null) setSel(i);
     };
+    const onLeave = () => setHover(null);
     const onResize = () => {
       const [w, h] = size();
       renderer.setSize(w, h);
@@ -221,51 +333,46 @@ export default function Stock3D() {
     renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointerup', onUp);
-    renderer.domElement.addEventListener('pointerleave', () => setHover(null));
+    renderer.domElement.addEventListener('pointerleave', onLeave);
     window.addEventListener('resize', onResize);
     render();
     return () => {
+      alive = false;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
       controls.dispose();
-      card.dispose();
-      mat.dispose();
-      marker.geometry.dispose();
-      (marker.material as THREE.Material).dispose();
-      pitch.geometry.dispose();
-      (pitch.material as THREE.Material).dispose();
-      bowl.geometry.dispose();
-      (bowl.material as THREE.Material).dispose();
-      circle.geometry.dispose();
-      halfway.geometry.dispose();
-      lines.dispose();
-      for (const s of sprites) {
-        s.material.map?.dispose();
-        s.material.dispose();
+      for (const g of garments) {
+        const mat = g.material as THREE.MeshStandardMaterial;
+        mat.map?.dispose();
+        mat.dispose();
       }
+      for (const d of disposables) d.dispose();
+      bars.dispose();
+      tags.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       api.current = null;
     };
-  }, [placed, stands, t]);
+    // rackName reads `racks` and `t`, both already in the dependencies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hung, racks, t]);
 
-  useEffect(() => api.current?.paint(filter, sel), [filter, sel, placed]);
-  useEffect(() => api.current?.fly(sel), [sel]);
+  useEffect(() => api.current?.paint(filter), [filter, hung]);
+  useEffect(() => api.current?.select(sel), [sel]);
 
-  const counts = useMemo(() => Object.fromEntries(FILTERS.map((f) => [f, f === 'ALL' ? placed.length : placed.filter((p) => inFilter(p, f)).length])), [placed]);
-  const s = sel !== null ? placed[sel] : null;
-  const order = placed; // already by stand, then the urgent first: the keyboard follows the bowl
+  const counts = useMemo(() => Object.fromEntries(FILTERS.map((f) => [f, f === 'ALL' ? hung.length : hung.filter((p) => inFilter(p, f)).length])), [hung]);
+  const s = sel !== null ? hung[sel] : null;
   const onKey = (e: React.KeyboardEvent) => {
-    if (!order.length) return;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setSel((i) => (i === null ? 0 : (i + 1) % order.length));
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setSel((i) => (i === null ? order.length - 1 : (i - 1 + order.length) % order.length));
+    if (!hung.length) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setSel((i) => (i === null ? 0 : (i + 1) % hung.length));
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setSel((i) => (i === null ? hung.length - 1 : (i - 1 + hung.length) % hung.length));
     else if (e.key === 'Escape') setSel(null);
     else if (e.key === 'Enter' && s) go(`item/${s.itemId}`);
     else return;
     e.preventDefault();
   };
 
-  if (!placed.length) return <p className="t-small t-muted">{t('stock3d.empty')}</p>;
+  if (!hung.length) return <p className="t-small t-muted">{t('stock3d.empty')}</p>;
   if (noGl) return <p className="t-small t-warn">{t('stock3d.noGl')}</p>;
   return (
     <div className="stack-3" data-testid="stock-3d">
@@ -280,15 +387,15 @@ export default function Stock3D() {
         ref={host}
         tabIndex={0}
         role="application"
-        aria-label={t('stock3d.label', { n: placed.length })}
+        aria-label={t('stock3d.label', { n: hung.length })}
         onKeyDown={onKey}
-        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 14, overflow: 'hidden', background: 'radial-gradient(ellipse at center, #1e293b 0%, #0b1220 75%)', outline: 'none' }}
+        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 14, overflow: 'hidden', background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)', outline: 'none' }}
       >
         {hover && !s && (
-          <div className="card" style={{ position: 'absolute', left: Math.min(hover.x + 14, 9999), top: hover.y + 14, padding: '8px 10px', pointerEvents: 'none', maxWidth: 260 }}>
+          <div className="card" style={{ position: 'absolute', left: hover.x + 14, top: hover.y + 14, padding: '8px 10px', pointerEvents: 'none', maxWidth: 260 }}>
             <strong className="t-small">{hover.p.title}</strong>
             <div className="t-small t-muted">
-              {hover.p.unknownPrice ? t('stock3d.priceUnknown') : money(hover.p.priceCents)} · {t(`stock3d.s.${hover.p.state}`)}
+              {hover.p.priceCents === null ? t('stock3d.priceUnknown') : money(hover.p.priceCents)} · {t(`stock3d.s.${hover.p.state}`)}
             </div>
           </div>
         )}
@@ -298,14 +405,14 @@ export default function Stock3D() {
               {s.photoUrl && <img src={s.photoUrl} alt="" width={72} height={96} style={{ objectFit: 'cover', borderRadius: 8 }} onError={(e) => (e.currentTarget.style.display = 'none')} />}
               <div className="stack" style={{ gap: 4 }}>
                 <strong>{s.title}</strong>
-                <span className="t-small t-muted">{t('stock3d.seat', { stand: t(`category.${s.category}`), row: s.row, seat: s.seat })}</span>
+                <span className="t-small t-muted">{t('stock3d.hanger', { rack: rackName(racks[s.rack]!), slot: s.slot })}</span>
                 <span>
                   <Badge tone={s.state === 'TO_SHIP' ? 'violet' : s.state === 'SOLD' ? 'emerald' : s.state === 'CUT_DUE' ? 'amber' : 'neutral'}>{t(`stock3d.s.${s.state}`)}</Badge>
                 </span>
               </div>
             </div>
             <div className="t-small">
-              {s.unknownPrice ? t('stock3d.priceUnknown') : money(s.priceCents)} · {t('stock3d.stats', { views: s.views ?? '—', favs: s.favourites ?? '—', days: s.daysListed ?? '—' })}
+              {s.priceCents === null ? t('stock3d.priceUnknown') : money(s.priceCents)} · {t('stock3d.stats', { views: s.views ?? '—', favs: s.favourites ?? '—', days: s.daysListed ?? '—' })}
             </div>
             <p className="t-small" style={{ margin: 0 }}>
               {t(`stock3d.next.${nextAction(s)}`, s.cut ? { from: money(s.cut.from), to: money(s.cut.to) } : {})}
@@ -322,7 +429,7 @@ export default function Stock3D() {
         )}
       </div>
       <p className="t-small t-faint" aria-live="polite">
-        {s ? t('stock3d.selected', { title: s.title, n: (sel ?? 0) + 1, total: placed.length }) : t('stock3d.help')}
+        {s ? t('stock3d.selected', { title: s.title, n: (sel ?? 0) + 1, total: hung.length }) : t('stock3d.help')}
       </p>
     </div>
   );

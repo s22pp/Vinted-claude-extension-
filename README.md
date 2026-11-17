@@ -252,17 +252,19 @@ répondre.
   automatiques par jour, arrêt sur un blocage. Chaque envoi au journal et dans la base des contacts.
 - Champs de la messagerie Vinted **non vérifiés** sur votre compte : le premier passage réel le dira (journal).
 
-## Le stock en 3D (le « stade »)
+## La boutique en 3D
 
-Stock → **Vue 3D** : votre stock comme un stade. Chaque tribune est une catégorie, chaque article une carte sur son
-gradin, qui sait qui elle est (tribune, rang, place) ; sa couleur dit son état (à envoyer, baisse à faire, stagne, en
-ligne, réservé, masqué, vendu ces 30 jours) et sa hauteur son prix (un prix inconnu garde la hauteur du milieu et est
-dit inconnu, jamais inventé). Les filtres (À envoyer, Baisse à faire, À republier, Qui stagnent, Vendus) allument leurs
-articles en orange. Survol : titre, prix, état. Clic (ou flèches + Entrée au clavier) : la caméra descend sans coupure
-jusqu'à l'article et sa carte « billet » montre la photo de Vinted, les vues, favoris, jours en ligne et **la prochaine
-action**, avec « Ouvrir la fiche ». Mouvements réduits : saut direct. three.js est chargé seulement sur cette vue ;
-WebGL indisponible → la liste reste là. Méthode : `.claude/skills/era-visuel/SKILL.md` (inspirée du blueprint
-« Stadium » d'Omnya Lab ; jamais de photo d'article générée ou retouchée par IA).
+Stock → **Boutique 3D** : votre stock comme une boutique. Un portant par catégorie (10 vêtements au plus, sinon
+plusieurs portants), chaque article pendu à son cintre **avec sa photo Vinted** (lue par l'extension, telle quelle ;
+sans photo : une silhouette neutre avec le titre, jamais une image inventée), ce qui demande une action en tête de
+rail ; au fond, un portant **À envoyer** et un portant **Vendus ce mois**. Une étiquette sur chaque cintre dit l'état
+(à envoyer, baisse à faire, stagne, en ligne, réservé, masqué, vendu). Les filtres (À envoyer, Baisse à faire, À
+republier, Qui stagnent, Vendus) allument leurs étiquettes en orange et éteignent le reste. Survol : titre, prix, état.
+Clic (ou flèches + Entrée) : le vêtement sort du portant, la caméra s'avance jusqu'à lui sans coupure, et sa carte
+montre la photo, les vues, favoris, jours en ligne et **la prochaine action**, avec « Ouvrir la fiche ». Mouvements
+réduits : saut direct. three.js n'est chargé que sur cette vue ; WebGL indisponible → la liste reste là. Méthode :
+`.claude/skills/era-visuel/SKILL.md` (celle du blueprint « Stadium » d'Omnya Lab, **adaptée** à un stock de vêtements,
+pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
 ## Simuler une tournée (avant de tout confier)
 

@@ -653,7 +653,7 @@ test('reply with Gemini: ERA decides the price, a price or a promise not in ERA�
   expect(body.contents[0]!.parts[0]!.text).toMatch(/Décision du vendeur : Le vendeur refuse l’offre de 1\s€/);
 });
 
-test('stock in 3D: every article a seat on its stand; the keyboard flies to one, its ticket says the next action, Entrée opens it', async ({ context, base }) => {
+test('the shop in 3D: every article on its rack; the keyboard takes one off the rail, its ticket says the next action, Entrée opens it', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);
   await page.goto(`${base}#/stock?view=3d`);
@@ -667,7 +667,7 @@ test('stock in 3D: every article a seat on its stand; the keyboard flies to one,
   await page.keyboard.press('ArrowRight');
   const ticket = page.getByTestId('stock-3d-ticket');
   await expect(ticket).toBeVisible();
-  await expect(ticket).toContainText(/Tribune .* · rang \d+ · place \d+/);
+  await expect(ticket).toContainText(/Portant .* · cintre \d+/);
   await expect(ticket).toContainText('Prochaine action');
   await expect(scene.getByText(/— article 1 sur \d+/)).toBeVisible();
   await page.keyboard.press('Escape');

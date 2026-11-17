@@ -1,7 +1,7 @@
 /**
- * The stock as a stadium (skill « era-visuel »): every article a seat that knows who it is — its stand (category), row,
- * seat, state and next action. Pure: which articles, their state, where they sit, their colour, the filters. The scene
- * only shows this; it invents nothing (an unknown price has no invented height: it is flagged unknown).
+ * The stock as a shop (skill « era-visuel »): every article a garment on a rack that knows who it is — its rack
+ * (category), its place on the rail, its state and its next action. Pure: which articles, their state, where they hang,
+ * their tag's colour, the filters. The scene only shows this; it invents nothing.
  */
 
 export type SceneState = 'TO_SHIP' | 'CUT_DUE' | 'STALE' | 'LIVE' | 'RESERVED' | 'HIDDEN' | 'SOLD';
@@ -39,7 +39,7 @@ export interface SceneSource {
 }
 
 const DAY = 86_400_000;
-/** Sold articles stay in the stadium this long (green seats: what sold lately). */
+/** Sold articles stay on the « Vendus ce mois » rack this long. */
 export const SOLD_SHOWN_DAYS = 30;
 
 /** One state per article, the most urgent first: to ship, a cut due, stale, then as Vinted shows it. */
@@ -54,7 +54,7 @@ export function sceneState(s: SceneSource, staleDays: number): SceneState | null
   return 'LIVE';
 }
 
-/** The articles in the stadium: in stock and listed (not drafts), and those sold in the last 30 days. */
+/** The articles in the shop: in stock and listed (not drafts), to ship, and those sold in the last 30 days. */
 export function sceneItems(sources: readonly SceneSource[], staleDays: number, now: number): SceneItem[] {
   const out: SceneItem[] = [];
   for (const s of sources) {
@@ -66,76 +66,79 @@ export function sceneItems(sources: readonly SceneSource[], staleDays: number, n
   return out;
 }
 
-export interface Placed extends SceneItem {
-  stand: number;
-  row: number;
-  seat: number;
+/** Where a hanger hangs: its rack, its place on the rail, and its position in the shop. */
+export interface Hung extends SceneItem {
+  rack: number;
+  slot: number;
   x: number;
   y: number;
   z: number;
-  /** Facing the pitch (radians around Y). */
-  rotY: number;
-  /** Card height: the price, relative to the others; null price → the middle height, flagged. */
-  h: number;
-  unknownPrice: boolean;
 }
 
-export interface Stand {
+export type RackKind = 'CATEGORY' | 'TO_SHIP' | 'SOLD';
+export interface Rack {
   index: number;
-  category: string;
+  kind: RackKind;
+  /** The category (CATEGORY racks), null for the shipping and sold racks. */
+  category: string | null;
+  /** 1, 2… when a category needs more than one rack. */
+  part: number;
   count: number;
-  /** Middle angle of the stand (radians), for its label. */
-  angle: number;
-  /** Rows it fills (its sign stands above the last one). */
-  rows: number;
+  x0: number;
+  x1: number;
+  z: number;
 }
 
-const ORDER: SceneState[] = ['TO_SHIP', 'CUT_DUE', 'STALE', 'LIVE', 'RESERVED', 'HIDDEN', 'SOLD'];
-/** The bowl: an arc of 300°, open on one side like a stadium entrance. */
-export const ARC = (300 / 180) * Math.PI;
-export const ARC_START = -Math.PI / 2 + (Math.PI * 2 - ARC) / 2;
-export const RADIUS = 9;
-export const ROW_STEP = 1.1;
-export const ROW_RISE = 0.7;
+/** Room for one garment on a rail, garments per rack, racks per row of the shop, and the spacing between them. */
+export const SLOT = 0.62;
+export const RACK_MAX = 10;
+export const RACKS_PER_ROW = 3;
+const RACK_PAD = 0.3;
+const RACK_GAP = 1.1;
+const ROW_DEPTH = 3.4;
+/** Height of a garment's centre (a hanger on a rail at about 1.6). */
+export const GARMENT_Y = 1.15;
+
+const URGENT: SceneState[] = ['TO_SHIP', 'CUT_DUE', 'STALE', 'LIVE', 'RESERVED', 'HIDDEN', 'SOLD'];
 
 /**
- * Stands = categories (the biggest first), each a sector of the bowl in proportion to its articles; rows go up and
- * back; what needs action sits in the front rows. Every seat keeps its stand, row and seat number.
+ * The shop: one rack per category (the biggest first; more than RACK_MAX garments → several racks), what needs action
+ * first on each rail, then a rack « À envoyer » and a rack « Vendus ce mois ». Racks stand in rows of RACKS_PER_ROW,
+ * front to back, centred. Every garment keeps its rack and its place on the rail.
  */
-export function layoutArena(items: readonly SceneItem[]): { placed: Placed[]; stands: Stand[] } {
-  if (!items.length) return { placed: [], stands: [] };
+export function layoutRacks(items: readonly SceneItem[]): { hung: Hung[]; racks: Rack[] } {
+  const byUrgency = (a: SceneItem, b: SceneItem) => URGENT.indexOf(a.state) - URGENT.indexOf(b.state) || a.title.localeCompare(b.title);
+  const groups: { kind: RackKind; category: string | null; list: SceneItem[] }[] = [];
   const byCat = new Map<string, SceneItem[]>();
-  for (const it of items) byCat.set(it.category, [...(byCat.get(it.category) ?? []), it]);
-  const cats = [...byCat.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-  const known = items.map((i) => i.priceCents).filter((p): p is number => p !== null);
-  const lo = known.length ? Math.min(...known) : 0;
-  const hi = known.length ? Math.max(...known) : 0;
-  const gap = 0.06;
-  const total = items.length;
-  let start = ARC_START;
-  const placed: Placed[] = [];
-  const stands: Stand[] = [];
-  cats.forEach(([category, list], index) => {
-    const width = Math.max(ARC * (list.length / total) - gap, 0.12);
-    const sorted = [...list].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || a.title.localeCompare(b.title));
-    const rows = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(sorted.length / 3))));
-    const perRow = Math.ceil(sorted.length / rows);
-    sorted.forEach((it, i) => {
-      const row = Math.floor(i / perRow);
-      const seat = i % perRow;
-      const angle = start + ((seat + 0.5) / perRow) * width;
-      const r = RADIUS + row * ROW_STEP;
-      const unknownPrice = it.priceCents === null;
-      const h = unknownPrice ? 1 : hi > lo ? 0.6 + ((it.priceCents! - lo) / (hi - lo)) * 1.0 : 1;
-      placed.push({ ...it, stand: index, row: row + 1, seat: seat + 1, x: Math.cos(angle) * r, y: row * ROW_RISE + h / 2, z: Math.sin(angle) * r, rotY: -angle - Math.PI / 2, h, unknownPrice });
+  for (const it of items) if (it.state !== 'TO_SHIP' && it.state !== 'SOLD') byCat.set(it.category, [...(byCat.get(it.category) ?? []), it]);
+  for (const [category, list] of [...byCat.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) groups.push({ kind: 'CATEGORY', category, list: list.sort(byUrgency) });
+  const toShip = items.filter((i) => i.state === 'TO_SHIP').sort(byUrgency);
+  const sold = items.filter((i) => i.state === 'SOLD').sort(byUrgency);
+  if (toShip.length) groups.push({ kind: 'TO_SHIP', category: null, list: toShip });
+  if (sold.length) groups.push({ kind: 'SOLD', category: null, list: sold });
+
+  // Racks of RACK_MAX at most.
+  const chunks: { kind: RackKind; category: string | null; part: number; list: SceneItem[] }[] = [];
+  for (const g of groups) for (let i = 0, part = 1; i < g.list.length; i += RACK_MAX, part++) chunks.push({ kind: g.kind, category: g.category, part, list: g.list.slice(i, i + RACK_MAX) });
+
+  const racks: Rack[] = [];
+  const hung: Hung[] = [];
+  for (let row = 0; row * RACKS_PER_ROW < chunks.length; row++) {
+    const inRow = chunks.slice(row * RACKS_PER_ROW, (row + 1) * RACKS_PER_ROW);
+    const widths = inRow.map((c) => c.list.length * SLOT + RACK_PAD * 2);
+    let x = -(widths.reduce((a, b) => a + b, 0) + RACK_GAP * (inRow.length - 1)) / 2;
+    const z = -row * ROW_DEPTH;
+    inRow.forEach((c, k) => {
+      const index = racks.length;
+      racks.push({ index, kind: c.kind, category: c.category, part: c.part, count: c.list.length, x0: x, x1: x + widths[k]!, z });
+      c.list.forEach((it, slot) => hung.push({ ...it, rack: index, slot: slot + 1, x: x + RACK_PAD + (slot + 0.5) * SLOT, y: GARMENT_Y, z }));
+      x += widths[k]! + RACK_GAP;
     });
-    stands.push({ index, category, count: list.length, angle: start + width / 2, rows });
-    start += width + gap;
-  });
-  return { placed, stands };
+  }
+  return { hung, racks };
 }
 
-/** Sober base colours by state; a filter paints its own seats orange over them (the « mask »). */
+/** The tags' colours by state (sober); a filter paints its own tags orange and dims the rest (the « mask »). */
 export const STATE_COLOR: Record<SceneState, number> = {
   TO_SHIP: 0x8b5cf6,
   CUT_DUE: 0x3b82f6,
