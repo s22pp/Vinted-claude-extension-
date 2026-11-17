@@ -14,17 +14,22 @@ export interface PilotConfig {
   hours: number[];
   /** Labels of the orders to ship fetched (or ordered, like Vinted's button) and saved as PDF. Off by default. */
   labels: boolean;
+  /** The week's task (review, what worked, the week's to-do, data saved as CSV) in the first round of `weekDay`. */
+  weekly: boolean;
+  /** 0 = Sunday … 6 = Saturday; Monday by default. */
+  weekDay: number;
   /** 2: hours set since three rounds became the default (an older 12 h + 21 h is the former default, not a choice). */
   v?: number;
 }
-export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, v: 2 };
+export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, v: 2 };
 const FORMER_DEFAULT = [12, 21];
 
 export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotConfig {
   let raw = c?.hours ?? PILOT_DEFAULTS.hours;
   if (c?.v !== 2 && raw.length === FORMER_DEFAULT.length && raw.every((h, i) => h === FORMER_DEFAULT[i])) raw = PILOT_DEFAULTS.hours;
   const hours = [...new Set(raw.filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b).slice(0, PILOT_MAX_ROUNDS);
-  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, v: 2 };
+  const weekDay = Number.isInteger(c?.weekDay) && c!.weekDay! >= 0 && c!.weekDay! <= 6 ? c!.weekDay! : PILOT_DEFAULTS.weekDay;
+  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, weekly: c?.weekly !== false, weekDay, v: 2 };
 }
 
 /**

@@ -2,6 +2,7 @@ import { DAY } from '@/domain/time';
 import { type MonthlyGoal, goalPlan, goalProgress } from '@/intelligence/goal';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 import { periodStats, weeklyDigest } from '@/intelligence/review';
+import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
 import { workshopQueue } from '@/intelligence/workshop';
 import { db } from './db';
 import { repo } from './repo';
@@ -44,6 +45,9 @@ export async function buildDigest(now = Date.now()) {
 
 export async function runDigest(now = Date.now()): Promise<boolean> {
   if (!(await digestEnabled()) || (await repo.getSetting('dataMode', 'empty')) !== 'real') return false;
+  // The autopilot's week's task gives the same review (and more): never two notifications for one week.
+  const pilot = pilotConfig(await repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null));
+  if (pilot.enabled && pilot.weekly) return false;
   const d = await buildDigest(now);
   await browser.notifications
     .create(`era-digest-${now}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: d.title, message: d.lines.join('\n'), priority: 1 })

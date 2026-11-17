@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/data/db';
 import { useI18n } from '@/i18n';
-import { type Rate, bestOf, delayTable, messageTable, offerTable, repostTable } from '@/intelligence/outcomes';
+import { type Rate, delayTable, messageTable, offerTable, repostTable } from '@/intelligence/outcomes';
+import { bestLines } from '@/intelligence/outcomes-summary';
 import { Card } from '@/ui/components/primitives';
 
 /**
@@ -20,16 +21,7 @@ export function OutcomesCard() {
   const cell = (k: number, n: number, pct: number | null) => (n === 0 ? '—' : pct !== null ? `${pct} % (${k}/${n})` : `${k}/${n}`);
   const wait = (r: Rate) => (r.n - r.replyN > 0 ? ` · ${t('outcomes.waiting', { n: r.n - r.replyN })}` : '');
   const short = (s: string) => (s.length > 90 ? `${s.slice(0, 88)}…` : s);
-  const bestMsg = bestOf(messages, 'replyPct');
-  const bestOffer = bestOf(offers, 'soldPct');
-  const bestDelay = bestOf(delays, 'replyPct');
-  const bestRepost = bestOf(reposts, 'soldPct');
-  const best = [
-    bestMsg && t('outcomes.bestMessage', { text: short(bestMsg.variant), pct: bestMsg.replyPct! }),
-    bestOffer && t('outcomes.bestOffer', { kind: t(`outcomes.kind.${bestOffer.kind}`), depth: t(`outcomes.bracket.${bestOffer.bracket}`), pct: bestOffer.soldPct! }),
-    bestDelay && t('outcomes.bestDelay', { delay: t(`outcomes.delay.${bestDelay.bucket}`), pct: bestDelay.replyPct! }),
-    bestRepost && t('outcomes.bestRepost', { gap: t(`outcomes.gap.${bestRepost.bucket}`), pct: bestRepost.soldPct! }),
-  ].filter((x): x is string => !!x);
+  const best = bestLines(data.contacts, data.listings, now, t);
   const table = (head: string[], rows: (string | number)[][], testid: string) => (
     <div style={{ overflowX: 'auto' }}>
       <table className="dt dt--compact" data-testid={testid}>

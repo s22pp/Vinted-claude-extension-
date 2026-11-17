@@ -782,6 +782,19 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await expect(row).toContainText(/Vinted : \d+ requêtes pour toute la tournée/);
   await expect(page.getByTestId('outcomes-messages')).toContainText('Colis livré → remerciement');
   await expect(page.getByTestId('outcomes-messages')).toContainText('1 en attente');
+  // The week's task, on demand: the review, and the data gathered saved as a CSV in the downloads — no Vinted call.
+  await expect(pilot).toContainText('Tâche de la semaine ✓');
+  const callsBeforeWeek = calls.length;
+  await pilot.getByRole('button', { name: 'Faire la tâche de la semaine maintenant' }).click();
+  const week = page.getByTestId('auto-log').locator('tr', { hasText: 'Tâche de la semaine' }).first();
+  await expect(week).toContainText('Bilan de la semaine', { timeout: 30_000 });
+  // Under Playwright Chrome renames downloads (the name, ERA-bilans/semaine-AAAA-MM-JJ.csv, is in the unit test).
+  await expect(week).toContainText(/Données relevées : \S+/);
+  expect(calls.length).toBe(callsBeforeWeek);
+  const csv = await context.serviceWorkers().at(-1)!.evaluate(async () => (await chrome.downloads.search({})).filter((d) => d.url.startsWith('data:text/csv')).map((d) => [d.state, decodeURIComponent(d.url.split(',')[1]!)]));
+  expect(csv.length).toBe(1);
+  expect(csv[0]![0]).toBe('complete');
+  expect(csv[0]![1]).toContain('Colis livré → remerciement');
   // The round read the stock and sales again, then sent the one message, nothing else.
   const mine = calls.slice(before);
   expect(mine.some((c) => c.path.startsWith('/api/v2/wardrobe/'))).toBe(true);

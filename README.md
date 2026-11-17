@@ -198,6 +198,17 @@ Outils → Automatisations → **Pilote automatique** (désactivé par défaut, 
 - **Jamais seul** : déposer les colis, prendre les photos, publier, baisser un prix ou republier — un clic chacun. La notification de fin de tournée vous les rappelle.
 - Aucune tâche dans le cloud ne touche votre compte : tout se passe dans votre navigateur, avec votre session. Une tâche Claude dans le cloud ne peut pas se connecter à votre Vinted sans votre mot de passe, depuis un serveur : exactement l'activité automatisée qui a fait bloquer le compte.
 
+### Tâche de la semaine
+
+Dans la carte Pilote automatique, **Tâche de la semaine** (cochée par défaut, jour : lundi, modifiable). Au premier passage du jour choisi, après la tournée, et sans aucune requête à Vinted :
+
+1. **bilan de la semaine** : ventes et chiffre, mises en ligne (face à votre objectif s'il est réglé), articles en attente dans l'Atelier, remboursements ;
+2. **ce qui marche** : le message qui obtient le plus de réponses, l'offre qui fait le plus acheter, le meilleur délai après un favori, le meilleur moment pour republier (seulement quand assez d'envois sont mesurés) ;
+3. **ce que la semaine vous demande** : baisses de prix prévues, annonces à republier (en ligne depuis 30 jours ou plus sans favori ; jamais une annonce avec des favoris), articles à mettre en ligne ;
+4. **données relevées** : tous les contacts et ce qui les a suivis, en CSV (Excel français) dans `Téléchargements/ERA-bilans/semaine-AAAA-MM-JJ.csv`.
+
+Une notification séparée « Bilan de la semaine » (un clic ouvre Automatisations), une ligne au journal. « Faire la tâche de la semaine maintenant » la lance tout de suite. Chrome fermé tout le jour choisi : elle est faite au premier passage après 8 jours. Le bilan du lundi (Analyses) ne part plus en double quand la tâche de la semaine est active.
+
 ## Ce qui fait répondre et acheter (base des contacts)
 
 Automatisations → **Ce qui fait répondre et acheter**. Chaque message, offre et réponse **vraiment envoyés** par ERA (jamais une simulation) est gardé dans une base locale (`contacts`, incluse dans les sauvegardes) avec ce qui a suivi :

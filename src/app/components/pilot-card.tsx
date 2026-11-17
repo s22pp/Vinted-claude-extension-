@@ -7,6 +7,7 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import type { AutoConfig } from '@/intelligence/automation';
 import { PILOT_KEY, type PilotConfig, type PilotRound, addPilotHour, nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
+import { WEEK_DAYS } from '@/intelligence/weekly';
 import { useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, Field, Select } from '@/ui/components/primitives';
 
@@ -24,6 +25,7 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
     real: (await repo.getSetting('dataMode', 'empty')) === 'real',
   }));
   const [busy, setBusy] = useState(false);
+  const [weeklyBusy, setWeeklyBusy] = useState(false);
   // Shown at once on a click; saved, then the schedule follows.
   const [local, setLocal] = useState<PilotConfig | null>(null);
   if (stored === undefined || !others) return null;
@@ -51,6 +53,18 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
       setBusy(false);
     }
   };
+  const weeklyNow = async () => {
+    setWeeklyBusy(true);
+    try {
+      const n = (await browser.runtime.sendMessage({ type: 'era:weekly:run' } satisfies EraMessage)) as { title?: string; lines?: string[]; ok?: false; detail?: string };
+      if (n.title) toast('success', n.title, (n.lines ?? []).join(' · '));
+      else toast('error', t('pilot.failed'), n.detail ?? '');
+    } catch (e) {
+      toast('error', t('pilot.failed'), e instanceof Error ? e.message : String(e));
+    } finally {
+      setWeeklyBusy(false);
+    }
+  };
   const tasks: [string, boolean][] = [
     ['refresh', true],
     ['offers', auto.offers.enabled],
@@ -59,6 +73,7 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
     ['labels', cfg.labels],
     ['alerts', others.alerts],
     ['backup', others.backup],
+    ['weekly', cfg.weekly],
   ];
   const hours = Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${h} h` }));
   return (
@@ -93,6 +108,17 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
             {t('pilot.labels')} <span className="t-small t-faint">{t('pilot.labelsHint')}</span>
           </span>
         </label>
+        <div className="row wrap" style={{ gap: 10, alignItems: 'flex-end' }}>
+          <label htmlFor="pilot-weekly" className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input id="pilot-weekly" type="checkbox" className="checkbox" checked={cfg.weekly} disabled={!others.real} onChange={(e) => void save({ ...cfg, weekly: e.target.checked })} style={{ marginTop: 2 }} />
+            <span>
+              {t('pilot.weekly')} <span className="t-small t-faint">{t('pilot.weeklyHint')}</span>
+            </span>
+          </label>
+          <Field label={t('pilot.weekDay')} htmlFor="pilot-day">
+            <Select id="pilot-day" value={String(cfg.weekDay)} disabled={!cfg.weekly} onChange={(e) => void save({ ...cfg, weekDay: Number(e.target.value) })} options={WEEK_DAYS.map((d, i) => ({ value: String(i), label: d[0]!.toUpperCase() + d.slice(1) })).slice(1).concat({ value: '0', label: WEEK_DAYS[0] })} />
+          </Field>
+        </div>
         {cfg.enabled && <p className="t-small t-muted" data-testid="pilot-next">{t('pilot.next', { when: dateLong(nextPilotAt(Date.now(), cfg.hours)), hour: new Date(nextPilotAt(Date.now(), cfg.hours)).getHours() })}</p>}
         <div className="row wrap" style={{ gap: 6 }} aria-label={t('pilot.tasks')}>
           {tasks.map(([k, on]) => (
@@ -111,6 +137,9 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
         <div>
           <Button size="sm" variant="primary" icon="check" loading={busy} disabled={busy || !others.real} onClick={() => void runNow()}>
             {t('pilot.runNow')}
+          </Button>{' '}
+          <Button size="sm" variant="ghost" icon="calendar" loading={weeklyBusy} disabled={weeklyBusy || !others.real} onClick={() => void weeklyNow()}>
+            {t('pilot.weeklyNow')}
           </Button>
         </div>
       </div>

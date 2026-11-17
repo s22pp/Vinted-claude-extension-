@@ -81,6 +81,7 @@ export type EraMessage =
   | { type: 'era:digest:schedule' }
   | { type: 'era:pilot:schedule' }
   | { type: 'era:pilot:run' }
+  | { type: 'era:weekly:run' }
   | { type: 'era:badge:update' }
   | { type: 'era:alerts:run' }
   | { type: 'era:photos:export'; scope: 'LIVE' | 'ALL' }

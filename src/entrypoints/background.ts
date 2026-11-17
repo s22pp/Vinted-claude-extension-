@@ -13,6 +13,8 @@ import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, l
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
 import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
+import { weeklyDue } from '@/intelligence/weekly';
+import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
 import { db } from '@/data/db';
@@ -393,7 +395,17 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
   return r;
 }
 
-/** The round, its journal line and its notification; one at a time. */
+/** The week's task (no Vinted call): its journal line and its own notification. */
+async function weeklyTask(): Promise<{ title: string; lines: string[] }> {
+  const n = await runWeeklyTask();
+  await journal({ kind: 'RUN', dryRun: false, ok: true, target: 'Tâche de la semaine', detail: `${n.title} · ${n.lines.join(' · ')}` }).catch(() => undefined);
+  await browser.notifications
+    .create(`era-weekly-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: n.title, message: n.lines.join('\n'), priority: 1 })
+    .catch(() => undefined);
+  return n;
+}
+
+/** The round, its journal line and its notification; one at a time. Then the week's task, on its day. */
 function pilotRound(hour: number): Promise<PilotRound> {
   if (piloting) return piloting;
   piloting = runPilotRound(hour)
@@ -404,6 +416,10 @@ function pilotRound(hour: number): Promise<PilotRound> {
         .create(`era-pilot-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: n.title, message: n.lines.join('\n'), priority: 1 })
         .catch(() => undefined);
       await updateBadge().catch(() => undefined);
+      // The week's task: in the first round of the chosen day (real data only), once that day.
+      const pilot = await loadPilot();
+      if (pilot.weekly && !r.stopped?.startsWith('pas de données') && weeklyDue(Date.now(), pilot.weekDay, await repo.getSetting<number | null>(WEEKLY_LAST_KEY, null)))
+        await weeklyTask().catch((e) => recordError('service-worker:weekly', e));
       return r;
     })
     .finally(() => {
@@ -465,6 +481,7 @@ export default defineBackground(() => {
     if (id.startsWith('era-parcel-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/parcels` });
     if (id.startsWith('era-digest-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/insights?tab=review` });
     if (id.startsWith('era-pilot-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/today` });
+    if (id.startsWith('era-weekly-')) void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/automations` });
   });
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') void browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/onboarding` });
@@ -556,6 +573,9 @@ export default defineBackground(() => {
           return undefined;
         }
         return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+      case 'era:weekly:run':
+        // The seller's click: the week's task now, whatever the day (no Vinted call).
+        return answer(weeklyTask(), unavailable);
       case 'era:digest:schedule':
         return answer(scheduleDigest().then(() => ({ ok: true })), unavailable);
       case 'era:backup:schedule':
