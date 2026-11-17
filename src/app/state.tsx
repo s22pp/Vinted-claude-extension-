@@ -10,6 +10,8 @@ import { OVERLAY_KEY, overlayNiches } from '@/intelligence/overlay';
 import { shoppingList } from '@/intelligence/shopping';
 import { type EraData, computeCore, computeDerived, computeIntel, isReady } from './era-data';
 import { useReplyKitPublisher } from './reply-kit';
+import { walkTo } from '@/ui/scene/motion';
+import { walkOf } from '@/ui/scene/scene-plan';
 
 export type { EraData } from './era-data';
 
@@ -91,11 +93,17 @@ function parse(hash: string): Route {
 
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parse(location.hash));
+  const current = useRef(route);
+  current.current = route;
   useEffect(() => {
     const on = () => {
-      setRoute(parse(location.hash));
-      document.querySelector('.main')?.scrollTo?.({ top: 0 });
-      window.scrollTo({ top: 0 });
+      const next = parse(location.hash);
+      // A walk in the shop from one page to the next (or a plain change: same page, reduced motion, no support).
+      walkTo(walkOf(current.current.name, next.name), () => {
+        setRoute(next);
+        document.querySelector('.main')?.scrollTo?.({ top: 0 });
+        window.scrollTo({ top: 0 });
+      });
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);

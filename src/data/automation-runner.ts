@@ -164,6 +164,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       }
       // The step being sent, for the journal: a failed offer is not a failed message.
       let step: 'FAV_MESSAGE' | 'FAV_OFFER' = plan.message ? 'FAV_MESSAGE' : 'FAV_OFFER';
+      let messageSent = false;
       try {
         const conv = obj(obj(await write('POST', '/api/v2/conversations', { initiator: 'seller_enters_notification', item_id: Number(n.itemId), opposite_user_id: Number(n.userId) })).conversation);
         const convId = idOf(conv.id);
@@ -183,6 +184,10 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         if (plan.message) {
           const { text, tpl } = favPick(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price });
           await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
+          // Sent: never again for this favourite, saved at once (a pass stopped right after must not send it twice).
+          messageSent = true;
+          seen.add(n.key);
+          await repo.setSetting('autoFavSeen', [...seen].slice(-1000));
           await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
           await recordContact({ at: now, kind: 'FAV_MESSAGE', conversationId: convId, itemId: item?.itemId ?? null, title, variant: tpl, askCents: price, offerCents: plan.offerCents, delayMs: now - n.at }).catch(() => undefined);
         }
@@ -209,9 +214,17 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
           out.done++;
         } else out.failed++;
       } catch (e) {
-        out.failed++;
         const { code, detail } = errorInfo(e);
-        await log({ kind: step, dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        if (messageSent) {
+          // The message reached the member, only the offer after it stopped: counted as sent, the offer as not sent.
+          sentToday++;
+          await repo.setSetting('autoFavDay', { day: day(now), n: sentToday });
+          out.done++;
+          await log({ kind: 'FAV_OFFER', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''} · message envoyé, offre non envoyée` });
+        } else {
+          out.failed++;
+          await log({ kind: step, dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        }
         const stop = stopReason(e);
         if (stop) {
           out.stopped = stop;
@@ -270,6 +283,7 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
         out.done++;
         continue;
       }
+      let answered = false;
       try {
         if (d.action === 'COUNTER') {
           if (!o.transactionId) throw new MarketplaceError('UNAVAILABLE', 'transaction inconnue : contre-offre impossible');
@@ -278,6 +292,8 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
           if (txKey) state[txKey] = { countered: true, at: now };
         } else {
           await answerOffer(o.offerId, o.transactionId, d.action === 'ACCEPT' ? 'accept' : 'reject');
+          answered = true;
+          state[o.offerId] = { ...state[o.offerId], logged: true, at: now };
           if (d.action === 'ACCEPT' && cfg.offers.acceptMessage.trim() && o.conversationId)
             await write('POST', `/api/v2/conversations/${o.conversationId}/replies`, { reply: { body: cfg.offers.acceptMessage.trim(), photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
           state[o.offerId] = { ...state[o.offerId], logged: true, at: now };
@@ -286,9 +302,15 @@ export async function runOffers(dryRun: boolean, now = Date.now()): Promise<Auto
         await recordContact({ at: now, kind, conversationId: o.conversationId, itemId: item?.itemId ?? null, title: o.itemTitle, variant: d.action === 'ACCEPT' && cfg.offers.acceptMessage.trim() ? cfg.offers.acceptMessage : null, askCents: o.itemPriceCents, offerCents: d.action === 'COUNTER' ? d.counterCents : o.offerCents, delayMs: null }).catch(() => undefined);
         out.done++;
       } catch (e) {
-        out.failed++;
         const { code, detail } = errorInfo(e);
-        await log({ kind, dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        if (answered) {
+          // The offer was answered on Vinted; only the message after it stopped.
+          out.done++;
+          await log({ kind, dryRun, ok: true, target, detail: `${what}${floorTxt} · message après la réponse non envoyé : ${code}${detail ? ` · ${detail}` : ''}` });
+        } else {
+          out.failed++;
+          await log({ kind, dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        }
         const stop = stopReason(e);
         if (stop) {
           out.stopped = stop;

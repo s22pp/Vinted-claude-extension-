@@ -36,7 +36,7 @@ export function roomOf(route: string): Room | null {
 /** World units between two rooms along the shop's floor. */
 export const ROOM_GAP = 10;
 /** Where the camera stands in front of a room's doorway (the doorway frames the page). */
-export const DOOR_AHEAD = 4;
+export const DOOR_AHEAD = 5.5;
 export const roomZ = (room: Room) => ROOMS.indexOf(room) * ROOM_GAP;
 export const doorZ = (index: number) => index * ROOM_GAP + DOOR_AHEAD;
 

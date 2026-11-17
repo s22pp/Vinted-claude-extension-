@@ -284,6 +284,18 @@ réduits : saut direct. three.js n'est chargé que sur cette vue ; WebGL indispo
 `.claude/skills/era-visuel/SKILL.md` (celle du blueprint « Stadium » d'Omnya Lab, **adaptée** à un stock de vêtements,
 pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
+## Ouvrir ERA, changer de page : une boutique en 3D
+
+- **À l'ouverture**, la caméra descend dans la boutique : un sol quadrillé et, pour chaque page, une porte de lumière à la couleur de son icône dans le menu. La page s'assemble en profondeur, bloc après bloc (moins d'une seconde).
+- **En changeant de page**, la caméra marche jusqu'à la pièce de la page en un seul mouvement : vers l'avant en descendant le menu, vers l'arrière en le remontant, en profondeur en entrant dans un article ou un colis. L'ancienne page recule, la nouvelle avance. Un clic en plein mouvement repart vers la nouvelle pièce sans coupure.
+- **Optimisé** : WebGL 2 brut, quelques Ko, aucune librairie à charger. La scène ne dessine que pendant le mouvement : arrivée, plus une seule image calculée. Elle s'éclaire en marchant et s'estompe à l'arrêt : une page au repos reste nette. L'ancienne page s'efface en 140 ms pendant que la nouvelle avance : jamais deux pages lisibles l'une sur l'autre. Les transitions de page passent par les View Transitions de Chrome, composées par le navigateur.
+- **Propre et accessible** : décor seulement, invisible aux lecteurs d'écran et jamais sur le chemin d'un clic. Avec « mouvements réduits » (système ou Réglages → Animations), la scène est dessinée une fois, sans vol ni marche. Sans WebGL 2, le fond habituel reste.
+- Aucune donnée inventée : la scène ne montre que la structure d'ERA (les pages et leurs couleurs), pas de chiffres.
+
+## Envois comptés justement
+
+- **Messages comptés justement** : un message parti chez un membre reste compté comme envoyé, même si l'offre qui le suit est arrêtée (budget, 429). Une offre acceptée reste comptée même si le remerciement qui suit est arrêté. Le favori est noté « traité » dès l'envoi : jamais un second message.
+
 ## Le Pilote, dans le menu
 
 **Pilote** est dans le menu de gauche, juste sous Today, avec le nombre de messages qui vous attendent. Son panneau :

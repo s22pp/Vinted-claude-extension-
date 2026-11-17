@@ -1,5 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type ComponentProps, type ComponentType, Suspense, createElement, lazy, useEffect } from 'react';
+import { type ComponentProps, type ComponentType, Suspense, createElement, lazy, useEffect, useLayoutEffect } from 'react';
+import { playOpening } from '@/ui/scene/motion';
+import { EraScene } from './components/era-scene';
 import { type DataMode, repo } from '@/data/repo';
 import { Skeleton } from '@/ui/components/primitives';
 import { ErrorBoundary } from './components/error-boundary';
@@ -97,6 +99,10 @@ function Router() {
     void repo.track('dashboard_opened');
   }, []);
   const onboardingDone = useLiveQuery(() => repo.getSetting('onboardingDone', false), []);
+  // The opening, once per window, as soon as the real page is there (before it is painted: no flash).
+  useLayoutEffect(() => {
+    if (era.ready) playOpening(document.getElementById('main'));
+  }, [era.ready, route.name]);
   useEffect(() => {
     // First run: nothing imported and onboarding never finished → onboarding. Never shows fake data by default.
     // Read both settings again before redirecting: the live values can lag behind the database by a moment — right
@@ -123,6 +129,7 @@ function Router() {
     return (
       <>
         <div className="era-backdrop" aria-hidden="true" />
+        <EraScene route={route.name} />
         <Shell route={route.name}>
           <PageSkeleton />
         </Shell>
@@ -204,6 +211,7 @@ function Router() {
   return (
     <>
       <div className="era-backdrop" aria-hidden="true" />
+      <EraScene route={route.name} />
       <Shell route={route.name}>
         {/* A screen that fails shows why and how to go on; the menu and the other screens keep working. */}
         <ErrorBoundary where={route.name} resetKey={key}>

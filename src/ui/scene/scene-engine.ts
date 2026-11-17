@@ -14,10 +14,12 @@ void main() { gl_Position = vec4(a, 0.0, 1.0); }`;
 const FRAG = `#version 300 es
 precision highp float;
 uniform vec2 uRes;
+uniform float uCx;
 uniform float uZ;
 uniform float uH;
 uniform float uHor;
 uniform float uAlpha;
+uniform float uMove;
 uniform vec3 uTone;
 uniform float uDoorZ[${ROOMS.length}];
 uniform vec3 uDoorCol[${ROOMS.length}];
@@ -27,7 +29,7 @@ float line(float dPx, float w) { return 1.0 - smoothstep(w - 0.6, w + 0.6, dPx);
 
 void main() {
   float s = uRes.y;
-  vec2 p = (gl_FragCoord.xy - vec2(0.5 * uRes.x, uHor * uRes.y)) / s;
+  vec2 p = (gl_FragCoord.xy - vec2(uCx, uHor * uRes.y)) / s;
   vec3 col = vec3(0.0);
   float a = 0.0;
   // The shop's floor: a fine grid, every fourth line stronger, fading into the distance.
@@ -41,7 +43,8 @@ void main() {
     float major = 1.0 - min(min(g4.x, g4.y), 1.0);
     float fog = exp(-t * 0.07);
     float edge = smoothstep(0.0, 0.05, -p.y);
-    float lines = (minor * 0.07 + major * 0.16) * fog * edge;
+    // Lit while walking, dimmed once there: a page at rest stays clean.
+    float lines = (minor * 0.07 + major * 0.16) * fog * edge * mix(0.55, 1.0, uMove);
     // The room's light pooled on the floor under the page.
     vec2 q = vec2(p.x * 0.85, (p.y + 0.24) * 2.6);
     float pool = exp(-dot(q, q) * 3.2) * 0.12 * edge;
@@ -64,8 +67,9 @@ void main() {
     float dSill = abs(Y) * px;
     float d = min(min(mix(1e4, dPost, inPost), mix(1e4, dBeam, inBeam)), mix(1e4, dSill, inBeam));
     float fog = exp(-t * 0.06);
-    float near = smoothstep(0.2, 1.2, t);
-    float glow = (line(d, 1.1) * 0.55 + exp(-d / 9.0) * 0.16) * fog * near;
+    // The doorway in front stays discreet (it frames the page, never crosses it boldly); the ones ahead show the way.
+    float near = smoothstep(1.5, 9.0, t);
+    float glow = (line(d, 1.1) * 0.55 + exp(-d / 9.0) * 0.16) * fog * near * mix(0.22, 1.0, uMove);
     col += uDoorCol[k] * glow;
     a += glow;
   }
@@ -131,7 +135,7 @@ export function createScene(canvas: HTMLCanvasElement, onState: (s: SceneState) 
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const u = (n: string) => gl.getUniformLocation(prog, n);
-  const U = { res: u('uRes'), z: u('uZ'), h: u('uH'), hor: u('uHor'), alpha: u('uAlpha'), tone: u('uTone'), doorZ: u('uDoorZ'), doorCol: u('uDoorCol') };
+  const U = { res: u('uRes'), cx: u('uCx'), z: u('uZ'), h: u('uH'), hor: u('uHor'), alpha: u('uAlpha'), move: u('uMove'), tone: u('uTone'), doorZ: u('uDoorZ'), doorCol: u('uDoorCol') };
   gl.uniform1fv(U.doorZ, ROOMS.map((_, i) => doorZ(i)));
 
   let target: Room = 'today';
@@ -144,10 +148,15 @@ export function createScene(canvas: HTMLCanvasElement, onState: (s: SceneState) 
 
   let w = 0;
   let h = 0;
+  let cx = 0;
   const resize = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const nw = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const nh = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    // The shop is centred on the page, not on the window (the menu takes the left).
+    const side = document.querySelector('.sidebar')?.getBoundingClientRect().right ?? 0;
+    const css = side > 0 && side < canvas.clientWidth / 2 ? side + (canvas.clientWidth - side) / 2 : canvas.clientWidth / 2;
+    cx = css * dpr;
     if (nw === w && nh === h) return false;
     w = canvas.width = nw;
     h = canvas.height = nh;
@@ -158,10 +167,13 @@ export function createScene(canvas: HTMLCanvasElement, onState: (s: SceneState) 
   const draw = () => {
     const c = camera!;
     gl.uniform2f(U.res, w, h);
+    gl.uniform1f(U.cx, cx);
     gl.uniform1f(U.z, c.z.x);
     gl.uniform1f(U.h, c.h.x);
     gl.uniform1f(U.hor, 0.4);
     gl.uniform1f(U.alpha, Math.max(0, Math.min(1, c.alpha.x)));
+    // How much the camera is moving (0 at rest): the shop lights up as it walks.
+    gl.uniform1f(U.move, Math.min(1, Math.abs(c.z.v) / 5 + Math.abs(c.h.v) / 3));
     gl.uniform3f(U.tone, c.tone[0].x, c.tone[1].x, c.tone[2].x);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -186,7 +198,8 @@ export function createScene(canvas: HTMLCanvasElement, onState: (s: SceneState) 
     raf = 0;
     if (disposed) return;
     const c = camera!;
-    const dt = Math.min(0.05, last ? (now - last) / 1000 : 1 / 60);
+    // Real time, whatever the frame rate (a slow machine skips frames, never slows the walk): the springs are exact.
+    const dt = Math.min(0.5, last ? (now - last) / 1000 : 1 / 60);
     last = now;
     const t = targets();
     const omega = c.opened ? OMEGA_WALK : OMEGA_OPEN;
@@ -196,8 +209,11 @@ export function createScene(canvas: HTMLCanvasElement, onState: (s: SceneState) 
     c.tone = [0, 1, 2].map((i) => stepSpring(c.tone[i]!, tone[i]!, dt, OMEGA_WALK)) as Camera['tone'];
     resize();
     draw();
-    const done = settled(c.z, t.z) && settled(c.h, t.h) && settled(c.alpha, t.alpha, 2e-3) && c.tone.every((s, i) => settled(s, tone[i]!, 2e-3));
+    // Arrived once the rest would move less than a pixel: the last frame drawn exactly in place.
+    const done = settled(c.z, t.z, 4e-3) && settled(c.h, t.h, 2e-3) && settled(c.alpha, t.alpha, 4e-3) && c.tone.every((s, i) => settled(s, tone[i]!, 4e-3));
     if (done) {
+      snap();
+      draw();
       c.opened = true;
       last = 0;
       onState('idle');

@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -138,6 +138,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       const id = url.pathname.split('/')[4]!;
       return json({ conversation: { id: Number(id), messages: opts.replyHidden ? [] : (state.replies[id] ?? []).map((body, i) => ({ id: i + 1, entity_type: 'message', entity: { body } })) } });
     }
+    // Test fixture only: Vinted slowing the seller down (429) on an offer.
+    if (/^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) && opts.offerRateLimited) return json({ code: 106 }, 429);
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
     if (url.pathname === '/api/v2/inbox' && opts.buyerMessages)
       return json({ conversations: ['9500', '9501'].map((id) => ({ id: Number(id), updated_at: new Date(Date.now() - 600_000).toISOString(), last_message: { user_id: state.replies[id]?.length ? 177293623 : 556 } })) });
@@ -1237,6 +1239,30 @@ test('bundle message refused by Vinted (500): never re-sent article by article i
   expect(calls.filter((c) => c.method !== 'GET').map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
 });
 
+test('favourite: the message reached the member, the offer after it was stopped (429) — counted as sent, never as a failure', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const calls = await fakeVinted(context, { loggedIn: true, offerRateLimited: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The Harrington's cost known (its Vinted purchase): an offer is planned after the message.
+  await page.goto(`${base}#/today`);
+  await page.getByRole('button', { name: /coûts d’achat manquent/ }).click();
+  await expect(page.getByTestId('costs').getByText('Achat Vinted trouvé')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('costs').getByRole('button', { name: 'Utiliser' }).click();
+  await expect(page.getByText('Coût repris de l’achat Vinted')).toBeVisible();
+  await page.goto(`${base}#/automations`);
+  await page.getByLabel('Activer pour les nouveaux favoris').check();
+  await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
+  const log = page.getByTestId('auto-log');
+  await expect(log).toContainText('message envoyé, offre non envoyée', { timeout: 90_000 });
+  // The pass says what reached Vinted: one sent, no failure — and stops there.
+  await expect(log.locator('tr', { hasText: 'Favoris → message / offre' }).first()).toContainText('1 faites', { timeout: 30_000 });
+  await expect(log.locator('tr', { hasText: 'Favoris → message / offre' }).first()).toContainText('0 échecs');
+  expect(calls.filter((c) => c.method !== 'GET').map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies', 'POST /api/v2/transactions/7001/offers']);
+});
+
 test('parcels to watch: a parcel sent long ago and still not delivered is flagged, with its conversation', async ({ context, base }) => {
   test.setTimeout(120_000);
   await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-10', status: 'Colis envoyé', item_id: 104, conversation_id: 9200 }] });
@@ -2073,4 +2099,34 @@ test('autopilot repost: a listing stalling 30 days with no favourite — copied 
   // The copy (photos sent again, the draft), published from its page, then the old listing deleted — nothing else written.
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
+});
+
+test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {
+  test.setTimeout(90_000);
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The seller looking at ERA (the import's Vinted tab put it behind: a tab behind gets almost no frames).
+  await page.bringToFront();
+  const scene = page.getByTestId('era-scene');
+  await expect(scene).toHaveAttribute('data-room', 'settings');
+  // Drawn while the camera moves, then not one frame more.
+  await expect(scene).toHaveAttribute('data-state', 'idle', { timeout: 15_000 });
+  await page.locator('.nav a[href="#/stock"]').click();
+  await expect(scene).toHaveAttribute('data-room', 'stock');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Stock');
+  await expect(scene).toHaveAttribute('data-state', 'idle', { timeout: 15_000 });
+  // After the walk nothing is left tilted: the page and its blocks stand straight (dialogs stay where they belong).
+  await expect.poll(() => page.evaluate(() => [document.getElementById('main')!, ...Array.from(document.getElementById('main')!.children)].map((el) => getComputedStyle(el).transform).filter((t) => t !== 'none').length)).toBe(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-era-walk', /.+/);
+  // An article: into the stock room — the scene stays in it.
+  await page.goto(`${base}#/sales`);
+  await expect(scene).toHaveAttribute('data-room', 'sales');
+  // Reduced motion: drawn once where it belongs, no flight, no walk.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${base}#/today`);
+  await expect(scene).toHaveAttribute('data-room', 'today');
+  await expect(scene).toHaveAttribute('data-state', 'static');
 });
