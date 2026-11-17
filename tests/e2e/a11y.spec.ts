@@ -10,6 +10,14 @@ test('accessibility: no serious or critical WCAG A/AA violation on the main scre
   const found: string[] = [];
   const scan = async (where: string) => {
     await page.waitForTimeout(700);
+    // Colours read once they are still: transitions and entrances finished (a theme change fades the colours), at
+    // most 3 s; endless animations (spinners) are left aside.
+    await page.evaluate(() =>
+      Promise.race([
+        Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => undefined))),
+        new Promise((res) => setTimeout(res, 3000)),
+      ]),
+    );
     const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).exclude('.leaflet-container').analyze();
     for (const v of r.violations.filter((x) => x.impact === 'serious' || x.impact === 'critical'))
       found.push(`${where} · ${v.id} (${v.impact}) × ${v.nodes.length} — ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
