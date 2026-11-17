@@ -83,6 +83,8 @@ export type EraMessage =
   | { type: 'era:pilot:run' }
   | { type: 'era:weekly:run' }
   | { type: 'era:update:status' }
+  | { type: 'era:reply:send'; key: string; text: string }
+  | { type: 'era:reply:dismiss'; key: string }
   | { type: 'era:update:now' }
   | { type: 'era:update:auto'; on: boolean }
   | { type: 'era:badge:update' }
