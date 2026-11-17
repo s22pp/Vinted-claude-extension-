@@ -30,9 +30,15 @@ test('accessibility: no serious or critical WCAG A/AA violation on the main scre
     await scan('dossier');
   }
   // Light theme too: its colours are different, so is their contrast.
+  // Switched with the app's own button, like a seller (saved, then applied by the app): never a theme forced under the
+  // app, which would re-apply its own while the scan reads colours mid-transition.
+  await page.goto(`${base}#/today`);
+  await page.getByRole('button', { name: /^Thème : Sombre/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'Thème : Clair' })).toBeVisible();
   for (const s of ['today', 'stock', 'workshop', 'sales', 'accounting', 'settings']) {
     await page.goto(`${base}#/${s}`);
-    await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await scan(`${s} (clair)`);
   }
   if (found.length) console.log(found.join('\n'));

@@ -213,9 +213,11 @@ test('theme: dark ↔ light', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);
   await page.goto(`${base}#/settings`);
-  await page.getByRole('button', { name: 'Clair' }).click();
+  // Exact names: the topbar's theme button is called "Thème : Sombre" until the saved setting comes back.
+  await page.getByRole('button', { name: 'Clair', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByRole('button', { name: 'Sombre' }).click();
+  await expect(page.getByRole('button', { name: 'Thème : Clair' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sombre', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
@@ -225,6 +227,8 @@ test('motion: "Réduites" in Réglages stops the movement at once, kept after a 
   await page.goto(`${base}#/settings`);
   await page.getByRole('group', { name: 'Animations' }).getByRole('button', { name: 'Réduites' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced');
+  // Saved (the choice shown pressed comes from the saved setting) before the reload: else the reload reads the old one.
+  await expect(page.getByRole('group', { name: 'Animations' }).getByRole('button', { name: 'Réduites' })).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await page.goto(`${base}#/today`);
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced');
