@@ -20,12 +20,14 @@ export interface PilotConfig {
   weekly: boolean;
   /** The price cuts the seller's plan says are due: one per round, known cost only, never under the floor. Off by default. */
   priceCuts: boolean;
+  /** Reposts of the listings that stall (30 days, no favourite): one per round, each step verified on Vinted. Off by default. */
+  reposts: boolean;
   /** 0 = Sunday … 6 = Saturday; Monday by default. */
   weekDay: number;
   /** 2: hours set since three rounds became the default (an older 12 h + 21 h is the former default, not a choice). */
   v?: number;
 }
-export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, v: 2 };
+export const PILOT_DEFAULTS: PilotConfig = { enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, reposts: false, v: 2 };
 const FORMER_DEFAULT = [12, 21];
 
 export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotConfig {
@@ -33,7 +35,7 @@ export function pilotConfig(c: Partial<PilotConfig> | null | undefined): PilotCo
   if (c?.v !== 2 && raw.length === FORMER_DEFAULT.length && raw.every((h, i) => h === FORMER_DEFAULT[i])) raw = PILOT_DEFAULTS.hours;
   const hours = [...new Set(raw.filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b).slice(0, PILOT_MAX_ROUNDS);
   const weekDay = Number.isInteger(c?.weekDay) && c!.weekDay! >= 0 && c!.weekDay! <= 6 ? c!.weekDay! : PILOT_DEFAULTS.weekDay;
-  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, weekly: c?.weekly !== false, weekDay, priceCuts: c?.priceCuts === true, v: 2 };
+  return { enabled: c?.enabled === true, hours: hours.length ? hours : PILOT_DEFAULTS.hours, labels: c?.labels === true, weekly: c?.weekly !== false, weekDay, priceCuts: c?.priceCuts === true, reposts: c?.reposts === true, v: 2 };
 }
 
 /**
@@ -108,6 +110,11 @@ export interface PilotRound {
   priceCutsAuto?: boolean;
   /** « Simuler une tournée »: everything read, nothing sent — the counts are what ERA would do. */
   simulated?: boolean;
+  /** The repost of the round (one at most): done, the one a simulation would make, or why it stopped half-way. */
+  repost?: { title: string; to: number | null; deleted: boolean } | null;
+  repostFailed?: string;
+  /** The article whose price the round cut (never reposted in the same round). */
+  priceCutItemId?: string;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -131,6 +138,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.replies && plural(r.replies, 'réponse à un acheteur', 'réponses aux acheteurs'),
     r.delivered && plural(r.delivered, 'remerciement (colis livré)', 'remerciements (colis livrés)'),
     r.priceCut && `${r.simulated ? 'baisserait le prix' : 'prix baissé'} : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,
+    r.repost && `${r.simulated ? 'republierait' : 'republié'} : ${r.repost.title}${r.repost.to !== null ? ` à ${eurText(r.repost.to, 2)}` : ''}${!r.simulated && !r.repost.deleted ? ' (ancienne annonce : suppression envoyée, non confirmée)' : ''}`,
     r.deals && plural(r.deals, 'affaire repérée', 'affaires repérées'),
     r.labels && `${plural(r.labels, 'bordereau prêt', 'bordereaux prêts')} (Téléchargements/ERA-bordereaux)`,
     r.backup && 'sauvegarde faite',
@@ -143,6 +151,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.late && `${plural(r.late, 'colis', 'colis')} à surveiller`,
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,
     r.priceCutFailed && `baisse de prix non faite (${r.priceCutFailed}) : réessayée à la tournée suivante`,
+    r.repostFailed && `republication non finie (${r.repostFailed}) : reprise à la tournée suivante`,
     !r.priceCutsAuto && r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
     r.toList && `${plural(r.toList, 'article', 'articles')} à mettre en ligne (Atelier)`,
   ].filter((x): x is string => !!x);

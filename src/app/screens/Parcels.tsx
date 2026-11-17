@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n';
 import { DEFAULT_HOME, HOME_KEY, PARCEL_INFO_KEY, PARCEL_STEPS, type Parcel, type ParcelInfo, type Place, distanceKm, parcelsInProgress } from '@/intelligence/parcels';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState, Flag } from '@/ui/components/primitives';
+import { ParcelBoard } from '../components/parcel-board';
 import type { MapPin } from '../components/parcel-map';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
@@ -68,7 +69,7 @@ export function Parcels() {
     const found = p.conversationId ? info[p.conversationId] : undefined;
     const step = PARCEL_STEPS.indexOf(p.stage);
     return (
-      <li key={p.key} className="parcel" data-testid="parcel" data-late={p.late || undefined}>
+      <li key={p.key} id={`parcel-${p.key}`} className="parcel" data-testid="parcel" data-late={p.late || undefined}>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
           <b className="grow clamp-1">{p.title}</b>
           {p.late && <Badge tone="coral">{t(`parcelmap.late.${p.direction}.${p.stage}`)}</Badge>}
@@ -128,6 +129,11 @@ export function Parcels() {
     <>
       <PageHead title={t('parcelmap.title')} sub={t('parcelmap.sub', { in: incoming.length, out: outgoing.length })} tabs={<SalesTabs active="parcels" />} />
       <div className="grid-12">
+        {parcels.length > 0 && (
+          <Card className="span-12" title={t('parcelboard.title')} hint={t('parcelboard.hint')} icon="repost" tone="cobalt">
+            <ParcelBoard parcels={parcels} />
+          </Card>
+        )}
         <div className="span-7 stack-4">
           <Card
             title={t('parcelmap.mapTitle', { home: home.label })}

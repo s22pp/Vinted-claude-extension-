@@ -2043,3 +2043,26 @@ test('simulated round: every agent reads and says what it would do — nothing s
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual([]);
   await expect(page.getByTestId('pending-reply')).toHaveCount(0);
 });
+
+test('autopilot repost: a listing stalling 30 days with no favourite — copied with its photos, published, read back, the old one deleted', async ({ context, base }) => {
+  test.setTimeout(300_000);
+  // Listed long ago (photo timestamp), no favourite: the only one eligible (the others have favourites or no date).
+  const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: 1756000000 } }] };
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [shirt] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const pilot = page.getByTestId('pilot');
+  await pilot.getByLabel('Activer les tournées automatiques').check();
+  await pilot.getByLabel(/Republier les annonces qui stagnent/).check();
+  await expect(pilot).toContainText('Republications ✓');
+  const before = calls.length;
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
+  await expect(row).toContainText('republié : Chemise Pierre Cardin L', { timeout: 240_000 });
+  // The copy (photos sent again, the draft), published from its page, then the old listing deleted — nothing else written.
+  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
+  expect(calls.state.published555).toBe(true);
+});

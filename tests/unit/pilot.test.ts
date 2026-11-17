@@ -13,10 +13,10 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
   });
 
   it('settings: off by default, 9 h, 13 h and 21 h, hours kept valid and ordered, four at the most', () => {
-    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, v: 2 });
+    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [9, 13, 21], labels: false, weekly: true, weekDay: 1, priceCuts: false, reposts: false, v: 2 });
     expect(pilotConfig({ weekly: false, weekDay: 9 })).toMatchObject({ weekly: false, weekDay: 1 });
     expect(pilotConfig({ weekDay: 0 }).weekDay).toBe(0);
-    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true, v: 2 })).toEqual({ enabled: true, hours: [8, 21], labels: true, weekly: true, weekDay: 1, priceCuts: false, v: 2 });
+    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true, v: 2 })).toEqual({ enabled: true, hours: [8, 21], labels: true, weekly: true, weekDay: 1, priceCuts: false, reposts: false, v: 2 });
     expect(pilotConfig({ hours: [] }).hours).toEqual([9, 13, 21]);
     expect(pilotConfig({ hours: [23, 7, 9, 11, 13, 15], v: 2 }).hours).toEqual([7, 9, 11, 13]);
   });
@@ -63,6 +63,13 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(n.lines).toContain('À venir : 2 baisses de prix prévues, une par tournée');
     expect(n.lines.at(-1)).toBe('Pour vous : rien à faire, tout est à jour');
     expect(pilotNotice({ ...round, priceCutsAuto: true, priceCutFailed: 'Veste : NOT_APPLIED' }).lines.at(-1)).toBe('Pour vous : baisse de prix non faite (Veste : NOT_APPLIED) : réessayée à la tournée suivante');
+  });
+
+  it('a repost: done (at the plan’s price), half-way (taken up next round), or what a simulation would do', () => {
+    expect(pilotNotice({ ...round, repost: { title: 'Chemise', to: 2300, deleted: true } }).lines).toContain('Fait pour vous : republié : Chemise à 23,00 €');
+    expect(pilotNotice({ ...round, repost: { title: 'Chemise', to: null, deleted: false } }).lines).toContain('Fait pour vous : republié : Chemise (ancienne annonce : suppression envoyée, non confirmée)');
+    expect(pilotNotice({ ...round, repostFailed: 'Chemise : NOT_APPLIED' }).lines.at(-1)).toBe('Pour vous : republication non finie (Chemise : NOT_APPLIED) : reprise à la tournée suivante');
+    expect(pilotNotice({ ...round, simulated: true, repost: { title: 'Chemise', to: null, deleted: false } }).lines).toContain('ERA ferait : republierait : Chemise');
   });
 
   it('a simulation: what ERA would do, nothing sent', () => {

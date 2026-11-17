@@ -252,6 +252,13 @@ répondre.
   automatiques par jour, arrêt sur un blocage. Chaque envoi au journal et dans la base des contacts.
 - Champs de la messagerie Vinted **non vérifiés** sur votre compte : le premier passage réel le dira (journal).
 
+## Le tapis des colis (écran Colis)
+
+En haut de **Colis** : chaque colis en cours est une boîte à son étape — deux lignes (mes ventes, mes achats), cinq
+étapes (à envoyer, déposé, en transit, au point relais, livré), d'après les statuts lus au dernier import ; en corail,
+ceux en retard. Quand un colis change d'étape, sa boîte glisse jusqu'à la suivante (sans saut ; saut direct en
+mouvements réduits). Un clic sur une boîte mène à sa ligne détaillée.
+
 ## La journée d'ERA (écran Aujourd'hui)
 
 En haut d'**Aujourd'hui** (vraies données) : votre journée sur une ligne. Les tournées du pilote à leurs heures — faite
@@ -290,6 +297,17 @@ Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favor
 messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le
 physique : photos, emballage, dépôt, impression des bordereaux. Publier une nouveauté se fait depuis l'Atelier (vos photos
 choisies dans ERA, puis « Publier sur Vinted ») ; ERA ne republie pas seul.
+
+### Republications automatiques (EXPERIMENTAL)
+
+Case « Republier les annonces qui stagnent » (carte Pilote, désactivée par défaut, cochée par « Tout confier à ERA ») :
+à chaque tournée, **une** republication au plus — l'annonce en ligne depuis 30 jours ou plus, **sans aucun favori**,
+ni réservée ni masquée, date de publication connue, la plus ancienne d'abord. Les mêmes étapes que vos clics, chacune
+vérifiée sur Vinted : copie en brouillon avec les mêmes photos (au prix de la baisse prévue par votre plan si elle est
+due), publication de la copie puis relecture, et seulement alors suppression de l'ancienne annonce — revérifiée juste
+avant : la copie en ligne, l'ancienne toujours sans favori. Un doute arrête tout ; une republication à moitié faite
+est reprise à la tournée suivante (jamais une deuxième copie). Jamais l'article dont le prix vient d'être baissé dans la
+même tournée. Notification : « republié : … à 23 € ». La simulation dit laquelle elle republierait.
 
 ### Publier depuis ERA, avec vos photos (EXPERIMENTAL)
 

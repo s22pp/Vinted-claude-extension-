@@ -3,7 +3,7 @@ import * as budget from '@/data/adapters/vinted/budget-store';
 import { SEARCH_TAB_ALARM, closeIdleSearchTab, visitInWorker } from '@/data/adapters/vinted/search-page';
 import { ping, waitForLoad } from '@/data/adapters/vinted/tabs';
 import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from '@/data/adapters/vinted/price-edit';
-import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, RepostFinishResult, RepostResult, TextEditResult } from '@/data/adapters/vinted/protocol';
+import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, TextEditResult } from '@/data/adapters/vinted/protocol';
 import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
@@ -17,6 +17,7 @@ import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig,
 import { weeklyDue } from '@/intelligence/weekly';
 import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
 import { duePriceCuts } from '@/data/price-cuts';
+import { autoRepost, isStopping } from '@/data/repost-agent';
 import { AUTO_UPDATE_KEY, UPDATE_ALARM, firstSeen, fromFolder, justUpdated, pagesOpen, reloadOnto, updateState } from '@/data/self-update';
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
@@ -234,7 +235,7 @@ function runTextEdit(platformListingId: string, field: TextField, op: TextOp): P
 
 let autoRunning: Promise<AutoRunResult> | null = null;
 /** A repost copies photos for a while: one at a time, and nothing else writes meanwhile. */
-let reposting: Promise<RepostResult | RepostFinishResult> | null = null;
+let reposting: Promise<unknown> | null = null;
 /** All labels at once: a few minutes at most, nothing else writes meanwhile. */
 let labelling: Promise<LabelBatchResult> | null = null;
 /** Photo export: downloads for a while; reads (if any) share the budget. */
@@ -378,7 +379,10 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
             const run = applyPriceOnVinted(c.platformListingId, c.toCents, c.itemId, () => undefined, { quiet: true });
             editing = run;
             const res = await run;
-            if (res.ok) r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: !!res.unconfirmed };
+            if (res.ok) {
+              r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: !!res.unconfirmed };
+              r.priceCutItemId = c.itemId;
+            }
           } catch (e) {
             const { code, detail } = errorInfo(e);
             if (STOP.test(code)) r.stopped = `${code}${detail ? ` · ${detail}` : ''}`;
@@ -386,6 +390,26 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
           } finally {
             editing = null;
           }
+        }
+      }
+      // One repost of a listing that stalls (30 days, no favourite): copy, publish, then the old one deleted — each step
+      // verified on Vinted; half-way, it is taken up next round. Never the article whose price was just cut.
+      if ((pilot.reposts || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        // The seller's writes stay ≥ 20 s apart: after a price cut, the repost waits its turn.
+        if (r.priceCut && !dryRun) await new Promise((res) => setTimeout(res, 21_000));
+        const skip = new Set<string>(r.priceCutItemId ? [r.priceCutItemId] : []);
+        const run = autoRepost(dryRun, skip);
+        if (!dryRun) reposting = run;
+        try {
+          const a = await run;
+          if (a.done) r.repost = { title: a.done.title, to: a.done.to, deleted: a.done.deleted };
+          else if (a.would) r.repost = { title: a.would.title, to: a.would.to, deleted: false };
+          if (a.failed) {
+            if (isStopping(a.code)) r.stopped = a.failed;
+            else r.repostFailed = a.failed;
+          }
+        } finally {
+          if (!dryRun) reposting = null;
         }
       }
       if (pilot.labels && !dryRun && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
