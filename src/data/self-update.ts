@@ -29,7 +29,7 @@ export async function fromFolder(): Promise<boolean> {
 /** The version in ERA's folder now (the updater may have replaced it); null when unreadable. */
 export async function versionOnDisk(): Promise<string | null> {
   try {
-    const r = await fetch(`${browser.runtime.getURL('/manifest.json')}?t=${Date.now()}`, { cache: 'no-store' });
+    const r = await fetch(`${(browser.runtime.getURL as (p: string) => string)('/manifest.json')}?t=${Date.now()}`, { cache: 'no-store' });
     const m = (await r.json()) as { version?: unknown };
     return typeof m.version === 'string' ? m.version : null;
   } catch {
