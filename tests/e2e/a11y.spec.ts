@@ -6,6 +6,9 @@ const SCREENS = ['today', 'stock', 'workshop', 'sales', 'parcels', 'accounting',
 test('accessibility: no serious or critical WCAG A/AA violation on the main screens', async ({ context, base }) => {
   test.setTimeout(240_000);
   const page = await context.newPage();
+  // Contrast is read on the colours as they end up: the app's reduced-motion mode (transitions at 0 ms), never a colour
+  // caught mid-transition after a theme change (under load, a 120 ms fade can still be running when the scan reads it).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await loadDemo(page, base);
   const found: string[] = [];
   const scan = async (where: string) => {
