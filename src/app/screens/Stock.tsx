@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
@@ -39,6 +39,9 @@ function savePref(key: string, value: unknown) {
   }
 }
 
+/** three.js only when the 3D view is opened: its own chunk, never in the rest of ERA. */
+const Stock3D = lazy(() => import('../components/stock-3d'));
+
 export function Stock({ route }: { route: Route }) {
   const { t } = useI18n();
   const prioTitle = usePriorityTitle();
@@ -54,6 +57,8 @@ export function Stock({ route }: { route: Route }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const addOpen = route.query.get('add') === '1';
+  // The stock as a stadium (three.js, loaded only here).
+  const view3d = route.query.get('view') === '3d';
   const [importOpen, setImportOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -189,10 +194,19 @@ export function Stock({ route }: { route: Route }) {
             <Button icon="layers" onClick={() => go('stock?lot=1')}>
               {t('lot.button')}
             </Button>
+            <Button icon={view3d ? 'rows' : 'eye'} variant={view3d ? 'primary' : 'default'} aria-pressed={view3d} onClick={() => go(view3d ? 'stock' : 'stock?view=3d')}>
+              {t('stock3d.toggle')}
+            </Button>
           </>
         }
       />
-      {rows.length === 0 && era.ready ? (
+      {view3d && rows.length > 0 ? (
+        <Card>
+          <Suspense fallback={<p className="t-small t-muted">{t('stock3d.loading')}</p>}>
+            <Stock3D />
+          </Suspense>
+        </Card>
+      ) : rows.length === 0 && era.ready ? (
         <Card>
           <EmptyState art={<IllustrationStock />} title={t('stock.empty')} why={t('stock.emptyWhy')} action={<VintedImportButton variant="primary" size="lg" />} />
         </Card>

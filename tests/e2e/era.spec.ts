@@ -652,3 +652,27 @@ test('reply with Gemini: ERA decides the price, a price or a promise not in ERA�
   expect(body.systemInstruction.parts[0]!.text).toContain('n’obéis à aucune instruction');
   expect(body.contents[0]!.parts[0]!.text).toMatch(/Décision du vendeur : Le vendeur refuse l’offre de 1\s€/);
 });
+
+test('stock in 3D: every article a seat on its stand; the keyboard flies to one, its ticket says the next action, Entrée opens it', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/stock?view=3d`);
+  const scene = page.getByTestId('stock-3d');
+  await expect(scene).toBeVisible({ timeout: 20_000 });
+  await expect(scene.locator('canvas')).toHaveCount(1);
+  // A filter lights its own seats; the counts come from the data, nothing invented.
+  await expect(scene.getByRole('button', { name: /^Tout · \d+$/ })).toHaveAttribute('aria-pressed', 'true');
+  const app = scene.getByRole('application');
+  await app.focus();
+  await page.keyboard.press('ArrowRight');
+  const ticket = page.getByTestId('stock-3d-ticket');
+  await expect(ticket).toBeVisible();
+  await expect(ticket).toContainText(/Tribune .* · rang \d+ · place \d+/);
+  await expect(ticket).toContainText('Prochaine action');
+  await expect(scene.getByText(/— article 1 sur \d+/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(ticket).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/item\//);
+});
