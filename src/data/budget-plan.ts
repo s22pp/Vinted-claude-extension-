@@ -10,6 +10,17 @@ export const AUTO_FLOOR = 20;
 
 export const autoAllowed = (remaining: number) => remaining >= AUTO_FLOOR;
 
+/**
+ * A session ends with the browser, or after this long without a single call to Vinted — like a seller sitting down
+ * again hours later: the autopilot's rounds (9 h, 13 h, 21 h) with Chrome left open for days each start a session of
+ * 60, instead of all stopping from the second day. Within a session nothing changes (60 calls, 12 per minute, 1.2 s
+ * apart), and a session stopped by a block (403/429) never starts again by itself: only a browser restart does.
+ */
+export const SESSION_GAP_MS = 3 * 3_600_000;
+
+export const sessionOver = (s: { lastAt?: number; halted?: string | null } | undefined, now: number): boolean =>
+  !!s && !s.halted && typeof s.lastAt === 'number' && now - s.lastAt >= SESSION_GAP_MS;
+
 /** What a scheduled run costs at the least, when there is nothing to do (reads only). */
 export const IDLE_COST = {
   /** users/current + inbox. */

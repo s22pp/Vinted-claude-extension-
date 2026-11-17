@@ -1,13 +1,25 @@
+import { sessionOver } from '@/data/budget-plan';
 import { HALT_COOLDOWN_MS, MarketplaceError, RequestBudget } from '../marketplace';
 import type { BudgetStatus, ReserveResult } from './protocol';
 
-type Stored = ReturnType<RequestBudget['toJSON']>;
+/** `lastAt`: when the session's last call was reserved. */
+type Stored = ReturnType<RequestBudget['toJSON']> & { lastAt?: number };
 
 /**
- * Background-only. The request budget lives in storage.session (per browser session); a block lives in
- * storage.local with a cool-down, so a service-worker restart never "forgets" a 403/429.
+ * A session over (hours without a call, never after a block): its budget, uses and writes start again. Checked before
+ * every read of the budget, so the reserve, the status and the writes all see the same session.
+ */
+async function rollSession(now = Date.now()): Promise<void> {
+  const { eraBudget } = (await browser.storage.session.get('eraBudget')) as { eraBudget?: Stored };
+  if (sessionOver(eraBudget, now)) await browser.storage.session.remove(['eraBudget', USE_KEY, 'eraWrites']);
+}
+
+/**
+ * Background-only. The request budget lives in storage.session (per browser session, or until hours without a call);
+ * a block lives in storage.local with a cool-down, so a service-worker restart never "forgets" a 403/429.
  */
 export async function loadBudget(): Promise<{ budget: RequestBudget; haltedUntil: number | null }> {
+  await rollSession();
   const { eraBudget } = (await browser.storage.session.get('eraBudget')) as { eraBudget?: Stored };
   const { eraHalt } = (await browser.storage.local.get('eraHalt')) as { eraHalt?: { code: Stored['halted']; until: number } };
   const budget = RequestBudget.fromJSON(eraBudget);
@@ -64,7 +76,7 @@ export async function reserve(use: BudgetUse = 'OTHER'): Promise<ReserveResult> 
   try {
     const wait = budget.reserve();
     const u = await uses();
-    await browser.storage.session.set({ eraBudget: budget.toJSON(), [USE_KEY]: { ...u, [use]: (u[use] ?? 0) + 1 } });
+    await browser.storage.session.set({ eraBudget: { ...budget.toJSON(), lastAt: Date.now() } satisfies Stored, [USE_KEY]: { ...u, [use]: (u[use] ?? 0) + 1 } });
     return { ok: true, wait };
   } catch (e) {
     return { ok: false, code: e instanceof MarketplaceError ? e.code : 'BUDGET_EXHAUSTED' };
@@ -75,7 +87,7 @@ export async function report(status: number): Promise<void> {
   if (status !== 403 && status !== 429) return;
   const { budget } = await loadBudget();
   budget.report(status);
-  await browser.storage.session.set({ eraBudget: budget.toJSON() });
+  await browser.storage.session.set({ eraBudget: { ...budget.toJSON(), lastAt: Date.now() } satisfies Stored });
   await browser.storage.local.set({ eraHalt: { code: budget.halted, until: Date.now() + HALT_COOLDOWN_MS } });
 }
 
@@ -84,11 +96,12 @@ export async function status(): Promise<BudgetStatus> {
   return { remaining: budget.remaining, halted: budget.halted, haltedUntil, uses: await uses() };
 }
 
-/** Writes are rarer than reads: ≥ 20 s apart and ≤ 15 per browser session, whatever the read budget. */
+/** Writes are rarer than reads: ≥ 20 s apart and ≤ 15 per session, whatever the read budget. */
 export const WRITE_SPACING_MS = 20_000;
 export const WRITE_MAX = 15;
 
 export async function reserveWrite(now = Date.now()): Promise<void> {
+  await rollSession(now);
   const { eraWrites } = (await browser.storage.session.get('eraWrites')) as { eraWrites?: { last: number; count: number } };
   const w = eraWrites ?? { last: 0, count: 0 };
   if (w.count >= WRITE_MAX) throw new MarketplaceError('BUDGET_EXHAUSTED', `${WRITE_MAX} modifications maximum par session`);

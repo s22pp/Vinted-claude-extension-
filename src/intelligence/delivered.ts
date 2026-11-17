@@ -6,7 +6,15 @@
  */
 
 export const DEFAULT_DELIVERED =
-  'Bonjour ! Votre colis est bien arrivé. Si l’article vous plaît, n’hésitez pas à valider la commande et à me laisser une évaluation. Je vais remettre en ligne plusieurs articles qui pourraient vous intéresser : n’hésitez pas à vous abonner à mon compte. {salutation} !';
+  'Bonjour ! Votre colis est bien arrivé : merci beaucoup pour votre achat ! Si l’article vous a plu, n’hésitez pas à valider la commande et à me laisser une évaluation, ça m’aide beaucoup. Je remets régulièrement en ligne des articles qui pourraient vous intéresser : abonnez-vous à mon compte pour ne pas les manquer. {salutation} !';
+
+/** The default texts of earlier versions: a seller who never changed theirs gets the current one. */
+export const FORMER_DELIVERED = [
+  'Bonjour ! Votre colis est bien arrivé. Si l’article vous plaît, n’hésitez pas à valider la commande et à me laisser une évaluation. Je vais remettre en ligne plusieurs articles qui pourraient vous intéresser : n’hésitez pas à vous abonner à mon compte. {salutation} !',
+];
+
+/** The seller's own text kept as it is; an untouched former default (or nothing) becomes the current default. */
+export const deliveredTemplate = (t: string | null | undefined): string => (!t?.trim() || FORMER_DELIVERED.includes(t.trim()) ? DEFAULT_DELIVERED : t);
 
 /** An order older than this is never messaged, whatever its status says (a stale status is not a delivery). */
 export const DELIVERED_MAX_DAYS = 21;

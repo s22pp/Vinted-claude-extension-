@@ -1,6 +1,6 @@
 import { priceCents } from '@/data/adapters/vinted/parse';
 import { DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER } from './fav-messages';
-import { DEFAULT_DELIVERED } from './delivered';
+import { DEFAULT_DELIVERED, deliveredTemplate } from './delivered';
 import { eurText } from '@/domain/money';
 
 /**
@@ -95,7 +95,7 @@ export function withDefaults(c: (Partial<Omit<AutoConfig, 'fav'>> & { fav?: Stor
     templates: f.templates?.length ? f.templates : legacy(template, DEFAULT_FAV_OFFER),
     templatesNoOffer: f.templatesNoOffer?.length ? f.templatesNoOffer : legacy(templateNoOffer, DEFAULT_FAV_NO_OFFER),
   };
-  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered } };
+  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered, template: deliveredTemplate(c?.delivered?.template) } };
 }
 
 type Json = Record<string, unknown>;

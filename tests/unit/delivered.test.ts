@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DELIVERED, deliveredText, isDelivered, planDelivered, statusReport } from '@/intelligence/delivered';
+import { DEFAULT_DELIVERED, FORMER_DELIVERED, deliveredTemplate, deliveredText, isDelivered, planDelivered, statusReport } from '@/intelligence/delivered';
 
 const DAY = 86_400_000;
 const NOW = new Date(2026, 9, 1, 20, 30).getTime();
@@ -34,7 +34,9 @@ describe('parcel delivered → one message to the buyer', () => {
     expect(deliveredText('Votre {article} est arrivé ! {salutation}', { title: 'Veste Harrington' }, NOW)).toBe('Votre Veste Harrington est arrivé ! Bonne soirée');
     expect(DEFAULT_DELIVERED).toMatch(/valider la commande/);
     expect(DEFAULT_DELIVERED).toMatch(/évaluation/);
-    expect(DEFAULT_DELIVERED).toMatch(/abonner à mon compte/);
+    expect(DEFAULT_DELIVERED).toMatch(/abonnez-vous à mon compte/);
+    expect(DEFAULT_DELIVERED).toMatch(/merci beaucoup pour votre achat/);
+    expect(DEFAULT_DELIVERED).toMatch(/Si l’article vous a plu/);
   });
 
   it('the statuses seen on the sales, counted, those read as delivered first', () => {
@@ -43,5 +45,14 @@ describe('parcel delivered → one message to the buyer', () => {
       { status: 'Terminée', n: 2, delivered: false },
       { status: 'En cours de livraison', n: 1, delivered: false },
     ]);
+  });
+});
+
+describe('the delivered message kept or brought up to date', () => {
+  it('an untouched former default becomes the current one; the seller’s own text is kept', () => {
+    expect(deliveredTemplate(FORMER_DELIVERED[0])).toBe(DEFAULT_DELIVERED);
+    expect(deliveredTemplate('')).toBe(DEFAULT_DELIVERED);
+    expect(deliveredTemplate(undefined)).toBe(DEFAULT_DELIVERED);
+    expect(deliveredTemplate('Merci {article} !')).toBe('Merci {article} !');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
+import { addPilotHour, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
 
 const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).getTime();
 const round = { hour: 12, stopped: null, imported: { listings: 18, sold: 3 }, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
@@ -12,10 +12,30 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(nextPilotAt(at(16, 22), [21, 12])).toBe(at(17, 12));
   });
 
-  it('settings: off by default, 12 h and 21 h, hours kept valid and ordered', () => {
-    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [12, 21], labels: false });
-    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true })).toEqual({ enabled: true, hours: [8, 21], labels: true });
-    expect(pilotConfig({ hours: [] }).hours).toEqual([12, 21]);
+  it('settings: off by default, 9 h, 13 h and 21 h, hours kept valid and ordered, four at the most', () => {
+    expect(pilotConfig(null)).toEqual({ enabled: false, hours: [9, 13, 21], labels: false, v: 2 });
+    expect(pilotConfig({ enabled: true, hours: [21, 8, 8, 30], labels: true, v: 2 })).toEqual({ enabled: true, hours: [8, 21], labels: true, v: 2 });
+    expect(pilotConfig({ hours: [] }).hours).toEqual([9, 13, 21]);
+    expect(pilotConfig({ hours: [23, 7, 9, 11, 13, 15], v: 2 }).hours).toEqual([7, 9, 11, 13]);
+  });
+
+  it('the former default (12 h + 21 h, never chosen since) becomes the three rounds; a choice made since is kept', () => {
+    expect(pilotConfig({ enabled: true, hours: [12, 21] }).hours).toEqual([9, 13, 21]);
+    expect(pilotConfig({ enabled: true, hours: [12, 21], v: 2 }).hours).toEqual([12, 21]);
+    expect(pilotConfig({ enabled: true, hours: [10, 21] }).hours).toEqual([10, 21]);
+  });
+
+  it('a round added: the daytime hour farthest from the others; none past four', () => {
+    expect(addPilotHour([9, 13, 21])).toEqual([9, 13, 17, 21]);
+    expect(addPilotHour([12, 21])).toEqual([8, 12, 21]);
+    expect(addPilotHour([9, 13, 17, 21])).toBeNull();
+  });
+
+  it('a late round (Chrome closed at its hour): run within 3 h, unless the next round is less than an hour away', () => {
+    expect(runLateRound(at(16, 9), at(16, 9, 0) + 20_000, at(16, 13))).toBe(true);
+    expect(runLateRound(at(16, 9), at(16, 10, 30), at(16, 13))).toBe(true);
+    expect(runLateRound(at(16, 9), at(16, 12, 30), at(16, 13))).toBe(false);
+    expect(runLateRound(at(16, 13), at(16, 16, 30), at(16, 21))).toBe(false);
   });
 
   it('the notice: what was done, then what only the seller can do', () => {

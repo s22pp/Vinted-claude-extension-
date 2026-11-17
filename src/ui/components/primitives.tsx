@@ -88,11 +88,11 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   return <input ref={ref} className={`input ${money ? 'input--money' : ''} ${className}`} inputMode={money ? 'decimal' : rest.inputMode} {...rest} />;
 });
 
-export function Select({ options, className = '', ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string }[] }) {
+export function Select({ options, className = '', ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string; disabled?: boolean }[] }) {
   return (
     <select className={`select ${className}`} {...rest}>
       {options.map((o) => (
-        <option key={o.value} value={o.value}>
+        <option key={o.value} value={o.value} disabled={o.disabled}>
           {o.label}
         </option>
       ))}

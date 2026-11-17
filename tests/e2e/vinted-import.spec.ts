@@ -698,7 +698,7 @@ for (const hidden of [false, true])
     await page.goto(`${base}#/automations`);
     const card = page.getByTestId('auto-delivered');
     await card.getByLabel('Activer le message après livraison').check();
-    await expect(card.getByTestId('auto-delivered-preview')).toContainText('Votre colis est bien arrivé. Si l’article vous plaît, n’hésitez pas à valider la commande et à me laisser une évaluation.');
+    await expect(card.getByTestId('auto-delivered-preview')).toContainText('Votre colis est bien arrivé : merci beaucoup pour votre achat ! Si l’article vous a plu, n’hésitez pas à valider la commande et à me laisser une évaluation');
     // The status words of the imported sales, and how ERA reads them, without a call.
     const seen = card.getByTestId('auto-delivered-statuses');
     await expect(seen).toContainText(/Colis livré ×\d ✓/);
@@ -719,7 +719,7 @@ for (const hidden of [false, true])
     await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(1);
     expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
     const body = JSON.parse(writes()[0]!.body!).reply.body as string;
-    expect(body).toMatch(/^Bonjour ! Votre colis est bien arrivé\./);
+    expect(body).toMatch(/^Bonjour ! Votre colis est bien arrivé : merci beaucoup pour votre achat !/);
     expect(body).toMatch(/abonner à mon compte\. Bonne (journée|soirée) !$/);
     await expect(log).toContainText(hidden ? 'envoyé, pas relu dans la conversation (non confirmé)' : 'relu dans la conversation', { timeout: 30_000 });
 
@@ -766,7 +766,8 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   const pilot = page.getByTestId('pilot');
   await pilot.getByLabel('Activer les tournées automatiques').check();
-  await expect(pilot.getByTestId('pilot-next')).toContainText(/Prochaine tournée : .* à (12|21) h\./);
+  await expect(pilot.getByTestId('pilot-next')).toContainText(/Prochaine tournée : .* à (9|13|21) h\./);
+  await expect(pilot.getByLabel('Tournée 3')).toHaveValue('21');
   await expect(pilot).toContainText('Colis livrés ✓');
   await expect(pilot).toContainText('Offres reçues (désactivé)');
   const before = calls.length;

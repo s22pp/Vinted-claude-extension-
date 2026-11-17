@@ -12,7 +12,7 @@ import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
-import { PILOT_KEY, PILOT_LATE_MS, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice } from '@/intelligence/pilot';
+import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
 import { db } from '@/data/db';
@@ -160,7 +160,7 @@ async function scheduledRunAllowed(which: keyof typeof SCHEDULE_NAME): Promise<b
   const said = ((await browser.storage.session.get('eraAutoFloorSaid')) as { eraAutoFloorSaid?: Record<string, boolean> }).eraAutoFloorSaid ?? {};
   if (!said[which]) {
     await browser.storage.session.set({ eraAutoFloorSaid: { ...said, [which]: true } });
-    await journal({ kind: 'STOP', dryRun: false, ok: false, target: SCHEDULE_NAME[which], detail: `BUDGET_EXHAUSTED · passage sauté : ${s.remaining} requêtes restantes, gardées pour vos actions (réserve de ${AUTO_FLOOR}) jusqu’au redémarrage du navigateur` }).catch(() => undefined);
+    await journal({ kind: 'STOP', dryRun: false, ok: false, target: SCHEDULE_NAME[which], detail: `BUDGET_EXHAUSTED · passage sauté : ${s.remaining} requêtes restantes, gardées pour vos actions (réserve de ${AUTO_FLOOR}) jusqu’à 3 h sans requête ou au redémarrage du navigateur` }).catch(() => undefined);
   }
   return false;
 }
@@ -408,8 +408,8 @@ async function onPilotAlarm(alarm: { name: string; scheduledTime: number }): Pro
   const hour = retry && state ? state.hour : new Date(alarm.scheduledTime).getHours();
   if (!retry) {
     await schedulePilot();
-    // Chrome was closed at the round's hour, long ago: the next round comes instead.
-    if (Date.now() - alarm.scheduledTime > PILOT_LATE_MS) return;
+    // Chrome was closed at the round's hour, long ago — or the next round is close: that one comes instead.
+    if (!runLateRound(alarm.scheduledTime, Date.now(), nextPilotAt(Date.now(), cfg.hours))) return;
   }
   // Another Vinted operation running: tried again in 10 min (an hour at most).
   if (vintedBusy() || piloting) {

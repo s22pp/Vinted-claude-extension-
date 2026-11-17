@@ -966,9 +966,12 @@ export const fr = {
   },
   pilot: {
     title: 'Pilote automatique',
-    hint: 'Deux tournées par jour, faites par ERA dans votre Chrome, puis une notification : ce qui est fait, ce qui reste pour vous.',
+    hint: 'Des tournées à vos heures (9 h, 13 h et 21 h par défaut), faites par ERA dans votre Chrome, puis une notification : ce qui est fait, ce qui reste pour vous.',
     enable: 'Activer les tournées automatiques',
     hour: 'Tournée {n}',
+    addHour: 'Ajouter une tournée',
+    removeHour: 'Retirer la tournée {n}',
+    sessions: 'Chaque tournée a son propre budget de 60 requêtes quand rien n’a été demandé à Vinted depuis 3 h (nouvelle session) ; sinon elle utilise ce qui reste à la session en cours, hors réserve gardée pour vos clics.',
     next: 'Prochaine tournée : {when} à {hour} h.',
     tasks: 'Ce que fait une tournée',
     task: { refresh: 'Stock et ventes', offers: 'Offres reçues', fav: 'Favoris', delivered: 'Colis livrés', labels: 'Bordereaux', alerts: 'Alertes d’achat', backup: 'Sauvegarde' },
@@ -1154,7 +1157,7 @@ export const fr = {
   bulk: {
     done: '{n} articles analysés',
     stopped: '{n} articles analysés, {left} laissés pour plus tard',
-    stoppedWhy: 'Il reste {remaining} requêtes cette session : les {reserve} dernières sont gardées pour vos actions (bordereaux, prix…). Relancez après un redémarrage du navigateur.',
+    stoppedWhy: 'Il reste {remaining} requêtes cette session : les {reserve} dernières sont gardées pour vos actions (bordereaux, prix…). Relancez après 3 h sans requête à Vinted, ou après un redémarrage du navigateur.',
   },
   errors: {
     NO_VINTED_TAB: 'Vinted n’a pas répondu dans l’onglet ouvert par ERA. Vérifiez votre connexion internet puis recliquez.',
@@ -1172,7 +1175,7 @@ export const fr = {
     hint: {
       NETWORK_403: 'Vinted a refusé la requête. Par sécurité, ERA n’enverra plus rien pendant 6 h. Vos données locales sont intactes.',
       RATE_LIMITED: 'Trop de requêtes. Par sécurité, ERA n’enverra plus rien pendant 6 h. Vos données locales sont intactes.',
-      BUDGET_EXHAUSTED: 'Les 60 requêtes de cette session sont utilisées : rien de plus n’est envoyé à Vinted (protection du compte). Le budget se recharge en fermant puis rouvrant Chrome, ou en rechargeant ERA dans chrome://extensions.',
+      BUDGET_EXHAUSTED: 'Les 60 requêtes de cette session sont utilisées : rien de plus n’est envoyé à Vinted (protection du compte). Le budget se recharge après 3 h sans requête à Vinted, en fermant puis rouvrant Chrome, ou en rechargeant ERA dans chrome://extensions.',
       UNAVAILABLE: 'Vinted n’a pas renvoyé la réponse attendue. Le détail exact est gardé dans Réglages → Diagnostic de connexion → « Copier le rapport ». Vos données locales sont intactes.',
       NOT_IMPLEMENTED: 'Cette source n’est pas encore branchée.',
       NOT_LOGGED_IN: 'L’onglet Vinted est affiché : connectez-vous, puis recliquez.',
@@ -2477,8 +2480,8 @@ export const fr = {
   },
   budgetPlan: {
     left: 'Cette session : {n} requêtes restantes (les programmations s’arrêtent à {reserve}).',
-    paused: 'Cette session : {n} requêtes restantes. Programmations en pause : les {reserve} dernières sont gardées pour vos actions, jusqu’au redémarrage du navigateur.',
-    cost: 'Vos programmations lisent au moins ≈ {perHour} requêtes par heure, même sans rien à faire. Navigateur ouvert, elles atteignent en ≈ {hours} h la réserve de {reserve} requêtes (sur {total} par session) gardée pour vos propres actions, puis s’arrêtent seules jusqu’au redémarrage du navigateur.',
+    paused: 'Cette session : {n} requêtes restantes. Programmations en pause : les {reserve} dernières sont gardées pour vos actions, jusqu’à une pause de 3 h sans requête à Vinted (nouvelle session) ou au redémarrage du navigateur.',
+    cost: 'Vos programmations lisent au moins ≈ {perHour} requêtes par heure, même sans rien à faire. Navigateur ouvert, elles atteignent en ≈ {hours} h la réserve de {reserve} requêtes (sur {total} par session) gardée pour vos propres actions, puis s’arrêtent seules jusqu’à une pause de 3 h sans requête (nouvelle session) ou au redémarrage du navigateur.',
   },
   alerts: {
     title: 'Alertes d’achat',

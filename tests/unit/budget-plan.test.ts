@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUTO_FLOOR, autoAllowed, scheduleCost } from '@/data/budget-plan';
+import { AUTO_FLOOR, SESSION_GAP_MS, autoAllowed, scheduleCost, sessionOver } from '@/data/budget-plan';
 
 describe('the session budget shared between schedules and the seller’s clicks', () => {
   it('scheduled runs stop short of the reserve kept for the seller', () => {
@@ -23,5 +23,20 @@ describe('the session budget shared between schedules and the seller’s clicks'
     expect(scheduleCost({ autoEveryMinutes: 5, fav: true, offers: false, refreshEveryHours: null, alerts: false }).perHour).toBe(4);
     // Parcels delivered: one more read per pass (the latest sales).
     expect(scheduleCost({ autoEveryMinutes: 30, fav: false, offers: false, delivered: true, refreshEveryHours: null, alerts: false }).perHour).toBe(2);
+  });
+});
+
+describe('a session: the browser’s, or until 3 h without a call to Vinted', () => {
+  const now = Date.UTC(2026, 10, 17, 13);
+  it('a new session after 3 h of quiet (the next round of the day), never sooner', () => {
+    expect(sessionOver({ lastAt: now - SESSION_GAP_MS, halted: null }, now)).toBe(true);
+    expect(sessionOver({ lastAt: now - SESSION_GAP_MS + 60_000, halted: null }, now)).toBe(false);
+  });
+  it('never after a block (403/429): only a browser restart starts again', () => {
+    expect(sessionOver({ lastAt: now - 10 * SESSION_GAP_MS, halted: 'NETWORK_403' }, now)).toBe(false);
+  });
+  it('no call recorded yet: nothing to end', () => {
+    expect(sessionOver(undefined, now)).toBe(false);
+    expect(sessionOver({ halted: null }, now)).toBe(false);
   });
 });
