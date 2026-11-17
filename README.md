@@ -10,22 +10,40 @@ Extension Chrome MV3 · WXT · React · TypeScript strict · Dexie (IndexedDB) �
 3. **Charger l'extension non empaquetée** → choisir le dossier **`extension/`** (celui qui contient `manifest.json`),
    pas la racine du dépôt.
 
-## Mettre à jour sans retélécharger
+## Mise à jour automatique (Mac) — plus aucun ZIP
 
-Installer **une seule fois** avec git, dans un dossier fixe :
-
-```bash
-git clone -b claude/adoring-keller-jahd0y https://github.com/s22pp/Vinted-claude-extension-.git ~/ERA
-```
-puis charger `~/ERA/extension` dans `chrome://extensions`.
-
-Ensuite, à chaque nouvelle version :
+**Une seule fois**, dans le Terminal (Applications → Utilitaires → Terminal) :
 
 ```bash
-~/ERA/scripts/update.sh      # = git pull
+curl -fsSL https://raw.githubusercontent.com/s22pp/Vinted-claude-extension-/refs/heads/claude/adoring-keller-jahd0y/scripts/mac/install-auto-update.sh | bash
 ```
-puis **Réglages → Recharger ERA** (ou ↻ dans `chrome://extensions`). L'identifiant de l'extension est fixé
-(clé publique dans le manifest) : vos données locales sont conservées d'une version à l'autre.
+
+puis, **une seule fois** dans Chrome : `chrome://extensions` → Mode développeur → **Charger l'extension non empaquetée**
+→ le dossier **`ERA-extension`** de votre dossier personnel. L'identifiant d'ERA est fixé (clé publique dans le
+manifest) : vos données restent, quel que soit le dossier chargé. Par prudence, faites d'abord une sauvegarde
+(Réglages → Sauvegarde).
+
+Ensuite, plus rien à faire :
+
+- toutes les heures (et au démarrage du Mac), un petit script lancé par macOS (`launchd`) lit la version publiée sur
+  GitHub ; quand elle change, il télécharge la nouvelle et remplace le dossier `~/ERA-extension` d'un coup (dépôt
+  public : aucun mot de passe ; journal dans `~/Library/Application Support/ERA/update.log`) ;
+- ERA voit la nouvelle version dans son dossier (toutes les 5 minutes) et **se recharge seul** dès que rien ne tourne
+  (aucune opération Vinted, aucune tournée) et qu'aucune page d'ERA n'est ouverte (un rechargement les fermerait) ;
+  sinon le tableau de bord affiche « Nouvelle version prête » avec **Redémarrer ERA**, qui rouvre le tableau de bord ;
+- une notification dit « ERA mis à jour : 0.37.0 → 0.38.0 ».
+
+Retirer la mise à jour automatique (le dossier et ERA restent tels quels) :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/s22pp/Vinted-claude-extension-/refs/heads/claude/adoring-keller-jahd0y/scripts/mac/uninstall-auto-update.sh | bash
+```
+
+Seules les versions publiées (« Release ») arrivent : chacune a passé toute la suite de tests sur le faux Vinted
+(jamais une validation sur votre compte réel).
+
+Sans le script (ou sur Windows) : `git clone -b claude/adoring-keller-jahd0y https://github.com/s22pp/Vinted-claude-extension-.git ~/ERA`,
+charger `~/ERA/extension`, puis à chaque version `~/ERA/scripts/update.sh` (= git pull) : ERA se recharge seul de la même façon.
 
 Pour développer : `npm install && npm run build` (sortie `.output/chrome-mv3`) ; `npm run release` régénère `extension/` et le ZIP.
 
