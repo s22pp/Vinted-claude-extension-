@@ -367,6 +367,12 @@ Automatisations → **Ce qui fait répondre et acheter**. Chaque message, offre 
 
 Quatre tableaux : les **messages** mot pour mot (lequel obtient le plus de réponses), les **offres** par profondeur (95 %, 90 %, 85 %… du prix : lesquelles font acheter), le **délai** entre le favori et votre message, et les **republications** par délai depuis la mise en ligne précédente (vendus en 14 jours, délai médian, d'après vos annonces). Pas de pourcentage sous 5 envois mesurés : un chiffre n'est pas une conclusion. Ce sont des tendances, pas des preuves.
 
+### ERA apprend quels messages font répondre
+
+- Les messages de favori ne tournent plus à l'aveugle : ERA **mesure d'abord** (la formulation la moins essayée part, une formulation que vous ajoutez est essayée en premier), puis, quand chaque formulation a au moins 10 envois mesurés et que l'une fait répondre nettement plus (10 points d'écart), **elle l'envoie 4 fois sur 5** ; la 5ᵉ continue de tester les autres, pour remarquer si le marché change.
+- Jamais de conclusion sur une poignée : sous ces seuils, ERA alterne et le dit. La carte « Ce qui fait répondre et acheter » dit où en est l'apprentissage (avec offre, sans offre) ; le journal dit pour chaque envoi « formulation la plus répondue (60 % sur 20) » ou « formulation en test ».
+- Des tendances sur vos propres envois, pas des preuves : une réponse peut venir d'autre chose que du message.
+
 ## Titres et descriptions en série (EXPERIMENTAL)
 
 Outils → **« Titres et descriptions en série »** : le même changement sur plusieurs annonces en ligne — un texte **ajouté au début**, **ajouté à la fin**, ou **un texte remplacé** (exactement, majuscules comprises ; vide = supprimé).

@@ -1,6 +1,7 @@
 import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
 import { awaitingReply, noteInbox, recentInbox, recordContact, settleContacts } from './contacts';
 import { journal } from './journal';
+import { type Choice, type VariantStat, chooseTemplate, variantStats } from '@/intelligence/message-learning';
 import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import { currentUserId, firstArray, parseOrder, priceCents } from './adapters/vinted/parse';
@@ -56,13 +57,20 @@ async function itemsByVintedId(): Promise<Map<string, FavItem>> {
   );
 }
 
-/** One of the seller's chosen messages for this favourite, filled in. */
-function favPick(cfg: AutoConfig, key: string, offerCents: number | null, v: { pseudo: string | null; title: string; brand: string | null; price: number | null }): { text: string; tpl: string } {
+/**
+ * One of the seller's chosen messages for this favourite, filled in — the one their own results favour (the contact base:
+ * which wording members answer), still measuring the others; the same as before while there is nothing to learn from.
+ */
+function favPick(cfg: AutoConfig, key: string, offerCents: number | null, v: { pseudo: string | null; title: string; brand: string | null; price: number | null }, stats: readonly VariantStat[] = []): { text: string; tpl: string; choice: Choice | null } {
   const list = offerCents === null ? cfg.fav.templatesNoOffer : cfg.fav.templates;
-  const tpl = pickMessage(list, key) ?? pickMessage(offerCents === null ? DEFAULT_FAV_NO_OFFER : DEFAULT_FAV_OFFER, key)!;
-  return { text: fillTemplate(tpl, { pseudo: v.pseudo, titre: cleanTitle(v.title), article: articleOf(v.title, v.brand), prix: v.price, prixOffre: offerCents }), tpl };
+  const choice = chooseTemplate(list, key, stats);
+  const tpl = choice?.tpl ?? pickMessage(offerCents === null ? DEFAULT_FAV_NO_OFFER : DEFAULT_FAV_OFFER, key)!;
+  return { text: fillTemplate(tpl, { pseudo: v.pseudo, titre: cleanTitle(v.title), article: articleOf(v.title, v.brand), prix: v.price, prixOffre: offerCents }), tpl, choice };
 }
-const favText = (...a: Parameters<typeof favPick>) => favPick(...a).text;
+
+/** Why this wording, for the journal: the one members answer most, or the share kept for testing. */
+const learnNote = (c: Choice | null) => (c?.why === 'BEST' ? ` · formulation la plus répondue (${c.pct} % sur ${c.sample})` : c?.why === 'EXPLORE' ? ' · formulation en test' : '');
+
 
 function stopReason(e: unknown): string | null {
   const { code, detail } = errorInfo(e);
@@ -91,6 +99,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
   try {
     const notices = parseFavoriteNotifications(await adapter.rawGet('/web/api/notifications/notifications?page=1&per_page=50'));
     const items = await itemsByVintedId();
+    // What the seller's wordings have obtained so far (answers), to send the one that works.
+    const stats = variantStats(await db.contacts.filter((c) => c.kind === 'FAV_MESSAGE').toArray(), 'FAV_MESSAGE', now);
     let sentToday = await favToday(now);
     // A bundle that failed is tried again next pass, as a bundle: never one message per article in this one.
     const tryLater = new Set<string>();
@@ -157,8 +167,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       }
       const target = `${item?.title ?? `annonce ${n.itemId}`} → membre ${n.userId}`;
       if (dryRun) {
-        const text = favText(cfg, n.key, plan.offerCents, { pseudo: 'pseudo', title: item?.title ?? `annonce ${n.itemId}`, brand: item?.brand ?? null, price: item?.priceCents ?? null });
-        await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `${plan.message ? `message : « ${text} »` : 'pas de message'}${plan.offerCents !== null ? ` · offre ${eur(plan.offerCents)}` : plan.note ? ` · ${plan.note}` : ''}` });
+        const { text, choice } = favPick(cfg, n.key, plan.offerCents, { pseudo: 'pseudo', title: item?.title ?? `annonce ${n.itemId}`, brand: item?.brand ?? null, price: item?.priceCents ?? null }, stats);
+        await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `${plan.message ? `message : « ${text} »${learnNote(choice)}` : 'pas de message'}${plan.offerCents !== null ? ` · offre ${eur(plan.offerCents)}` : plan.note ? ` · ${plan.note}` : ''}` });
         out.done++;
         continue;
       }
@@ -182,13 +192,13 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
         const title = item?.title ?? (typeof tx.item_title === 'string' ? tx.item_title : `annonce ${n.itemId}`);
         const price = item?.priceCents ?? priceCents(tx.offer_price);
         if (plan.message) {
-          const { text, tpl } = favPick(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price });
+          const { text, tpl, choice } = favPick(cfg, n.key, plan.offerCents, { pseudo: login, title, brand: item?.brand ?? null, price }, stats);
           await write('POST', `/api/v2/conversations/${convId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
           // Sent: never again for this favourite, saved at once (a pass stopped right after must not send it twice).
           messageSent = true;
           seen.add(n.key);
           await repo.setSetting('autoFavSeen', [...seen].slice(-1000));
-          await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »` });
+          await log({ kind: 'FAV_MESSAGE', dryRun, ok: true, target, detail: `« ${text} »${learnNote(choice)}` });
           await recordContact({ at: now, kind: 'FAV_MESSAGE', conversationId: convId, itemId: item?.itemId ?? null, title, variant: tpl, askCents: price, offerCents: plan.offerCents, delayMs: now - n.at }).catch(() => undefined);
         }
         const txId = idOf(tx.id);

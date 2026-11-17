@@ -1,5 +1,6 @@
 import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
+import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean }) {
@@ -1265,6 +1266,43 @@ test('favourite: the message reached the member, the offer after it was stopped 
   await expect(page.getByTestId('proof-fav')).toHaveAttribute('data-state', 'REFUSED');
   await expect(page.getByTestId('proof-fav')).toContainText('Marché 1 fois ici, dernier essai refusé par Vinted');
   await expect(page.getByTestId('proof-replies')).toContainText('Pas encore essayé sur votre compte');
+});
+
+test('favourite messages learnt from the seller’s results: the wording members answer most is said, then sent', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const calls = await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // Test fixture only: 20 messages sent with each of the two default wordings (no offer), 5 days ago — the second one
+  // answered 12 times, the first twice. (Without learning, this member would get the first wording.)
+  const [first, second] = DEFAULT_FAV_NO_OFFER;
+  await page.evaluate(async ([a, b]) => {
+    const idb = await new Promise<IDBDatabase>((ok, ko) => {
+      const r = indexedDB.open('era-intelligence');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+    const tx = idb.transaction('contacts', 'readwrite');
+    const at = Date.now() - 5 * 86_400_000;
+    for (let i = 0; i < 20; i++)
+      for (const [v, k, answered] of [[a, 'a', 2], [b, 'b', 12]] as const)
+        tx.objectStore('contacts').put({ id: `seed-${k}${i}`, at, kind: 'FAV_MESSAGE', conversationId: `${k}${i}`, itemId: null, title: 'Seed', variant: v, askCents: null, offerCents: null, delayMs: null, repliedAt: i < answered ? at + 3_600_000 : null, soldAt: null, soldCents: null });
+    await new Promise((done) => (tx.oncomplete = done));
+    idb.close();
+  }, [first!, second!]);
+  await page.goto(`${base}#/automations`);
+  await page.reload();
+  const learning = page.getByTestId('outcomes-learning');
+  await expect(learning.locator('li[data-state="BEST"]')).toContainText('ERA envoie désormais surtout « Salut ! Merci pour ton favori');
+  await expect(learning.locator('li[data-state="BEST"]')).toContainText('60 % de réponses sur 20, contre 10 %');
+  await page.getByLabel('Activer pour les nouveaux favoris').check();
+  await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
+  const writes = () => calls.filter((c) => c.method !== 'GET');
+  await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
+  expect(JSON.parse(writes()[1]!.body!).reply.body).toMatch(/^Salut ! Merci pour ton favori sur .+ Tu veux des photos en plus ou les mesures \? Demande-moi\.$/);
+  await expect(page.getByTestId('auto-log')).toContainText('formulation la plus répondue (60 % sur 20)');
 });
 
 test('parcels to watch: a parcel sent long ago and still not delivered is flagged, with its conversation', async ({ context, base }) => {

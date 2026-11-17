@@ -1109,6 +1109,13 @@ export const fr = {
     delays: 'Délai entre le favori et votre message',
     reposts: 'Republications : délai depuis la mise en ligne précédente',
     bestMessage: 'Message le plus efficace : « {text} » ({pct} % de réponses).',
+    learn: {
+      withOffer: 'Messages de favori avec offre :',
+      noOffer: 'Messages de favori sans offre :',
+      measuring: 'ERA alterne vos formulations pour les mesurer à égalité ({least}/{need} réponses mesurées pour la moins essayée), puis enverra surtout celle qui fait répondre.',
+      tie: 'pas de formulation nettement meilleure pour l’instant (moins de 10 points d’écart) : ERA continue d’alterner.',
+      best: 'ERA envoie désormais surtout « {text} » ({pct} % de réponses sur {sample}, contre {next} % pour la suivante) ; 1 envoi sur 5 continue de tester les autres.',
+    },
     bestOffer: 'Offre la plus efficace : {kind} à {depth} ({pct} % de ventes).',
     bestDelay: 'Meilleur délai après un favori : {delay} ({pct} % de réponses).',
     bestRepost: 'Meilleur moment pour republier : {gap} après la mise en ligne précédente ({pct} % vendus en 14 jours).',
