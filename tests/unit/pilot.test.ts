@@ -65,6 +65,12 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(pilotNotice({ ...round, priceCutsAuto: true, priceCutFailed: 'Veste : NOT_APPLIED' }).lines.at(-1)).toBe('Pour vous : baisse de prix non faite (Veste : NOT_APPLIED) : réessayée à la tournée suivante');
   });
 
+  it('a simulation: what ERA would do, nothing sent', () => {
+    const n = pilotNotice({ ...round, simulated: true, offers: 1, priceCutsAuto: true, priceCut: { title: 'Veste', from: 5900, to: 5300, unconfirmed: false } });
+    expect(n.title).toBe('Simulation de tournée : rien n’a été envoyé');
+    expect(n.lines).toContain('ERA ferait : 1 offre traitée · baisserait le prix : Veste 59,00 € → 53,00 €');
+  });
+
   it('a stop said calmly: what happened, nothing lost, what comes next', () => {
     const stopped = pilotNotice({ ...round, imported: null, stopped: 'NOT_LOGGED_IN · session expirée' });
     expect(stopped.title).toBe('Tournée de 12 h interrompue');

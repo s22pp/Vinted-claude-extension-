@@ -2017,3 +2017,23 @@ test('workshop → my photos chosen in ERA, the draft made with them, published 
   await page.goto(`${base}#/automations`);
   await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'brouillon 555 publié' }).first()).toContainText('relu sur Vinted');
 });
+
+test('simulated round: every agent reads and says what it would do — nothing sent to Vinted, even with nothing switched on', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+  const calls = await fakeVinted(context, { loggedIn: true, orders: [{ title: 'Jean Levi’s 501 W32', price: { amount: '30.0' }, date: day(3), status: 'Colis livré', conversation_id: 9401, transaction_id: 7401 }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const before = calls.length;
+  await page.getByTestId('pilot').getByRole('button', { name: 'Simuler une tournée (rien n’est envoyé)' }).click();
+  const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Simulation de tournée' }).first();
+  await expect(row).toContainText('rien n’a été envoyé', { timeout: 90_000 });
+  // The delivered parcel: the thank-you it would send, the offer it would counter — and not one write.
+  await expect(row).toContainText('ERA ferait :');
+  await expect(row).toContainText('1 remerciement (colis livré)');
+  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual([]);
+  await expect(page.getByTestId('pending-reply')).toHaveCount(0);
+});

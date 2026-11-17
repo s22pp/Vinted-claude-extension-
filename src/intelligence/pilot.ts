@@ -106,6 +106,8 @@ export interface PilotRound {
   priceCutFailed?: string;
   /** Price cuts are ERA's (the seller ticked them): the ones left are said as coming, not as the seller's. */
   priceCutsAuto?: boolean;
+  /** « Simuler une tournée »: everything read, nothing sent — the counts are what ERA would do. */
+  simulated?: boolean;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -128,7 +130,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.favourites && plural(r.favourites, 'message aux favoris', 'messages aux favoris'),
     r.replies && plural(r.replies, 'réponse à un acheteur', 'réponses aux acheteurs'),
     r.delivered && plural(r.delivered, 'remerciement (colis livré)', 'remerciements (colis livrés)'),
-    r.priceCut && `prix baissé : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,
+    r.priceCut && `${r.simulated ? 'baisserait le prix' : 'prix baissé'} : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,
     r.deals && plural(r.deals, 'affaire repérée', 'affaires repérées'),
     r.labels && `${plural(r.labels, 'bordereau prêt', 'bordereaux prêts')} (Téléchargements/ERA-bordereaux)`,
     r.backup && 'sauvegarde faite',
@@ -144,13 +146,19 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     !r.priceCutsAuto && r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
     r.toList && `${plural(r.toList, 'article', 'articles')} à mettre en ligne (Atelier)`,
   ].filter((x): x is string => !!x);
-  const title = r.stopped ? `Tournée de ${r.hour} h interrompue` : `Tournée de ${r.hour} h faite`;
+  const title = r.simulated ? `Simulation de tournée${r.stopped ? ' interrompue' : ''} : rien n’a été envoyé` : r.stopped ? `Tournée de ${r.hour} h interrompue` : `Tournée de ${r.hour} h faite`;
   return {
     title,
     lines: [
       ...(r.stopped ? [calmStop(r.stopped)] : []),
       ...(r.imported ? [`Stock à jour : ${plural(r.imported.listings, 'annonce', 'annonces')}, ${plural(r.imported.sold, 'vente', 'ventes')}`] : []),
-      done.length ? `Fait pour vous : ${done.join(' · ')}` : 'Fait pour vous : rien de nouveau à traiter',
+      r.simulated
+        ? done.length
+          ? `ERA ferait : ${done.join(' · ')}`
+          : 'ERA ferait : rien, rien de nouveau à traiter'
+        : done.length
+          ? `Fait pour vous : ${done.join(' · ')}`
+          : 'Fait pour vous : rien de nouveau à traiter',
       ...(followed.length ? [`Suite de vos messages : ${followed.join(' · ')}`] : []),
       ...(r.priceCutsAuto && r.priceCuts ? [`À venir : ${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')}, une par tournée`] : []),
       todo.length ? `Pour vous : ${todo.join(' · ')}` : 'Pour vous : rien à faire, tout est à jour',

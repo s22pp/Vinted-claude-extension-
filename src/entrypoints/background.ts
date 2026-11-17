@@ -324,7 +324,8 @@ async function pilotTab(): Promise<number | null> {
  * A vinted.fr tab is opened in the background only when none exists (never a reload of the seller's), and closed after.
  * Then one notification: what was done, what is left for the seller.
  */
-async function runPilotRound(hour: number): Promise<PilotRound> {
+/** `dryRun`: the seller's « Simuler une tournée » — every agent reads and says what it would do, nothing is sent. */
+async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> {
   const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
   let openedTab: number | null = null;
   let callsBefore: number | null = null;
@@ -350,8 +351,8 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
         if (STOP.test(imp.code)) return;
       } else r.imported = { listings: imp.items + imp.updated, sold: imp.sales };
       const auto = async (kind: AutoKind, on: boolean) => {
-        if (!on || r.stopped?.match(STOP) || !(await scheduledRunAllowed('pilot'))) return 0;
-        const a = await runAuto(kind, false);
+        if ((!on && !dryRun) || r.stopped?.match(STOP) || !(await scheduledRunAllowed('pilot'))) return 0;
+        const a = await runAuto(kind, dryRun);
         if (a.stopped && STOP.test(a.stopped)) r.stopped = a.stopped;
         return a.done;
       };
@@ -359,18 +360,20 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
       r.favourites = await auto('FAV', cfg.fav.enabled);
       r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
       // Buyers' messages: plain questions answered when sure, the rest waiting in ERA with a draft.
-      if (cfg.replies.enabled && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
-        const m = (await runAuto('REPLIES', false)) as RepliesResult;
+      if ((cfg.replies.enabled || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        const m = (await runAuto('REPLIES', dryRun)) as RepliesResult;
         r.replies = m.done;
         r.toAnswer = m.left;
         if (m.stopped && STOP.test(m.stopped)) r.stopped = m.stopped;
       }
       // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
       // The plan's price cut due first (oldest), one per round — never chained, known cost only, never under the floor.
-      r.priceCutsAuto = pilot.priceCuts;
-      if (pilot.priceCuts && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      r.priceCutsAuto = pilot.priceCuts || dryRun;
+      if ((pilot.priceCuts || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
         const c = (await duePriceCuts())[0];
-        if (c) {
+        // A simulation says the cut it would make, and makes none.
+        if (c && dryRun) r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: false };
+        else if (c) {
           try {
             const run = applyPriceOnVinted(c.platformListingId, c.toCents, c.itemId, () => undefined, { quiet: true });
             editing = run;
@@ -385,18 +388,18 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
           }
         }
       }
-      if (pilot.labels && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if (pilot.labels && !dryRun && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
         const b = await getAllLabels();
         r.labels = b.results.filter((x) => x.ok && x.file).length;
         r.labelsNotSaved = b.results.filter((x) => x.ok && !x.file).length;
         if (b.stopped && STOP.test(b.stopped)) r.stopped = b.stopped;
       }
-      if (!r.stopped?.match(STOP) && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('alerts'))) {
+      if (!dryRun && !r.stopped?.match(STOP) && (await repo.getSetting<{ enabled?: boolean } | null>(BUY_ALERTS_KEY, null))?.enabled && (await scheduledRunAllowed('alerts'))) {
         const a = await runBuyAlerts();
         r.deals = a.deals.length;
       }
       // What followed the contacts (answers, sales): the measures of what makes people answer and buy.
-      if (!r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if (!dryRun && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
         const c = await refreshContacts().catch(() => null);
         if (c) r.outcomes = c;
       }
@@ -413,7 +416,8 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
     r.calls = after >= callsBefore ? after - callsBefore : after;
   }
   // The backup is local (no Vinted call): made even after a stop, when due.
-  r.backup = (await runAutoBackup().catch(() => ({ ok: false }))).ok;
+  r.backup = dryRun ? false : (await runAutoBackup().catch(() => ({ ok: false }))).ok;
+  r.simulated = dryRun;
   // What is left for the seller, from what ERA holds now.
   const now = Date.now();
   const sales = await db.sales.filter((s) => !s.isDemo).toArray();
@@ -436,12 +440,14 @@ async function weeklyTask(): Promise<{ title: string; lines: string[] }> {
 }
 
 /** The round, its journal line and its notification; one at a time. Then the week's task, on its day. */
-function pilotRound(hour: number): Promise<PilotRound> {
+function pilotRound(hour: number, dryRun = false): Promise<PilotRound> {
   if (piloting) return piloting;
-  piloting = runPilotRound(hour)
+  piloting = runPilotRound(hour, dryRun)
     .then(async (r) => {
       const n = pilotNotice(r);
-      await journal({ kind: r.stopped ? 'STOP' : 'RUN', dryRun: false, ok: !r.stopped, target: 'Pilote automatique', detail: `${n.title} · ${n.lines.join(' · ')}` }).catch(() => undefined);
+      await journal({ kind: r.stopped ? 'STOP' : 'RUN', dryRun, ok: !r.stopped, target: 'Pilote automatique', detail: `${n.title} · ${n.lines.join(' · ')}` }).catch(() => undefined);
+      // A simulation is the seller's click, answered on the screen: no notification, no week's task.
+      if (dryRun) return r;
       await browser.notifications
         .create(`era-pilot-${Date.now()}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: n.title, message: n.lines.join('\n'), priority: 1 })
         .catch(() => undefined);
@@ -653,7 +659,7 @@ export default defineBackground(() => {
           sendResponse({ hour: new Date().getHours(), stopped: BUSY, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 } satisfies PilotRound);
           return undefined;
         }
-        return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+        return answer(pilotRound(new Date().getHours(), msg.dryRun === true), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
       case 'era:reply:send':
         if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
         return answer(sendPendingReply(msg.key, msg.text), unavailable);

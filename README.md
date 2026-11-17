@@ -252,6 +252,14 @@ répondre.
   automatiques par jour, arrêt sur un blocage. Chaque envoi au journal et dans la base des contacts.
 - Champs de la messagerie Vinted **non vérifiés** sur votre compte : le premier passage réel le dira (journal).
 
+## Simuler une tournée (avant de tout confier)
+
+Carte Pilote → **Simuler une tournée (rien n'est envoyé)** : la tournée entière sur votre vrai compte, en lecture seule —
+stock et ventes relus, puis chaque agent dit ce qu'il **ferait** (offres, favoris, remerciements colis livré, réponses
+aux messages avec le brouillon Gemini, la baisse de prix due), même ceux que vous n'avez pas activés. Aucun envoi,
+aucune écriture : ni message, ni offre, ni prix, ni bordereau ; pas de sauvegarde ni de tâche de la semaine. Le résultat
+s'affiche à l'écran et au journal (« ERA ferait : … »). Le bon premier essai sur votre compte.
+
 ## Tout confier à ERA
 
 Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favoris, remerciement colis livré, réponses aux

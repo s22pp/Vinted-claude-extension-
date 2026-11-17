@@ -80,7 +80,7 @@ export type EraMessage =
   | { type: 'era:backup:schedule' }
   | { type: 'era:digest:schedule' }
   | { type: 'era:pilot:schedule' }
-  | { type: 'era:pilot:run' }
+  | { type: 'era:pilot:run'; dryRun?: boolean }
   | { type: 'era:weekly:run' }
   | { type: 'era:update:status' }
   | { type: 'era:reply:send'; key: string; text: string }

@@ -41,10 +41,10 @@ export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Prom
     void save({ ...cfg, hours: cfg.hours.map((x, j) => (j === i ? h : x)).sort((a, b) => a - b) });
   };
   const added = addPilotHour(cfg.hours);
-  const runNow = async () => {
+  const runNow = async (dryRun = false) => {
     setBusy(true);
     try {
-      const r = (await browser.runtime.sendMessage({ type: 'era:pilot:run' } satisfies EraMessage)) as PilotRound;
+      const r = (await browser.runtime.sendMessage({ type: 'era:pilot:run', dryRun } satisfies EraMessage)) as PilotRound;
       const n = pilotNotice(r);
       toast(r.stopped ? 'error' : 'success', n.title, n.lines.join(' · '));
     } catch (e) {
@@ -155,6 +155,9 @@ export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Prom
         </ul>
         {!others.real && <p className="t-small t-warn">{t('pilot.notReal')}</p>}
         <div>
+          <Button size="sm" variant="ghost" icon="eye" loading={busy} disabled={busy || !others.real} onClick={() => void runNow(true)}>
+            {t('pilot.simulate')}
+          </Button>{' '}
           <Button size="sm" variant="primary" icon="check" loading={busy} disabled={busy || !others.real} onClick={() => void runNow()}>
             {t('pilot.runNow')}
           </Button>{' '}

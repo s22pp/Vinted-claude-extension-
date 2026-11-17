@@ -993,6 +993,7 @@ export const fr = {
     allDoneHint: 'Tournées activées. Pour les réponses aux messages, ajoutez votre clé Gemini (Réglages) : sans elle, les messages vous attendent ici, sans réponse proposée.',
     notReal: 'Disponible avec vos données Vinted importées (pas en démo).',
     runNow: 'Lancer une tournée maintenant',
+    simulate: 'Simuler une tournée (rien n’est envoyé)',
     failed: 'Tournée impossible',
   },
   update: {
