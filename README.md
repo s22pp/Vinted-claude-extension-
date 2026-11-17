@@ -233,6 +233,32 @@ Dans la carte Pilote automatique, **Tâche de la semaine** (cochée par défaut,
 
 Une notification séparée « Bilan de la semaine » (un clic ouvre Automatisations), une ligne au journal. « Faire la tâche de la semaine maintenant » la lance tout de suite. Chrome fermé tout le jour choisi : elle est faite au premier passage après 8 jours. Le bilan du lundi (Analyses) ne part plus en double quand la tâche de la semaine est active.
 
+## Messages des acheteurs (EXPERIMENTAL)
+
+Automatisations → **Messages des acheteurs** (et dans chaque tournée du pilote). But : ne plus ouvrir Vinted pour
+répondre.
+
+- Une **question simple** sur une annonce (taille, état, mesures, matière, prix affiché) reçoit une réponse rédigée par
+  Gemini (votre clé, Réglages) **à partir des seuls faits d'ERA** (fiche, Atelier, description), vérifiée (un chiffre,
+  une matière, une affirmation absents des faits = pas d'envoi), et envoyée seule seulement quand rien n'y est
+  incertain. Une réponse du type « je vérifie et je reviens vers vous » n'est jamais envoyée seule.
+- **Jamais de réponse automatique** à un problème de commande (remboursement, retour, colis abîmé ou perdu, litige), à
+  une demande de contact hors Vinted, à un prix ou un lot, à une commande en cours.
+- Tout ce qu'ERA n'envoie pas seul attend dans **Messages à voir** (Automatisations) : le message de l'acheteur, la
+  réponse proposée quand c'est possible, modifiable, **Envoyer** — depuis ERA, sans ouvrir Vinted. « Mettre de côté »
+  le retire. Un message auquel vous avez répondu ailleurs disparaît seul.
+- Lit la messagerie (déjà lue par l'agent des offres quand il tourne), puis jusqu'à 4 conversations où l'acheteur a
+  écrit en dernier dans les 3 derniers jours ; 3 réponses au plus par passage ; 12 s entre deux envois, 40 envois
+  automatiques par jour, arrêt sur un blocage. Chaque envoi au journal et dans la base des contacts.
+- Champs de la messagerie Vinted **non vérifiés** sur votre compte : le premier passage réel le dira (journal).
+
+## Tout confier à ERA
+
+Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favoris, remerciement colis livré, réponses aux
+messages, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le physique : photos, emballage,
+dépôt, impression des bordereaux. ERA ne publie pas, ne baisse pas un prix et ne republie pas seul (un clic chacun dans
+ERA).
+
 ## Ce qui fait répondre et acheter (base des contacts)
 
 Automatisations → **Ce qui fait répondre et acheter**. Chaque message, offre et réponse **vraiment envoyés** par ERA (jamais une simulation) est gardé dans une base locale (`contacts`, incluse dans les sauvegardes) avec ce qui a suivi :

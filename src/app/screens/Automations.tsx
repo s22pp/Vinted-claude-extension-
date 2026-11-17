@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ScheduleCost } from '../components/schedule-cost';
 import { OutcomesCard } from '../components/outcomes-card';
+import { PendingReplies } from '../components/pending-replies';
 import { PilotCard } from '../components/pilot-card';
 import { useEffect, useState } from 'react';
 import type { AutoKind, AutoRunResult, EraMessage } from '@/data/adapters/vinted/protocol';
@@ -78,12 +79,21 @@ export function Automations() {
         const known = /^[A-Z_0-9]+$/.test(code ?? '');
         toast('error', known ? t(`errors.${code}`) : t('auto.stopped'), known ? `${line} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : `${line} · ${r.stopped}`);
       }
-      else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : kind === 'OFFERS' ? 'auto.offers.title' : 'auto.delivered.title'), line);
+      else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : kind === 'OFFERS' ? 'auto.offers.title' : kind === 'REPLIES' ? 'auto.replies.title' : 'auto.delivered.title'), line);
     } catch (e) {
       toast('error', t('auto.stopped'), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
     }
+  };
+
+  /** « Tout confier à ERA »: every automation on and saved, in one click (the pilot card switches its own part on). */
+  const all = async () => {
+    const next: AutoConfig = { ...cfg, minMarginCents: margin.cents ?? cfg.minMarginCents, offers: { ...cfg.offers, enabled: true }, fav: { ...cfg.fav, enabled: true }, delivered: { ...cfg.delivered, enabled: true }, replies: { enabled: true } };
+    await repo.setSetting('automations', next);
+    await browser.runtime.sendMessage({ type: 'era:auto:schedule' } satisfies EraMessage).catch(() => undefined);
+    setCfg(next);
+    setDirty(false);
   };
 
   const runButtons = (kind: AutoKind, enabled: boolean) => (
@@ -123,7 +133,8 @@ export function Automations() {
           </div>
         </Card>
 
-        <PilotCard auto={cfg} />
+        <PilotCard auto={cfg} onAll={all} />
+        <PendingReplies />
         <OutcomesCard />
 
         <Card className="span-6" title={t('auto.fav.title')} hint={t('auto.fav.hint')} icon="heart" tone="pink">
@@ -232,6 +243,19 @@ export function Automations() {
               <li>{t('auto.delivered.unverified')}</li>
             </ul>
             {runButtons('DELIVERED', cfg.delivered.enabled)}
+          </div>
+        </Card>
+
+        <Card className="span-12" title={t('auto.replies.title')} hint={t('auto.replies.hint')} icon="info" tone="violet">
+          <div className="stack-3" data-testid="auto-replies">
+            {check('a-rep', cfg.replies.enabled, (v) => set((c) => ({ ...c, replies: { enabled: v } })), t('auto.replies.enable'))}
+            <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }}>
+              <li>{t('auto.replies.how')}</li>
+              <li>{t('auto.replies.never')}</li>
+              <li>{t('auto.replies.key')}</li>
+              <li>{t('auto.replies.unverified')}</li>
+            </ul>
+            {runButtons('REPLIES', cfg.replies.enabled)}
           </div>
         </Card>
 

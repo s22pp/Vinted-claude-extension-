@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -107,6 +107,16 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ conversation: { messages: [], opposite_user: { id: 555, login: 'alice' }, transaction: { id: 7001, item_title: 'Veste Harrington Ralph Lauren M', offer_price: { amount: '59.0' } } } });
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) && opts.replyFails) return json({ code: 500 }, 500);
     // Test fixture only: the orders' conversations (94xx) keep the messages sent, and show them back (unless told not to).
+    // Test fixture only: two buyers wrote (95xx) — a plain question about listing 101, and a problem with an order.
+    if (opts.buyerMessages && /^\/api\/v2\/conversations\/95\d\d\/replies$/.test(url.pathname) && method === 'POST') {
+      (state.replies[url.pathname.split('/')[4]!] ??= []).push((JSON.parse(route.request().postData() ?? '{}') as { reply: { body: string } }).reply.body);
+      return json({});
+    }
+    if (opts.buyerMessages && /^\/api\/v2\/conversations\/95\d\d$/.test(url.pathname)) {
+      const id = url.pathname.split('/')[4]!;
+      const body = id === '9500' ? 'Bonjour, elle taille comment ?' : 'Bonjour, le colis est arrivé abîmé, je veux un remboursement';
+      return json({ conversation: { id: Number(id), item: { id: 101 }, messages: [{ id: 1, entity_type: 'message', entity: { body, user_id: 556 }, created_at_ts: Math.floor(Date.now() / 1000) - 600 }, ...(state.replies[id] ?? []).map((b, i) => ({ id: 10 + i, entity_type: 'message', entity: { body: b, user_id: 177293623 } }))] } });
+    }
     if (/^\/api\/v2\/conversations\/94\d\d\/replies$/.test(url.pathname) && method === 'POST') {
       const id = url.pathname.split('/')[4]!;
       (state.replies[id] ??= []).push((JSON.parse(route.request().postData() ?? '{}') as { reply: { body: string } }).reply.body);
@@ -118,6 +128,8 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return json({ conversation: { id: Number(id), messages: opts.replyHidden ? [] : (state.replies[id] ?? []).map((body, i) => ({ id: i + 1, entity_type: 'message', entity: { body } })) } });
     }
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
+    if (url.pathname === '/api/v2/inbox' && opts.buyerMessages)
+      return json({ conversations: ['9500', '9501'].map((id) => ({ id: Number(id), updated_at: new Date(Date.now() - 600_000).toISOString(), last_message: { user_id: state.replies[id]?.length ? 177293623 : 556 } })) });
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
     // Test fixture only: once the form is saved, Vinted cannot be read back (a server error on every read of the listing).
@@ -1881,4 +1893,36 @@ test('Monday’s digest: off by default, switched on in Pilotage → a weekly al
   expect(new Date(when).getHours()).toBe(9);
   await card.getByLabel('M’envoyer le bilan chaque lundi').uncheck();
   await expect.poll(() => sw.evaluate(async () => (await chrome.alarms.get('era-digest')) ?? null), { timeout: 10_000 }).toBeNull();
+});
+
+test('buyers’ messages: a plain question answered from ERA’s facts, a problem with an order waiting in ERA and sent from ERA', async ({ context, base }) => {
+  test.setTimeout(150_000);
+  const calls = await fakeVinted(context, { loggedIn: true, buyerMessages: true });
+  const seen = await fakeGemini(context, { reply: 'Bonjour ! Elle est en taille M, en très bon état.' });
+  const page = await context.newPage();
+  await setGeminiKey(page, base);
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/automations`);
+  const card = page.getByTestId('auto-replies');
+  await card.getByLabel('Répondre aux messages des acheteurs').check();
+  await card.getByRole('button', { name: 'Lancer maintenant' }).click();
+  // The plain question: answered by itself, with what ERA knows (size M, condition), in the conversation.
+  await expect.poll(() => calls.filter((c) => c.method === 'POST').map((c) => c.path), { timeout: 60_000 }).toContain('/api/v2/conversations/9500/replies');
+  expect(seen.filter((x) => x.method === 'POST').length).toBe(1);
+  expect(JSON.stringify(seen.find((x) => x.method === 'POST')!.body)).toContain('Taille (étiquette) : M');
+  // The problem with an order: never a machine answer — it waits in ERA, written and sent by the seller from ERA.
+  const waiting = page.getByTestId('pending-reply');
+  await expect(waiting).toHaveCount(1);
+  await expect(waiting).toContainText('le colis est arrivé abîmé');
+  await expect(waiting).toContainText('Problème de commande : à vous');
+  expect(calls.filter((c) => c.method === 'POST').map((c) => c.path)).not.toContain('/api/v2/conversations/9501/replies');
+  await waiting.getByLabel('Votre réponse').fill('Je suis désolé, envoyez-moi une photo et je regarde avec vous.');
+  await waiting.getByRole('button', { name: 'Envoyer' }).click();
+  await expect.poll(() => calls.filter((c) => c.method === 'POST').map((c) => c.path), { timeout: 60_000 }).toContain('/api/v2/conversations/9501/replies');
+  await expect(page.getByTestId('pending-reply')).toHaveCount(0);
+  // Both in the journal and in the contacts database.
+  await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'envoyé depuis ERA' }).first()).toBeVisible();
+  await expect(page.getByTestId('outcomes-messages')).toContainText('Réponse à un acheteur');
 });

@@ -8,6 +8,7 @@ import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
+import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
 import { createVintedDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
@@ -241,7 +242,7 @@ let exportingPhotos: Promise<PhotoExportResult> | null = null;
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: AutoKind, dryRun: boolean): Promise<AutoRunResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
-  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : kind === 'OFFERS' ? runOffers(dryRun) : runDelivered(dryRun)).finally(() => {
+  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : kind === 'OFFERS' ? runOffers(dryRun) : kind === 'REPLIES' ? runReplies(dryRun) : runDelivered(dryRun)).finally(() => {
     autoRunning = null;
   });
   return autoRunning;
@@ -253,7 +254,7 @@ const AUTO_ALARM = 'era-auto';
 async function scheduleAuto(): Promise<void> {
   const cfg = await loadAutoConfig();
   await browser.alarms.clear(AUTO_ALARM);
-  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled || cfg.delivered.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
+  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled || cfg.delivered.enabled || cfg.replies.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
 }
 
 async function onAutoAlarm(): Promise<void> {
@@ -267,6 +268,7 @@ async function onAutoAlarm(): Promise<void> {
     if (cfg.offers.enabled) await runAuto('OFFERS', false);
     if (cfg.fav.enabled && (await scheduledRunAllowed('auto'))) await runAuto('FAV', false);
     if (cfg.delivered.enabled && (await scheduledRunAllowed('auto'))) await runAuto('DELIVERED', false);
+    if (cfg.replies.enabled && (await scheduledRunAllowed('auto'))) await runAuto('REPLIES', false);
   });
 }
 
@@ -355,6 +357,13 @@ async function runPilotRound(hour: number): Promise<PilotRound> {
       r.offers = await auto('OFFERS', cfg.offers.enabled);
       r.favourites = await auto('FAV', cfg.fav.enabled);
       r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
+      // Buyers' messages: plain questions answered when sure, the rest waiting in ERA with a draft.
+      if (cfg.replies.enabled && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+        const m = (await runAuto('REPLIES', false)) as RepliesResult;
+        r.replies = m.done;
+        r.toAnswer = m.left;
+        if (m.stopped && STOP.test(m.stopped)) r.stopped = m.stopped;
+      }
       // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
       if (pilot.labels && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
         const b = await getAllLabels();
@@ -610,6 +619,11 @@ export default defineBackground(() => {
           return undefined;
         }
         return answer(pilotRound(new Date().getHours()), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+      case 'era:reply:send':
+        if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
+        return answer(sendPendingReply(msg.key, msg.text), unavailable);
+      case 'era:reply:dismiss':
+        return answer(dismissPendingReply(msg.key).then(() => ({ ok: true })), unavailable);
       case 'era:update:status':
         return answer(updateState(), unavailable);
       case 'era:update:now':

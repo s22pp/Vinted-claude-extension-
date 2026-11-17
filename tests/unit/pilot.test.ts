@@ -53,7 +53,7 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(pilotNotice({ ...round, replies: 2, toAnswer: 1, outcomes: { replied: 3, sold: 1 } }).lines.slice(1)).toEqual([
       'Fait pour vous : 2 réponses aux acheteurs',
       'Suite de vos messages : 3 réponses reçues · 1 vente',
-      'Pour vous : 1 message à lire vous-même (Vinted → Messages)',
+      'Pour vous : 1 message à voir dans ERA (Automatisations → Messages à voir)',
     ]);
   });
 

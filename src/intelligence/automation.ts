@@ -45,6 +45,8 @@ export interface AutoConfig {
     /** Sent after an acceptance (empty = no message). */
     acceptMessage: string;
   };
+  /** Buyers' messages: plain questions answered from ERA's facts when sure (Gemini); the rest waits in ERA. */
+  replies: { enabled: boolean };
   /** Parcel delivered → one message to the buyer (validate, review, follow). */
   delivered: {
     enabled: boolean;
@@ -75,6 +77,7 @@ export const DEFAULT_AUTO: AutoConfig = {
     acceptMessage: 'Merci ! Offre acceptée, j’envoie dès le paiement reçu.',
   },
   delivered: { enabled: false, template: DEFAULT_DELIVERED },
+  replies: { enabled: false },
 };
 
 /** The single messages of versions ≤ 0.16, as they shipped (replaced by the new defaults when never edited). */
@@ -95,7 +98,7 @@ export function withDefaults(c: (Partial<Omit<AutoConfig, 'fav'>> & { fav?: Stor
     templates: f.templates?.length ? f.templates : legacy(template, DEFAULT_FAV_OFFER),
     templatesNoOffer: f.templatesNoOffer?.length ? f.templatesNoOffer : legacy(templateNoOffer, DEFAULT_FAV_NO_OFFER),
   };
-  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered, template: deliveredTemplate(c?.delivered?.template) } };
+  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, replies: { ...DEFAULT_AUTO.replies, ...c?.replies }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered, template: deliveredTemplate(c?.delivered?.template) } };
 }
 
 type Json = Record<string, unknown>;

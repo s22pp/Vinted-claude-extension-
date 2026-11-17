@@ -127,7 +127,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
   const todo = [
     r.toShip && `${plural(r.toShip, 'colis', 'colis')} à déposer${r.labels ? '' : ' (bordereaux dans Ventes)'}`,
     r.labelsNotSaved && `${plural(r.labelsNotSaved, 'bordereau', 'bordereaux')} à télécharger depuis Ventes`,
-    r.toAnswer && `${plural(r.toAnswer, 'message', 'messages')} à lire vous-même (Vinted → Messages)`,
+    r.toAnswer && `${plural(r.toAnswer, 'message', 'messages')} à voir dans ERA (Automatisations → Messages à voir)`,
     r.late && `${plural(r.late, 'colis', 'colis')} à surveiller`,
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,
     r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,

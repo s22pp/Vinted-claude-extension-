@@ -15,7 +15,7 @@ import { Badge, Button, Card, Field, Select } from '@/ui/components/primitives';
  * The autopilot's settings: on/off and the two hours. The round runs what is switched on below (offers, favourites,
  * delivered parcels) and elsewhere (buy alerts, backup); each round ends with a notification of what is left.
  */
-export function PilotCard({ auto }: { auto: AutoConfig }) {
+export function PilotCard({ auto, onAll }: { auto: AutoConfig; onAll: () => Promise<void> }) {
   const { t, dateLong } = useI18n();
   const toast = useToast();
   const stored = useLiveQuery(() => repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null), []);
@@ -65,11 +65,18 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
       setWeeklyBusy(false);
     }
   };
+  /** Everything ERA can do, switched on in one click: the automations, the rounds, the labels, the week's task. */
+  const giveAll = async () => {
+    await onAll();
+    await save({ ...cfg, enabled: true, labels: true, weekly: true });
+    toast('success', t('pilot.allDone'), t('pilot.allDoneHint'));
+  };
   const tasks: [string, boolean][] = [
     ['refresh', true],
     ['offers', auto.offers.enabled],
     ['fav', auto.fav.enabled],
     ['delivered', auto.delivered.enabled],
+    ['replies', auto.replies.enabled],
     ['labels', cfg.labels],
     ['alerts', others.alerts],
     ['backup', others.backup],
@@ -79,6 +86,12 @@ export function PilotCard({ auto }: { auto: AutoConfig }) {
   return (
     <Card className="span-12" title={t('pilot.title')} hint={t('pilot.hint')} icon="repost" tone="violet">
       <div className="stack-3" data-testid="pilot">
+        <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
+          <Button size="sm" variant="primary" icon="check" disabled={!others.real} onClick={() => void giveAll()}>
+            {t('pilot.all')}
+          </Button>
+          <span className="t-small t-muted">{t('pilot.allHint')}</span>
+        </div>
         <label htmlFor="pilot-on" className="row" style={{ gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
           <input id="pilot-on" type="checkbox" className="checkbox" checked={cfg.enabled} disabled={!others.real} onChange={(e) => void save({ ...cfg, enabled: e.target.checked })} style={{ marginTop: 2 }} />
           <span style={{ fontWeight: 600 }}>{t('pilot.enable')}</span>
