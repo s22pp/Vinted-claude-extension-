@@ -78,6 +78,16 @@ describe('autopilot: two rounds a day at the seller’s hours', () => {
     expect(n.lines).toContain('ERA ferait : 1 offre traitée · baisserait le prix : Veste 59,00 € → 53,00 €');
   });
 
+  it('stopped for the budget before doing anything: when it is full again, and no « rien de nouveau » line', () => {
+    const n = pilotNotice({ ...round, imported: null, simulated: true, stopped: 'BUDGET_EXHAUSTED', budgetResetAt: new Date(2026, 10, 17, 15, 40).getTime(), toShip: 1 });
+    expect(n.title).toBe('Simulation de tournée interrompue : rien n’a été envoyé');
+    expect(n.lines).toEqual([
+      'Le budget de requêtes de la session est atteint : la tournée suivante reprendra là où celle-ci s’est arrêtée.',
+      'Budget de nouveau plein vers 15 h 40 (3 h sans requête à Vinted), ou dès que Chrome redémarre.',
+      'Pour vous : 1 colis à déposer (bordereaux dans Ventes)',
+    ]);
+  });
+
   it('a stop said calmly: what happened, nothing lost, what comes next', () => {
     const stopped = pilotNotice({ ...round, imported: null, stopped: 'NOT_LOGGED_IN · session expirée' });
     expect(stopped.title).toBe('Tournée de 12 h interrompue');

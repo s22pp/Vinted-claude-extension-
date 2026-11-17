@@ -2032,7 +2032,15 @@ test('simulated round: every agent reads and says what it would do — nothing s
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
   await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // 19 requests left in the session: under the scheduled rounds' reserve of 20 — a round the seller starts by hand
+  // still runs (it keeps only 5 for an urgent click), and the panel says so.
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 41, lastAt: Date.now(), halted: null } }));
   await page.goto(`${base}#/automations`);
+  await expect(page.getByTestId('pilot-budget')).toContainText('19 requêtes sur 60');
+  await expect(page.getByTestId('pilot-budget')).toHaveAttribute('data-level', 'low');
+  await expect(page.getByTestId('pilot-budget')).toContainText('une tournée lancée à la main peut encore passer');
+  await expect(page.getByTestId('pilot-budget')).toContainText('De nouveau plein vers');
   const before = calls.length;
   await page.getByTestId('pilot').getByRole('button', { name: 'Simuler une tournée (rien n’est envoyé)' }).click();
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Simulation de tournée' }).first();

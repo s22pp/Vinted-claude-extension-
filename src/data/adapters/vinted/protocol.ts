@@ -153,6 +153,8 @@ export interface BudgetStatus {
   haltedUntil: number | null;
   /** Calls reserved this session, by use (import, search, automations…). */
   uses?: Partial<Record<import('./budget-store').BudgetUse, number>>;
+  /** When the session ends by itself (3 h without a call): a full budget again; null when none is running or after a block. */
+  resetAt?: number | null;
 }
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
 

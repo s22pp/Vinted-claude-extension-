@@ -115,9 +115,15 @@ export interface PilotRound {
   repostFailed?: string;
   /** The article whose price the round cut (never reposted in the same round). */
   priceCutItemId?: string;
+  /** Stopped for the session's budget: when it is full again (3 h without a call). */
+  budgetResetAt?: number;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const hhmm = (t: number) => {
+  const d = new Date(t);
+  return `${d.getHours()} h ${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 /** Why a round stopped, said calmly: what happened, that nothing is lost, and what comes next. */
 const CALM_STOP: [RegExp, string][] = [
@@ -160,14 +166,16 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     title,
     lines: [
       ...(r.stopped ? [calmStop(r.stopped)] : []),
+      ...(r.budgetResetAt ? [`Budget de nouveau plein vers ${hhmm(r.budgetResetAt)} (3 h sans requête à Vinted), ou dès que Chrome redémarre.`] : []),
       ...(r.imported ? [`Stock à jour : ${plural(r.imported.listings, 'annonce', 'annonces')}, ${plural(r.imported.sold, 'vente', 'ventes')}`] : []),
-      r.simulated
+      // Stopped before doing anything: no « rien de nouveau » line (nothing was looked at).
+      ...(r.stopped && !done.length ? [] : [r.simulated
         ? done.length
           ? `ERA ferait : ${done.join(' · ')}`
           : 'ERA ferait : rien, rien de nouveau à traiter'
         : done.length
           ? `Fait pour vous : ${done.join(' · ')}`
-          : 'Fait pour vous : rien de nouveau à traiter',
+          : 'Fait pour vous : rien de nouveau à traiter']),
       ...(followed.length ? [`Suite de vos messages : ${followed.join(' · ')}`] : []),
       ...(r.priceCutsAuto && r.priceCuts ? [`À venir : ${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')}, une par tournée`] : []),
       todo.length ? `Pour vous : ${todo.join(' · ')}` : 'Pour vous : rien à faire, tout est à jour',

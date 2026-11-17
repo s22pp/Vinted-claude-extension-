@@ -77,7 +77,10 @@ export function Automations() {
         // A stop starts with its error code: said in words (what happened, what to do), the code's detail kept after.
         const [code, ...rest] = r.stopped.split(' · ');
         const known = /^[A-Z_0-9]+$/.test(code ?? '');
-        toast('error', known ? t(`errors.${code}`) : t('auto.stopped'), known ? `${line} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : `${line} · ${r.stopped}`);
+        const why = known ? `${t(`errors.${code}`)} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : r.stopped;
+        // Something went out before the stop: said first (never only « arrêt » when a message was sent).
+        if (r.done > 0 && !dryRun) toast('warning', t('auto.stoppedAfter', { n: r.done }), `${line} · ${why}`);
+        else toast('error', known ? t(`errors.${code}`) : t('auto.stopped'), known ? `${line} — ${t(`errors.hint.${code}`)}${rest.length ? ` (${rest.join(' · ')})` : ''}` : `${line} · ${r.stopped}`);
       }
       else toast('success', t(kind === 'FAV' ? 'auto.fav.title' : kind === 'OFFERS' ? 'auto.offers.title' : kind === 'REPLIES' ? 'auto.replies.title' : 'auto.delivered.title'), line);
     } catch (e) {

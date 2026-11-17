@@ -28,7 +28,7 @@ import { recordError } from '@/data/error-journal';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
 import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
 import { repo } from '@/data/repo';
-import { AUTO_FLOOR, autoAllowed } from '@/data/budget-plan';
+import { AUTO_FLOOR, MANUAL_FLOOR, autoAllowed } from '@/data/budget-plan';
 import { journal } from '@/data/journal';
 
 /**
@@ -158,10 +158,10 @@ async function scheduleRefresh(): Promise<void> {
  */
 const SCHEDULE_NAME = { refresh: 'Actualisation automatique', alerts: 'Alertes d’achat', auto: 'Automatisations', pilot: 'Pilote automatique' } as const;
 
-async function scheduledRunAllowed(which: keyof typeof SCHEDULE_NAME): Promise<boolean> {
+async function scheduledRunAllowed(which: keyof typeof SCHEDULE_NAME, floor = AUTO_FLOOR): Promise<boolean> {
   const s = await budget.status();
   if (s.halted) return false;
-  if (autoAllowed(s.remaining)) return true;
+  if (autoAllowed(s.remaining, floor)) return true;
   // Said once per browser session and per schedule, under that schedule's name.
   const said = ((await browser.storage.session.get('eraAutoFloorSaid')) as { eraAutoFloorSaid?: Record<string, boolean> }).eraAutoFloorSaid ?? {};
   if (!said[which]) {
@@ -325,8 +325,13 @@ async function pilotTab(): Promise<number | null> {
  * A vinted.fr tab is opened in the background only when none exists (never a reload of the seller's), and closed after.
  * Then one notification: what was done, what is left for the seller.
  */
-/** `dryRun`: the seller's « Simuler une tournée » — every agent reads and says what it would do, nothing is sent. */
-async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> {
+/**
+ * `dryRun`: the seller's « Simuler une tournée » — every agent reads and says what it would do, nothing is sent.
+ * `manual`: started by the seller's click (« Lancer » or « Simuler »): it may use the reserve down to MANUAL_FLOOR.
+ */
+async function runPilotRound(hour: number, dryRun = false, manual = false): Promise<PilotRound> {
+  const floor = manual ? MANUAL_FLOOR : AUTO_FLOOR;
+  const allowed = () => scheduledRunAllowed('pilot', floor);
   const r: PilotRound = { hour, stopped: null, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 };
   let openedTab: number | null = null;
   let callsBefore: number | null = null;
@@ -336,7 +341,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
       r.stopped = 'pas de données Vinted importées (démo ou vide)';
       return r;
     }
-    if (!(await scheduledRunAllowed('pilot'))) {
+    if (!(await allowed())) {
       r.stopped = 'budget de la session gardé pour vos clics (réserve) ou Vinted en pause après un blocage';
       return r;
     }
@@ -344,7 +349,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
     openedTab = await pilotTab();
     const cfg = await loadAutoConfig();
     const pilot = await loadPilot();
-    await budget.asScheduled(AUTO_FLOOR, async () => {
+    await budget.asScheduled(floor, async () => {
       const imp = await runImport(false);
       await importFollowUp;
       if (!imp.ok) {
@@ -352,7 +357,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
         if (STOP.test(imp.code)) return;
       } else r.imported = { listings: imp.items + imp.updated, sold: imp.sales };
       const auto = async (kind: AutoKind, on: boolean) => {
-        if ((!on && !dryRun) || r.stopped?.match(STOP) || !(await scheduledRunAllowed('pilot'))) return 0;
+        if ((!on && !dryRun) || r.stopped?.match(STOP) || !(await allowed())) return 0;
         const a = await runAuto(kind, dryRun);
         if (a.stopped && STOP.test(a.stopped)) r.stopped = a.stopped;
         return a.done;
@@ -361,7 +366,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
       r.favourites = await auto('FAV', cfg.fav.enabled);
       r.delivered = await auto('DELIVERED', cfg.delivered.enabled);
       // Buyers' messages: plain questions answered when sure, the rest waiting in ERA with a draft.
-      if ((cfg.replies.enabled || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if ((cfg.replies.enabled || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
         const m = (await runAuto('REPLIES', dryRun)) as RepliesResult;
         r.replies = m.done;
         r.toAnswer = m.left;
@@ -370,7 +375,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
       // The labels of the orders to ship, fetched or ordered like Vinted's own button, saved as PDF (if switched on).
       // The plan's price cut due first (oldest), one per round — never chained, known cost only, never under the floor.
       r.priceCutsAuto = pilot.priceCuts || dryRun;
-      if ((pilot.priceCuts || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if ((pilot.priceCuts || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
         const c = (await duePriceCuts())[0];
         // A simulation says the cut it would make, and makes none.
         if (c && dryRun) r.priceCut = { title: c.title, from: c.fromCents, to: c.toCents, unconfirmed: false };
@@ -394,7 +399,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
       }
       // One repost of a listing that stalls (30 days, no favourite): copy, publish, then the old one deleted — each step
       // verified on Vinted; half-way, it is taken up next round. Never the article whose price was just cut.
-      if ((pilot.reposts || dryRun) && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if ((pilot.reposts || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
         // The seller's writes stay ≥ 20 s apart: after a price cut, the repost waits its turn.
         if (r.priceCut && !dryRun) await new Promise((res) => setTimeout(res, 21_000));
         const skip = new Set<string>(r.priceCutItemId ? [r.priceCutItemId] : []);
@@ -412,7 +417,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
           if (!dryRun) reposting = null;
         }
       }
-      if (pilot.labels && !dryRun && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if (pilot.labels && !dryRun && !r.stopped?.match(STOP) && (await allowed())) {
         const b = await getAllLabels();
         r.labels = b.results.filter((x) => x.ok && x.file).length;
         r.labelsNotSaved = b.results.filter((x) => x.ok && !x.file).length;
@@ -423,7 +428,7 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
         r.deals = a.deals.length;
       }
       // What followed the contacts (answers, sales): the measures of what makes people answer and buy.
-      if (!dryRun && !r.stopped?.match(STOP) && (await scheduledRunAllowed('pilot'))) {
+      if (!dryRun && !r.stopped?.match(STOP) && (await allowed())) {
         const c = await refreshContacts().catch(() => null);
         if (c) r.outcomes = c;
       }
@@ -440,6 +445,8 @@ async function runPilotRound(hour: number, dryRun = false): Promise<PilotRound> 
     r.calls = after >= callsBefore ? after - callsBefore : after;
   }
   // The backup is local (no Vinted call): made even after a stop, when due.
+  // Stopped for the budget: when it comes back (3 h without a call), said in the notice.
+  if (r.stopped && /^(BUDGET_EXHAUSTED|budget de la session)/.test(r.stopped)) r.budgetResetAt = (await budget.status()).resetAt ?? undefined;
   r.backup = dryRun ? false : (await runAutoBackup().catch(() => ({ ok: false }))).ok;
   r.simulated = dryRun;
   // What is left for the seller, from what ERA holds now.
@@ -464,9 +471,9 @@ async function weeklyTask(): Promise<{ title: string; lines: string[] }> {
 }
 
 /** The round, its journal line and its notification; one at a time. Then the week's task, on its day. */
-function pilotRound(hour: number, dryRun = false): Promise<PilotRound> {
+function pilotRound(hour: number, dryRun = false, manual = false): Promise<PilotRound> {
   if (piloting) return piloting;
-  piloting = runPilotRound(hour, dryRun)
+  piloting = runPilotRound(hour, dryRun, manual)
     .then(async (r) => {
       const n = pilotNotice(r);
       await journal({ kind: r.stopped ? 'STOP' : 'RUN', dryRun, ok: !r.stopped, target: 'Pilote automatique', detail: `${n.title} · ${n.lines.join(' · ')}` }).catch(() => undefined);
@@ -683,7 +690,7 @@ export default defineBackground(() => {
           sendResponse({ hour: new Date().getHours(), stopped: BUSY, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 } satisfies PilotRound);
           return undefined;
         }
-        return answer(pilotRound(new Date().getHours(), msg.dryRun === true), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
+        return answer(pilotRound(new Date().getHours(), msg.dryRun === true, true), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
       case 'era:reply:send':
         if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
         return answer(sendPendingReply(msg.key, msg.text), unavailable);

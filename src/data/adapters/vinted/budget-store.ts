@@ -1,4 +1,4 @@
-import { sessionOver } from '@/data/budget-plan';
+import { SESSION_GAP_MS, sessionOver } from '@/data/budget-plan';
 import { HALT_COOLDOWN_MS, MarketplaceError, RequestBudget } from '../marketplace';
 import type { BudgetStatus, ReserveResult } from './protocol';
 
@@ -93,7 +93,10 @@ export async function report(status: number): Promise<void> {
 
 export async function status(): Promise<BudgetStatus> {
   const { budget, haltedUntil } = await loadBudget();
-  return { remaining: budget.remaining, halted: budget.halted, haltedUntil, uses: await uses() };
+  const { eraBudget } = (await browser.storage.session.get('eraBudget')) as { eraBudget?: Stored };
+  // A new session (a full budget again) once SESSION_GAP_MS go by without a call — unless a block stopped it.
+  const resetAt = eraBudget?.lastAt && !budget.halted ? eraBudget.lastAt + SESSION_GAP_MS : null;
+  return { remaining: budget.remaining, halted: budget.halted, haltedUntil, uses: await uses(), resetAt };
 }
 
 /** Writes are rarer than reads: ≥ 20 s apart and ≤ 15 per session, whatever the read budget. */

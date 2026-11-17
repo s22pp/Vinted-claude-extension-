@@ -8,7 +8,10 @@ export const SESSION_CALLS = 60;
 /** Scheduled runs (refresh, buy alerts, automations) never start below this many calls left. */
 export const AUTO_FLOOR = 20;
 
-export const autoAllowed = (remaining: number) => remaining >= AUTO_FLOOR;
+/** A scheduled run starts only if it can make one call above the reserve (the reserve itself is never touched). */
+export const autoAllowed = (remaining: number, floor = AUTO_FLOOR) => remaining > floor;
+/** A round the seller starts by hand (« Lancer » or « Simuler ») keeps only this much for an urgent click. */
+export const MANUAL_FLOOR = 5;
 
 /**
  * A session ends with the browser, or after this long without a single call to Vinted — like a seller sitting down

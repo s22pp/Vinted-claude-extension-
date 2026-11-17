@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { AUTO_FLOOR, SESSION_GAP_MS, autoAllowed, scheduleCost, sessionOver } from '@/data/budget-plan';
+import { AUTO_FLOOR, MANUAL_FLOOR, SESSION_GAP_MS, autoAllowed, scheduleCost, sessionOver } from '@/data/budget-plan';
 
 describe('the session budget shared between schedules and the seller’s clicks', () => {
   it('scheduled runs stop short of the reserve kept for the seller', () => {
-    expect(autoAllowed(AUTO_FLOOR)).toBe(true);
-    expect(autoAllowed(AUTO_FLOOR - 1)).toBe(false);
+    // At the reserve exactly, a run would start and be refused at its first call: it does not start.
+    expect(autoAllowed(AUTO_FLOOR + 1)).toBe(true);
+    expect(autoAllowed(AUTO_FLOOR)).toBe(false);
+    // A round the seller starts by hand keeps only MANUAL_FLOOR.
+    expect(autoAllowed(MANUAL_FLOOR + 1, MANUAL_FLOOR)).toBe(true);
+    expect(autoAllowed(MANUAL_FLOOR, MANUAL_FLOOR)).toBe(false);
   });
 
   it('defaults (automations every 30 min, both on; refresh every 6 h with alerts): what they cost, how long they last', () => {

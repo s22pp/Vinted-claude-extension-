@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState } from 'react';
-import type { EraMessage } from '@/data/adapters/vinted/protocol';
+import { useEffect, useState } from 'react';
+import type { BudgetStatus, EraMessage } from '@/data/adapters/vinted/protocol';
+import { AUTO_FLOOR, MANUAL_FLOOR, SESSION_CALLS } from '@/data/budget-plan';
 import { AUTO_BACKUP_KEY } from '@/data/auto-backup';
 import { BUY_ALERTS_KEY } from '@/data/buy-alerts';
 import { repo } from '@/data/repo';
@@ -31,6 +32,14 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
   const [busy, setBusy] = useState(false);
   const [weeklyBusy, setWeeklyBusy] = useState(false);
   const [details, setDetails] = useState<string | null>(null);
+  // The session's Vinted budget: what a round can still use, and when it is full again.
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
+  useEffect(() => {
+    const read = () => void browser.runtime.sendMessage({ type: 'era:budget:status' } satisfies EraMessage).then((b: BudgetStatus) => setBudget(b)).catch(() => undefined);
+    read();
+    const id = setInterval(read, 30_000);
+    return () => clearInterval(id);
+  }, [busy]);
   // Shown at once on a click; saved, then the schedule follows.
   const [local, setLocal] = useState<PilotConfig | null>(null);
   if (stored === undefined || !others) return null;
@@ -115,6 +124,7 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
             </Button>
           )}
         </div>
+        {budget && <BudgetGauge b={budget} />}
         <div className="row wrap" style={{ gap: 10, alignItems: 'flex-end' }}>
           {cfg.hours.map((h, i) => (
             <div key={`${i}-${h}`} className="row" style={{ gap: 4, alignItems: 'flex-end' }}>
@@ -200,5 +210,39 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
         </details>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The session's Vinted budget as a gauge: what is left of the 60, the reserve the scheduled rounds never touch (20) and
+ * the last few kept for an urgent click (5) marked on it, then one plain sentence and when it is full again.
+ */
+function BudgetGauge({ b }: { b: BudgetStatus }) {
+  const { t } = useI18n();
+  const level = b.halted ? 'halted' : b.remaining <= MANUAL_FLOOR ? 'empty' : b.remaining <= AUTO_FLOOR ? 'low' : 'ok';
+  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / SESSION_CALLS) * 100))}%`;
+  const at = b.resetAt ? `${new Date(b.resetAt).getHours()} h ${String(new Date(b.resetAt).getMinutes()).padStart(2, '0')}` : null;
+  const say = {
+    ok: t('pilot.budgetOk', { n: b.remaining, total: SESSION_CALLS }),
+    low: t('pilot.budgetLow', { reserve: AUTO_FLOOR }),
+    empty: t('pilot.budgetEmpty'),
+    halted: t('pilot.budgetHalted'),
+  }[level];
+  return (
+    <div className="pilot-budget" data-level={level} data-testid="pilot-budget">
+      <div className="row" style={{ gap: 10, justifyContent: 'space-between' }}>
+        <span className="t-small t-faint">{t('pilot.budgetTitle')}</span>
+        <strong className="num t-small">{t('pilot.budgetCount', { n: b.halted ? 0 : b.remaining, total: SESSION_CALLS })}</strong>
+      </div>
+      <div className="pilot-budget__bar" role="meter" aria-valuemin={0} aria-valuemax={SESSION_CALLS} aria-valuenow={b.halted ? 0 : b.remaining} aria-label={t('pilot.budgetTitle')}>
+        <span className="pilot-budget__fill" style={{ width: b.halted ? '0%' : pct(b.remaining) }} />
+        <span className="pilot-budget__mark" style={{ left: pct(AUTO_FLOOR) }} title={t('pilot.budgetReserve', { n: AUTO_FLOOR })} />
+        <span className="pilot-budget__mark pilot-budget__mark--urgent" style={{ left: pct(MANUAL_FLOOR) }} title={t('pilot.budgetUrgent', { n: MANUAL_FLOOR })} />
+      </div>
+      <p className="t-small" style={{ margin: 0 }}>
+        {say}
+        {!b.halted && at && b.remaining < SESSION_CALLS ? ` ${t('pilot.budgetReset', { at })}` : ''}
+      </p>
+    </div>
   );
 }
