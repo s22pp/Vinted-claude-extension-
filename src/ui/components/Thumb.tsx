@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 /** Article thumbnail. Real photos when available; otherwise a neutral garment glyph (never a fake photo). */
 const GLYPHS: Record<string, string> = {
   jacket: 'M18 14l8-5h12l8 5 6 10-6 3v25H18V27l-6-3z M32 9v43',
@@ -29,14 +31,16 @@ const HUES = [252, 226, 200, 280, 170, 30];
 
 export function Thumb({ photoUrl, category, size = 'md', alt }: { photoUrl: string | null; category: string; size?: 'sm' | 'md' | 'lg'; alt: string }) {
   const cls = `thumb ${size !== 'md' ? `thumb--${size}` : ''}`;
-  if (photoUrl && !photoUrl.startsWith('demo:')) {
+  // A photo Vinted no longer serves (listing removed, link expired): the glyph, never a broken image.
+  const [failed, setFailed] = useState<string | null>(null);
+  if (photoUrl && !photoUrl.startsWith('demo:') && failed !== photoUrl) {
     return (
       <span className={cls}>
-        <img src={photoUrl} alt={alt} loading="lazy" />
+        <img src={photoUrl} alt={alt} loading="lazy" onError={() => setFailed(photoUrl)} />
       </span>
     );
   }
-  const [, kind, v] = photoUrl?.split(':') ?? [];
+  const [, kind, v] = photoUrl?.startsWith('demo:') ? photoUrl.split(':') : [];
   const glyph = GLYPHS[kind ?? CATEGORY_GLYPH[category] ?? 'default'] ?? GLYPHS.default!;
   const hue = HUES[Number(v ?? 0) % HUES.length]!;
   return (

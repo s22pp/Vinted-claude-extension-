@@ -192,9 +192,213 @@
 /* No italic serif accents: one face, set straight. */
 [class*='serif'],
 .hero-date,
-.page-head__title em {
+.page-head__title em,
+.t-accent {
   font-family: var(--font-sans);
   font-style: normal;
+}
+.t-accent,
+:root:not([data-theme='light']) .t-accent {
+  font-weight: inherit;
+  color: var(--accent);
+}
+.hero-date {
+  display: inline-block;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.hero-date::first-letter {
+  text-transform: uppercase;
+}
+/* Titles: heavy and tight, as the PDF sets them. */
+.t-h1 {
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+
+/* « Pour vous » (PDF p. 4): the one thing to do, large, with its button. */
+.for-you {
+  display: grid;
+  gap: 10px;
+  padding: 22px 24px;
+}
+.for-you__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.for-you__body {
+  display: grid;
+  gap: 10px;
+}
+.for-you__big {
+  margin: 0;
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1.15;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+.for-you__hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 15px;
+}
+.for-you__rest {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.for-you__more {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.for-you__more:hover {
+  background: var(--surface-hover);
+}
+.for-you__more .num {
+  font-weight: 700;
+}
+
+/* The Pilote's rounds today on one rail (PDF p. 4): hour, dot, state. */
+.day-rail {
+  --rail-y: 33px;
+  position: relative;
+  list-style: none;
+  margin: 4px 0 6px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+}
+.day-rail::before {
+  content: '';
+  position: absolute;
+  top: var(--rail-y);
+  left: calc(50% / var(--n));
+  right: calc(50% / var(--n));
+  height: 2px;
+  margin-top: -1px;
+  background: var(--border-strong);
+}
+.day-rail li {
+  display: flex;
+  justify-content: center;
+}
+.day-rail button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.day-rail b {
+  font-size: 14px;
+  line-height: 20px;
+}
+.day-rail__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  border: 2px solid var(--border-strong);
+}
+.day-rail__label {
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: center;
+}
+.day-rail [data-status='DONE'] .day-rail__dot {
+  background: var(--text-3);
+  border-color: var(--text-3);
+}
+.day-rail [data-status='NEXT'] .day-rail__dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.day-rail [data-status='NEXT'] .day-rail__label {
+  color: var(--text);
+  font-weight: 600;
+}
+.day-rail [data-status='STOPPED'] .day-rail__dot,
+.day-rail [data-status='LATE'] .day-rail__dot {
+  border-color: var(--amber);
+}
+.day-rail [data-status='STOPPED'] .day-rail__dot {
+  background: var(--amber);
+}
+.day-rail [data-status='MISSED'] .day-rail__dot {
+  border-style: dashed;
+}
+.day-rail button[aria-expanded='true'] .day-rail__label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Tinted washes become flat surfaces; the tone stays in the border only. */
+.reco,
+.focus-banner,
+.verdict {
+  background: var(--surface);
+}
+.strategy.is-recommended {
+  background: var(--surface-sunken);
+}
+
+/* The popup's « Pour vous »: the first task large, its link in Bleu poudre (PDF p. 4). */
+.glance-top {
+  display: grid;
+  gap: 4px;
+  padding: 2px 0 8px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.glance-top__big {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.glance-top__link {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.glance-top:hover .glance-top__link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A garment with no photo: a quiet line drawing, not a coloured badge. */
+.thumb svg rect {
+  fill: var(--surface-sunken);
+}
+.thumb svg path {
+  fill: color-mix(in srgb, var(--accent) 8%, transparent);
+  stroke: var(--text-2);
+}
+
+/* « Republier cette annonce ? » has room for its two figures. */
+.modal:has(.repost-now) {
+  width: min(600px, calc(100vw - 32px));
 }
 
 /* The selection and its action side by side (PDF p. 2): a flat bar, the count first, the action last. */
@@ -221,4 +425,23 @@
 .card {
   background: var(--surface-solid);
   box-shadow: none;
+}
+
+/* The stock list (PDF p. 2): the article's title, then what it is and its size, quieter. */
+.dt__titles {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.dt__title {
+  font-weight: 600;
+}
+.dt__sub {
+  line-height: 1.2;
+}
+.topbar__date {
+  display: inline-block;
+}
+.topbar__date::first-letter {
+  text-transform: uppercase;
 }

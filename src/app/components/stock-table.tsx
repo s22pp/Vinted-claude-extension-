@@ -6,10 +6,11 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { Icon } from '@/ui/components/icons';
 import { Money } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
+import { publishedAgo } from '@/intelligence/repost-now';
 import { go } from '../state';
 import { RecoChip, StatusBadge } from './domain';
 
-export type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'age' | 'listings' | 'status' | 'reco';
+export type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'published' | 'age' | 'listings' | 'status' | 'reco';
 export type SortKey = 'title' | ColKey;
 export interface Sort {
   key: SortKey;
@@ -21,8 +22,9 @@ export interface Row {
   intel: ItemIntel | null;
 }
 
-export const ALL_COLS: ColKey[] = ['brand', 'size', 'cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
-export const DEFAULT_COLS: ColKey[] = ['status', 'cost', 'price', 'margin', 'views', 'favorites', 'age', 'reco'];
+export const ALL_COLS: ColKey[] = ['brand', 'size', 'published', 'cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings', 'status', 'reco'];
+/** As ERA Midnight sets the list (PDF p. 2): when it went online, its favourites, its price — then the rest. */
+export const DEFAULT_COLS: ColKey[] = ['published', 'favorites', 'price', 'status', 'views', 'cost', 'margin', 'reco'];
 const STATUS_ORDER = ['RESERVED', 'LISTED', 'HIDDEN', 'DRAFT', 'SOLD', 'ARCHIVED'];
 const NUMERIC = new Set<ColKey>(['cost', 'price', 'margin', 'roi', 'yield', 'views', 'favorites', 'age', 'listings']);
 
@@ -49,6 +51,8 @@ function sortValue(r: Row, k: SortKey, pos?: CapitalPosition): number | string |
       return v.current?.views ?? null;
     case 'favorites':
       return v.current?.favorites ?? null;
+    case 'published':
+      return v.current && v.current.listedAtKnown !== false ? v.current.listedAt : null;
     case 'age':
       return v.daysHeld;
     case 'listings':
@@ -171,6 +175,10 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
             {v.current?.favorites ?? <span className="t-faint">—</span>}
           </td>
         );
+      case 'published': {
+        const when = v.current && v.current.listedAtKnown !== false ? publishedAgo(v.current.listedAt, Date.now()) : null;
+        return <td key={c}>{when ?? <span className="t-faint">—</span>}</td>;
+      }
       case 'age':
         return (
           <td key={c} className="is-num num" title={v.daysHeldInferred ? t('data.inferred') : undefined}>
@@ -235,8 +243,13 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
                 <td style={{ maxWidth: 340 }}>
                   <span className="row" style={{ gap: 10 }}>
                     <Thumb photoUrl={r.v.item.photoUrl} category={r.v.item.category} alt="" size={density === 'compact' ? 'sm' : 'md'} />
-                    <span className="clamp-1 dt__title" title={r.v.item.title}>
-                      {r.v.item.title}
+                    <span className="dt__titles">
+                      <span className="clamp-1 dt__title" title={r.v.item.title}>
+                        {r.v.item.title}
+                      </span>
+                      {density === 'comfortable' && (
+                        <span className="dt__sub t-small t-muted">{[r.v.item.brand && !/^inconnue$/i.test(r.v.item.brand) ? r.v.item.brand : null, r.v.item.size].filter(Boolean).join(' / ')}</span>
+                      )}
                     </span>
                   </span>
                 </td>

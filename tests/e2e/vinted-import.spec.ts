@@ -835,11 +835,12 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await expect(row).toContainText(/Vinted : \d+ requêtes pour toute la tournée/);
   await expect(page.getByTestId('outcomes-messages')).toContainText('Colis livré → remerciement');
   await expect(page.getByTestId('outcomes-messages')).toContainText('1 en attente');
-  // Today: the day on one rail — this round shown as done (at its hour), what is left for the seller as big cards.
+  // Today: what is left for the seller first (« Pour vous »), then the day on one rail — this round done, at its hour.
   await page.goto(`${base}#/today`);
   const timeline = page.getByTestId('day-timeline');
-  await expect(timeline).toContainText(`${new Date().getHours()} h · faite`);
-  await expect(timeline.getByTestId('day-physical')).toContainText('colis à emballer et déposer');
+  await expect(timeline.locator(`[data-round="${new Date().getHours()}"][data-status="DONE"]`)).toContainText('Terminée');
+  // Nothing physical waiting in this round's data: said in one line, no empty « 0 » cards.
+  await expect(page.getByTestId('day-physical')).toContainText('Rien à faire de votre côté pour l’instant');
   await page.goto(`${base}#/automations`);
   // The week's task, on demand: the review, and the data gathered saved as a CSV in the downloads — no Vinted call.
   await expect(pilot).toContainText('Tâche de la semaine ✓');
@@ -2256,6 +2257,10 @@ test('« Republier maintenant »: a jacket published yesterday with 9 favourites
   await expect(dialog.getByTestId('repost-now-done')).toBeVisible({ timeout: 240_000 });
   await expect(dialog.locator('li[data-step="done"]')).toHaveAttribute('data-status', 'done');
   await expect(dialog.getByRole('button', { name: 'Ouvrir la nouvelle annonce' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Annonce republiée' })).toBeVisible();
+  // The sheet keeps the article and shows its new listing at once (read back online), not after the next import.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('tbody tr', { hasText: 'Veste Baracuta G9 M' })).toContainText('Aujourd’hui');
   // The copy (same photos sent again, the draft), published from its page, read back, then the old listing deleted.
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);

@@ -4,7 +4,7 @@ import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import * as budget from './adapters/vinted/budget-store';
 import { leftEditPage, openEditTab } from './adapters/vinted/price-edit';
 import type { ApiResult, DraftInput, DraftResult, EraMessage, PublishResult } from './adapters/vinted/protocol';
-import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
+import { VintedTabAdapter, ensureVintedTab, sendToVinted } from './adapters/vinted/vinted-adapter';
 import { journal } from './journal';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
@@ -26,18 +26,14 @@ const MAX_PHOTO_BYTES = 12_000_000;
 
 /** The seller's photos sent to Vinted through the vinted.fr tab (the upload route of Vinted's own form), their ids back. */
 async function uploadPhotos(photos: readonly { base64: string; mime: string }[], session: string): Promise<number[]> {
-  const { tabId } = await ensureVintedTab();
+  await ensureVintedTab();
   const ids: number[] = [];
   for (let i = 0; i < photos.length; i++) {
     const p = photos[i]!;
     if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(p.mime)) throw new MarketplaceError('NOT_APPLIED', `photo ${i + 1} : format ${p.mime} non accepté`);
     if (!p.base64 || p.base64.length * 0.75 > MAX_PHOTO_BYTES) throw new MarketplaceError('NOT_APPLIED', `photo ${i + 1} vide ou trop lourde`);
-    let r: ApiResult;
-    try {
-      r = (await browser.tabs.sendMessage(tabId, { type: 'era:photo:upload', base64: p.base64, mime: p.mime, tempUuid: session, name: `photo${i + 1}.jpg` } satisfies EraMessage)) as ApiResult;
-    } catch {
-      throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
-    }
+    // Sent once more only if it never arrived (the tab still loading, or reloaded meanwhile).
+    const r = await sendToVinted<ApiResult>({ type: 'era:photo:upload', base64: p.base64, mime: p.mime, tempUuid: session, name: `photo${i + 1}.jpg` } satisfies EraMessage, 'write');
     if (!r.ok) throw new MarketplaceError(r.code, `photo ${i + 1} · ${r.detail ?? r.code}`);
     const id = Number(idText(obj(r.json).id) ?? idText(obj(obj(r.json).photo).id));
     if (!id) throw new MarketplaceError('UNAVAILABLE', `photo ${i + 1} : Vinted n’a pas renvoyé d’identifiant`);

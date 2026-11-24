@@ -11,6 +11,7 @@ import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
 import { DailyRun } from '../components/daily-run';
 import { DayTimeline } from '../components/day-timeline';
+import { ForYou } from '../components/for-you';
 import { useBulkAnalyze } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { PageHead } from '../Shell';
@@ -61,11 +62,12 @@ export function Today() {
   return (
     <>
       <PageHead
-        eyebrow={<span className="hero-date">{i.dateLong(era.now)}</span>}
-        title={
-          <>
-            {t('today.greetingA')} <span className="t-accent">{t('today.greetingB')}</span>
-          </>
+        title={t('nav.today')}
+        sub={
+          <span className="hero-date">
+            {i.dateLong(era.now)}
+            {era.mode === 'demo' ? ` / ${t('today.demo')}` : ''}
+          </span>
         }
         actions={
           <>
@@ -82,9 +84,10 @@ export function Today() {
       />
 
       <div className="stack-4">
-        {!activationDone && <ActivationProgress done={era.activation} />}
-        {/* What ERA did today and what is left for the seller (real data only: a demo has no rounds). */}
+        {/* What is left for the seller, then what ERA did today (real data only: a demo has no rounds). */}
+        {era.mode === 'real' && <ForYou />}
         {era.mode === 'real' && <DayTimeline />}
+        {!activationDone && <ActivationProgress done={era.activation} />}
 
         <section className="cockpit" aria-label={t('today.overview')}>
           <div className="cockpit__capital">

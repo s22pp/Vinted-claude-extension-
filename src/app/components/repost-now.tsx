@@ -70,7 +70,21 @@ export function RepostNowDialog({ v, open, onClose }: { v: ItemView; open: boole
     }
   };
   return (
-    <Modal open={open} onClose={close} title={showProgress ? t('repostNow.progressTitle') : t('repostNow.title')}>
+    <Modal
+      open={open}
+      onClose={close}
+      title={
+        !showProgress
+          ? t('repostNow.title')
+          : live?.outcome === 'DONE'
+            ? t('repostNow.doneTitle')
+            : live?.outcome === 'UNCERTAIN'
+              ? t('repostNow.uncertainTitle')
+              : live?.outcome === 'FAILED' || sendError
+                ? t('repostNow.failedTitle')
+                : t('repostNow.progressTitle')
+      }
+    >
       <div className="repost-now" data-testid="repost-now">
         <div className="repost-now__item">
           <strong>{v.current?.title ?? v.item.title}</strong>

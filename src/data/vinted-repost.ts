@@ -5,7 +5,7 @@ import { repostSource } from '@/intelligence/vinted-ids';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import * as budget from './adapters/vinted/budget-store';
 import { type ApiResult, type EraMessage, type PendingRepost, type RepostFinishResult, type RepostResult, isVintedImageUrl } from './adapters/vinted/protocol';
-import { VintedTabAdapter, ensureVintedTab } from './adapters/vinted/vinted-adapter';
+import { VintedTabAdapter, ensureVintedTab, sendToVinted } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db, uid } from './db';
 import { repo } from './repo';
 import { vintedWrite } from './vinted-write';
@@ -67,19 +67,15 @@ function toBase64(buf: ArrayBuffer): string {
 }
 
 /** One photo: downloaded from Vinted's image server, uploaded again through the vinted.fr tab. */
-async function copyPhoto(url: string, index: number, tempUuid: string, tabId: number): Promise<number> {
+async function copyPhoto(url: string, index: number, tempUuid: string): Promise<number> {
   if (!isVintedImageUrl(url)) throw new MarketplaceError('NOT_APPLIED', `photo ${index + 1} hors des serveurs de Vinted`);
   const res = await fetch(url, { credentials: 'omit' }).catch(() => null);
   if (!res?.ok) throw new MarketplaceError('UNAVAILABLE', `photo ${index + 1} non téléchargée${res ? ` (HTTP ${res.status})` : ''}`);
   const mime = (res.headers.get('content-type') ?? 'image/jpeg').split(';')[0]!.trim();
   const buf = await res.arrayBuffer();
   if (buf.byteLength === 0 || buf.byteLength > MAX_PHOTO_BYTES) throw new MarketplaceError('NOT_APPLIED', `photo ${index + 1} vide ou trop lourde`);
-  let r: ApiResult;
-  try {
-    r = (await browser.tabs.sendMessage(tabId, { type: 'era:photo:upload', base64: toBase64(buf), mime, tempUuid, name: `photo${index + 1}.jpg` } satisfies EraMessage)) as ApiResult;
-  } catch {
-    throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
-  }
+  // Through whichever vinted.fr tab answers, sent once more only if it never arrived (a tab still loading, reloaded).
+  const r = await sendToVinted<ApiResult>({ type: 'era:photo:upload', base64: toBase64(buf), mime, tempUuid, name: `photo${index + 1}.jpg` } satisfies EraMessage, 'write');
   if (!r.ok) throw new MarketplaceError(r.code, `photo ${index + 1} · ${r.detail ?? r.code}`);
   const id = Number(idText(obj(r.json).id) ?? idText(obj(obj(r.json).photo).id));
   if (!id) throw new MarketplaceError('UNAVAILABLE', `photo ${index + 1} : Vinted n’a pas renvoyé d’identifiant`);
@@ -119,10 +115,10 @@ export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: 
     // …nor one the day's write quota cannot finish (the draft is one of those writes): throws when it is spent.
     await budget.autoWriteWait();
 
-    const { tabId } = await ensureVintedTab();
+    await ensureVintedTab();
     const session = globalThis.crypto.randomUUID();
     const ids: number[] = [];
-    for (let i = 0; i < photos.length; i++) ids.push(await copyPhoto(photos[i]!, i, session, tabId));
+    for (let i = 0; i < photos.length; i++) ids.push(await copyPhoto(photos[i]!, i, session));
 
     const oldPrice = priceCents(src.fields.price);
     const price = newPrice !== null && newPrice !== oldPrice ? newPrice : null;

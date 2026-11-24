@@ -14,7 +14,7 @@ test('onboarding → demo → Today answers "what now?"', async ({ context, base
   page.on('pageerror', (e) => errors.push(e.message));
   await loadDemo(page, base);
   await page.goto(`${base}#/today`);
-  await expect(page.getByRole('heading', { name: /Ce qui mérite/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible();
   await expect(page.locator('.prio__item').first()).toBeVisible();
   await expect(page.getByText('Capital investi', { exact: true })).toBeVisible();
   // Unknown costs are surfaced as partial, never as zero.

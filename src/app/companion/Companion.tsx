@@ -244,13 +244,13 @@ function OwnItem({ itemId, mode }: { itemId: string; mode: 'popup' | 'panel' }) 
   const cur = intel.view.current;
   const when = cur?.listedAtKnown === false ? null : publishedAgo(cur?.listedAt ?? null, era.now);
   const favs = cur?.favorites ?? null;
-  const meta = [when, favs !== null ? t('popup.ownFavs', { n: favs }) : null].filter(Boolean).join(' / ');
+  const meta = [when ? t('repostNow.published', { when: when.toLowerCase() }) : null, favs !== null ? t('popup.ownFavs', { n: favs }) : null].filter(Boolean).join(' / ');
   return (
     <div className="stack-3">
       {meta && <div className="t-small t-muted">{meta}</div>}
       {era.mode === 'real' && <RepostNowButton v={intel.view} block />}
-      <div className="row-between">
-        <span className="row" style={{ gap: 6 }}>
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 6 }}>
+        <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <Badge tone="violet">{t('popup.inStock')}</Badge>
           <StatusBadge status={intel.view.item.status} />
         </span>

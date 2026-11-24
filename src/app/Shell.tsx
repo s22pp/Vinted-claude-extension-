@@ -118,7 +118,7 @@ function Topbar() {
       <span className="only-sm" style={{ display: 'none' }}>
         <LogoMark size={24} />
       </span>
-      <span className="t-small t-muted topbar__hide-sm" style={{ textTransform: 'capitalize' }}>
+      <span className="t-small t-muted topbar__hide-sm topbar__date">
         {dateLong(era.now)}
       </span>
       <span className="badge b-emerald topbar__hide-sm" title={t('settings.dataLocal')}>

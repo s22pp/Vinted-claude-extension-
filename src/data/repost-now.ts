@@ -1,10 +1,39 @@
 import { CHOSEN_REPOSTS_KEY, type ChosenRepost, removeChosen } from '@/intelligence/repost-choice';
 import { REPOST_NOW_KEY, type RepostNow, startNow } from '@/intelligence/repost-now';
 import { errorInfo } from './adapters/marketplace';
-import { db } from './db';
+import { db, uid } from './db';
 import { repo } from './repo';
 import { finishRepost, pendingReposts, repostAsDraft } from './vinted-repost';
 import { publishDraft } from './vinted-draft';
+
+/** The copy, published and read back online, as the article's live listing (the old one is already REMOVED). */
+async function recordCopy(itemId: string, draftId: string, now: number): Promise<void> {
+  const all = await db.listings.where('inventoryItemId').equals(itemId).toArray();
+  if (all.some((l) => l.platformListingId === draftId)) return;
+  const old = all.filter((l) => l.status === 'REMOVED').sort((a, b) => (b.removedAt ?? 0) - (a.removedAt ?? 0))[0];
+  if (!old) return;
+  await db.listings.put({
+    id: uid('listing'),
+    inventoryItemId: itemId,
+    platform: 'vinted',
+    platformListingId: draftId,
+    url: `https://www.vinted.fr/items/${draftId}`,
+    title: old.title,
+    priceCents: old.priceCents,
+    views: null,
+    favorites: null,
+    listedAt: now,
+    listedAtKnown: true,
+    photoCount: old.photoCount ?? null,
+    description: old.description ?? null,
+    photoUrls: [],
+    removedAt: null,
+    soldAt: null,
+    status: 'ACTIVE',
+    lastObservedAt: null,
+    isDemo: false,
+  });
+}
 
 /**
  * « Republier maintenant » (EXPERIMENTAL): the seller's own repost of one listing, run at once, Pilote on or off — the
@@ -40,6 +69,9 @@ export async function repostNow(itemId: string, acceptFavourites: number, now = 
     if (!fin.ok) return stop(`copie ${draftId} en ligne, ancienne annonce gardée : ${fin.code}${fin.detail ? ` · ${fin.detail}` : ''}`, true);
     // Done: off the seller's « À republier » list if it was there (its new listing is never picked again).
     await repo.setSetting(CHOSEN_REPOSTS_KEY, removeChosen(await repo.getSetting<ChosenRepost[]>(CHOSEN_REPOSTS_KEY, []), itemId));
+    // Both read back on Vinted: the article's sheet shows its new listing now, not after the next import (which then
+    // finds it by its Vinted id and fills in what it shows). Its views and favourites are not read yet: unknown.
+    if (pub.verified && fin.verified) await recordCopy(itemId, draftId, Date.now());
     if (!pub.verified || !fin.verified)
       return save({ step: 'verify', outcome: 'UNCERTAIN', detail: !pub.verified ? 'publication envoyée, pas encore relue en ligne sur Vinted' : 'suppression de l’ancienne annonce envoyée, pas encore confirmée par Vinted', resumable: false, endedAt: Date.now() });
     // 3. Republié.

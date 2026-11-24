@@ -73,7 +73,12 @@ export function Glance() {
         </div>
         {open.length ? (
           <div className="stack" style={{ gap: 6 }}>
-            {open.map((x) => (
+            {/* The most pressing one, large, with what opens it (ERA Midnight); the others below. */}
+            <button type="button" className="glance-top" data-task={open[0]!.key} onClick={() => openDashboard(open[0]!.hash)}>
+              <span className="glance-top__big">{t(`glance.task.${open[0]!.key}`, { n: open[0]!.n })}</span>
+              <span className="glance-top__link">{t(`glance.cta.${open[0]!.key}`)}</span>
+            </button>
+            {open.slice(1).map((x) => (
               <button key={x.key} type="button" className="choice" style={{ padding: '8px 10px' }} data-task={x.key} onClick={() => openDashboard(x.hash)}>
                 <IconTile name={x.icon} tone={x.tone} size="sm" />
                 <span className="t-small grow" style={{ textAlign: 'left' }}>

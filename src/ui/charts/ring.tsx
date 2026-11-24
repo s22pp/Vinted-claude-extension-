@@ -11,8 +11,8 @@ export function Ring({ value, max, size = 64, stroke = 6, children, color = 'url
       <svg width={size} height={size} aria-hidden="true" style={{ transform: 'rotate(-90deg)' }}>
         <defs>
           <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#8f6dff" />
-            <stop offset="1" stopColor="#2a66ff" />
+            <stop offset="0" style={{ stopColor: 'var(--accent)' }} />
+            <stop offset="1" style={{ stopColor: 'var(--accent)' }} />
           </linearGradient>
         </defs>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-sunken)" strokeWidth={stroke} />

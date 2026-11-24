@@ -2,7 +2,6 @@
 .repost-now {
   display: grid;
   gap: 16px;
-  min-width: min(520px, 86vw);
 }
 .repost-now__item {
   display: grid;

@@ -53,8 +53,8 @@ export function Stock({ route }: { route: Route }) {
   const [q, setQ] = useState(route.query.get('q') ?? '');
   const [filter, setFilter] = useState<Filter>((route.query.get('filter') as Filter) ?? 'all');
   const [sort, setSort] = useState<Sort>(() => ({ key: (route.query.get('sort') as SortKey) ?? 'reco', dir: -1 }));
-  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => loadPref('era.stock.density', 'compact'));
-  const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v3', DEFAULT_COLS));
+  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => loadPref('era.stock.density', 'comfortable'));
+  const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v4', DEFAULT_COLS));
   const [showCols, setShowCols] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -68,7 +68,7 @@ export function Stock({ route }: { route: Route }) {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => savePref('era.stock.density', density), [density]);
-  useEffect(() => savePref('era.stock.cols.v3', cols), [cols]);
+  useEffect(() => savePref('era.stock.cols.v4', cols), [cols]);
   const filterParam = route.query.get('filter') as Filter | null;
   useEffect(() => {
     if (filterParam) setFilter(filterParam);

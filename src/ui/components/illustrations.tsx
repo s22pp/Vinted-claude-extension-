@@ -9,12 +9,12 @@ function Frame({ children, vb = '0 0 320 224' }: { children: React.ReactNode; vb
     <svg viewBox={vb} width="100%" height="100%" aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id="il-brand" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#8f6dff" />
-          <stop offset="1" stopColor="#2a66ff" />
+          <stop offset="0" style={{ stopColor: 'var(--accent)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--accent)' }} />
         </linearGradient>
         <linearGradient id="il-fade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8f6dff" stopOpacity=".35" />
-          <stop offset="1" stopColor="#8f6dff" stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: 'var(--accent)' }} stopOpacity=".35" />
+          <stop offset="1" style={{ stopColor: 'var(--accent)' }} stopOpacity="0" />
         </linearGradient>
         <pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse">
           <circle cx="1" cy="1" r="1" fill="var(--grid-dot)" />
@@ -130,12 +130,12 @@ export function IllustrationWelcome() {
     <svg viewBox="0 0 400 400" width="100%" aria-hidden="true">
       <defs>
         <linearGradient id="w-brand" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#9a7bff" />
-          <stop offset="1" stopColor="#2a66ff" />
+          <stop offset="0" style={{ stopColor: 'var(--accent)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--accent)' }} />
         </linearGradient>
         <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
-          <stop offset="0" stopColor="#7c5cff" stopOpacity=".45" />
-          <stop offset="1" stopColor="#7c5cff" stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: 'var(--accent)' }} stopOpacity=".45" />
+          <stop offset="1" style={{ stopColor: 'var(--accent)' }} stopOpacity="0" />
         </radialGradient>
       </defs>
       <circle cx="200" cy="200" r="170" fill="url(#w-glow)" />

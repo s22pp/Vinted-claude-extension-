@@ -1,14 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db } from '@/data/db';
-import { REPLIES_PENDING_KEY } from '@/data/reply-agent';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import type { PendingReply } from '@/intelligence/buyer-messages';
 import { type DayEvent, type DayRound, type EventGroup, dayTimeline, untilText } from '@/intelligence/day-timeline';
 import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
 import { Card } from '@/ui/components/primitives';
-import { go, useEra } from '../state';
 
 const X0 = 24;
 const X1 = 976;
@@ -29,12 +26,11 @@ function stacked(events: readonly DayEvent[]): (DayEvent & { level: number })[] 
 
 /**
  * « La journée d'ERA » (skill « era-visuel »): the day on one rail — the autopilot's rounds at their hours (done,
- * interrupted, late, next with its countdown), every action ERA took at its time, and now. Below, what is left for the
- * seller: the physical work. From the journal and ERA's data only.
+ * interrupted, late, next with its countdown) on a rail, then every action ERA took at its time, and now. What is left
+ * for the seller is « Pour vous », above it on Today. From the journal and ERA's data only.
  */
 export function DayTimeline() {
   const { t } = useI18n();
-  const era = useEra();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -43,25 +39,33 @@ export function DayTimeline() {
   const day0 = new Date(now).setHours(0, 0, 0, 0);
   const rows = useLiveQuery(() => db.autoLog.where('at').aboveOrEqual(day0).toArray(), [day0]);
   const pilot = useLiveQuery(async () => pilotConfig(await repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null)), []);
-  const pending = useLiveQuery(() => repo.getSetting<PendingReply[]>(REPLIES_PENDING_KEY, []), []);
   const [open, setOpen] = useState<number | null>(null);
   if (!rows || !pilot) return null;
   const { events, rounds, nowX } = dayTimeline(rows, pilot.enabled ? pilot.hours : [], now);
   const next = rounds.find((r) => r.status === 'NEXT');
-  const toShip = era.sales.filter((s) => s.sale.needsAction && s.sale.status !== 'REFUNDED').length;
-  const toList = era.workshop.toList.length;
-  const tasks: { key: string; n: number; route: string }[] = [
-    { key: 'ship', n: toShip, route: 'sales' },
-    { key: 'photos', n: toList, route: 'workshop' },
-    { key: 'messages', n: pending?.length ?? 0, route: 'automations' },
-  ];
   const roundFill = (r: DayRound) =>
-    r.status === 'DONE' ? 'var(--emerald)' : r.status === 'STOPPED' ? 'var(--amber)' : r.status === 'MISSED' ? 'var(--surface-sunken)' : 'var(--surface)';
+    r.status === 'DONE' ? 'var(--accent)' : r.status === 'STOPPED' ? 'var(--amber)' : r.status === 'MISSED' ? 'var(--surface-sunken)' : 'var(--surface)';
   const roundStroke = (r: DayRound) => (r.status === 'NEXT' ? 'var(--cobalt)' : r.status === 'LATE' ? 'var(--amber)' : r.status === 'LATER' ? 'var(--border-strong)' : 'transparent');
   const shown = stacked(events);
   return (
     <Card className="span-12" title={t('day.title')} hint={pilot.enabled ? (next ? t('day.next', { hour: next.hour, when: untilText(day0 + next.hour * 3_600_000, now) }) : t('day.noMore')) : t('day.off')} icon="clock" tone="cobalt">
       <div className="stack-3" data-testid="day-timeline">
+        {rounds.length > 0 && (
+          <ol className="day-rail" aria-label={t('day.rail')} style={{ ['--n' as string]: rounds.length }}>
+            {rounds.map((r) => (
+              <li key={r.hour} data-round={r.hour} data-status={r.status}>
+                <button type="button" aria-expanded={open === r.hour} onClick={() => setOpen(open === r.hour ? null : r.hour)}>
+                  <b className="num">{String(r.hour).padStart(2, '0')} h</b>
+                  <span className="day-rail__dot" aria-hidden="true" />
+                  <span className="day-rail__label">
+                    {t(`day.r.${r.status}`)}
+                    {r.status === 'NEXT' ? ` · ${untilText(day0 + r.hour * 3_600_000, now)}` : ''}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
         <svg viewBox="0 0 1000 150" width="100%" role="img" aria-label={t('day.aria', { rounds: rounds.length, done: rounds.filter((r) => r.status === 'DONE').length, actions: events.length })} style={{ display: 'block', overflow: 'visible' }}>
           {/* Night and day: the hours ERA works in are the light ones. */}
           <rect x={px(0)} y={TRACK - 34} width={px(7 / 24) - px(0)} height={48} rx={8} fill="var(--surface-sunken)" opacity={0.6} />
@@ -96,14 +100,6 @@ export function DayTimeline() {
             <circle cx={px(nowX)} cy={TRACK} r={5} fill="var(--cobalt)" />
           </g>
         </svg>
-        <div className="row wrap" style={{ gap: 8 }}>
-          {rounds.map((r) => (
-            <button key={r.hour} type="button" className="seg__btn" aria-expanded={open === r.hour} onClick={() => setOpen(open === r.hour ? null : r.hour)}>
-              {r.hour} h · {t(`day.r.${r.status}`)}
-              {r.status === 'NEXT' ? ` (${untilText(day0 + r.hour * 3_600_000, now)})` : ''}
-            </button>
-          ))}
-        </div>
         <div className="row wrap t-small t-faint" style={{ gap: 14 }} aria-label={t('day.legend')}>
           {(['MESSAGE', 'OFFER', 'PRICE', 'LABEL', 'PUBLISH'] as EventGroup[]).map((g) => (
               <span key={g} style={{ whiteSpace: 'nowrap' }}>
@@ -119,16 +115,6 @@ export function DayTimeline() {
             ))}
           </ul>
         )}
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }} data-testid="day-physical">
-          {tasks.map((k) => (
-            <button key={k.key} type="button" className="card" onClick={() => go(k.route)} style={{ textAlign: 'left', padding: 14, cursor: 'pointer', border: k.n ? '1px solid var(--amber)' : undefined }}>
-              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{k.n}</div>
-              <div className="t-small" style={{ marginTop: 6 }}>
-                {t(`day.task.${k.key}`, { n: k.n })}
-              </div>
-            </button>
-          ))}
-        </div>
       </div>
     </Card>
   );
