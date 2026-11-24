@@ -838,7 +838,9 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   // Today: what is left for the seller first (« Pour vous »), then the day on one rail — this round done, at its hour.
   await page.goto(`${base}#/today`);
   const timeline = page.getByTestId('day-timeline');
-  await expect(timeline.locator(`[data-round="${new Date().getHours()}"][data-status="DONE"]`)).toContainText('Terminée');
+  // At the hour it ran: this hour, or the one before when the round ran at 16:59 and is checked at 17:00.
+  const ranAt = new Date().getHours();
+  await expect(timeline.locator(`[data-round="${ranAt}"][data-status="DONE"], [data-round="${(ranAt + 23) % 24}"][data-status="DONE"]`).first()).toContainText('Terminée');
   // Nothing physical waiting in this round's data: said in one line, no empty « 0 » cards.
   await expect(page.getByTestId('day-physical')).toContainText('Rien à faire de votre côté pour l’instant');
   await page.goto(`${base}#/automations`);
