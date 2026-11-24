@@ -2,6 +2,18 @@ import type { EraMessage } from './protocol';
 
 /** Small helpers on a vinted.fr tab, shared by the adapter and the search-page visits. */
 
+/**
+ * Chrome's « no page to receive it » error: the message never reached ERA's script in the tab (the page was reloading,
+ * a heavy page still starting). Anything else (the answer lost on the way back) may mean the page did act on it.
+ */
+export const neverArrived = (e: unknown): boolean => /Receiving end does not exist|Could not establish connection/i.test(e instanceof Error ? e.message : String(e));
+
+/**
+ * When a message to the Vinted tab may be sent once more: a read always (sending it again changes nothing on the
+ * account); a write only when it provably never arrived — else it may have been taken, and is never sent twice.
+ */
+export const mayResend = (e: unknown, kind: 'read' | 'write'): boolean => kind === 'read' || neverArrived(e);
+
 export async function ping(tabId: number): Promise<boolean> {
   try {
     await browser.tabs.sendMessage(tabId, { type: 'era:ping' } satisfies EraMessage);

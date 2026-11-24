@@ -343,6 +343,8 @@ test('a listing deleted and published again stays ONE article, with its history;
 });
 
 test('an order Vinted says needs the seller: first in Today, a checklist, then the printable label in one click', async ({ context, base }) => {
+  // Test fixture only: the carrier the label PDF is downloaded from (never the network: the download is then instant).
+  const closeCarrier = await fakeLabelServer();
   const calls = await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
@@ -365,7 +367,8 @@ test('an order Vinted says needs the seller: first in Today, a checklist, then t
   expect(put.path).toBe('/api/v2/transactions/7200/shipment/order');
   expect(JSON.parse(put.body!)).toEqual({ seller_address_id: 42, drop_off_type: null, label_type: 'printable' });
   expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://labels.example/6200.pdf']);
-});;
+  await closeCarrier();
+});
 
 test('the icon as a remote control: the Pilote’s state and what is left for the seller, each line opening its screen', async ({ context, base }) => {
   test.setTimeout(120_000);

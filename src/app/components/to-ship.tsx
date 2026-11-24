@@ -28,6 +28,8 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [askAll, setAskAll] = useState(false);
   const [batch, setBatch] = useState<LabelBatchResult | null>(null);
+  // Why the last label of each sale was not obtained: kept on the card (a toast is gone after a few seconds).
+  const [labelErr, setLabelErr] = useState<Record<string, string>>({});
   const orders = era.sales.filter((x) => x.sale.needsAction && x.sale.status !== 'REFUNDED');
   const withLabel = era.mode === 'real' ? orders.filter((x) => x.sale.vintedConversationId) : [];
   if (!orders.length) return null;
@@ -49,9 +51,13 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
   };
   const label = async (x: SaleView) => {
     setBusy(x.sale.id);
+    setLabelErr(({ [x.sale.id]: _, ...rest }) => rest);
     try {
       const r = (await browser.runtime.sendMessage({ type: 'era:label:get', conversationId: x.sale.vintedConversationId!, title: x.item.title, soldAt: x.sale.soldAt } satisfies EraMessage)) as LabelResult;
-      if (!r.ok) return errorToast(r);
+      if (!r.ok) {
+        setLabelErr((m) => ({ ...m, [x.sale.id]: `${t(`errors.${r.code}`)} — ${r.detail ?? t('errors.noDetail')}` }));
+        return errorToast(r);
+      }
       toast('success', t('ship.labelDone'), `${t(r.ordered ? 'ship.labelOrdered' : 'ship.labelReady')} ${r.file ? t('ship.saved', { file: r.file }) : t('ship.notSaved', { detail: r.saveError ?? '' })}`);
       window.open(r.url, '_blank', 'noopener');
     } finally {
@@ -138,6 +144,11 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
                   </Button>
                 </div>
               </div>
+              {labelErr[x.sale.id] && (
+                <p className="t-small t-warn" style={{ margin: 0 }} data-testid="label-error" role="status">
+                  {t('ship.labelFailed', { why: labelErr[x.sale.id] })}
+                </p>
+              )}
               <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
                 {checks.map((k) => (
                   <label key={k} className="row t-small" style={{ gap: 6, cursor: 'pointer' }}>

@@ -2225,6 +2225,7 @@ export const fr = {
     title: 'À envoyer ({n})',
     hint: 'Vinted attend votre envoi : contrôlez, emballez, bordereau.',
     label: 'Obtenir le bordereau',
+    labelFailed: 'Bordereau non obtenu : {why}',
     labelDone: 'Bordereau prêt',
     labelOrdered: 'Bordereau imprimable commandé puis ouvert.',
     labelReady: 'Bordereau déjà prêt chez Vinted, ouvert.',

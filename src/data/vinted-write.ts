@@ -1,7 +1,7 @@
 import { MarketplaceError } from './adapters/marketplace';
 import { autoWriteWait, recordAutoWrite } from './adapters/vinted/budget-store';
 import type { ApiResult, EraMessage } from './adapters/vinted/protocol';
-import { ensureVintedTab } from './adapters/vinted/vinted-adapter';
+import { sendToVinted } from './adapters/vinted/vinted-adapter';
 
 /** Sleep in short steps touching an extension API: the service worker stays awake meanwhile. */
 export async function waitAlive(ms: number): Promise<void> {
@@ -22,13 +22,8 @@ export async function vintedWrite(method: 'POST' | 'PUT', path: string, body: un
     const wait = await autoWriteWait();
     if (wait > 0) await waitAlive(wait);
   }
-  const { tabId } = await ensureVintedTab();
-  let res: ApiResult;
-  try {
-    res = (await browser.tabs.sendMessage(tabId, { type: 'era:write', method, path, body } satisfies EraMessage)) as ApiResult;
-  } catch {
-    throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
-  }
+  // Sent again only if it provably never reached the page: a write is never sent twice.
+  const res = await sendToVinted<ApiResult>({ type: 'era:write', method, path, body } satisfies EraMessage, 'write');
   // Counted even when refused: the quota protects the account, not the success rate.
   if (spaced) await recordAutoWrite();
   if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? res.code);

@@ -4,7 +4,7 @@ import { MarketplaceError } from '../marketplace';
 import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
 import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult } from './protocol';
 import { visitSearchPage } from './search-page';
-import { ping, waitForLoad } from './tabs';
+import { mayResend, ping, waitForLoad } from './tabs';
 
 export { ping, waitForLoad } from './tabs';
 export { templateFromObserved, visitSearchPage } from './search-page';
@@ -50,6 +50,25 @@ export async function ensureVintedTab(): Promise<{ tabId: number; created: boole
   if (await pingLoop()) return { tabId, created: existing === null };
   if (existing === null) await browser.tabs.update(tabId, { active: true }).catch(() => undefined);
   throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+}
+
+/**
+ * One message to ERA's script in the vinted.fr tab, with one careful second try: the page may have been reloading at
+ * that very moment (a heavy Vinted page, a slow computer). A read is sent again; a write only if it never arrived.
+ */
+export async function sendToVinted<T>(msg: EraMessage, kind: 'read' | 'write'): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const { tabId } = await ensureVintedTab();
+    try {
+      return (await browser.tabs.sendMessage(tabId, msg)) as T;
+    } catch (e) {
+      if (attempt === 0 && mayResend(e, kind)) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
+    }
+  }
 }
 
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
@@ -162,13 +181,7 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   private async api(path: string): Promise<unknown> {
     try {
       // One click: if no vinted.fr tab is open, ERA opens one in the background.
-      const { tabId: tab } = await ensureVintedTab();
-      let res: ApiResult;
-      try {
-        res = (await browser.tabs.sendMessage(tab, { type: 'era:api', path } satisfies EraMessage)) as ApiResult;
-      } catch {
-        throw new MarketplaceError('NO_VINTED_TAB', 'CONTENT_SCRIPT_UNREACHABLE');
-      }
+      const res = await sendToVinted<ApiResult>({ type: 'era:api', path } satisfies EraMessage, 'read');
       if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
       return res.json;
     } catch (e) {

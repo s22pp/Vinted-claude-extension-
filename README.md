@@ -336,6 +336,11 @@ messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, border
 physique : photos, emballage, dépôt, impression des bordereaux. Publier une nouveauté se fait depuis l'Atelier (vos photos
 choisies dans ERA, puis « Publier sur Vinted ») ; ERA ne republie pas seul.
 
+### Onglet Vinted lent : une seconde chance, jamais un double envoi
+
+- Si l'onglet vinted.fr ne répond pas au moment où ERA lui parle (page en train de se recharger, ordinateur chargé), une **lecture** est renvoyée une fois, 1,5 s plus tard. Une **écriture** n'est renvoyée que si Chrome confirme qu'elle n'est jamais arrivée sur la page ; sinon elle a pu être prise, et ERA ne l'envoie jamais deux fois.
+- Un bordereau non obtenu garde sa raison sur la carte « À envoyer » (le message d'erreur disparaît au bout de quelques secondes, la raison reste).
+
 ### Votre liste « À republier » (EXPERIMENTAL)
 
 - **N'importe quel article, à votre choix** : cochez-en autant que vous voulez dans Stock → « Republier (n) », ou depuis la fiche d'un article. ERA dit ce qui sera perdu, en chiffres (« À perdre : 12 favori(s) sur 2 annonce(s), et 230 vues ») ; s'il y a des favoris, rien n'est ajouté tant que vous ne l'avez pas accepté.
