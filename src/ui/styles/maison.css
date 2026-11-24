@@ -11,7 +11,7 @@
   --r-md: 5px;
   --r-lg: 6px;
   --ease-house: cubic-bezier(0.22, 1, 0.36, 1);
-  --fs-h1: 56px;
+  --fs-h1: 46px;
 }
 
 /* No more fade-up on every block: the keyframes everybody used now leave things where they are. */
@@ -443,4 +443,74 @@ textarea.input {
 }
 :root[data-motion='reduced'] .look__frame img {
   transition: none;
+}
+
+/* ── Sub-sections of a page (Articles, Mise en ligne, Capital…): underlined words, not a pill box ───────────── */
+.subtabs {
+  display: flex;
+  gap: 26px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.subtabs a,
+.subtabs button {
+  position: relative;
+  height: 40px;
+  padding: 0;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.subtabs a .icon,
+.subtabs button .icon,
+.subtabs a svg,
+.subtabs button svg {
+  display: none;
+}
+.subtabs [aria-current='page'],
+.subtabs [aria-selected='true'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+.subtabs [aria-current='page']::after,
+.subtabs [aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--text);
+}
+/* The sub-sections sit under the title rule: no second rule right below the first. */
+.page-head__tabs .subtabs {
+  border-bottom: 0;
+}
+
+/* ── The shop behind the pages: there while one walks, quiet once one reads ────────────────────────────────── */
+.era-scene {
+  transition: opacity 900ms var(--ease-house);
+}
+.era-scene[data-state='idle'] {
+  opacity: 0.45;
+}
+:root[data-theme='light'] .era-scene[data-state='idle'] {
+  opacity: 0.4;
+}
+
+/* An article's own title: large, but not a page title. */
+.t-h1 {
+  font-size: 46px;
+}
+/* With sub-sections, they sit on the title's rule: the current one's underline is that rule. */
+.page-head:has(.page-head__tabs) {
+  padding-bottom: 0;
+}
+.page-head__tabs {
+  flex-basis: 100%;
+  margin-top: 6px;
 }
