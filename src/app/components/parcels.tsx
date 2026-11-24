@@ -1,7 +1,8 @@
 import { useI18n } from '@/i18n';
 import { parcelAlerts } from '@/intelligence/shipping';
-import { Badge, Button, Card, Flag } from '@/ui/components/primitives';
+import { Badge, Button, Card } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
+import { VerifyFlag } from './verify-flag';
 
 /** Parcels that seem stuck, from Vinted's status words: open the conversation, keep the dispute file at hand. */
 export function ParcelsCard() {
@@ -19,7 +20,7 @@ export function ParcelsCard() {
           <Button size="sm" variant="ghost" icon="target" onClick={() => go('parcels')}>
             {t('parcels.all')}
           </Button>
-          <Flag kind="UNVERIFIED" title={t('parcels.unverified')} />
+          <VerifyFlag proof="sold" kind="UNVERIFIED" title={t('parcels.unverified')} />
         </div>
       }
     >

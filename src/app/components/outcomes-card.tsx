@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n';
 import { type Rate, delayTable, messageTable, offerTable, repostTable } from '@/intelligence/outcomes';
 import { bestLines } from '@/intelligence/outcomes-summary';
 import { Card } from '@/ui/components/primitives';
+import { VerifyFlag } from './verify-flag';
 
 /**
  * What makes buyers answer and buy, from the contacts database: messages wording by wording, offers by depth, the delay
@@ -58,7 +59,7 @@ export function OutcomesCard() {
     </div>
   );
   return (
-    <Card className="span-12" title={t('outcomes.title')} hint={t('outcomes.hint')} icon="trendUp" tone="emerald">
+    <Card className="span-12" title={t('outcomes.title')} hint={t('outcomes.hint')} icon="trendUp" tone="emerald" actions={<VerifyFlag proof="auto" />}>
       <div className="stack-3" data-testid="outcomes">
         {best.length > 0 ? (
           <ul className="t-small stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }} data-testid="outcomes-best">

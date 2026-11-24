@@ -8,7 +8,7 @@ import { DualDistribution } from '@/ui/charts/dual';
 import { realizedFor } from '@/intelligence/seller-model';
 import { IconTile } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Flag, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
+import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
@@ -29,6 +29,7 @@ import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
 import { go, useEra } from '../state';
 import { RouteFlag } from '../components/route-flag';
+import { VerifyFlag } from '../components/verify-flag';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 
@@ -238,7 +239,7 @@ export function ItemDetail({ id }: { id: string }) {
             actions={
               analysis ? (
                 <span className="row" style={{ gap: 6 }}>
-                  {analysis.via && <Flag kind="UNVERIFIED" title={t(analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+                  {analysis.via && <VerifyFlag proof="search" kind="UNVERIFIED" title={t(analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
                   {intel?.analysisStale && <Badge tone="amber">{t('item.stale')}</Badge>}
                   <Badge tone={analysis.quality === 'HIGH' ? 'emerald' : analysis.quality === 'MEDIUM' ? 'cyan' : 'amber'}>
                     {t('market.quality')} · {t(`compQuality.${analysis.quality}`)}

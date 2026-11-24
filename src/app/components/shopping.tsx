@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { type Deal, type ShoppingLine, findDeals, shoppingList } from '@/intelligence/shopping';
-import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Flag, Money, Sample } from '@/ui/components/primitives';
+import { Badge, Button, Card, DemoBadge, EmptyState, ErrorState, Money, Sample } from '@/ui/components/primitives';
 import { marketAdapter } from '../market-run';
 import { go, useEra } from '../state';
 
@@ -89,6 +89,7 @@ const SCAN_NICHES = 5;
  * and only the listings whose all-in cost stays under the niche's maximum.
  */
 import { BuyAlertsCard } from './buy-alerts';
+import { VerifyFlag } from './verify-flag';
 
 export function DealScanner() {
   const { t } = useI18n();
@@ -143,7 +144,7 @@ export function DealScanner() {
               {busy ? t('scanner.scanning', { niche: busy }) : t('scanner.run', { n: top.length })}
             </Button>
             {demo && <DemoBadge />}
-            {via && <Flag kind="UNVERIFIED" title={t(via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+            {via && <VerifyFlag proof="search" kind="UNVERIFIED" title={t(via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
           </div>
           {error != null && <ErrorState error={error} />}
         </div>

@@ -1,3 +1,4 @@
+import { notePageProof } from '@/data/page-proofs';
 import { REPLIES_ON_KEY, REPLY_KIT_KEY, type ReplyKit, conversationItem, kitReplies } from '@/intelligence/replies';
 
 /**
@@ -110,7 +111,10 @@ export default defineContentScript({
         b.append(title, preview);
         b.onclick = (e) => {
           e.preventDefault();
-          if (target) write(target, r.text);
+          if (target) {
+            write(target, r.text);
+            void notePageProof('vreplies');
+          }
           menu.style.display = 'none';
         };
         menu.appendChild(b);

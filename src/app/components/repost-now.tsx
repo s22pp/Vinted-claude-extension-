@@ -6,6 +6,7 @@ import { NOW_STEPS, REPOST_NOW_KEY, type RepostNow, publishedAgo, stepStatuses }
 import { Modal } from '@/ui/components/overlays';
 import { Button } from '@/ui/components/primitives';
 import '@/ui/styles/repost-now.css';
+import { UntilProven } from './verify-flag';
 
 /** A repost takes a few minutes at most (the writes are spaced); past this, one still « en cours » was interrupted. */
 const STALE_MS = 15 * 60_000;
@@ -106,9 +107,11 @@ export function RepostNowDialog({ v, open, onClose }: { v: ItemView; open: boole
             <p className="t-small" style={{ margin: 0 }}>
               {t('repostNow.check')}
             </p>
-            <p className="t-small t-faint" style={{ margin: 0 }}>
-              {t('repostNow.experimental')}
-            </p>
+            <UntilProven proof="repost">
+              <p className="t-small t-faint" style={{ margin: 0 }}>
+                {t('repostNow.experimental')}
+              </p>
+            </UntilProven>
             <div className="repost-now__actions">
               <Button variant="ghost" onClick={close}>
                 {t('common.cancel')}

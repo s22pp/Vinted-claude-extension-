@@ -6,12 +6,13 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { DEFAULT_HOME, HOME_KEY, PARCEL_INFO_KEY, PARCEL_STEPS, type Parcel, type ParcelInfo, type Place, distanceKm, parcelsInProgress } from '@/intelligence/parcels';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, EmptyState, Flag } from '@/ui/components/primitives';
+import { Badge, Button, Card, EmptyState } from '@/ui/components/primitives';
 import { ParcelBoard } from '../components/parcel-board';
 import type { MapPin } from '../components/parcel-map';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { SalesTabs } from '../components/section-tabs';
+import { VerifyFlag } from '../components/verify-flag';
 
 // The map library is loaded with the map only, not with every visit of the dashboard.
 const ParcelMap = lazy(() => import('../components/parcel-map').then((m) => ({ default: m.ParcelMap })));
@@ -167,7 +168,7 @@ export function Parcels() {
             </Card>
           ) : (
             <>
-              <Card title={t('parcelmap.incoming', { n: incoming.length })} icon="download" tone="emerald" actions={<Flag kind="EXPERIMENTAL" />}>
+              <Card title={t('parcelmap.incoming', { n: incoming.length })} icon="download" tone="emerald" actions={<VerifyFlag proof="purchases" />}>
                 {incoming.length ? <ul className="parcels">{incoming.map(row)}</ul> : <p className="t-small t-muted">{t('parcelmap.noIncoming')}</p>}
               </Card>
               <Card title={t('parcelmap.outgoing', { n: outgoing.length })} icon="upload" tone="violet">

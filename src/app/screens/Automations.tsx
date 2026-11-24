@@ -12,11 +12,12 @@ import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { type AutoConfig, type FavMode, withDefaults } from '@/intelligence/automation';
 import { useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, Field, Flag, Input, Segmented, Select } from '@/ui/components/primitives';
+import { Badge, Button, Card, Field, Input, Segmented, Select } from '@/ui/components/primitives';
 import { useMoneyField } from '../components/forms';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { type MessageExample, MessagePicker } from '../components/fav-messages';
+import { ProvenOnly, UntilProven, VerifyFlag } from '../components/verify-flag';
 
 /** The offer shown in previews: the discount on the price, rounded up to the euro (the real one also respects the floor). */
 const favoriteOfferPreview = (price: number, pct: number) => Math.ceil((price * (1 - pct / 100)) / 100) * 100;
@@ -134,9 +135,14 @@ export function Automations() {
         <Card className="span-12" title={t('auto.warnTitle')} icon="alert" tone="coral">
           <div className="stack">
             <p className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <Flag kind="EXPERIMENTAL" /> <Flag kind="UNVERIFIED" />
+              <VerifyFlag proof="auto" /> <VerifyFlag proof="auto" kind="UNVERIFIED" />
             </p>
-            <p className="t-small">{t('auto.warnBody')}</p>
+            <UntilProven proof="auto">
+              <p className="t-small">{t('auto.warnBody')}</p>
+            </UntilProven>
+            <ProvenOnly proof="auto">
+              <p className="t-small">{t('auto.warnBodyProven')}</p>
+            </ProvenOnly>
             <ul className="t-small t-muted stack" style={{ margin: 0, paddingLeft: 18 }}>
               <li>{t('auto.guard1')}</li>
               <li>{t('auto.guard2')}</li>
@@ -254,7 +260,9 @@ export function Automations() {
             <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }}>
               <li>{t('auto.delivered.how')}</li>
               <li>{t('auto.delivered.once')}</li>
-              <li>{t('auto.delivered.unverified')}</li>
+              <UntilProven proof="auto">
+                <li>{t('auto.delivered.unverified')}</li>
+              </UntilProven>
             </ul>
             {runButtons('DELIVERED', cfg.delivered.enabled)}
           </div>
@@ -267,7 +275,9 @@ export function Automations() {
               <li>{t('auto.replies.how')}</li>
               <li>{t('auto.replies.never')}</li>
               <li>{t('auto.replies.key')}</li>
-              <li>{t('auto.replies.unverified')}</li>
+              <UntilProven proof="auto">
+                <li>{t('auto.replies.unverified')}</li>
+              </UntilProven>
             </ul>
             {runButtons('REPLIES', cfg.replies.enabled)}
           </div>

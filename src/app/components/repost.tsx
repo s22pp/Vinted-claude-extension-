@@ -13,6 +13,7 @@ import { useMoneyField } from './forms';
 import { dueStep } from './markdown';
 import { vintedIdOf } from './vinted-price';
 import { RouteFlag } from './route-flag';
+import { UntilProven } from './verify-flag';
 import { ChooseRepostsModal } from './repost-list';
 
 /** Same key as the background's (vinted-repost.ts); read here without pulling the Vinted write code in. */
@@ -87,7 +88,8 @@ export function RepostButton({ v }: { v: ItemView }) {
         <p className="t-small t-faint">{newPrice !== null ? t('repost.priceNew', { from: money(v.askPrice ?? 0), to: money(newPrice) }) : t('repost.priceSame')}</p>
         <p className="t-small t-faint">{t('repost.budget')}</p>
         <p className="t-small t-faint row" style={{ gap: 6 }}>
-          <RouteFlag kinds={['REPOST', 'DELETE']} /> {t('repost.experimental')}
+          <RouteFlag kinds={['REPOST', 'DELETE']} />
+          <UntilProven proof="repost">{t('repost.experimental')}</UntilProven>
         </p>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>

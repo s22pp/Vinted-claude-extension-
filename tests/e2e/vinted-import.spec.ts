@@ -1550,6 +1550,11 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect.poll(() => context.pages().some((p) => p.url().includes('dashboard.html')), { timeout: 10_000 }).toBe(true);
   await context.pages().find((p) => p.url().includes('dashboard.html'))!.waitForTimeout(1500);
   for (const p of context.pages().filter((x) => x.url().includes('dashboard.html'))) await p.close();
+  // Never seen working on this device yet: the switch says so.
+  const before = await context.newPage();
+  await before.goto(`${base}#/settings`);
+  await expect(before.locator('label', { hasText: 'Repères ERA sur les pages Vinted' })).toContainText('Expérimental');
+  await before.close();
   await sw.evaluate(() =>
     chrome.storage.local.set({
       eraOverlayNiches: [{ brand: 'ralph lauren', category: 'SHIRT', label: 'Ralph Lauren · Chemise', maxVintedPriceCents: 1200, medianSaleCents: 3000, sold: 9, avoid: false }],
@@ -1585,6 +1590,12 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect(page.locator('[data-era-mark]')).toHaveCount(0);
   // Not a single request to Vinted's API for this.
   expect(calls.filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+  // Seen working on this device: the label is gone, the switch stays.
+  const after = await context.newPage();
+  await after.goto(`${base}#/settings`);
+  const row = after.locator('label', { hasText: 'Repères ERA sur les pages Vinted' });
+  await expect(row).toBeVisible();
+  await expect(row).not.toContainText('Expérimental');
 });
 
 test('buy alerts: your niche searched, a listing under your max kept and shown once', async ({ context, base }) => {

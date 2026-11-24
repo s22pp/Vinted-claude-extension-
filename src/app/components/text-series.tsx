@@ -6,9 +6,10 @@ import { type TextField, type TextOp, applyTextOp, textOpProblem } from '@/intel
 import { shieldCheck } from '@/intelligence/listing';
 import type { ItemView } from '@/intelligence/portfolio';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Field, Flag, Input, Select } from '@/ui/components/primitives';
+import { Badge, Button, Field, Input, Select } from '@/ui/components/primitives';
 import { useEra } from '../state';
 import { RouteFlag } from './route-flag';
+import { VerifyFlag } from './verify-flag';
 
 type OpKind = TextOp['kind'];
 type Outcome = { itemId: string; state: 'DONE' | 'UNCONFIRMED' | 'ALREADY' | 'FAILED' | 'SKIPPED'; detail?: string };
@@ -172,7 +173,7 @@ export function TextSeries() {
   return (
     <div className="stack" style={{ gap: 12 }} data-testid="series">
       <p className="t-small t-muted">
-        {t('series.intro')} <Flag kind="EXPERIMENTAL" />
+        {t('series.intro')} <VerifyFlag proof="description" />
       </p>
       <div className="row wrap" style={{ gap: 8 }}>
         <Field label={t('series.field')} htmlFor="series-field">

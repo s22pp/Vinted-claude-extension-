@@ -1,3 +1,4 @@
+import { notePageProof } from '@/data/page-proofs';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { type Mark, OVERLAY_KEY, OVERLAY_ON_KEY, type OverlayNiche, markFor, priceFromText } from '@/intelligence/overlay';
 import { eurText } from '@/domain/money';
@@ -52,6 +53,7 @@ export default defineContentScript({
         b.title = tip(m);
         b.style.cssText = style(m);
         card.appendChild(b);
+        void notePageProof('marks');
       }
       // The item page itself: a chip in the corner, from the page's own product data.
       const itemId = /^\/items\/(\d+)/.exec(location.pathname)?.[1];
