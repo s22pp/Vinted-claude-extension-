@@ -13,7 +13,7 @@ const hhmm = (t: number) => {
  * and the Vinted requests it uses tick up. Read from what the background writes as the round goes (nothing guessed);
  * a finished round stays a quarter of an hour, then the panel's usual summary takes over.
  */
-export function RoundLive() {
+export function RoundLive({ compact = false }: { compact?: boolean }) {
   const { t } = useI18n();
   const [live, setLive] = useState<LiveRound | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -51,7 +51,7 @@ export function RoundLive() {
     return t(`pilot.live.state.${x.state}`) + (x.state === 'DONE' && x.n !== null ? ` · ${x.n}` : '');
   };
   return (
-    <section className="round-live" data-testid="round-live" data-running={running ? 'true' : 'false'} aria-label={t('pilot.live.aria')}>
+    <section className={`round-live${compact ? ' round-live--compact' : ''}`} data-testid="round-live" data-running={running ? 'true' : 'false'} aria-label={t('pilot.live.aria')}>
       <div className="row" style={{ gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <strong className="t-small">{title}</strong>
         <span className="t-small t-faint num" data-testid="round-live-calls">
@@ -65,7 +65,7 @@ export function RoundLive() {
         {ROUND_STEPS.map((s) => {
           const x = live.steps[s];
           return (
-            <li key={s} className="round-live__step" data-step={s} data-state={x.state} aria-label={`${t(`pilot.live.step.${s}`)} : ${stateText(s)}`}>
+            <li key={s} className="round-live__step" data-step={s} data-state={x.state} aria-label={`${t(`pilot.live.step.${s}`)} : ${stateText(s)}`} title={`${t(`pilot.live.step.${s}`)} : ${stateText(s)}`}>
               <span className="round-live__dot" aria-hidden="true">
                 {x.state === 'DONE' ? (x.n !== null ? x.n : '✓') : x.state === 'STOP' ? '!' : x.state === 'SKIP' ? '–' : ''}
               </span>

@@ -367,6 +367,30 @@ test('an order Vinted says needs the seller: first in Today, a checklist, then t
   expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(['https://labels.example/6200.pdf']);
 });;
 
+test('the icon as a remote control: the Pilote’s state and what is left for the seller, each line opening its screen', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  await fakeVinted(context, { loggedIn: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  const popup = await context.newPage();
+  await popup.goto(base.replace('dashboard.html', 'popup.html'));
+  const pilot = popup.getByTestId('glance-pilot');
+  await expect(pilot).toContainText('Désactivé : ERA ne fait rien tout seul');
+  // What is left for the seller: the physical part — here the parcel to pack and drop off.
+  const ship = popup.getByTestId('glance-you').locator('[data-task="toShip"]');
+  await expect(ship).toContainText('1 colis à emballer et déposer');
+  const opened = context.waitForEvent('page');
+  await ship.click();
+  await (await opened).waitForURL(/dashboard\.html#\/parcels$/);
+  // Switched on in Pilote: the icon says when the next round is.
+  await page.goto(`${base}#/automations`);
+  await page.getByTestId('pilot').getByLabel('Activer les tournées automatiques').check();
+  await expect(pilot).toContainText(/Prochaine tournée à \d+ h/);
+  await expect(pilot).toContainText('Actif');
+});
+
 test('label: Vinted limits the requests while ERA looks for it → nothing ordered, everything stops', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true, labelRateLimited: true, extra: [{ id: 104, title: 'Sweat Nike vintage L', price: '25.0', view_count: 10, favourite_count: 2, is_draft: false, is_closed: true, is_hidden: false, photos: [] }], orders: [{ title: 'Sweat Nike vintage L', price: { amount: '25.0' }, date: '2026-09-20', status: 'Envoi à préparer', item_id: 104, conversation_id: 9200, transaction_user_status: 'needs_action' }] });
   const page = await context.newPage();

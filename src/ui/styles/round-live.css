@@ -103,3 +103,23 @@
 :root[data-motion='reduced'] .round-live__step[data-state='RUN'] .round-live__dot {
   animation: none;
 }
+
+/* Compact (the popup, the side panel): the dots in one row, the names in their tooltips. */
+.round-live--compact {
+  padding: 10px 12px;
+  gap: 8px;
+}
+.round-live--compact .round-live__track {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+.round-live--compact .round-live__label {
+  display: none;
+}
+.round-live--compact .round-live__dot {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+

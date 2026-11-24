@@ -296,6 +296,11 @@ pas recopiée ; jamais de photo d'article générée ou retouchée par IA).
 
 - **Messages comptés justement** : un message parti chez un membre reste compté comme envoyé, même si l'offre qui le suit est arrêtée (budget, 429). Une offre acceptée reste comptée même si le remerciement qui suit est arrêté. Le favori est noté « traité » dès l'envoi : jamais un second message.
 
+## L'icône ERA, en télécommande
+
+- Un clic sur l'icône (ou le panneau latéral) montre d'abord le **Pilote** : la prochaine tournée (« à 13 h, dans 2 h 10 »), la tournée en cours en direct, ou « Désactivé » avec de quoi l'activer.
+- Puis **Pour vous** : seulement ce qui vous reste — le physique (colis à emballer et déposer, colis à récupérer, articles à photographier et mettre en ligne) et les messages d'acheteurs qu'ERA vous a laissés. Chaque ligne ouvre l'écran où c'est fait. Compté depuis les données d'ERA : aucune requête à Vinted.
+
 ## La tournée en direct (Pilote)
 
 - Pendant une tournée (lancée, simulée ou programmée, le panneau Pilote ouvert), chaque étape s'allume quand ERA la fait : Actualiser, Offres, Favoris, Colis livrés, Messages, Baisse, Republier, Bordereaux, Alertes, Mesures, Sauvegarde. Ce qu'elle a fait apparaît dès qu'elle est finie, les requêtes Vinted utilisées montent en direct ; les étapes coupées ou sans objet s'estompent, un arrêt est dit avec sa raison.

@@ -1355,6 +1355,22 @@ export const fr = {
     },
     generic: 'Une erreur est survenue',
   },
+  glance: {
+    pilot: 'Pilote',
+    next: 'Prochaine tournée à {hour} h',
+    off: 'Désactivé : ERA ne fait rien tout seul',
+    on: 'Actif',
+    turnOn: 'Activer',
+    you: 'Pour vous',
+    youHint: 'le reste, ERA s’en charge',
+    nothing: 'Rien à faire de votre côté pour l’instant.',
+    task: {
+      toShip: '{n} colis à emballer et déposer',
+      toCollect: '{n} colis à récupérer au point relais',
+      toList: '{n} article(s) à photographier et mettre en ligne',
+      waiting: '{n} message(s) d’acheteur à valider',
+    },
+  },
   popup: {
     pulse: '30 derniers jours',
     pulseLine: '{amount} · {sales}',

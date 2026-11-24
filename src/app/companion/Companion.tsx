@@ -22,6 +22,7 @@ import { OfferCalculator } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
 import { useEra } from '../state';
+import { Glance } from './glance';
 
 type Ctx =
   | { status: 'loading' }
@@ -145,6 +146,8 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
           </button>
         </span>
       </header>
+
+      {era.mode === 'real' && <Glance />}
 
       {era.mode !== 'empty' && <Pulse />}
 
