@@ -6,6 +6,7 @@ import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from 
 import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, TextEditResult } from '@/data/adapters/vinted/protocol';
 import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
+import { repostNow } from '@/data/repost-now';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
@@ -717,6 +718,18 @@ export default defineBackground(() => {
           }),
           unavailable,
         );
+      }
+      case 'era:repost:now': {
+        // The seller's « Republier maintenant »: the whole repost at once, Pilote on or off; followed in the session store.
+        if (vintedBusy()) {
+          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
+          return undefined;
+        }
+        const run = repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites)));
+        reposting = run.finally(() => {
+          reposting = null;
+        });
+        return answer(reposting, unavailable);
       }
       case 'era:draft:create':
       case 'era:repost:create':

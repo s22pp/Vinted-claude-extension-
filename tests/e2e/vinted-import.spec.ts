@@ -3,7 +3,7 @@ import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtu
 import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -186,7 +186,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
         : json({
             item: {
               id: 110,
-              title: 'Chemise Pierre Cardin L',
+              title: opts.item110Title ?? 'Chemise Pierre Cardin L',
               description: 'Chemise Pierre Cardin, coton, très bon état.',
               price: { amount: '25.0', currency_code: 'EUR' },
               brand_id: 5575,
@@ -941,7 +941,7 @@ test('repost without loss: a draft copy with the same photos, the old listing de
     });
   };
   await open();
-  await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+  await page.getByRole('button', { name: 'Copier en brouillon' }).click();
   await page.getByRole('button', { name: 'Créer la copie en brouillon' }).click();
   await expect(page.getByText('Copie créée en brouillon')).toBeVisible({ timeout: 40_000 });
   // Same fields, Vinted's own ids, and the photos sent again — nothing published, nothing deleted.
@@ -995,7 +995,7 @@ for (const locked of [false, true])
     await page.evaluate(() => {
       window.open = () => null;
     });
-    await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+    await page.getByRole('button', { name: 'Copier en brouillon' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('Prix de la copie')).toHaveValue(/^25(,00)?$/);
     await expect(dialog).toContainText('La copie garde le prix actuel');
@@ -1023,7 +1023,7 @@ test('a listing with favourites: the loss said in numbers — nothing can be sen
   const calls = await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await importThenOpen(page, base);
-  await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+  await page.getByRole('button', { name: 'Copier en brouillon' }).click();
   await expect(page.getByTestId('repost-loss')).toContainText('Cette annonce a 9 favori(s) et 212 vues');
   const create = page.getByRole('button', { name: 'Créer la copie en brouillon' });
   await expect(create).toBeDisabled();
@@ -2196,7 +2196,7 @@ test('the seller’s « À republier » list: any article, its favourites accept
   // Chosen in Stock: what it loses is said, and nothing is added until the seller accepts it.
   await page.goto(`${base}#/stock`);
   await page.getByRole('checkbox', { name: 'Chemise Pierre Cardin L' }).check();
-  await page.getByRole('button', { name: 'Republier (1)' }).click();
+  await page.getByRole('button', { name: 'Ajouter à la prochaine tournée' }).click();
   const modal = page.getByTestId('choose-reposts');
   await expect(modal.getByTestId('repost-loss')).toContainText('À perdre : 3 favori(s) sur 1 annonce(s), et 18 vues au total.');
   const add = modal.getByRole('button', { name: 'Ajouter à « À republier » (1)' });
@@ -2220,6 +2220,49 @@ test('the seller’s « À republier » list: any article, its favourites accept
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
   await expect(page.getByTestId('chosen-reposts')).toHaveCount(0);
+});
+
+test('« Republier maintenant »: a jacket published yesterday with 9 favourites, the Pilote off — reposted at once, followed in three steps', async ({ context, base }) => {
+  test.setTimeout(300_000);
+  // Test fixture only: a jacket put online yesterday, 57 views and 9 favourites — the seller's own choice to repost it.
+  const yesterday = Math.floor((Date.now() - 26 * 3_600_000) / 1000);
+  const jacket = { id: 110, title: 'Veste Baracuta G9 M', price: '65.0', view_count: 57, favourite_count: 9, brand_title: 'Baracuta', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [jacket], shirtFavourites: 9, item110Title: 'Veste Baracuta G9 M' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The Pilote is off: nothing waits for a round.
+  await page.goto(`${base}#/automations`);
+  await expect(page.getByTestId('pilot').getByLabel('Activer les tournées automatiques')).not.toBeChecked();
+  // Chosen in Stock: one article, « Republier maintenant ».
+  await page.goto(`${base}#/stock`);
+  await page.getByRole('checkbox', { name: 'Veste Baracuta G9 M' }).check();
+  const bar = page.getByRole('region', { name: '1 article sélectionné' });
+  await expect(bar.getByRole('button', { name: 'Ajouter à la prochaine tournée' })).toBeVisible();
+  await bar.getByRole('button', { name: 'Republier maintenant' }).click();
+  // The cost first, in the seller's numbers.
+  const dialog = page.getByTestId('repost-now');
+  await expect(page.getByRole('heading', { name: 'Republier cette annonce ?' })).toBeVisible();
+  await expect(dialog).toContainText('Taille M / Publiée hier');
+  await expect(dialog.getByTestId('repost-now-cost')).toContainText('Les compteurs de l’ancienne annonce repartiront de zéro.');
+  await expect(dialog.getByTestId('repost-now-cost')).toContainText('57');
+  await expect(dialog.getByTestId('repost-now-cost')).toContainText('9');
+  const before = calls.length;
+  await dialog.getByRole('button', { name: 'Confirmer la republication' }).click();
+  // Three steps, live; then « Republié », with the new listing's link.
+  await expect(page.getByRole('heading', { name: 'Republication en cours' })).toBeVisible();
+  await expect(dialog.locator('li[data-step="publish"]')).toBeVisible();
+  await expect(dialog.getByTestId('repost-now-done')).toBeVisible({ timeout: 240_000 });
+  await expect(dialog.locator('li[data-step="done"]')).toHaveAttribute('data-status', 'done');
+  await expect(dialog.getByRole('button', { name: 'Ouvrir la nouvelle annonce' })).toBeVisible();
+  // The copy (same photos sent again, the draft), published from its page, read back, then the old listing deleted.
+  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
+  expect(calls.state.published555).toBe(true);
+  expect(calls.state.draft).toMatchObject({ title: 'Veste Baracuta G9 M' });
+  // Still off: the gesture did not need it, and did not switch it on.
+  await page.goto(`${base}#/automations`);
+  await expect(page.getByTestId('pilot').getByLabel('Activer les tournées automatiques')).not.toBeChecked();
 });
 
 test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {

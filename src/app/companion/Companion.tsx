@@ -19,6 +19,8 @@ import { Thumb } from '@/ui/components/Thumb';
 import { RecoChip, RecommendationCard, StatusBadge } from '../components/domain';
 import { PRIO, priorityHref, usePriorityTitle } from '../components/priorities';
 import { OfferCalculator } from '../components/tools';
+import { RepostNowButton } from '../components/repost-now';
+import { publishedAgo } from '@/intelligence/repost-now';
 import { VintedImportButton } from '../components/vinted-import';
 import { marketAdapter } from '../market-run';
 import { useEra } from '../state';
@@ -168,7 +170,7 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
       ) : (
         <section className="card" style={{ padding: 14 }} aria-label={t('popup.context')}>
           <div className="t-caption" style={{ marginBottom: 8 }}>
-            {t('popup.context')}
+            {own ? t('popup.ownOpen') : t('popup.context')}
           </div>
           {ctx.status === 'loading' ? (
             <span className="skeleton" style={{ display: 'block', height: 44 }} />
@@ -239,8 +241,14 @@ function OwnItem({ itemId, mode }: { itemId: string; mode: 'popup' | 'panel' }) 
   const era = useEra();
   const intel = era.intelById.get(itemId);
   if (!intel) return null;
+  const cur = intel.view.current;
+  const when = cur?.listedAtKnown === false ? null : publishedAgo(cur?.listedAt ?? null, era.now);
+  const favs = cur?.favorites ?? null;
+  const meta = [when, favs !== null ? t('popup.ownFavs', { n: favs }) : null].filter(Boolean).join(' / ');
   return (
     <div className="stack-3">
+      {meta && <div className="t-small t-muted">{meta}</div>}
+      {era.mode === 'real' && <RepostNowButton v={intel.view} block />}
       <div className="row-between">
         <span className="row" style={{ gap: 6 }}>
           <Badge tone="violet">{t('popup.inStock')}</Badge>

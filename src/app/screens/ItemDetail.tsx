@@ -19,6 +19,7 @@ import { Replies } from '../components/replies';
 import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
 import { RepostButton, RepostPending } from '../components/repost';
+import { RepostNowButton } from '../components/repost-now';
 import { MarkdownPlanView } from '../components/markdown';
 import { RelistButton } from '../components/relist';
 import { SearchTrace } from '../components/search-trace';
@@ -176,6 +177,7 @@ export function ItemDetail({ id }: { id: string }) {
             {item.status === 'HIDDEN' ? t('item.show') : t('item.hide')}
           </Button>
         )}
+        {era.mode === 'real' && <RepostNowButton v={v} />}
         {era.mode === 'real' && <RepostButton v={v} />}
         {v.inStock && (
           <Button icon="check" onClick={() => setSaleOpen(true)}>

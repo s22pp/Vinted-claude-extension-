@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ChooseRepostsModal } from '../components/repost-list';
+import { RepostNowButton } from '../components/repost-now';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
@@ -58,6 +59,8 @@ export function Stock({ route }: { route: Route }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [chooseOpen, setChooseOpen] = useState(false);
+  // « Republier maintenant » applies to one article at a time.
+  const selectedOne = selected.size === 1 ? era.views.find((v) => selected.has(v.item.id)) : undefined;
   const addOpen = route.query.get('add') === '1';
   // The stock as a stadium (three.js, loaded only here).
   const view3d = route.query.get('view') === '3d';
@@ -304,18 +307,20 @@ export function Stock({ route }: { route: Route }) {
           )}
           {selected.size > 0 && (
             <div className="bulkbar" role="region" aria-label={t('stock.selected', { n: selected.size })}>
-              <span className="t-small num">{t('stock.selected', { n: selected.size })}</span>
-              <Button size="sm" variant="primary" icon="market" loading={bulkBusy} onClick={bulkAnalyze}>
+              <span className="bulkbar__count num">{t('stock.selected', { n: selected.size })}</span>
+              <Button size="sm" icon="market" loading={bulkBusy} onClick={bulkAnalyze}>
                 {t('stock.bulkAnalyze')}
               </Button>
-              {era.mode === 'real' && (
-                <Button size="sm" icon="repost" onClick={() => setChooseOpen(true)}>
-                  {t('repostList.bulk', { n: selected.size })}
-                </Button>
-              )}
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
                 {t('stock.bulkClear')}
               </Button>
+              <span className="bulkbar__spacer" />
+              {era.mode === 'real' && (
+                <Button size="sm" variant="ghost" onClick={() => setChooseOpen(true)}>
+                  {t('repostList.bulk', { n: selected.size })}
+                </Button>
+              )}
+              {era.mode === 'real' && selectedOne && <RepostNowButton v={selectedOne} size="sm" />}
             </div>
           )}
           <ChooseRepostsModal views={era.views.filter((v) => selected.has(v.item.id))} open={chooseOpen} onClose={() => setChooseOpen(false)} onDone={() => setSelected(new Set())} />

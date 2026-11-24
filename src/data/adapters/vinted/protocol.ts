@@ -100,6 +100,7 @@ export type EraMessage =
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
   | { type: 'era:repost:create'; itemId: string; priceCents?: number; acceptFavourites?: number }
   | { type: 'era:repost:finish'; itemId: string }
+  | { type: 'era:repost:now'; itemId: string; acceptFavourites: number }
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
   | { type: 'era:budget:report'; status: number }
