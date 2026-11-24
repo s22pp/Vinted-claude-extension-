@@ -242,7 +242,7 @@ export function MetricValue({ metric, sign }: { metric: MoneyMetric; sign?: bool
       </span>
     );
   }
-  return <span>{money(metric.value, { sign })}</span>;
+  return <span className="num">{money(metric.value, { sign })}</span>;
 }
 
 export function MetricFootPartial({ metric }: { metric: MoneyMetric }) {

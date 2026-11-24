@@ -514,3 +514,349 @@ textarea.input {
   flex-basis: 100%;
   margin-top: 6px;
 }
+
+/* ══ ERA Maison · Lumière (0.55) ══════════════════════════════════════════════════════════════════════════════
+   The same house, lit: a deeper night (#080C12), surfaces that catch the light from above (a brighter top edge, a
+   soft drop shadow), secondary text one step brighter. The action in glacier white; meaning in three tones —
+   emerald (profit, online, live), golden amber (gentle alerts), coral (missed, critical). The serif is kept for the
+   logo and the page titles only; every figure is set in JetBrains Mono with tabular digits. */
+:root {
+  --bg: #080c12;
+  --bg-elev: #0f151f;
+  --surface: #0f151f;
+  --surface-solid: #0f151f;
+  --surface-hover: #161f2c;
+  --surface-sunken: #0b1119;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --edge-light: rgba(255, 255, 255, 0.12);
+  --text-2: #8e9bae;
+  /* ≥ 4.5:1 on every surface and on the selected tint. */
+  --text-3: #8794a7;
+  --chart-axis: #8794a7;
+  --accent: #e2e8f0;
+  --on-accent: #080c12;
+  --brand-grad: #e2e8f0;
+  --focus: #e2e8f0;
+  --emerald: #34d399;
+  --emerald-soft: rgba(52, 211, 153, 0.13);
+  --g-emerald: #34d399;
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.13);
+  --g-amber: #fbbf24;
+  --coral: #f87171;
+  --coral-soft: rgba(248, 113, 113, 0.13);
+  --g-coral: #f87171;
+  --violet-soft: rgba(226, 232, 240, 0.1);
+  --chart-1: #e2e8f0;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 32px -16px rgba(0, 0, 0, 0.7);
+}
+:root[data-theme='light'] {
+  --edge-light: rgba(255, 255, 255, 0.9);
+  --emerald: #047857;
+  --emerald-soft: rgba(4, 120, 87, 0.1);
+  --g-emerald: #047857;
+  --amber: #92400e;
+  --amber-soft: rgba(146, 64, 14, 0.1);
+  --g-amber: #92400e;
+  --coral: #b91c1c;
+  --coral-soft: rgba(185, 28, 28, 0.09);
+  --g-coral: #b91c1c;
+  --chart-2: #047857;
+  --chart-3: #92400e;
+  --shadow-card: 0 1px 2px rgba(16, 25, 35, 0.05), 0 10px 28px -14px rgba(16, 25, 35, 0.16);
+}
+
+/* Surfaces catch the light: brighter top edge, quiet sides, a soft shadow. */
+.card,
+.modal,
+.bulkbar {
+  border-color: var(--border);
+  border-top-color: var(--edge-light);
+  box-shadow: var(--shadow-card);
+}
+
+/* The serif: logo and page titles only. */
+.t-h2,
+.modal .t-h2,
+.for-you__big,
+.glance-top__big,
+.look__price,
+.repost-now__figures b,
+.repost-now__item strong {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+}
+.t-h2 {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.modal .t-h2 {
+  font-size: 22px;
+}
+.for-you__big {
+  font-weight: 650;
+  font-size: clamp(28px, 2.8vw, 40px);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.glance-top__big {
+  font-weight: 650;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+.repost-now__item strong {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+/* Every figure in the monospaced face, tabular: prices, margins, hours, durations, counts, percentages. */
+.num,
+.metric__value,
+.cockpit__v,
+.cockpit__hero,
+.repost-now__figures b,
+.look__price,
+.day-rail b,
+.nav__count,
+.chip__n,
+.dt td.is-num,
+.kbd,
+kbd {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.repost-now__figures b {
+  font-weight: 600;
+  font-size: 32px;
+}
+.look__price {
+  font-size: 16px;
+  font-weight: 600;
+}
+[data-testid='day-timeline'] svg text {
+  font-family: var(--font-mono);
+}
+
+/* ── The article page: one primary, one secondary, the rest under « Actions » ──────────────────────────────── */
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.more-menu {
+  position: relative;
+}
+.more-menu__list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 250px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  border-top-color: var(--edge-light);
+  box-shadow: var(--shadow-3);
+}
+.more-menu__list[hidden] {
+  display: none;
+}
+.more-menu__list .btn {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  height: 36px;
+  font-weight: 500;
+}
+.more-menu__list .btn:hover,
+.more-menu__list .btn:focus-visible {
+  background: var(--surface-hover);
+}
+
+/* ── The article's figures as one bar: label above, figure in mono, a rule between each ─────────────────── */
+.item-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.item-kpis > .metric {
+  padding: 14px 18px 12px;
+  border-left: 1px solid var(--border);
+}
+.item-kpis > .metric:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.item-kpis .metric__value {
+  font-size: 22px;
+  font-weight: 600;
+}
+.item-kpis .metric__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ── « La journée d'ERA »: rounds in their tones, now lit, a legend that filters ────────────────────────────── */
+.day-rail [data-status='DONE'] .day-rail__dot {
+  background: var(--emerald);
+  border-color: var(--emerald);
+}
+.day-rail [data-status='MISSED'] .day-rail__dot {
+  border-color: var(--coral);
+  border-style: dashed;
+  background: transparent;
+}
+.day-rail [data-status='MISSED'] .day-rail__label {
+  color: var(--coral);
+}
+.day-rail [data-status='LATE'] .day-rail__dot {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+}
+.day-rail [data-status='LATE'] .day-rail__label,
+.day-rail [data-status='STOPPED'] .day-rail__label {
+  color: var(--amber);
+}
+.day-now__line,
+.day-now__dot {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 70%, transparent));
+}
+.day-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.day-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: opacity 160ms var(--ease-house), background 160ms var(--ease-house);
+}
+.day-legend__item:hover {
+  background: var(--surface-hover);
+}
+.day-legend__item[aria-pressed='false'] {
+  opacity: 0.55;
+}
+.day-legend__item[aria-pressed='false'] .day-legend__dot {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+.day-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* ── La Vitrine, lit: a studio sweep when there is no photo, price and margin set into the foot of the frame ─ */
+.look__frame {
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  border-top-color: var(--edge-light);
+}
+.look__glyph {
+  /* A photo studio's backdrop: light from above, falling off to the floor — said as a placeholder, not a photo. */
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--text) 9%, transparent) 0%, transparent 62%),
+    linear-gradient(to bottom, transparent 70%, color-mix(in srgb, var(--bg) 55%, transparent) 100%),
+    var(--surface-sunken);
+}
+.look__glyph::after {
+  /* The piece's shadow on the studio floor. */
+  content: '';
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 24%;
+  height: 7%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.45), transparent);
+}
+.look__glyph .thumb {
+  width: 40%;
+  margin-top: -10%;
+}
+.look__glyph .thumb svg path {
+  fill: color-mix(in srgb, var(--text) 13%, transparent);
+  stroke: color-mix(in srgb, var(--text) 42%, transparent);
+  stroke-width: 1.1;
+}
+.look__tags {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.look__tag {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border: 1px solid var(--border-strong);
+  backdrop-filter: blur(10px) saturate(160%);
+}
+.look__tag--price {
+  font-size: 13px;
+}
+.look__tag.is-pos {
+  color: var(--emerald);
+  border-color: color-mix(in srgb, var(--emerald) 40%, transparent);
+}
+.look__tag.is-neg {
+  color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 40%, transparent);
+}
+.look__tag.is-unknown {
+  color: var(--text-2);
+}
+.look__row {
+  justify-content: flex-start;
+}
+.look__facts {
+  text-align: left;
+}
+/* « Non renseigné », « Inconnu »: words, even where a figure would stand. */
+.unknown__label,
+.metric__value .unknown__label {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+/* A dialog's buttons go to the next line rather than out of the dialog. */
+.modal .row {
+  flex-wrap: wrap;
+}

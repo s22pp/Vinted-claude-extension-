@@ -20,6 +20,7 @@ import { ListingAssistant, OfferCalculator } from '../components/tools';
 import { PriceOnVintedButton, vintedIdOf } from '../components/vinted-price';
 import { RepostButton, RepostPending } from '../components/repost';
 import { RepostNowButton } from '../components/repost-now';
+import { MoreMenu } from '@/ui/components/more-menu';
 import { MarkdownPlanView } from '../components/markdown';
 import { RelistButton } from '../components/relist';
 import { SearchTrace } from '../components/search-trace';
@@ -138,52 +139,14 @@ export function ItemDetail({ id }: { id: string }) {
         </div>
       </header>
 
-      <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
+      <div className="item-actions">
         {v.inStock && v.current && (
           <Button variant="primary" icon="market" loading={stage !== null && stage !== 'READY'} onClick={runAnalysis}>
             {analysis ? t('item.reanalyze') : t('item.analyze')}
           </Button>
         )}
-        <Button icon="edit" onClick={() => setEditCost((x) => !x)} aria-expanded={editCost}>
-          {t('item.editCost')}
-        </Button>
-        {(item.status === 'LISTED' || item.status === 'RESERVED') && (
-          <Button
-            icon={item.status === 'RESERVED' ? 'x' : 'clock'}
-            onClick={async () => {
-              await repo.setReserved(id, item.status !== 'RESERVED');
-              toast('success', t('item.reservedSaved'), t(`status.${item.status === 'RESERVED' ? 'LISTED' : 'RESERVED'}`));
-            }}
-          >
-            {item.status === 'RESERVED' ? t('item.unmarkReserved') : t('item.markReserved')}
-          </Button>
-        )}
-        {era.mode === 'real' && vintedIdOf(v) && (item.status === 'LISTED' || item.status === 'HIDDEN') && (
-          <Button
-            icon={item.status === 'HIDDEN' ? 'eye' : 'lock'}
-            loading={hiding}
-            onClick={async () => {
-              setHiding(true);
-              try {
-                const hidden = item.status !== 'HIDDEN';
-                const r = (await browser.runtime.sendMessage({ type: 'era:item:hide', platformListingId: vintedIdOf(v)!, itemId: id, hidden } satisfies EraMessage)) as HideResult;
-                if (!r.ok) errorToast(r);
-                else toast('success', t(hidden ? 'item.hiddenDone' : 'item.shownDone'), t(r.verified ? 'item.hideVerified' : 'item.hideUnverified'));
-              } finally {
-                setHiding(false);
-              }
-            }}
-          >
-            {item.status === 'HIDDEN' ? t('item.show') : t('item.hide')}
-          </Button>
-        )}
-        {era.mode === 'real' && <RepostNowButton v={v} />}
-        {era.mode === 'real' && <RepostButton v={v} />}
-        {v.inStock && (
-          <Button icon="check" onClick={() => setSaleOpen(true)}>
-            {t('item.recordSale')}
-          </Button>
-        )}
+        {/* The second gesture: « Republier maintenant » (ERA Maison: one primary, one secondary, the rest under « Actions »). */}
+        {era.mode === 'real' && <RepostNowButton v={v} variant="default" />}
         {item.status === 'SOLD' && (
           <Button variant={v.sale ? 'default' : 'primary'} icon={v.sale ? 'edit' : 'sales'} onClick={() => setSaleOpen(true)}>
             {v.sale ? t('item.editSale') : t('item.completeSale')}
@@ -194,7 +157,48 @@ export function ItemDetail({ id }: { id: string }) {
             {t('dossier.open')}
           </Button>
         )}
-        {!item.isDemo && <RelistButton v={v} />}
+        <MoreMenu label={t('item.more')}>
+          <Button icon="edit" onClick={() => setEditCost((x) => !x)} aria-expanded={editCost}>
+            {t('item.editCost')}
+          </Button>
+          {(item.status === 'LISTED' || item.status === 'RESERVED') && (
+            <Button
+              icon={item.status === 'RESERVED' ? 'x' : 'clock'}
+              onClick={async () => {
+                await repo.setReserved(id, item.status !== 'RESERVED');
+                toast('success', t('item.reservedSaved'), t(`status.${item.status === 'RESERVED' ? 'LISTED' : 'RESERVED'}`));
+              }}
+            >
+              {item.status === 'RESERVED' ? t('item.unmarkReserved') : t('item.markReserved')}
+            </Button>
+          )}
+          {era.mode === 'real' && vintedIdOf(v) && (item.status === 'LISTED' || item.status === 'HIDDEN') && (
+            <Button
+              icon={item.status === 'HIDDEN' ? 'eye' : 'lock'}
+              loading={hiding}
+              onClick={async () => {
+                setHiding(true);
+                try {
+                  const hidden = item.status !== 'HIDDEN';
+                  const r = (await browser.runtime.sendMessage({ type: 'era:item:hide', platformListingId: vintedIdOf(v)!, itemId: id, hidden } satisfies EraMessage)) as HideResult;
+                  if (!r.ok) errorToast(r);
+                  else toast('success', t(hidden ? 'item.hiddenDone' : 'item.shownDone'), t(r.verified ? 'item.hideVerified' : 'item.hideUnverified'));
+                } finally {
+                  setHiding(false);
+                }
+              }}
+            >
+              {item.status === 'HIDDEN' ? t('item.show') : t('item.hide')}
+            </Button>
+          )}
+          {era.mode === 'real' && <RepostButton v={v} />}
+          {v.inStock && (
+            <Button icon="check" onClick={() => setSaleOpen(true)}>
+              {t('item.recordSale')}
+            </Button>
+          )}
+          {!item.isDemo && <RelistButton v={v} />}
+        </MoreMenu>
         {stage && <Stages stages={['COLLECTING', 'COMPARING', 'READY'] as Stage[]} current={stage} labelKey={(s) => t(`market.stage${s}`)} />}
       </div>
       {editCost && (

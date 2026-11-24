@@ -11,7 +11,7 @@ const X0 = 24;
 const X1 = 976;
 const TRACK = 96;
 const px = (x: number) => X0 + x * (X1 - X0);
-const GROUP_COLOR: Record<EventGroup, string> = { MESSAGE: 'var(--violet)', OFFER: 'var(--cobalt)', PRICE: 'var(--amber)', LABEL: 'var(--cyan)', PUBLISH: 'var(--emerald)', LISTING: 'var(--text-3)' };
+const GROUP_COLOR: Record<EventGroup, string> = { MESSAGE: 'var(--accent)', OFFER: 'var(--cobalt)', PRICE: 'var(--amber)', LABEL: 'var(--cyan)', PUBLISH: 'var(--emerald)', LISTING: 'var(--text-3)' };
 
 /** Events close in time stack up (a column per ~20 min), never on top of each other. */
 function stacked(events: readonly DayEvent[]): (DayEvent & { level: number })[] {
@@ -40,13 +40,18 @@ export function DayTimeline() {
   const rows = useLiveQuery(() => db.autoLog.where('at').aboveOrEqual(day0).toArray(), [day0]);
   const pilot = useLiveQuery(async () => pilotConfig(await repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null)), []);
   const [open, setOpen] = useState<number | null>(null);
+  // The legend filters: a kind of action switched off leaves the rail (the counts stay said).
+  const [off, setOff] = useState<ReadonlySet<EventGroup>>(new Set());
   if (!rows || !pilot) return null;
   const { events, rounds, nowX } = dayTimeline(rows, pilot.enabled ? pilot.hours : [], now);
   const next = rounds.find((r) => r.status === 'NEXT');
+  // Each round's state in its tone: done in emerald, interrupted or late in amber, missed in coral, the next one lit.
   const roundFill = (r: DayRound) =>
-    r.status === 'DONE' ? 'var(--accent)' : r.status === 'STOPPED' ? 'var(--amber)' : r.status === 'MISSED' ? 'var(--surface-sunken)' : 'var(--surface)';
-  const roundStroke = (r: DayRound) => (r.status === 'NEXT' ? 'var(--cobalt)' : r.status === 'LATE' ? 'var(--amber)' : r.status === 'LATER' ? 'var(--border-strong)' : 'transparent');
-  const shown = stacked(events);
+    r.status === 'DONE' ? 'var(--emerald)' : r.status === 'STOPPED' ? 'var(--amber)' : r.status === 'MISSED' ? 'var(--surface-sunken)' : 'var(--surface)';
+  const roundStroke = (r: DayRound) =>
+    r.status === 'NEXT' ? 'var(--accent)' : r.status === 'LATE' ? 'var(--amber)' : r.status === 'MISSED' ? 'var(--coral)' : r.status === 'LATER' ? 'var(--border-strong)' : 'transparent';
+  const shown = stacked(events.filter((e) => !off.has(e.group)));
+  const nowLabel = new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ');
   return (
     <Card className="span-12" title={t('day.title')} hint={pilot.enabled ? (next ? t('day.next', { hour: next.hour, when: untilText(day0 + next.hour * 3_600_000, now) }) : t('day.noMore')) : t('day.off')} icon="clock" tone="cobalt">
       <div className="stack-3" data-testid="day-timeline">
@@ -88,7 +93,7 @@ export function DayTimeline() {
           {/* The rounds already run drawn last: on top of a scheduled one at nearly the same time. */}
           {[...rounds].sort((a, b) => Number(a.status === 'DONE' || a.status === 'STOPPED') - Number(b.status === 'DONE' || b.status === 'STOPPED')).map((r) => (
             <g key={r.hour} style={{ cursor: 'pointer' }} onClick={() => setOpen(open === r.hour ? null : r.hour)}>
-              <circle cx={px(r.x)} cy={TRACK} r={13} fill={roundFill(r)} stroke={roundStroke(r)} strokeWidth={2.5} strokeDasharray={r.status === 'LATE' ? '4 3' : undefined} />
+              <circle cx={px(r.x)} cy={TRACK} r={13} fill={roundFill(r)} stroke={roundStroke(r)} strokeWidth={2.5} strokeDasharray={r.status === 'LATE' || r.status === 'MISSED' ? '4 3' : undefined} />
               <text x={px(r.x)} y={TRACK + 4.5} textAnchor="middle" fontSize={12} fontWeight={700} fill={r.status === 'DONE' || r.status === 'STOPPED' ? 'var(--text-inverse)' : 'var(--text-2)'}>
                 {r.status === 'DONE' ? '✓' : r.status === 'STOPPED' ? '!' : r.hour}
               </text>
@@ -96,17 +101,34 @@ export function DayTimeline() {
             </g>
           ))}
           <g className="day-now">
-            <line x1={px(nowX)} x2={px(nowX)} y1={TRACK - 40} y2={TRACK + 12} stroke="var(--cobalt)" strokeWidth={1.5} strokeDasharray="3 3" />
-            <circle cx={px(nowX)} cy={TRACK} r={5} fill="var(--cobalt)" />
+            {/* Now: a lit vertical line, said in words above it. */}
+            <line x1={px(nowX)} x2={px(nowX)} y1={TRACK - 58} y2={TRACK + 12} stroke="var(--accent)" strokeWidth={2} className="day-now__line" />
+            <circle cx={px(nowX)} cy={TRACK} r={5.5} fill="var(--accent)" className="day-now__dot" />
+            <text x={px(nowX)} y={TRACK - 66} textAnchor={nowX > 0.88 ? 'end' : nowX < 0.12 ? 'start' : 'middle'} fontSize={12.5} fontWeight={600} fill="var(--text)">
+              {t('day.now', { time: nowLabel })}
+            </text>
           </g>
         </svg>
-        <div className="row wrap t-small t-faint" style={{ gap: 14 }} aria-label={t('day.legend')}>
+        <div className="day-legend" role="group" aria-label={t('day.legend')}>
           {(['MESSAGE', 'OFFER', 'PRICE', 'LABEL', 'PUBLISH'] as EventGroup[]).map((g) => (
-              <span key={g} style={{ whiteSpace: 'nowrap' }}>
-                <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 8, background: GROUP_COLOR[g], marginRight: 4 }} />
-                {t(`day.g.${g}`)} · {events.filter((e) => e.group === g).length}
-              </span>
-            ))}
+            <button
+              key={g}
+              type="button"
+              className="day-legend__item"
+              aria-pressed={!off.has(g)}
+              onClick={() =>
+                setOff((cur) => {
+                  const next = new Set(cur);
+                  if (next.has(g)) next.delete(g);
+                  else next.add(g);
+                  return next;
+                })
+              }
+            >
+              <span aria-hidden="true" className="day-legend__dot" style={{ background: GROUP_COLOR[g] }} />
+              {t(`day.g.${g}`)} <span className="num">{events.filter((e) => e.group === g).length}</span>
+            </button>
+          ))}
         </div>
         {open !== null && (
           <ul className="t-small stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }} data-testid="day-round-detail">

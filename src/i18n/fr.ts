@@ -247,6 +247,7 @@ export const fr = {
   },
   item: {
     hide: 'Masquer sur Vinted',
+    more: 'Actions',
     show: 'Réafficher sur Vinted',
     hiddenDone: 'Annonce masquée',
     shownDone: 'Annonce réaffichée',
@@ -1090,6 +1091,7 @@ export const fr = {
     nothingYet: 'Pas encore passée.',
     r: { DONE: 'Terminée', STOPPED: 'Interrompue', LATE: 'En retard (Chrome fermé ?)', NEXT: 'Prochaine', LATER: 'Prévue', MISSED: 'Manquée' },
     rail: 'Les tournées du Pilote aujourd’hui',
+    now: 'Maintenant · {time}',
     details: 'Le détail heure par heure',
     g: { MESSAGE: 'Messages', OFFER: 'Offres', PRICE: 'Prix', LABEL: 'Bordereaux', PUBLISH: 'Publications', LISTING: 'Annonces' },
     task: {
@@ -1122,6 +1124,9 @@ export const fr = {
     aria: 'Vitrine : {n} articles, photo d’abord',
     favs: '{n} favoris',
     favs_one: '1 favori',
+    margin: 'Marge {amount}',
+    marginNone: 'Marge ?',
+    marginUnknown: 'Coût d’achat inconnu : la marge n’est pas calculée',
     view: 'Affichage',
     list: 'Liste',
     grid: 'Vitrine',

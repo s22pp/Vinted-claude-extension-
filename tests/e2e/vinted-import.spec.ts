@@ -915,11 +915,13 @@ test('hide a listing on Vinted from its page: sent, read back, status follows', 
   const calls = await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await importThenOpen(page, base);
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await page.getByRole('button', { name: 'Masquer sur Vinted' }).click();
   await expect(page.getByText('Annonce masquée')).toBeVisible({ timeout: 40_000 });
   await expect(page.getByText('Confirmé par Vinted.')).toBeVisible();
   const put = calls.find((c) => c.method === 'PUT')!;
   expect([put.path, JSON.parse(put.body!)]).toEqual(['/api/v2/items/101/is_hidden', { is_hidden: true }]);
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Réafficher sur Vinted' })).toBeVisible();
 });
 
@@ -942,6 +944,7 @@ test('repost without loss: a draft copy with the same photos, the old listing de
     });
   };
   await open();
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await page.getByRole('button', { name: 'Copier en brouillon' }).click();
   await page.getByRole('button', { name: 'Créer la copie en brouillon' }).click();
   await expect(page.getByText('Copie créée en brouillon')).toBeVisible({ timeout: 40_000 });
@@ -996,6 +999,7 @@ for (const locked of [false, true])
     await page.evaluate(() => {
       window.open = () => null;
     });
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
     await page.getByRole('button', { name: 'Copier en brouillon' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('Prix de la copie')).toHaveValue(/^25(,00)?$/);
@@ -1024,6 +1028,7 @@ test('a listing with favourites: the loss said in numbers — nothing can be sen
   const calls = await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await importThenOpen(page, base);
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await page.getByRole('button', { name: 'Copier en brouillon' }).click();
   await expect(page.getByTestId('repost-loss')).toContainText('Cette annonce a 9 favori(s) et 212 vues');
   const create = page.getByRole('button', { name: 'Créer la copie en brouillon' });
@@ -1125,6 +1130,7 @@ test('relist a similar article: from a sale to a workshop sheet to a Vinted draf
   await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/stock?filter=all`);
   await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Carhartt Detroit M' }).click();
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await page.getByRole('button', { name: 'Remettre en vente un similaire' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Taille (étiquette)').fill('L');
