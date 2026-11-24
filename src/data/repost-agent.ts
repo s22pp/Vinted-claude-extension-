@@ -1,8 +1,10 @@
 import { buildItemViews } from '@/intelligence/portfolio';
+import { CHOSEN_REPOSTS_KEY, type ChosenBlock, type ChosenRepost, planChosen, removeChosen } from '@/intelligence/repost-choice';
 import { REPOST_DAYS, repostQueue } from '@/intelligence/repost-plan';
 import { errorInfo } from './adapters/marketplace';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { db } from './db';
+import { repo } from './repo';
 import { duePriceCuts } from './price-cuts';
 import { finishRepost, pendingReposts, repostAsDraft } from './vinted-repost';
 import { publishDraft } from './vinted-draft';
@@ -15,7 +17,14 @@ export interface AutoRepostResult {
   /** Why the round's repost stopped half-way (taken up again next round), and the stopping code if any. */
   failed: string | null;
   code: string | null;
+  /** The repost (done or simulated) came from the seller's own « À republier » list. */
+  chosen?: boolean;
+  /** On the seller's list but not reposted now, and why (reserved or hidden; more favourites than they accepted). */
+  blocked?: { title: string; why: ChosenBlock; favourites?: number }[];
 }
+
+/** Done: off the seller's « À republier » list (its new listing must never be picked again). */
+const offList = async (itemId: string) => repo.setSetting(CHOSEN_REPOSTS_KEY, removeChosen(await repo.getSetting<ChosenRepost[]>(CHOSEN_REPOSTS_KEY, []), itemId));
 
 const STOPPING = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
 
@@ -26,7 +35,9 @@ const STOPPING = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_V
  * published and read back, then the old listing is deleted — only once the copy is live and the old one still has no
  * favourite, both checked on Vinted. Any doubt stops it: the next round takes it up where it stopped.
  */
-export async function autoRepost(dryRun: boolean, skipItemIds: ReadonlySet<string> = new Set(), now = Date.now()): Promise<AutoRepostResult> {
+export async function autoRepost(dryRun: boolean, skipItemIds: ReadonlySet<string> = new Set(), now = Date.now(), opts: { auto?: boolean } = {}): Promise<AutoRepostResult> {
+  // ERA's own picks only when the seller switched them on (« Republier les annonces qui stagnent »); the seller's own list always.
+  const useAuto = opts.auto !== false;
   const out: AutoRepostResult = { done: null, would: null, failed: null, code: null };
   const fail = (title: string, code: string, detail?: string) => {
     out.failed = `${title} : ${code}${detail ? ` · ${detail}` : ''}`;
@@ -60,9 +71,57 @@ export async function autoRepost(dryRun: boolean, skipItemIds: ReadonlySet<strin
     }
     const fin = await finishRepost(waiting.itemId, now);
     if (!fin.ok) return fail(waiting.title, fin.code, fin.detail);
+    await offList(waiting.itemId);
     out.done = { title: waiting.title, from: null, to: null, deleted: fin.verified };
     return out;
   }
+
+  // The seller's own list first, in their order: any article they chose, with the favourites they accepted to lose.
+  const chosenList = await repo.getSetting<ChosenRepost[]>(CHOSEN_REPOSTS_KEY, []);
+  let pickChosen: { itemId: string; title: string; accept: number } | null = null;
+  if (chosenList.length) {
+    const plan = planChosen(
+      chosenList,
+      views
+        .filter((v) => v.inStock || v.item.status === 'SOLD')
+        .map((v) => ({
+          itemId: v.item.id,
+          title: v.current?.title ?? v.item.title,
+          status: v.item.status,
+          live: v.current?.status === 'ACTIVE',
+          favourites: v.current?.favorites ?? null,
+          views: v.current?.views ?? null,
+          pending: pending.some((p) => p.itemId === v.item.id),
+        })),
+      skipItemIds,
+    );
+    if (plan.drop.length && !dryRun) await repo.setSetting(CHOSEN_REPOSTS_KEY, chosenList.filter((c) => !plan.drop.includes(c.itemId)));
+    if (plan.blocked.length) out.blocked = plan.blocked.map((b) => ({ title: b.title, why: b.why, ...(b.favourites !== undefined ? { favourites: b.favourites } : {}) }));
+    if (plan.pick) pickChosen = { itemId: plan.pick.itemId, title: plan.pick.title, accept: plan.pick.acceptFavourites };
+  }
+  if (pickChosen) {
+    const cut = cuts.get(pickChosen.itemId) ?? null;
+    out.chosen = true;
+    if (dryRun) {
+      out.would = { title: pickChosen.title, to: cut?.toCents ?? null };
+      return out;
+    }
+    try {
+      const copy = await repostAsDraft(pickChosen.itemId, now, cut?.toCents ?? null, pickChosen.accept);
+      if (!copy.ok) return fail(pickChosen.title, copy.code, copy.detail);
+      const pub = await publishDraft(copy.draftId, pickChosen.itemId, pickChosen.title);
+      if (!pub.ok) return fail(pickChosen.title, pub.code, `copie ${copy.draftId} faite, publication à reprendre · ${pub.detail ?? ''}`);
+      const fin = await finishRepost(pickChosen.itemId, Date.now());
+      if (!fin.ok) return fail(pickChosen.title, fin.code, `copie ${copy.draftId} en ligne, ancienne annonce gardée pour l’instant · ${fin.detail ?? ''}`);
+      await offList(pickChosen.itemId);
+      out.done = { title: pickChosen.title, from: cut?.fromCents ?? null, to: cut?.toCents ?? null, deleted: fin.verified };
+      return out;
+    } catch (e) {
+      const { code, detail } = errorInfo(e);
+      return fail(pickChosen.title, code, detail ?? undefined);
+    }
+  }
+  if (!useAuto) return out;
 
   const queue = repostQueue(
     views

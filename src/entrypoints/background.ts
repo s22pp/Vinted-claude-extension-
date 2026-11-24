@@ -14,6 +14,7 @@ import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, l
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
 import { type ParcelStage, arrivedAtPickup, parcelStage } from '@/intelligence/parcels';
 import { PILOT_KEY, type PilotConfig, type PilotRound, nextPilotAt, pilotConfig, pilotNotice, runLateRound } from '@/intelligence/pilot';
+import { CHOSEN_REPOSTS_KEY } from '@/intelligence/repost-choice';
 import { LIVE_ROUND_KEY, type RoundStep, finishRound, startRound, stepBegin, stepEnd } from '@/intelligence/round-live';
 import { weeklyDue } from '@/intelligence/weekly';
 import { WEEKLY_LAST_KEY, runWeeklyTask } from '@/data/weekly-task';
@@ -434,17 +435,21 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
       }
       // One repost of a listing that stalls (30 days, no favourite): copy, publish, then the old one deleted — each step
       // verified on Vinted; half-way, it is taken up next round. Never the article whose price was just cut.
-      if ((pilot.reposts || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {
+      // The seller's own « À republier » list runs whether or not ERA's own picks are switched on.
+      const chosenN = (await repo.getSetting<unknown[]>(CHOSEN_REPOSTS_KEY, [])).length;
+      if ((pilot.reposts || dryRun || chosenN > 0) && !r.stopped?.match(STOP) && (await allowed())) {
         // The seller's writes stay ≥ 20 s apart: after a price cut, the repost waits its turn.
         await begin('repost');
         if (r.priceCut && !dryRun) await new Promise((res) => setTimeout(res, 21_000));
         const skip = new Set<string>(r.priceCutItemId ? [r.priceCutItemId] : []);
-        const run = autoRepost(dryRun, skip);
+        const run = autoRepost(dryRun, skip, Date.now(), { auto: pilot.reposts || dryRun });
         if (!dryRun) reposting = run;
         try {
           const a = await run;
-          if (a.done) r.repost = { title: a.done.title, to: a.done.to, deleted: a.done.deleted };
-          else if (a.would) r.repost = { title: a.would.title, to: a.would.to, deleted: false };
+          if (a.done) r.repost = { title: a.done.title, to: a.done.to, deleted: a.done.deleted, ...(a.chosen ? { chosen: true } : {}) };
+          else if (a.would) r.repost = { title: a.would.title, to: a.would.to, deleted: false, ...(a.chosen ? { chosen: true } : {}) };
+          const again = (a.blocked ?? []).filter((b) => b.why === 'MORE_FAVOURITES');
+          if (again.length) r.repostReconfirm = again.map((b) => ({ title: b.title, favourites: b.favourites ?? 0 }));
           if (a.failed) {
             if (isStopping(a.code)) r.stopped = a.failed;
             else r.repostFailed = a.failed;
@@ -721,7 +726,7 @@ export default defineBackground(() => {
           return undefined;
         }
         if (msg.type === 'era:draft:create') return answer(createVintedDraft(msg.input), unavailable);
-        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId, Date.now(), msg.priceCents ?? null) : finishRepost(msg.itemId)).finally(() => {
+        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId, Date.now(), msg.priceCents ?? null, msg.acceptFavourites ?? 0) : finishRepost(msg.itemId)).finally(() => {
           reposting = null;
         });
         return answer(reposting, unavailable);

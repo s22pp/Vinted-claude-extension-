@@ -3,7 +3,7 @@ import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtu
 import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
@@ -196,7 +196,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
               status_id: 2,
               package_size_id: 1,
               color_ids: [9],
-              favourite_count: 0,
+              favourite_count: opts.shirtFavourites ?? 0,
               is_draft: false,
               photos: [{ id: 1, full_size_url: 'https://images1.vinted.net/t/110/1.jpeg' }, { id: 2, full_size_url: 'https://images1.vinted.net/t/110/2.jpeg' }],
             },
@@ -1016,11 +1016,16 @@ for (const locked of [false, true])
     expect(calls.some((c) => c.path.endsWith('/delete'))).toBe(false);
   });
 
-test('repost refused when the listing has favourites: no button action, nothing sent', async ({ context, base }) => {
+test('a listing with favourites: the loss said in numbers — nothing can be sent until the seller accepts it', async ({ context, base }) => {
   const calls = await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await importThenOpen(page, base);
-  await expect(page.getByRole('button', { name: 'Republier sans rien perdre' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Republier sans rien perdre' }).click();
+  await expect(page.getByTestId('repost-loss')).toContainText('Cette annonce a 9 favori(s) et 212 vues');
+  const create = page.getByRole('button', { name: 'Créer la copie en brouillon' });
+  await expect(create).toBeDisabled();
+  await page.getByLabel(/J’accepte de perdre ces 9 favori\(s\)/).check();
+  await expect(create).toBeEnabled();
   expect(calls.every((c) => c.method === 'GET')).toBe(true);
 });
 
@@ -2174,6 +2179,44 @@ test('autopilot repost: a listing stalling 30 days with no favourite — copied 
   // The copy (photos sent again, the draft), published from its page, then the old listing deleted — nothing else written.
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
+});
+
+test('the seller’s « À republier » list: any article, its favourites accepted in numbers — reposted by the round, ERA’s own reposts off', async ({ context, base }) => {
+  test.setTimeout(300_000);
+  // Test fixture only: a listing with 3 favourites (ERA would never repost it by itself).
+  const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 3, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: 1756000000 } }] };
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [shirt], shirtFavourites: 3 });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // Chosen in Stock: what it loses is said, and nothing is added until the seller accepts it.
+  await page.goto(`${base}#/stock`);
+  await page.getByRole('checkbox', { name: 'Chemise Pierre Cardin L' }).check();
+  await page.getByRole('button', { name: 'Republier (1)' }).click();
+  const modal = page.getByTestId('choose-reposts');
+  await expect(modal.getByTestId('repost-loss')).toContainText('À perdre : 3 favori(s) sur 1 annonce(s), et 18 vues au total.');
+  const add = modal.getByRole('button', { name: 'Ajouter à « À republier » (1)' });
+  await expect(add).toBeDisabled();
+  await modal.getByLabel(/J’accepte de perdre ces 3 favori\(s\)/).check();
+  await add.click();
+  await expect(page.getByText('1 article(s) dans « À republier »')).toBeVisible();
+  // On the Pilote screen: next in line, with what the seller accepted.
+  await page.goto(`${base}#/automations`);
+  const list = page.getByTestId('chosen-reposts');
+  await expect(list.locator('li[data-state="next"]')).toContainText('Chemise Pierre Cardin L');
+  await expect(list).toContainText('3 favori(s) acceptés');
+  const pilot = page.getByTestId('pilot');
+  await pilot.getByLabel('Activer les tournées automatiques').check();
+  await expect(pilot.getByLabel(/Republier les annonces qui stagnent/)).not.toBeChecked();
+  const before = calls.length;
+  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
+  const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
+  await expect(row).toContainText('republié (votre liste) : Chemise Pierre Cardin L', { timeout: 240_000 });
+  // The copy (photos, draft), published from its page, the old listing deleted — nothing else written; off the list.
+  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
+  expect(calls.state.published555).toBe(true);
+  await expect(page.getByTestId('chosen-reposts')).toHaveCount(0);
 });
 
 test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {

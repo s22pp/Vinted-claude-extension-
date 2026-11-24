@@ -111,7 +111,9 @@ export interface PilotRound {
   /** « Simuler une tournée »: everything read, nothing sent — the counts are what ERA would do. */
   simulated?: boolean;
   /** The repost of the round (one at most): done, the one a simulation would make, or why it stopped half-way. */
-  repost?: { title: string; to: number | null; deleted: boolean } | null;
+  repost?: { title: string; to: number | null; deleted: boolean; chosen?: boolean } | null;
+  /** On the seller's « À republier » list with more favourites than they accepted: to confirm again. */
+  repostReconfirm?: { title: string; favourites: number }[];
   repostFailed?: string;
   /** The article whose price the round cut (never reposted in the same round). */
   priceCutItemId?: string;
@@ -144,7 +146,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.replies && plural(r.replies, 'réponse à un acheteur', 'réponses aux acheteurs'),
     r.delivered && plural(r.delivered, 'remerciement (colis livré)', 'remerciements (colis livrés)'),
     r.priceCut && `${r.simulated ? 'baisserait le prix' : 'prix baissé'} : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,
-    r.repost && `${r.simulated ? 'republierait' : 'republié'} : ${r.repost.title}${r.repost.to !== null ? ` à ${eurText(r.repost.to, 2)}` : ''}${!r.simulated && !r.repost.deleted ? ' (ancienne annonce : suppression envoyée, non confirmée)' : ''}`,
+    r.repost && `${r.simulated ? 'republierait' : 'republié'}${r.repost.chosen ? ' (votre liste)' : ''} : ${r.repost.title}${r.repost.to !== null ? ` à ${eurText(r.repost.to, 2)}` : ''}${!r.simulated && !r.repost.deleted ? ' (ancienne annonce : suppression envoyée, non confirmée)' : ''}`,
     r.deals && plural(r.deals, 'affaire repérée', 'affaires repérées'),
     r.labels && `${plural(r.labels, 'bordereau prêt', 'bordereaux prêts')} (Téléchargements/ERA-bordereaux)`,
     r.backup && 'sauvegarde faite',
@@ -158,6 +160,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
     r.toCollect && `${plural(r.toCollect, 'colis', 'colis')} à retirer`,
     r.priceCutFailed && `baisse de prix non faite (${r.priceCutFailed}) : réessayée à la tournée suivante`,
     r.repostFailed && `republication non finie (${r.repostFailed}) : reprise à la tournée suivante`,
+    ...(r.repostReconfirm ?? []).map((x) => `à reconfirmer : ${x.title} a maintenant ${x.favourites} favori(s), plus que ce que vous aviez accepté (liste « À republier »)`),
     !r.priceCutsAuto && r.priceCuts && `${plural(r.priceCuts, 'baisse de prix prévue', 'baisses de prix prévues')} (Stock → « Baisse à faire », un clic chacune)`,
     r.toList && `${plural(r.toList, 'article', 'articles')} à mettre en ligne (Atelier)`,
   ].filter((x): x is string => !!x);

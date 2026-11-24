@@ -336,6 +336,13 @@ messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, border
 physique : photos, emballage, dépôt, impression des bordereaux. Publier une nouveauté se fait depuis l'Atelier (vos photos
 choisies dans ERA, puis « Publier sur Vinted ») ; ERA ne republie pas seul.
 
+### Votre liste « À republier » (EXPERIMENTAL)
+
+- **N'importe quel article, à votre choix** : cochez-en autant que vous voulez dans Stock → « Republier (n) », ou depuis la fiche d'un article. ERA dit ce qui sera perdu, en chiffres (« À perdre : 12 favori(s) sur 2 annonce(s), et 230 vues ») ; s'il y a des favoris, rien n'est ajouté tant que vous ne l'avez pas accepté.
+- Le Pilote republie votre liste **une annonce par tournée**, dans votre ordre, avant ses propres choix — même si « Republier les annonces qui stagnent » est désactivé. Une republication enchaîne copie, photos, publication et suppression : jamais deux d'affilée (c'est l'enchaînement qui a fait bloquer le compte). Ajoutez des tournées dans le Pilote pour aller plus vite.
+- Votre accord vaut pour ce nombre de favoris : s'il en arrive d'autres d'ici la republication, l'article reste dans la liste, « à reconfirmer », et rien n'est fait. Vendu ou retiré : il sort de la liste. Réservé ou masqué : il attend.
+- Depuis la fiche d'un article, la republication immédiate (copie en brouillon) est aussi possible avec des favoris, après la même acceptation.
+
 ### Republications automatiques (EXPERIMENTAL)
 
 Case « Republier les annonces qui stagnent » (carte Pilote, désactivée par défaut, cochée par « Tout confier à ERA ») :

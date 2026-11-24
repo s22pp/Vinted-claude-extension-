@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { ChooseRepostsModal } from '../components/repost-list';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
@@ -56,6 +57,7 @@ export function Stock({ route }: { route: Route }) {
   const [showCols, setShowCols] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [chooseOpen, setChooseOpen] = useState(false);
   const addOpen = route.query.get('add') === '1';
   // The stock as a stadium (three.js, loaded only here).
   const view3d = route.query.get('view') === '3d';
@@ -306,11 +308,17 @@ export function Stock({ route }: { route: Route }) {
               <Button size="sm" variant="primary" icon="market" loading={bulkBusy} onClick={bulkAnalyze}>
                 {t('stock.bulkAnalyze')}
               </Button>
+              {era.mode === 'real' && (
+                <Button size="sm" icon="repost" onClick={() => setChooseOpen(true)}>
+                  {t('repostList.bulk', { n: selected.size })}
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
                 {t('stock.bulkClear')}
               </Button>
             </div>
           )}
+          <ChooseRepostsModal views={era.views.filter((v) => selected.has(v.item.id))} open={chooseOpen} onClose={() => setChooseOpen(false)} onDone={() => setSelected(new Set())} />
           <p className="t-small t-faint" style={{ marginTop: 10 }}>
             * {t('data.inferred')} — {t('stock.inferredAge')}
           </p>

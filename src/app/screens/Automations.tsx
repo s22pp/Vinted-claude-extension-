@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ScheduleCost } from '../components/schedule-cost';
 import { OutcomesCard } from '../components/outcomes-card';
+import { ChosenRepostsCard } from '../components/repost-list';
 import { PendingReplies } from '../components/pending-replies';
 import { PilotCard } from '../components/pilot-card';
 import { useEffect, useState } from 'react';
@@ -146,6 +147,7 @@ export function Automations() {
         </Card>
 
         <PilotCard auto={cfg} onAll={all} onAgent={agent} />
+        <ChosenRepostsCard />
         <PendingReplies />
         <OutcomesCard />
 

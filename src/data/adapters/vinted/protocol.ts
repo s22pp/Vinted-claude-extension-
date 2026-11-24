@@ -98,7 +98,7 @@ export type EraMessage =
   | { type: 'era:details:read'; ids: string[] }
   | { type: 'era:item:hide'; platformListingId: string; itemId: string; hidden: boolean }
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
-  | { type: 'era:repost:create'; itemId: string; priceCents?: number }
+  | { type: 'era:repost:create'; itemId: string; priceCents?: number; acceptFavourites?: number }
   | { type: 'era:repost:finish'; itemId: string }
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
@@ -224,6 +224,8 @@ export interface PendingRepost {
   at: number;
   /** The old listing's deletion was sent but not confirmed by the read-back. */
   deleteSentAt?: number;
+  /** Favourites the seller accepted to lose for this repost (their own choice); absent: none. */
+  acceptFavourites?: number;
 }
 
 /** Listings read in full (description, photos) for the quality check. */

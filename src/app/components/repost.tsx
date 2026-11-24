@@ -13,6 +13,7 @@ import { useMoneyField } from './forms';
 import { dueStep } from './markdown';
 import { vintedIdOf } from './vinted-price';
 import { RouteFlag } from './route-flag';
+import { ChooseRepostsModal } from './repost-list';
 
 /** Same key as the background's (vinted-repost.ts); read here without pulling the Vinted write code in. */
 const PENDING_KEY = 'pendingReposts';
@@ -25,7 +26,11 @@ export function usePendingRepost(itemId: string): PendingRepost | null {
 
 const openOnVinted = (id: string) => window.open(`https://www.vinted.fr/items/${id}/edit`, '_blank', 'noopener');
 
-/** "Republier sans rien perdre": a draft copy, same fields and photos; refused when the listing has favourites. */
+/**
+ * "Republier sans rien perdre": a draft copy, same fields and photos. A listing with favourites is the seller's call: the
+ * loss is said in numbers and accepted once (for that many favourites at most), then the copy is made now — or the
+ * article goes on the « À republier » list, for the Pilote's next rounds.
+ */
 export function RepostButton({ v }: { v: ItemView }) {
   const { t, money } = useI18n();
   const toast = useToast();
@@ -33,6 +38,8 @@ export function RepostButton({ v }: { v: ItemView }) {
   const era = useEra();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [toList, setToList] = useState(false);
   const price = useMoneyField(v.askPrice);
   const pending = usePendingRepost(v.item.id);
   const favs = v.current?.favorites ?? null;
@@ -40,14 +47,26 @@ export function RepostButton({ v }: { v: ItemView }) {
   // The planned price cut due now, offered for the copy (never applied without the seller choosing it).
   const cut = dueStep(era.markdown.get(v.item.id));
   const newPrice = price.cents !== null && price.cents !== v.askPrice ? price.cents : null;
-  const blocked = favs !== null && favs > 0;
+  const hasFavs = favs !== null && favs > 0;
   return (
     <>
-      <Button icon="repost" disabled={blocked} title={blocked ? t('repost.hasFavs', { n: favs }) : undefined} onClick={() => setOpen(true)}>
+      <Button icon="repost" title={hasFavs ? t('repost.hasFavs', { n: favs }) : undefined} onClick={() => setOpen(true)}>
         {t('repost.button')}
       </Button>
+      <ChooseRepostsModal views={[v]} open={toList} onClose={() => setToList(false)} />
       <Modal open={open} onClose={() => !busy && setOpen(false)} title={t('repost.title')}>
         <p className="t-small t-muted">{v.item.title}</p>
+        {hasFavs && (
+          <div className="stack" style={{ gap: 8, padding: 12, borderRadius: 12, border: '1px solid var(--amber)', background: 'var(--amber-soft)' }} data-testid="repost-loss">
+            <p className="t-small" style={{ margin: 0 }}>
+              {t('repost.loss', { favs: favs ?? 0, views: v.current?.views ?? 0 })}
+            </p>
+            <label className="row t-small" style={{ gap: 8, alignItems: 'flex-start' }}>
+              <input type="checkbox" className="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} style={{ marginTop: 2 }} />
+              <span>{t('repostList.accept', { favs: favs ?? 0 })}</span>
+            </label>
+          </div>
+        )}
         <p className="t-small">{t('repost.intro')}</p>
         <ol className="t-small stack" style={{ margin: 0, paddingLeft: 18 }}>
           <li>{t('repost.step1')}</li>
@@ -75,14 +94,25 @@ export function RepostButton({ v }: { v: ItemView }) {
             {t('common.cancel')}
           </Button>
           <Button
+            variant="ghost"
+            icon="repost"
+            disabled={busy}
+            onClick={() => {
+              setOpen(false);
+              setToList(true);
+            }}
+          >
+            {t('repost.toList')}
+          </Button>
+          <Button
             variant="primary"
             icon="check"
             loading={busy}
-            disabled={price.invalid}
+            disabled={price.invalid || (hasFavs && !accepted)}
             onClick={async () => {
               setBusy(true);
               try {
-                const r = (await browser.runtime.sendMessage({ type: 'era:repost:create', itemId: v.item.id, ...(newPrice !== null ? { priceCents: newPrice } : {}) } satisfies EraMessage)) as RepostResult;
+                const r = (await browser.runtime.sendMessage({ type: 'era:repost:create', itemId: v.item.id, ...(newPrice !== null ? { priceCents: newPrice } : {}), ...(hasFavs ? { acceptFavourites: favs ?? 0 } : {}) } satisfies EraMessage)) as RepostResult;
                 if (!r.ok) {
                   errorToast(r);
                   return;

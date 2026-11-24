@@ -14,7 +14,8 @@ import { eurText } from '@/domain/money';
 
 /**
  * Repost WITHOUT losing anything, in two steps, each from one click of the seller. EXPERIMENTAL.
- *  1. `repostAsDraft`: the listing is read on Vinted, refused if it has favourites (they would be lost), and copied
+ *  1. `repostAsDraft`: the listing is read on Vinted, refused if it has favourites (they would be lost) — unless the
+ *     seller chose it knowing that, for that many favourites at most (`acceptFavourites`) — and copied
  *     into a DRAFT with the same fields and the same photos (uploaded again). Nothing is published or deleted:
  *     the seller checks the draft and publishes it on Vinted.
  *  2. `finishRepost`: once the copy is live on Vinted, and the old listing still has 0 favourites, the old one is
@@ -89,7 +90,9 @@ async function copyPhoto(url: string, index: number, tempUuid: string, tabId: nu
  * Step 1 — the draft copy. The original listing is not touched. `newPrice` (cents): the copy's price, when the seller
  * chose another one (a planned price cut); the draft is read back with it.
  */
-export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: number | null = null): Promise<RepostResult> {
+export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: number | null = null, acceptFavourites = 0): Promise<RepostResult> {
+  const accept = Math.max(0, Math.floor(acceptFavourites));
+  const lost = (n: number) => (accept > 0 ? `${n} favori(s) maintenant, ${accept} accepté(s) : à reconfirmer` : `${n} favori(s) : une republication les perdrait`);
   const item = await db.items.get(itemId);
   const title = item?.title ?? itemId;
   try {
@@ -99,14 +102,14 @@ export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: 
     if ((await pendingReposts(now)).some((p) => p.itemId === itemId)) throw new MarketplaceError('NOT_APPLIED', 'une copie attend déjà d’être publiée pour cet article');
     const old = await liveVintedListing(itemId);
     if (!old) throw new MarketplaceError('NOT_APPLIED', 'aucune annonce Vinted en ligne pour cet article');
-    if (old.favorites !== null && old.favorites > 0) throw new MarketplaceError('NOT_APPLIED', `${old.favorites} favori(s) : une republication les perdrait`);
+    if (old.favorites !== null && old.favorites > accept) throw new MarketplaceError('NOT_APPLIED', lost(old.favorites));
 
     const adapter = new VintedTabAdapter();
     const src = repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${old.platformListingId}`));
     if (!src) throw new MarketplaceError('UNAVAILABLE', 'annonce illisible sur Vinted');
     const favs = favouritesOf(src.favorites, old, now);
     if (favs === null) throw new MarketplaceError('NOT_APPLIED', 'favoris non confirmés : importez depuis Vinted puis réessayez');
-    if (favs > 0) throw new MarketplaceError('NOT_APPLIED', `${favs} favori(s) : une republication les perdrait`);
+    if (favs > accept) throw new MarketplaceError('NOT_APPLIED', lost(favs));
     if (src.photoUrls.length === 0) throw new MarketplaceError('NOT_APPLIED', 'aucune photo lisible sur l’annonce');
     const photos = src.photoUrls.slice(0, MAX_PHOTOS);
     // Everything or nothing: never start a copy the read budget cannot finish.
@@ -135,18 +138,18 @@ export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: 
     try {
       back = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
     } catch (e) {
-      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
+      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now, ...(accept > 0 ? { acceptFavourites: accept } : {}) }]);
       const { code, detail } = errorInfo(e);
       throw new MarketplaceError(code, `copie en brouillon ${draftId} créée sur Vinted, relecture impossible (${detail ?? code}) : vérifiez-la sur Vinted avant de la publier`);
     }
     if (typeof back.title === 'string' && back.title.trim() !== src.title.trim()) {
       // It exists all the same: kept waiting (never made twice on a retry; « Abandonner » on the card lets it go).
-      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
+      await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now, ...(accept > 0 ? { acceptFavourites: accept } : {}) }]);
       throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu avec un autre titre : vérifiez-le ou supprimez-le sur Vinted`);
     }
     const photosBack = Array.isArray(back.photos) ? back.photos.length : null;
     const priceBack = priceCents(back.price);
-    await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now }]);
+    await savePending([...(await pendingReposts(now)).filter((p) => p.itemId !== itemId), { itemId, draftId, oldListingId: old.id, oldPlatformListingId: old.platformListingId!, title: src.title, at: now, ...(accept > 0 ? { acceptFavourites: accept } : {}) }]);
     // A new price asked and another one read back: the copy exists (kept waiting), its price is to be fixed on Vinted.
     if (price !== null && priceBack !== null && priceBack !== price)
       throw new MarketplaceError('NOT_APPLIED', `brouillon ${draftId} relu à ${eurText(priceBack, 2)} au lieu de ${eurText(price, 2)} : corrigez le prix sur Vinted avant de publier`);
@@ -160,7 +163,7 @@ export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: 
   }
 }
 
-/** Step 2 — the old listing goes, only once the copy is live and the old one still has no favourite. */
+/** Step 2 — the old listing goes, only once the copy is live and the old one has no more favourites than the seller accepted. */
 export async function finishRepost(itemId: string, now = Date.now()): Promise<RepostFinishResult> {
   const pending = (await pendingReposts(now)).find((p) => p.itemId === itemId);
   const title = pending?.title ?? (await db.items.get(itemId))?.title ?? itemId;
@@ -176,7 +179,7 @@ export async function finishRepost(itemId: string, now = Date.now()): Promise<Re
     const src = repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${pending.oldPlatformListingId}`));
     const favs = favouritesOf(src?.favorites ?? null, old, now);
     if (favs === null) throw new MarketplaceError('NOT_APPLIED', 'favoris de l’ancienne annonce non confirmés : importez depuis Vinted puis réessayez');
-    if (favs > 0) throw new MarketplaceError('NOT_APPLIED', `l’ancienne annonce a reçu ${favs} favori(s) : elle est gardée`);
+    if (favs > (pending.acceptFavourites ?? 0)) throw new MarketplaceError('NOT_APPLIED', `l’ancienne annonce a reçu ${favs} favori(s)${pending.acceptFavourites ? `, ${pending.acceptFavourites} accepté(s)` : ''} : elle est gardée`);
 
     await vintedWrite('POST', `/api/v2/items/${pending.oldPlatformListingId}/delete`, {});
     // Read back: gone means Vinted no longer returns it.
