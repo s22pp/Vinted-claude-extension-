@@ -174,6 +174,8 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
   };
 
   const publish = async () => {
+    // Where the seller is now: if they move to another screen while this is saved, they stay there.
+    const from = location.hash;
     await repo.markPrepPublished(item.id, chosen);
     // The asking price becomes a forecast, confronted with the real sale later.
     if (intel?.analysis && intel.pricing?.status === 'OK' && chosen) {
@@ -182,7 +184,7 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
     }
     toast('success', t('workshop.published'), t('workshop.publishedHint', { ref: skuOf(item.id) }));
     const next = era.workshop.toList.find((x) => x.item.id !== item.id);
-    go(next ? `workshop/${next.item.id}` : 'workshop');
+    if (location.hash === from) go(next ? `workshop/${next.item.id}` : 'workshop');
   };
 
   return (
