@@ -32,7 +32,7 @@
 
   /* Tones kept for meaning only (status, kinds), muted to sit on night blue. */
   --violet: var(--bleu-poudre);
-  --violet-soft: rgba(184, 216, 242, 0.14);
+  --violet-soft: rgba(184, 216, 242, 0.1);
   --cobalt: #8fb8de;
   --cobalt-soft: rgba(143, 184, 222, 0.14);
   --emerald: #9ed3b0;
@@ -55,14 +55,15 @@
 
   --text: var(--papier);
   --text-2: #a9b6c3;
-  --text-3: #7d8a97;
+  /* ≥ 4.5:1 (WCAG AA) on every surface, the hover one and the selected tint included. */
+  --text-3: #97a4b0;
   --text-inverse: var(--nuit);
 
   --chart-1: var(--bleu-poudre);
   --chart-2: var(--coquelicot);
   --chart-3: #f0c98a;
   --chart-grid: rgba(244, 242, 236, 0.07);
-  --chart-axis: #7d8a97;
+  --chart-axis: #97a4b0;
   --focus: var(--bleu-poudre);
 
   --font-serif: var(--font-sans);
@@ -112,14 +113,15 @@
 
   --text: var(--nuit);
   --text-2: #4a5563;
-  --text-3: #66707c;
+  /* ≥ 4.5:1 (WCAG AA) on every surface, the sunken one included. */
+  --text-3: #58626e;
   --text-inverse: #ffffff;
 
   --chart-1: #24445e;
   --chart-2: #b63d2a;
   --chart-3: #8c5a0f;
   --chart-grid: rgba(16, 25, 35, 0.07);
-  --chart-axis: #66707c;
+  --chart-axis: #58626e;
   --focus: #24445e;
 
   --shadow-1: 0 1px 2px rgba(16, 25, 35, 0.06);
