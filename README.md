@@ -220,7 +220,7 @@ Outils → Automatisations → **Pilote automatique** (désactivé par défaut, 
 - **Session** : 60 requêtes par session, 12 par minute, inchangé. Une session finit avec Chrome **ou après 3 h sans aucune requête à Vinted** : chaque tournée de la journée repart avec son budget, même Chrome resté ouvert des jours (avant, les tournées s'arrêtaient dès le 2ᵉ jour). Après un blocage (403/429), rien ne repart seul : il faut redémarrer Chrome.
 - **Budget visible dans Pilote** : une jauge montre les requêtes restantes sur 60, la réserve de 20 que les tournées automatiques ne touchent jamais, les 5 dernières gardées pour un clic urgent, et l'heure à laquelle le budget redevient plein. Une tournée **lancée à la main** (« Lancer » ou « Simuler ») peut descendre jusqu'à 5 ; une tournée programmée s'arrête à 20. Une tournée arrêtée faute de budget dit à quelle heure elle pourra reprendre, et si elle avait déjà envoyé quelque chose, ERA l'annonce clairement (« Arrêté après 1 envoi(s) : ceux-là sont partis, rien d'autre »).
 - Mêmes garde-fous que tout le reste : budget de la session et sa réserve pour vos clics, 12 s entre deux envois, 40 par jour, **arrêt immédiat** sur un blocage (403/429) ou une déconnexion, journal de chaque action.
-- **Jamais seul** : déposer les colis, prendre les photos, publier, baisser un prix ou republier — un clic chacun. La notification de fin de tournée vous les rappelle.
+- **Jamais seul** : déposer les colis, prendre les photos, choisir les photos d'une nouveauté (le physique). Baisser un prix ou republier ne se font seuls que si vous l'avez activé (cases du Pilote) ou choisi (liste « À republier ») ; publier une nouveauté reste un clic dans l'Atelier. La notification de fin de tournée vous rappelle ce qui reste.
 - Aucune tâche dans le cloud ne touche votre compte : tout se passe dans votre navigateur, avec votre session. Une tâche Claude dans le cloud ne peut pas se connecter à votre Vinted sans votre mot de passe, depuis un serveur : exactement l'activité automatisée qui a fait bloquer le compte.
 
 ### Tâche de la semaine
@@ -334,7 +334,7 @@ s'affiche à l'écran et au journal (« ERA ferait : … »). Le bon premier ess
 Carte Pilote automatique → **Tout confier à ERA** : en un clic, offres, favoris, remerciement colis livré, réponses aux
 messages, **baisses de prix prévues**, tournées à 9 h · 13 h · 21 h, bordereaux et tâche de la semaine. Pour vous, le
 physique : photos, emballage, dépôt, impression des bordereaux. Publier une nouveauté se fait depuis l'Atelier (vos photos
-choisies dans ERA, puis « Publier sur Vinted ») ; ERA ne republie pas seul.
+choisies dans ERA, puis « Publier sur Vinted »). Republications : votre liste « À republier », puis les annonces qui stagnent sans favori (une par tournée).
 
 ### Onglet Vinted lent : une seconde chance, jamais un double envoi
 
