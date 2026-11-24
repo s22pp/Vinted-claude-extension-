@@ -1118,6 +1118,14 @@ export const fr = {
     },
     cta: { ship: 'Voir les colis', collect: 'Voir les colis', photos: 'Ouvrir l’Atelier', messages: 'Voir les messages' },
   },
+  vitrine: {
+    aria: 'Vitrine : {n} articles, photo d’abord',
+    favs: '{n} favoris',
+    favs_one: '1 favori',
+    view: 'Affichage',
+    list: 'Liste',
+    grid: 'Vitrine',
+  },
   stock3d: {
     toggle: 'Boutique 3D',
     loading: 'Mise en place des portants…',

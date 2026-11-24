@@ -725,7 +725,9 @@ export default defineBackground(() => {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        const run = repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites)));
+        // After an import, the purchases are still being read in a Vinted tab that closes once done: the repost waits for
+        // it rather than borrow that tab (it would vanish mid-way: « NO_VINTED_TAB »).
+        const run = importFollowUp.catch(() => undefined).then(() => repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites))));
         reposting = run.finally(() => {
           reposting = null;
         });

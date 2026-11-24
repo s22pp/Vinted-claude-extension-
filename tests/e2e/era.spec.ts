@@ -129,6 +129,26 @@ test('stock: search, filter and open an item with its timeline', async ({ contex
   await expect(page.getByText('Non renseigné').first()).toBeVisible();
 });
 
+test('stock as a Vitrine: the same filtered rows, photo first; the keyboard opens an article', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/stock`);
+  // The list draws only the rows in view; it says how many it holds.
+  await expect(page.locator('tbody tr[aria-rowindex]').first()).toBeVisible();
+  const listed = Number(await page.locator('table.dt').getAttribute('aria-rowcount')) - 1;
+  await page.getByRole('button', { name: 'Vitrine' }).click();
+  await expect(page).toHaveURL(/#\/stock\?view=vitrine$/);
+  const looks = page.getByTestId('stock-vitrine').locator('li');
+  await expect(looks).toHaveCount(listed);
+  // A filter applies to the Vitrine as to the list.
+  await page.getByRole('searchbox').fill('Carhartt');
+  await expect(looks.first()).toContainText('Carhartt');
+  await looks.first().locator('a').focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/item\//);
+  await expect(page.getByRole('heading', { name: 'Timeline' })).toBeVisible();
+});
+
 test('market: filtered comparables and three strategies', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

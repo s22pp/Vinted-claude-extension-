@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ChooseRepostsModal } from '../components/repost-list';
 import { RepostNowButton } from '../components/repost-now';
+import { StockVitrine } from '../components/stock-vitrine';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
@@ -64,6 +65,8 @@ export function Stock({ route }: { route: Route }) {
   const addOpen = route.query.get('add') === '1';
   // The stock as a stadium (three.js, loaded only here).
   const view3d = route.query.get('view') === '3d';
+  // « Vitrine »: the same rows as a collection page, photo first.
+  const vitrine = route.query.get('view') === 'vitrine';
   const [importOpen, setImportOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -240,6 +243,16 @@ export function Stock({ route }: { route: Route }) {
             </div>
             <div className="stock-toolbar__view">
               <Segmented
+                label={t('vitrine.view')}
+                value={vitrine ? 'grid' : 'list'}
+                onChange={(v) => go(v === 'grid' ? 'stock?view=vitrine' : 'stock')}
+                options={[
+                  { value: 'list', label: t('vitrine.list') },
+                  { value: 'grid', label: t('vitrine.grid') },
+                ]}
+              />
+              {!vitrine && (
+              <Segmented
                 label={t('stock.density')}
                 value={density}
                 onChange={setDensity}
@@ -248,6 +261,7 @@ export function Stock({ route }: { route: Route }) {
                   { value: 'comfortable', label: <Icon name="layers" size={14} />, ariaLabel: t('stock.comfortable') },
                 ]}
               />
+              )}
               <div style={{ position: 'relative' }}>
                 <Button size="sm" icon="columns" onClick={() => setShowCols((s) => !s)} aria-expanded={showCols}>
                   {t('stock.columns')}
@@ -292,6 +306,8 @@ export function Stock({ route }: { route: Route }) {
             <Card>
               <EmptyState compact title={t('stock.noResults')} why={t('stock.noResultsWhy')} action={<Button onClick={() => { setFilter('all'); setQ(''); }}>{t('stock.noResultsCta')}</Button>} />
             </Card>
+          ) : vitrine ? (
+            <StockVitrine rows={visible} />
           ) : (
             <StockTable
               rows={visible}

@@ -1,0 +1,446 @@
+/* ── ERA Maison ──────────────────────────────────────────────────────────────────────────────────────────────
+   The back office of a fashion house, not a SaaS dashboard (docs/design/ERA-Maison.md). Midnight's palette stays;
+   on top: the house's voice in a didone (Bodoni Moda) for titles and large figures, Geist for everything one reads and
+   handles; tailored corners (4 px), fine rules, no grey card shadows; one orchestrated motion (the page title reveals
+   with the walk into the shop), no fade-up on every block. Loaded last: it only restyles the shared components. */
+
+:root {
+  --font-display: 'Bodoni Moda Variable', 'Bodoni 72', Didot, 'Bodoni MT', serif;
+  --r-xs: 3px;
+  --r-sm: 4px;
+  --r-md: 5px;
+  --r-lg: 6px;
+  --ease-house: cubic-bezier(0.22, 1, 0.36, 1);
+  --fs-h1: 56px;
+}
+
+/* No more fade-up on every block: the keyframes everybody used now leave things where they are. */
+@keyframes rise {
+  from {
+    opacity: 1;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 1;
+  }
+}
+
+/* ── The house's voice ─────────────────────────────────────────────────────────────────────────────────────── */
+.t-h1,
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+  line-height: 1.02;
+}
+.page-head .t-h1 {
+  font-size: clamp(40px, 4.2vw, 64px);
+}
+.t-h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 27px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+/* Small labels: woven-label capitals in the text face (never the typewriter face, never above every title). */
+.t-caption,
+.dt th,
+.page-head__eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ── Page head: the title is an event ──────────────────────────────────────────────────────────────────────── */
+.page {
+  padding-top: 44px;
+}
+.page-head {
+  align-items: flex-end;
+  margin-bottom: 36px;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--border);
+}
+.page-head__sub {
+  margin-top: 12px;
+  max-width: 68ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.page-head__actions .btn {
+  height: 36px;
+}
+/* The one orchestrated moment: the title rises from behind its line as the camera walks into the room. */
+.page-head .t-h1 {
+  /* backwards: nothing (clip, transform) is left on the title once it has risen. */
+  animation: title-in 900ms var(--ease-house) backwards;
+}
+.page-head__sub {
+  animation: sub-in 900ms var(--ease-house) 120ms backwards;
+}
+@keyframes title-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(0.35em);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+  }
+}
+@keyframes sub-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-head .t-h1,
+  .page-head__sub {
+    animation: none;
+  }
+}
+:root[data-motion='reduced'] .page-head .t-h1,
+:root[data-motion='reduced'] .page-head__sub {
+  animation: none;
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+.app {
+  grid-template-columns: 244px minmax(0, 1fr);
+}
+.sidebar {
+  padding: 26px 16px 22px;
+  background: var(--bg);
+  backdrop-filter: none;
+}
+.sidebar__brand {
+  padding: 0 10px 30px;
+}
+.sidebar__brand-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.nav {
+  gap: 1px;
+}
+.nav__item {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 450;
+  color: var(--text-2);
+}
+.nav__item:hover {
+  background: color-mix(in srgb, var(--surface-hover) 60%, transparent);
+}
+.nav__item[aria-current='page'],
+.sidebar__foot .nav__item[aria-current='page'] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 600;
+}
+.nav__item .icon-tile,
+.nav__item[aria-current='page'] .icon-tile {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  box-shadow: none;
+}
+.nav__marker {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.nav__marker::before {
+  left: -16px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 0;
+  background: var(--accent);
+}
+.topbar {
+  height: 62px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+}
+
+/* ── Surfaces: tailored, flat, ruled ───────────────────────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--r-lg);
+  box-shadow: none;
+  padding: 24px;
+}
+.card__head {
+  margin-bottom: 18px;
+}
+.card__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.card__hint {
+  font-size: 13px;
+  color: var(--text-2);
+}
+/* Icons in a card head: a quiet glyph, not a coloured tile. */
+.card__head .icon-tile {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  color: var(--text-2);
+}
+
+/* ── Buttons: rectangular, sentence case ───────────────────────────────────────────────────────────────────── */
+.btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  font-weight: 550;
+  letter-spacing: 0;
+  box-shadow: none;
+  border-color: var(--border-strong);
+}
+.btn--sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+.btn--lg {
+  height: 44px;
+  padding: 0 22px;
+  font-size: 14.5px;
+}
+.btn--primary {
+  border-color: var(--accent);
+}
+.btn--ghost {
+  border-color: transparent;
+}
+.btn:active {
+  transform: none;
+}
+
+/* ── Tags: a woven label, not a pill ───────────────────────────────────────────────────────────────────────── */
+.badge {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  font-size: 11.5px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--b) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--b) 38%, transparent);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────────────────────────────────────────── */
+.dt th {
+  height: 42px;
+  background: var(--surface-solid);
+}
+.dt--comfortable td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.dt tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+}
+
+/* ── Segmented controls and tabs: underlined, not pills ────────────────────────────────────────────────────── */
+.seg {
+  border-radius: var(--r-sm);
+  background: transparent;
+}
+.seg__thumb {
+  border-radius: 3px;
+  box-shadow: none;
+}
+.seg__btn {
+  border-radius: 3px;
+}
+.tabs__btn[aria-selected='true']::after {
+  height: 1px;
+  border-radius: 0;
+  background: var(--text);
+}
+
+/* ── Forms ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+.input,
+select.input,
+textarea.input {
+  border-radius: var(--r-sm);
+}
+
+/* ── Overlays: the only shadow in the house ────────────────────────────────────────────────────────────────── */
+.modal {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-strong);
+}
+.modal .t-h2 {
+  font-size: 30px;
+}
+
+/* ── « Pour vous », in the house's voice ───────────────────────────────────────────────────────────────────── */
+.for-you {
+  padding: 30px 32px 30px;
+}
+.for-you__title {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.for-you__big {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(32px, 3.4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  max-width: 22ch;
+}
+.for-you__hint {
+  font-size: 15px;
+}
+.glance-top__big {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+/* « Republier cette annonce ? »: the two figures in the house's voice. */
+.repost-now__figures b {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 38px;
+}
+.repost-now__item strong {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 22px;
+}
+.repost-now__cost {
+  border-radius: var(--r-sm);
+}
+.bulkbar {
+  border-radius: var(--r-lg);
+}
+
+/* ── La Vitrine: the stock as a collection page ────────────────────────────────────────────────────────────── */
+.vitrine {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 40px 22px;
+}
+.look__link {
+  display: grid;
+  gap: 14px;
+  color: inherit;
+  text-decoration: none;
+  outline-offset: 6px;
+}
+.look__frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--surface-sunken);
+}
+.look__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Answers the hand, slowly — the only movement here. */
+  transition: transform 900ms var(--ease-house);
+}
+.look__link:hover .look__frame img,
+.look__link:focus-visible .look__frame img {
+  transform: scale(1.035);
+}
+.look__glyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.look__glyph .thumb {
+  width: 46%;
+  height: auto;
+  aspect-ratio: 1;
+  border: 0;
+  background: transparent;
+}
+.look__glyph .thumb svg rect {
+  fill: transparent;
+}
+.look__state {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+}
+.look__state .badge {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+.look__text {
+  display: grid;
+  gap: 3px;
+}
+.look__title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.look__meta {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.look__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.look__price {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 500;
+}
+.look__facts {
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look__frame img {
+    transition: none;
+  }
+}
+:root[data-motion='reduced'] .look__frame img {
+  transition: none;
+}
