@@ -104,3 +104,62 @@ nous-mêmes. Les polices sont sous licence libre (SIL OFL) et embarquées dans l
 Tous ces outils, ERA compris, automatisent un compte Vinted : c'est une zone grise des conditions d'utilisation de
 Vinted (risque de visibilité réduite ou de blocage). ERA s'impose un budget d'appels, s'arrête au premier refus et
 marque EXPERIMENTAL ce qui n'a pas été vu fonctionner sur le compte.
+
+---
+
+# ERA Maison · Lumière (0.55.0)
+
+Le brief du vendeur : garder l'ADN (titres en serif, nuit bleu ardoise, logo, barre latérale) et corriger six défauts.
+Deux autres briefs proposaient « Obsidian & Volt » (noir #09090B, vert acide #D4FF00) : ils contredisent le premier
+point ; la direction suivie est celle qui garde l'ADN d'ERA. Leur « Snipe en 1 clic » et leur flux d'annonces « à la
+seconde » ne sont pas repris : il faudrait interroger Vinted en continu, très au-delà du budget de 60 requêtes par
+session qui a été fixé après trois blocages du compte, et acheter automatiquement, c'est un robot d'achat.
+
+## Jetons (sombre, par défaut)
+
+| Rôle | Jeton | Valeur |
+| --- | --- | --- |
+| Fond | `--bg` | `#080C12` |
+| Surface (cartes, fenêtres) | `--surface` | `#0F151F` |
+| Surface au survol | `--surface-hover` | `#161F2C` |
+| Creux (champs, zones) | `--surface-sunken` | `#0B1119` |
+| Bordure latérale | `--border` | `rgba(255,255,255,.06)` |
+| Bordure appuyée | `--border-strong` | `rgba(255,255,255,.12)` |
+| Arête lumineuse (haut des surfaces) | `--edge-light` | `rgba(255,255,255,.12)` |
+| Texte | `--text` | `#F4F2EC` |
+| Texte secondaire | `--text-2` | `#8E9BAE` |
+| Texte discret (≥ 4,5:1 partout) | `--text-3` | `#8794A7` |
+| Action (glacier) | `--accent` / `--on-accent` | `#E2E8F0` / `#080C12` |
+| Profit, en ligne, temps réel | `--emerald` | `#34D399` |
+| Alerte douce | `--amber` | `#FBBF24` |
+| Manqué, critique | `--coral` | `#F87171` |
+| Ombre des surfaces | `--shadow-card` | `0 1px 2px rgba(0,0,0,.35), 0 14px 32px -16px rgba(0,0,0,.7)` |
+
+Clair (« Papier ») : fond `#F4F2EC`, surface `#FDFCF7`, texte `#101923`, action `#24445E`, émeraude `#047857`, ambre
+`#92400E`, corail `#B91C1C`, arête `rgba(255,255,255,.9)`. Contraste AA vérifié par le test d'accessibilité.
+
+## Règles de lumière
+- Toute surface posée (carte, fenêtre, barre de sélection, menu) : bordure latérale `--border`, bordure du haut
+  `--edge-light`, ombre `--shadow-card`. Ce qui flotte (menus, fenêtres) prend l'ombre longue `--shadow-3`.
+- Rayons : 6 px pour les surfaces, 4 px pour les boutons et champs, 3 px pour les étiquettes.
+
+## Typographie
+| Usage | Police | Réglages |
+| --- | --- | --- |
+| Logo, titres de page (H1) | Bodoni Moda | 500, −0,015 em, 40–64 px (page), 46 px (article) |
+| Interface, titres de section | Geist | sections 15–20 px 600–650, −0,02 em ; texte 13–15 px |
+| Étiquettes, en-têtes de colonnes | Geist | 10,5 px 600, capitales, +0,13 em |
+| Tous les chiffres (prix, marges, heures, durées, compteurs, %) | JetBrains Mono | `tabular-nums`, −0,02 em |
+
+## Écran par écran
+- **Aujourd'hui** : « Pour vous » en phrase de couverture ; le rail des tournées en couleurs d'état (terminée
+  émeraude, en retard ambre, manquée corail en pointillé, prochaine éclairée) ; « Maintenant · 16 h 27 » en trait
+  lumineux sur la frise ; une légende qui filtre les types d'action.
+- **Stock** : la Vitrine — fond « studio » quand Vinted ne sert pas de photo (dit comme un emplacement, jamais une
+  fausse photo), prix et marge incrustés au pied de la vignette (« Marge ? » tant que le coût est inconnu).
+- **Fiche article** : une action principale (Analyser le marché), une secondaire (Republier maintenant), le reste sous
+  « Actions » ; les chiffres en une barre de métriques à filets verticaux.
+- **Réglages** : mêmes surfaces éclairées, budget Vinted en chiffres mono, interrupteurs et étiquettes
+  EXPÉRIMENTAL / NON VÉRIFIÉ.
+
+Maquette interactive (mêmes jetons, données de démonstration) : https://claude.ai/artifact/GhVZeBAsUsMugs7TgNDFX9
