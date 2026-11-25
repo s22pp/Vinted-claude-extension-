@@ -5,6 +5,7 @@ import type { ItemView } from '@/intelligence/portfolio';
 import { Modal, useErrorToast, useToast } from '@/ui/components/overlays';
 import { Button, Field, Input, Stages } from '@/ui/components/primitives';
 import { useMoneyField } from './forms';
+import { useExecMode } from './exec-mode';
 
 /** The Vinted listing id of an item's live listing, when it came from Vinted. */
 export function vintedIdOf(v: ItemView | undefined): string | null {
@@ -47,6 +48,7 @@ export function useVintedPriceEdit() {
 /** Confirm → edit on Vinted → verify. One listing, one click, never in bulk. */
 export function ApplyPriceModal({ v, cents, open, onClose }: { v: ItemView; cents: number | null; open: boolean; onClose: () => void }) {
   const { t } = useI18n();
+  const mode = useExecMode();
   const edit = useVintedPriceEdit();
   const price = useMoneyField(cents);
   useEffect(() => {
@@ -63,7 +65,7 @@ export function ApplyPriceModal({ v, cents, open, onClose }: { v: ItemView; cent
       <p className="t-small">{t('vintedPrice.confirmBody', { from: v.askPrice ?? 0, to: target ?? 0 })}</p>
       <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18 }}>
         <li>{t('vintedPrice.safe1')}</li>
-        <li>{t('vintedPrice.safe2')}</li>
+        <li>{t(mode === 'DIRECT' ? 'vintedPrice.safe2Direct' : 'vintedPrice.safe2')}</li>
         <li>{t('vintedPrice.safe3')}</li>
       </ul>
       {edit.stage && <Stages stages={['OPENING', 'FILLING', 'SAVING', 'VERIFYING', 'DONE'] as PriceStage[]} current={edit.stage} labelKey={(s) => t(`vintedPrice.stage${s}`)} />}

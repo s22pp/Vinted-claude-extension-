@@ -8,6 +8,26 @@ import { type TextField, type TextOp, applyTextOp, sameFieldText } from '@/intel
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** What a field search gives back: the one field, or why not — `ambiguous` when several fields could be it. */
+type Found<T> = T | { error: string; ambiguous?: boolean };
+
+/**
+ * The one field, polled while the page builds (up to ~15 s for it to appear). Several candidates for ~3 s in a row is a
+ * loaded form that stays ambiguous: given up then (nothing touched), never waited out to the end.
+ */
+async function waitForField<T extends HTMLElement>(find: () => Found<T>): Promise<Found<T>> {
+  let found: Found<T> = { error: 'page non chargée' };
+  let many = 0;
+  for (let i = 0; i < 30; i++) {
+    found = find();
+    if (!('error' in found)) return found;
+    many = found.ambiguous ? many + 1 : 0;
+    if (many >= 6) return found;
+    await sleep(500);
+  }
+  return found;
+}
+
 function visible(el: HTMLElement): boolean {
   return !!(el.offsetParent || el.getClientRects().length);
 }
@@ -17,7 +37,7 @@ function labelOf(input: HTMLInputElement | HTMLTextAreaElement): string {
   return `${byFor ?? ''} ${input.closest('label')?.textContent ?? ''}`;
 }
 
-export function findPriceInput(doc: Document = document): HTMLInputElement | { error: string } {
+export function findPriceInput(doc: Document = document): Found<HTMLInputElement> {
   const all = [...doc.querySelectorAll<HTMLInputElement>('input')].filter((i) => i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' && !i.disabled && visible(i));
   const hay = (i: HTMLInputElement) =>
     [i.id, i.name, i.getAttribute('data-testid'), i.getAttribute('aria-label'), i.placeholder, labelOf(i)].join(' ').toLowerCase();
@@ -28,14 +48,14 @@ export function findPriceInput(doc: Document = document): HTMLInputElement | { e
   if (candidates.length === 1) return candidates[0]!;
   const exact = candidates.filter((i) => i.id === 'price' || i.name === 'price');
   if (exact.length === 1) return exact[0]!;
-  return { error: candidates.length === 0 ? 'champ prix introuvable sur la page de modification' : `${candidates.length} champs « prix » possibles : modification annulée` };
+  return { error: candidates.length === 0 ? 'champ prix introuvable sur la page de modification' : `${candidates.length} champs « prix » possibles : modification annulée`, ambiguous: candidates.length > 1 };
 }
 
 const SAVE = /(enregistrer|sauvegarder|mettre à jour|valider|modifier l.annonce|save|update)/i;
 const FORBIDDEN = /(supprimer|delete|retirer|masquer|réserv|reserv|vendu|boost|promouv|mettre en avant|annuler|cancel)/i;
 
 /** The description field: exactly one visible textarea that says it is the description, or nothing is touched. */
-export function findDescriptionInput(doc: Document = document): HTMLTextAreaElement | { error: string } {
+export function findDescriptionInput(doc: Document = document): Found<HTMLTextAreaElement> {
   const all = [...doc.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((i) => !i.disabled && !i.readOnly && visible(i));
   const hay = (i: HTMLTextAreaElement) =>
     [i.id, i.name, i.getAttribute('data-testid'), i.getAttribute('aria-label'), i.placeholder, labelOf(i)].join(' ').toLowerCase();
@@ -43,11 +63,11 @@ export function findDescriptionInput(doc: Document = document): HTMLTextAreaElem
   if (candidates.length === 1) return candidates[0]!;
   const exact = candidates.filter((i) => i.id === 'description' || i.name === 'description');
   if (exact.length === 1) return exact[0]!;
-  return { error: candidates.length === 0 ? 'champ description introuvable sur la page de modification' : `${candidates.length} champs « description » possibles : modification annulée` };
+  return { error: candidates.length === 0 ? 'champ description introuvable sur la page de modification' : `${candidates.length} champs « description » possibles : modification annulée`, ambiguous: candidates.length > 1 };
 }
 
 /** The title field: exactly one visible text input that says it is the title (never a search box), or nothing is touched. */
-export function findTitleInput(doc: Document = document): HTMLInputElement | { error: string } {
+export function findTitleInput(doc: Document = document): Found<HTMLInputElement> {
   const all = [...doc.querySelectorAll<HTMLInputElement>('input')].filter((i) => (i.type === 'text' || i.type === '') && !i.disabled && !i.readOnly && visible(i));
   const hay = (i: HTMLInputElement) =>
     [i.id, i.name, i.getAttribute('data-testid'), i.getAttribute('aria-label'), i.placeholder, labelOf(i)].join(' ').toLowerCase();
@@ -56,7 +76,7 @@ export function findTitleInput(doc: Document = document): HTMLInputElement | { e
   if (candidates.length === 1) return candidates[0]!;
   const exact = candidates.filter((i) => i.id === 'title' || i.name === 'title');
   if (exact.length === 1) return exact[0]!;
-  return { error: candidates.length === 0 ? 'champ titre introuvable sur la page de modification' : `${candidates.length} champs « titre » possibles : modification annulée` };
+  return { error: candidates.length === 0 ? 'champ titre introuvable sur la page de modification' : `${candidates.length} champs « titre » possibles : modification annulée`, ambiguous: candidates.length > 1 };
 }
 
 export function findSaveButton(input: HTMLElement): HTMLButtonElement | { error: string } {
@@ -107,12 +127,7 @@ async function settledField<T>(find: () => T | { error: string }): Promise<T | {
 }
 
 export async function editPriceOnPage(cents: number): Promise<EditFormResult> {
-  let found: ReturnType<typeof findPriceInput> = { error: 'page non chargée' };
-  for (let i = 0; i < 30; i++) {
-    found = findPriceInput();
-    if (!('error' in found)) break;
-    await sleep(500);
-  }
+  const found = await waitForField(() => findPriceInput());
   if ('error' in found) return { ok: false, detail: found.error };
   const settled = await settledField(() => findPriceInput());
   if ('error' in settled) return { ok: false, detail: settled.error };
@@ -161,12 +176,7 @@ export async function publishOnPage(): Promise<{ ok: true } | { ok: false; detai
 
 /** Same as the price, for the description: the whole text written at once, checked, then saved. */
 export async function editDescriptionOnPage(text: string, expectBefore?: string): Promise<EditFormResult> {
-  let found: ReturnType<typeof findDescriptionInput> = { error: 'page non chargée' };
-  for (let i = 0; i < 30; i++) {
-    found = findDescriptionInput();
-    if (!('error' in found)) break;
-    await sleep(500);
-  }
+  const found = await waitForField(() => findDescriptionInput());
   if ('error' in found) return { ok: false, detail: found.error };
   const settled = await settledField(() => findDescriptionInput());
   if ('error' in settled) return { ok: false, detail: settled.error };
@@ -191,12 +201,7 @@ export async function editDescriptionOnPage(text: string, expectBefore?: string)
  */
 export async function editTextOnPage(field: TextField, op: TextOp): Promise<EditTextResult> {
   const find = () => (field === 'title' ? findTitleInput() : findDescriptionInput());
-  let found: ReturnType<typeof find> = { error: 'page non chargée' };
-  for (let i = 0; i < 30; i++) {
-    found = find();
-    if (!('error' in found)) break;
-    await sleep(500);
-  }
+  const found = await waitForField<HTMLInputElement | HTMLTextAreaElement>(find);
   if ('error' in found) return { ok: false, detail: found.error };
   const settled = await settledField(find);
   if ('error' in settled) return { ok: false, detail: settled.error };

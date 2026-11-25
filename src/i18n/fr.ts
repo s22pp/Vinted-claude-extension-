@@ -1353,6 +1353,7 @@ export const fr = {
     confirmBody: 'ERA va passer cette annonce de {from} à {to} sur Vinted, puis relire Vinted pour vérifier.',
     safe1: 'Seul le prix est modifié : catégorie, marque, taille, photos et description ne sont pas touchées.',
     safe2: 'Une annonce par clic, 20 s minimum entre deux modifications, 15 par session : jamais en lot.',
+    safe2Direct: 'Une annonce par clic, jamais en lot ; ERA s’arrête de lui-même si Vinted demande une pause.',
     safe3: 'Si le formulaire est ambigu ou si Vinted ne prend pas le prix, rien n’est annoncé comme fait.',
     stageOPENING: 'Ouverture de l’annonce',
     stageFILLING: 'Saisie du prix',
