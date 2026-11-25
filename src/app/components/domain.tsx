@@ -204,11 +204,12 @@ const STATUS_TONE: Record<InventoryItem['status'], BadgeTone> = {
 };
 
 /** Article status (posted / reserved / sold…) — text + dot, never colour alone. */
-export function StatusBadge({ status }: { status: InventoryItem['status'] }) {
+export function StatusBadge({ status, inLot = false }: { status: InventoryItem['status']; inLot?: boolean }) {
   const { t } = useI18n();
   return (
-    <Badge tone={STATUS_TONE[status]} dot title={t(`statusHint.${status}`)}>
+    <Badge tone={STATUS_TONE[status]} dot title={inLot ? t('saleLot.badgeHint') : t(`statusHint.${status}`)}>
       {t(`status.${status}`)}
+      {inLot && ` · ${t('saleLot.badge')}`}
     </Badge>
   );
 }

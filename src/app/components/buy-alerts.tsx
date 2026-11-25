@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n';
 import { useToast } from '@/ui/components/overlays';
 import { Button, Card, Money } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
+import { MarginBadge } from './margin-badge';
 
 /** Buy alerts: switch, "check now", and the last listings found under your max. */
 export function BuyAlertsCard() {
@@ -70,8 +71,11 @@ export function BuyAlertsCard() {
                 <a href={d.url} target="_blank" rel="noopener noreferrer" className="clamp-1">
                   {d.title}
                 </a>
-                <span className="num" style={{ whiteSpace: 'nowrap' }}>
-                  <Money cents={d.priceCents} /> → {t('alerts.margin')} <Money cents={d.marginCents} />
+                <span className="row" style={{ gap: 8, whiteSpace: 'nowrap' }}>
+                  <span className="num">
+                    <Money cents={d.priceCents} />
+                  </span>
+                  <MarginBadge cents={d.marginCents} />
                 </span>
               </div>
             ))}

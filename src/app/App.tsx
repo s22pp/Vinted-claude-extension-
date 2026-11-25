@@ -72,17 +72,22 @@ function usePreloadScreens() {
   }, []);
 }
 
+/** While a screen loads: its grid, cell by cell, a faint light sweeping inside each (no spinner). */
 function PageSkeleton() {
   return (
     <div className="stack-4" aria-busy="true">
-      <Skeleton w={280} h={30} />
-      <Skeleton h={120} r={14} />
+      <Skeleton w={280} h={44} />
+      <div className="skeleton-grid" aria-hidden="true">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} h={96} />
+        ))}
+      </div>
       <div className="grid-12">
         <div className="span-8">
-          <Skeleton h={260} r={14} />
+          <Skeleton h={260} />
         </div>
         <div className="span-4">
-          <Skeleton h={260} r={14} />
+          <Skeleton h={260} />
         </div>
       </div>
     </div>

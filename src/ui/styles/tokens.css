@@ -163,10 +163,9 @@
     --t-slow: 0ms;
   }
 }
-/* Reduced motion: every entrance animation and transition ends at once (a loading spinner still turns: it says
-   something is happening). */
+/* Reduced motion: every entrance animation and transition ends at once (a busy state stays visible as a still tint). */
 @media (prefers-reduced-motion: reduce) {
-  *:not(.btn__spinner),
+  *,
   *::before,
   *::after {
     animation-duration: 1ms !important;
@@ -183,7 +182,7 @@
   --t-slow: 0ms;
 }
 /* ERA's own setting (Réglages → Animations → Réduites): the same as the system's, whatever the system says. */
-:root[data-motion='reduced'] *:not(.btn__spinner),
+:root[data-motion='reduced'] *,
 :root[data-motion='reduced'] *::before,
 :root[data-motion='reduced'] *::after {
   animation-duration: 1ms !important;

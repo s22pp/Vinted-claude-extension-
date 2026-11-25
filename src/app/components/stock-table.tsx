@@ -9,6 +9,7 @@ import { Thumb } from '@/ui/components/Thumb';
 import { publishedAgo } from '@/intelligence/repost-now';
 import { go } from '../state';
 import { RecoChip, StatusBadge } from './domain';
+import { useLotItems } from './sale-lot';
 
 export type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'published' | 'age' | 'listings' | 'status' | 'reco';
 export type SortKey = 'title' | ColKey;
@@ -129,6 +130,7 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
     );
   };
 
+  const inLot = useLotItems();
   const cell = (r: Row, c: ColKey) => {
     const v = r.v;
     switch (c) {
@@ -194,7 +196,7 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
       case 'status':
         return (
           <td key={c}>
-            <StatusBadge status={v.item.status} />
+            <StatusBadge status={v.item.status} inLot={v.item.status === 'RESERVED' && inLot.has(v.item.id)} />
           </td>
         );
       case 'reco':

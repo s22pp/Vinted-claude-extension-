@@ -738,3 +738,55 @@ test('the shop in 3D: every article on its rack; the keyboard takes one off the 
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#\/item\//);
 });
+
+test('the Pilote’s control room: rules applied at once, what comes next with its countdown and « Annuler », the session’s health', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/automations`);
+  const room = page.getByTestId('control-room');
+  await expect(room).toBeVisible();
+  // Rules: switched here, saved at once (no « Enregistrer »).
+  const follow = room.getByRole('switch', { name: /Relance sans réponse/ });
+  await expect(follow).not.toBeChecked();
+  await follow.check();
+  // Saved in the browser's database right away (read back before reloading).
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const req = indexedDB.open('era-intelligence');
+        const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+        const v = await new Promise<{ value?: { followUp?: { enabled?: boolean } } } | undefined>((r) => {
+          const g = db.transaction('settings').objectStore('settings').get('automations');
+          g.onsuccess = () => r(g.result as { value?: { followUp?: { enabled?: boolean } } } | undefined);
+        });
+        db.close();
+        return v?.value?.followUp?.enabled ?? false;
+      }),
+    )
+    .toBe(true);
+  await page.reload();
+  await expect(page.getByTestId('control-room').getByRole('switch', { name: /Relance sans réponse/ })).toBeChecked({ timeout: 20_000 });
+  await expect(page.getByTestId('ctrl-rules')).toContainText('délai humain 4 à 12 min après le favori');
+  // The queue: a favourite waiting for its delay (test fixture: written as a pass leaves it).
+  await page.evaluate(async () => {
+    const req = indexedDB.open('era-intelligence');
+    const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+    await new Promise((r) => {
+      const tx = db.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put({ key: 'autoFavQueue', value: [{ key: '555:101', userId: '555', title: 'Veste Harrington', dueAt: Date.now() + 5 * 60_000, offerPct: 10 }] });
+      tx.oncomplete = r;
+    });
+  });
+  // (Written straight into the database, as the worker does: read again on reload.)
+  await page.reload();
+  const queue = page.getByTestId('ctrl-queue');
+  await expect(queue).toContainText('Offre −10 % → membre 555 · Veste Harrington', { timeout: 20_000 });
+  await expect(queue).toContainText(/dans 0\dm \d\ds/);
+  // The demo cannot run the Pilote: no round in the queue.
+  await expect(queue).not.toContainText('Tournée du Pilote');
+  await queue.getByRole('button', { name: /Annuler : Offre −10 %/ }).click();
+  await expect(queue).not.toContainText('Veste Harrington');
+  // Health: the session's requests and the mode (no block here: no coral pause).
+  await expect(page.getByTestId('ctrl-health')).toContainText('requêtes cette session');
+  await expect(page.getByTestId('ctrl-halt')).toHaveCount(0);
+});

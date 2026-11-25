@@ -26,7 +26,8 @@ describe('new favourites', () => {
     const ctx = { seen: new Set<string>(), sentToday: 0, now: NOW };
     expect(planFavorite(n!, item, cfg, ctx)).toEqual({ send: true, message: true, offerCents: 5400, note: null });
     expect(planFavorite(n!, item, cfg, { ...ctx, seen: new Set(['555:101']) })).toMatchObject({ send: false, reason: 'SEEN' });
-    expect(planFavorite(n!, item, cfg, { ...ctx, now: n!.at + 5 * 60_000 })).toMatchObject({ send: false, reason: 'TOO_RECENT', final: false });
+    // A favourite 3 minutes old waits (4 to 12 minutes, each its own).
+    expect(planFavorite(n!, item, cfg, { ...ctx, now: n!.at + 3 * 60_000 })).toMatchObject({ send: false, reason: 'TOO_RECENT', final: false });
     expect(planFavorite(n!, item, cfg, { ...ctx, now: n!.at + 4 * 86_400_000 })).toMatchObject({ send: false, reason: 'TOO_OLD', final: true });
     expect(planFavorite(n!, item, cfg, { ...ctx, sentToday: cfg.fav.perDay })).toMatchObject({ send: false, reason: 'DAY_CAP' });
   });

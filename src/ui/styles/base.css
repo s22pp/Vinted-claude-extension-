@@ -648,19 +648,6 @@ a {
 .btn--block {
   width: 100%;
 }
-.btn__spinner {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  animation: spin 0.7s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 .icon-btn {
   display: inline-grid;
   place-items: center;

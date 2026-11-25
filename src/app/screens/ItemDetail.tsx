@@ -8,7 +8,7 @@ import { DualDistribution } from '@/ui/charts/dual';
 import { realizedFor } from '@/intelligence/seller-model';
 import { IconTile } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Stages } from '@/ui/components/primitives';
+import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Skeleton, Stages } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
@@ -263,7 +263,17 @@ export function ItemDetail({ id }: { id: string }) {
               ) : null
             }
           >
-            {!analysis ? (
+            {stage !== null && stage !== 'READY' ? (
+              // The market being read: the figures' cells, a faint light sweeping inside each (no spinner).
+              <div className="stack-3" aria-busy="true" data-testid="analysis-skeleton">
+                <div className="skeleton-grid">
+                  {Array.from({ length: 4 }, (_, k) => (
+                    <Skeleton key={k} h={64} />
+                  ))}
+                </div>
+                <Skeleton h={120} />
+              </div>
+            ) : !analysis ? (
               <div className="stack-3">
                 <p className="t-muted">{t('reco.w.noAnalysis')}</p>
                 {realized && (

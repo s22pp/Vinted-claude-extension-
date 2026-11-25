@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -15,6 +16,17 @@ export interface SaleLotRecord {
   totalAskCents: number;
   createdAt: number;
 }
+
+/** The articles set aside in a lot (each still reserved), for the stock's « Réservé · En lot ». */
+export function useLotItems(): ReadonlySet<string> {
+  return (
+    useLiveQuery(async () => {
+      const lots = (await repo.getSetting<SaleLotRecord[]>(SALE_LOTS_KEY, [])) ?? [];
+      return new Set(lots.flatMap((l) => l.itemIds));
+    }, []) ?? EMPTY
+  );
+}
+const EMPTY: ReadonlySet<string> = new Set();
 
 const candidate = (v: ItemView): LotCandidate => ({ itemId: v.item.id, title: v.current?.title ?? v.item.title, askCents: v.askPrice, costCents: v.cost, daysListed: v.daysListed, inStock: v.inStock });
 

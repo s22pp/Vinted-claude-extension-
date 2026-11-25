@@ -317,3 +317,29 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
   - sélecteurs DOM en cascade.
 - **Vie privée** : aucun lieu de domicile dans le code. La carte montre la France tant que le vendeur n'a pas
   placé chez lui ; le cercle de 5 km et ses coordonnées n'apparaissent qu'ensuite.
+
+## 1.3 : la salle de contrôle du Pilote
+
+- **Trois colonnes de la grille de 1 px** :
+  - **Règles actives**, appliquées aussitôt :
+    - offre aux nouveaux favoris : délai humain de 4 à 12 min, propre à chaque favori, remise de −10 ou −15 % ;
+    - message d'accueil ;
+    - offres reçues ;
+    - message après livraison ;
+    - relance sans réponse.
+  - **File d'attente en direct**, chaque ligne avec son compte à rebours en mono et « Annuler » quand l'action peut être défaite :
+    - favoris en attente de leur délai ;
+    - relances prévues ;
+    - republications ;
+    - prochaine tournée.
+  - **Journal & santé** :
+    - requêtes de la session et mode d'exécution ;
+    - encadré corail « PAUSE DE SÉCURITÉ » et heure de reprise quand Vinted a demandé une pause ;
+    - dernières actions confirmées.
+- **Relance sans réponse** (désactivée par défaut) :
+  - une seule par conversation, après 24 h et jamais après 72 h ;
+  - jamais si le membre a répondu ou si l'article est vendu ;
+  - la conversation est relue avant l'envoi.
+- **Marge estimée** : un badge « Marge est. +X € (Opportunité) » sur les affaires du Marché et les alertes d'achat. Il est en émeraude à partir de 10 €.
+- **Chargement** : plus de roue qui tourne. Un balayage lumineux passe dans les boutons occupés, les cellules d'analyse et l'écran qui se charge ; en mouvements réduits, une teinte fixe.
+- **Lot** : les articles d'un lot affichent « Réservé · En lot » dans le Stock.

@@ -18,6 +18,7 @@ import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { type MessageExample, MessagePicker } from '../components/fav-messages';
 import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
+import { ControlRoom } from '../components/control-room';
 
 /** The offer shown in previews: the discount on the price, rounded up to the euro (the real one also respects the floor). */
 const favoriteOfferPreview = (price: number, pct: number) => Math.ceil((price * (1 - pct / 100)) / 100) * 100;
@@ -60,6 +61,14 @@ export function Automations() {
   const num = (v: string, lo: number, hi: number, fallback: number) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback;
+  };
+
+  /** A rule switched in the control room: applied at once (saved, schedule updated), the cards below follow. */
+  const applyNow = async (patch: (c: AutoConfig) => AutoConfig) => {
+    const next = { ...patch(cfg), minMarginCents: margin.cents ?? cfg.minMarginCents };
+    setCfg(next);
+    await repo.setSetting('automations', next);
+    await browser.runtime.sendMessage({ type: 'era:auto:schedule' } satisfies EraMessage).catch(() => undefined);
   };
 
   const save = async (): Promise<AutoConfig> => {
@@ -135,6 +144,7 @@ export function Automations() {
       <PageHead title={t('auto.title')} sub={t('auto.sub')} />
       <div className="grid-12">
         <PilotCard auto={cfg} onAll={all} onAgent={agent} />
+        <ControlRoom cfg={cfg} onChange={applyNow} />
         {/* The Pilote's rules: open before it is switched on, folded once it runs (always one click away). */}
         <details className="card span-12 pilot-rules" open={!pilotOn} data-testid="pilot-rules">
           <summary className="pilot-rules__head">
@@ -167,7 +177,7 @@ export function Automations() {
                 <Input id="a-disc" type="number" min={1} max={50} value={cfg.fav.discountPct} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, discountPct: num(e.target.value, 1, 50, 10) } }))} />
               </Field>
               <Field label={t('auto.fav.delay')} htmlFor="a-delay">
-                <Input id="a-delay" type="number" min={5} max={720} value={cfg.fav.minDelayMin} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, minDelayMin: num(e.target.value, 5, 720, 15) } }))} />
+                <Input id="a-delay" type="number" min={1} max={720} value={cfg.fav.minDelayMin} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, minDelayMin: num(e.target.value, 1, 720, 4) } }))} />
               </Field>
               <Field label={t('auto.fav.perDay')} htmlFor="a-day">
                 <Input id="a-day" type="number" min={1} max={30} value={cfg.fav.perDay} onChange={(e) => set((c) => ({ ...c, fav: { ...c.fav, perDay: num(e.target.value, 1, 30, 15) } }))} />

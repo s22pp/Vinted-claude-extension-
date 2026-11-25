@@ -98,7 +98,8 @@ export function Onboarding() {
                   </span>
                   {vinted.busy ? (
                     <span className="row t-small t-muted" style={{ gap: 8 }}>
-                      {vinted.stage && t(`vinted.stage${vinted.stage}`)} <span className="btn__spinner" />
+                      {vinted.stage && t(`vinted.stage${vinted.stage}`)}
+                      <span className="sweep" aria-hidden="true" />
                     </span>
                   ) : (
                     <Icon name="chevronRight" size={16} />
@@ -126,7 +127,8 @@ export function Onboarding() {
                       {t('onboarding.s2DemoHint')}
                     </span>
                   </span>
-                  {busy === 'demo' ? <span className="btn__spinner" /> : <Icon name="chevronRight" size={16} />}
+                  {busy === 'demo' && <span className="sweep" aria-hidden="true" />}
+                  <Icon name="chevronRight" size={16} />
                 </button>
               </div>
             )}

@@ -574,3 +574,332 @@ kbd,
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
+
+/* ── Pilote: the control room — three cells of the 1 px grid ─────────────────────────────────────────────────────── */
+.ctrl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.ctrl__col {
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border-left: 1px solid var(--border-grid);
+}
+.ctrl__col:first-child {
+  border-left: 0;
+}
+.ctrl__head {
+  margin: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.ctrl__rules,
+.ctrl__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ctrl__rule {
+  padding: 10px 0;
+  border-top: 1px solid var(--border-grid);
+}
+.ctrl__rule:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ctrl__switch {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  cursor: pointer;
+}
+.ctrl__switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.ctrl__track {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 1px;
+  background: var(--bg-canvas);
+  transition: background 240ms var(--ease-locomotive), border-color 240ms var(--ease-locomotive);
+}
+.ctrl__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--text-3);
+  transition: transform 240ms var(--ease-locomotive), background 240ms var(--ease-locomotive);
+}
+.ctrl__switch input:checked + .ctrl__track {
+  border-color: var(--emerald);
+  background: color-mix(in srgb, var(--emerald) 14%, var(--bg-canvas));
+}
+.ctrl__switch input:checked + .ctrl__track::after {
+  transform: translateX(14px);
+  background: var(--emerald);
+}
+.ctrl__switch input:focus-visible + .ctrl__track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ctrl__rule-text {
+  display: grid;
+  gap: 2px;
+}
+.ctrl__rule-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.ctrl__rule-hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.ctrl__pcts {
+  display: inline-flex;
+  margin: 8px 0 0 40px;
+  border: 1px solid var(--border-grid);
+}
+.ctrl__pcts button {
+  padding: 3px 10px;
+  border: 0;
+  border-left: 1px solid var(--border-grid);
+  background: none;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.ctrl__pcts button:first-child {
+  border-left: 0;
+}
+.ctrl__pcts button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ctrl__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-grid);
+  font-size: 12.5px;
+}
+.ctrl__item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ctrl__item--log {
+  grid-template-columns: 42px minmax(0, 1fr);
+}
+.ctrl__what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.ctrl__what b {
+  color: var(--text);
+  font-weight: 500;
+}
+.ctrl__when {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.ctrl__item[data-running] .ctrl__when {
+  color: var(--emerald);
+}
+.ctrl__cancel {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--coral);
+  cursor: pointer;
+}
+.ctrl__cancel:hover {
+  text-decoration: underline;
+}
+.ctrl__empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.ctrl__gauge {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.ctrl__gauge-n {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.ctrl__gauge-bar {
+  display: block;
+  height: 2px;
+  background: var(--border-grid);
+}
+.ctrl__gauge-bar i {
+  display: block;
+  height: 100%;
+  background: var(--emerald);
+}
+.ctrl__gauge-mode {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.ctrl__halt {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--coral);
+  background: color-mix(in srgb, var(--coral) 8%, transparent);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.ctrl__halt b {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--coral);
+}
+@media (max-width: 1100px) {
+  .ctrl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ctrl__col {
+    border-left: 0;
+    border-top: 1px solid var(--border-grid);
+  }
+  .ctrl__col:first-child {
+    border-top: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctrl__track,
+  .ctrl__track::after {
+    transition: none;
+  }
+}
+
+/* ── « Marge est. +32 € (Opportunité) »: a mono tag, emerald when worth buying ─────────────────────────────────────── */
+.margin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border-grid);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.margin-badge > span {
+  font-size: 7px;
+}
+.margin-badge.is-opportunity {
+  color: var(--emerald);
+  border-color: color-mix(in srgb, var(--emerald) 40%, transparent);
+  background: color-mix(in srgb, var(--emerald) 8%, transparent);
+}
+.margin-badge.is-loss {
+  color: var(--coral);
+}
+
+/* ── Loading: a faint light sweeping inside the grid's cells and the busy buttons — never a spinning wheel ─────────── */
+.skeleton {
+  border-radius: 2px !important;
+  background: var(--surface);
+  border: 1px solid var(--border-grid);
+}
+.skeleton::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(248, 250, 252, 0.05) 50%, transparent 100%);
+  animation: shimmer 1.6s var(--ease-locomotive) infinite;
+}
+:root[data-theme='light'] .skeleton::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(11, 14, 20, 0.05) 50%, transparent 100%);
+}
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border-grid);
+}
+.skeleton-grid .skeleton {
+  border: 0;
+  border-left: 1px solid var(--border-grid);
+}
+.skeleton-grid .skeleton:first-child {
+  border-left: 0;
+}
+.btn.is-busy {
+  position: relative;
+  overflow: hidden;
+}
+.sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, currentColor 16%, transparent) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: shimmer 1.2s var(--ease-locomotive) infinite;
+}
+.choice {
+  position: relative;
+  overflow: hidden;
+}
+/* Reduced motion: still visibly busy, nothing moving — a faint even tint. */
+@media (prefers-reduced-motion: reduce) {
+  .sweep,
+  .skeleton::after {
+    animation: none !important;
+    transform: none;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+:root[data-motion='reduced'] .sweep,
+:root[data-motion='reduced'] .skeleton::after {
+  animation: none !important;
+  transform: none;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* « Créer un lot »: the table fits the dialog (titles wrap, figures stay on one line). */
+[data-testid='sale-lot-dialog'] .dt td {
+  white-space: normal;
+}
+[data-testid='sale-lot-dialog'] .dt td.num {
+  white-space: nowrap;
+}

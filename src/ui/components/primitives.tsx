@@ -30,12 +30,14 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
   { variant = 'default', size = 'md', icon, iconRight, loading, block, className = '', children, disabled, ...rest },
   ref,
 ) {
-  const cls = ['btn', variant !== 'default' && `btn--${variant}`, size !== 'md' && `btn--${size}`, block && 'btn--block', className]
+  const cls = ['btn', variant !== 'default' && `btn--${variant}`, size !== 'md' && `btn--${size}`, block && 'btn--block', loading && 'is-busy', className]
     .filter(Boolean)
     .join(' ');
   return (
     <button ref={ref} className={cls} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
-      {loading ? <span className="btn__spinner" aria-hidden="true" /> : icon ? <Icon name={icon} size={size === 'sm' ? 14 : 16} /> : null}
+      {/* Busy: a light sweeping across the button (no spinning wheel); the icon stays. */}
+      {loading && <span className="sweep" aria-hidden="true" />}
+      {icon ? <Icon name={icon} size={size === 'sm' ? 14 : 16} /> : null}
       {children}
       {iconRight && <Icon name={iconRight} size={14} />}
     </button>

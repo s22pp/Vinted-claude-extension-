@@ -1,11 +1,13 @@
-import { type AutoConfig, type FavItem, decideOffer, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
-import { awaitingReply, noteInbox, recentInbox, recordContact, settleContacts } from './contacts';
+import { type AutoConfig, FAV_QUEUE_KEY, type FavItem, type FavQueued, decideOffer, humanDelayMs, fillBundle, fillTemplate, floorFor, parseFavoriteNotifications, parseInboxOffers, planBundles, planFavorite, withDefaults } from '@/intelligence/automation';
+import { awaitingReply, markReplied, noteInbox, recentInbox, recordContact, settleContacts } from './contacts';
 import { journal } from './journal';
 import { type Choice, type VariantStat, chooseTemplate, variantStats } from '@/intelligence/message-learning';
 import { BUNDLE_NO_PRICE, BUNDLE_WITH_PRICE, DEFAULT_FAV_NO_OFFER, DEFAULT_FAV_OFFER, articleList, articleOf, cleanTitle, pickMessage } from '@/intelligence/fav-messages';
 import { MarketplaceError, errorInfo } from './adapters/marketplace';
 import { currentUserId, firstArray, parseOrder, priceCents } from './adapters/vinted/parse';
 import { type DeliveredOrder, deliveredText, planDelivered } from '@/intelligence/delivered';
+import { FOLLOWED_KEY, FOLLOW_MAX_H, followUpCandidates, followUpText, isDue, lastIsMine } from '@/intelligence/follow-up';
+import { readConversation } from '@/intelligence/buyer-messages';
 import type { AutoRunResult } from './adapters/vinted/protocol';
 import { VintedTabAdapter, findVintedTab, ping } from './adapters/vinted/vinted-adapter';
 import { type AutoLogRow, db } from './db';
@@ -15,9 +17,9 @@ import { eurText } from '@/domain/money';
 
 /**
  * Background-only. Runs ONE automation pass on the seller's own account: reads through the whitelisted GET
- * routes, writes through the whitelisted write routes only, one at a time (≥ 12 s apart, ≤ 40 a day), every
- * request still inside the read budget. Any block (403/429), logout or spent budget stops the pass at once.
- * Every action — or simulated action — is written to the journal. EXPERIMENTAL.
+ * routes, writes through the whitelisted write routes only, one at a time (the execution mode's pacing: none in
+ * Direct, ≥ 12 s apart and ≤ 40 a day in Prudent). Any block (403/429), logout or spent budget stops the pass at once.
+ * Every action — or simulated action — is written to the journal.
  */
 
 const PER_RUN = 5;
@@ -96,6 +98,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
   const out: AutoRunResult = { ok: true, kind: 'FAV', dryRun, done: 0, skipped: 0, failed: 0, stopped: null };
   const adapter = new VintedTabAdapter();
   const seen = new Set(await repo.getSetting<string[]>('autoFavSeen', []));
+  // Favourites waiting for their delay: the Pilote's live queue shows them, with when they go.
+  const favQueue: FavQueued[] = [];
   try {
     const notices = parseFavoriteNotifications(await adapter.rawGet('/web/api/notifications/notifications?page=1&per_page=50'));
     const items = await itemsByVintedId();
@@ -154,6 +158,8 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
       if (tryLater.has(n.key)) continue;
       const item = items.get(n.itemId) ?? null;
       const plan = planFavorite(n, item, cfg, { seen, sentToday, now });
+      if (!plan.send && plan.reason === 'TOO_RECENT')
+        favQueue.push({ key: n.key, userId: n.userId, title: item?.title ?? `annonce ${n.itemId}`, dueAt: n.at + humanDelayMs(n.key, cfg.fav.minDelayMin), offerPct: cfg.fav.mode === 'MESSAGE' ? null : cfg.fav.discountPct });
       if (!plan.send) {
         if (plan.final && !dryRun) seen.add(n.key);
         // A simulation says why nothing would be sent (a real pass stays quiet: it is looked at again next time).
@@ -247,6 +253,7 @@ export async function runFavorites(dryRun: boolean, now = Date.now()): Promise<A
     out.stopped = stopReason(e) ?? `${errorInfo(e).code} · ${errorInfo(e).detail ?? ''}`;
   }
   if (!dryRun) await repo.setSetting('autoFavSeen', [...seen].slice(-1000));
+  if (!dryRun) await repo.setSetting(FAV_QUEUE_KEY, favQueue).catch(() => undefined);
   await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Favoris → message / offre', detail: summary(out) });
   return out;
 }
@@ -458,6 +465,68 @@ export async function runDelivered(dryRun: boolean, now = Date.now()): Promise<A
     await repo.setSetting('autoDeliveredUncertain', [...uncertain].slice(-200));
   }
   await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Colis livré → message', detail: summary(out) });
+  return out;
+}
+
+/**
+ * « Relance sans réponse »: a member ERA wrote to who has not answered after 24 h gets one short follow-up in the same
+ * conversation (never two, never after 72 h). The conversation is read first: if the last message is not the
+ * seller's, the member answered — no follow-up, the contact settled.
+ */
+export async function runFollowUps(dryRun: boolean, now = Date.now()): Promise<AutoRunResult> {
+  const out: AutoRunResult = { ok: true, kind: 'FOLLOWUP', dryRun, done: 0, skipped: 0, failed: 0, stopped: null };
+  const adapter = new VintedTabAdapter();
+  const followed = new Set(await repo.getSetting<string[]>(FOLLOWED_KEY, []));
+  try {
+    const contacts = await db.contacts.where('at').above(now - FOLLOW_MAX_H * 3_600_000).toArray();
+    const due = followUpCandidates(contacts, followed, now)
+      .filter((f) => isDue(f, now))
+      .slice(0, PER_RUN);
+    const mine = due.length ? await sellerId(adapter, now) : null;
+    for (const f of due) {
+      const target = `${f.title} · conversation ${f.conversationId}`;
+      try {
+        const conv = readConversation(await adapter.rawGet(`/api/v2/conversations/${f.conversationId}`), mine);
+        if (!lastIsMine(conv.messages)) {
+          // The member answered (the inbox had not shown it yet): settled, never followed up.
+          const last = conv.messages[conv.messages.length - 1];
+          if (last && !dryRun) await markReplied(f.conversationId, last.at ?? now);
+          if (!dryRun) followed.add(f.conversationId);
+          out.skipped++;
+          await log({ kind: 'SKIP', dryRun, ok: true, target, detail: 'le membre a répondu : pas de relance' });
+          continue;
+        }
+        const text = followUpText(f);
+        if (dryRun) {
+          await log({ kind: 'FOLLOW_UP', dryRun, ok: true, target, detail: `« ${text} »` });
+          out.done++;
+          continue;
+        }
+        await write('POST', `/api/v2/conversations/${f.conversationId}/replies`, { reply: { body: text, photo_temp_uuids: null, is_personal_data_sharing_check_skipped: false } });
+        // Never twice, whatever comes next: saved at once.
+        followed.add(f.conversationId);
+        await repo.setSetting(FOLLOWED_KEY, [...followed].slice(-1000));
+        await log({ kind: 'FOLLOW_UP', dryRun, ok: true, target, detail: `« ${text} »` });
+        out.done++;
+      } catch (e) {
+        out.failed++;
+        // Sent or not, a follow-up is never tried twice: a second message would be one too many.
+        if (!dryRun) followed.add(f.conversationId);
+        const { code, detail } = errorInfo(e);
+        await log({ kind: 'FOLLOW_UP', dryRun, ok: false, target, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+        const stop = stopReason(e);
+        if (stop) {
+          out.stopped = stop;
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    out.ok = false;
+    out.stopped = stopReason(e) ?? `${errorInfo(e).code} · ${errorInfo(e).detail ?? ''}`;
+  }
+  if (!dryRun) await repo.setSetting(FOLLOWED_KEY, [...followed].slice(-1000));
+  await log({ kind: out.stopped && !out.ok ? 'STOP' : 'RUN', dryRun, ok: out.ok, target: 'Relance sans réponse', detail: summary(out) });
   return out;
 }
 

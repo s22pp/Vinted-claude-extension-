@@ -30,7 +30,7 @@ export interface AutoConfig {
     bundle: boolean;
     /** % off the bundle's total, never under the sum of the floors. */
     bundlePct: number;
-    /** A favourite this recent is left alone (the buyer may still be browsing). */
+    /** A favourite this recent is left alone (the buyer may still be browsing); each one waits this plus 0–8 min. */
     minDelayMin: number;
     perDay: number;
   };
@@ -47,6 +47,8 @@ export interface AutoConfig {
   };
   /** Buyers' messages: plain questions answered from ERA's facts when sure (Gemini); the rest waits in ERA. */
   replies: { enabled: boolean };
+  /** A member who has not answered ERA's message or offer after 24 h: one follow-up, never two (off by default). */
+  followUp: { enabled: boolean };
   /** Parcel delivered → one message to the buyer (validate, review, follow). */
   delivered: {
     enabled: boolean;
@@ -66,7 +68,7 @@ export const DEFAULT_AUTO: AutoConfig = {
     discountPct: 10,
     bundle: true,
     bundlePct: 15,
-    minDelayMin: 15,
+    minDelayMin: 4,
     perDay: 15,
   },
   // Direct mode: offers received (accept, counter, decline) and the post-delivery message are sent by themselves as
@@ -80,6 +82,7 @@ export const DEFAULT_AUTO: AutoConfig = {
   },
   delivered: { enabled: true, template: DEFAULT_DELIVERED },
   replies: { enabled: false },
+  followUp: { enabled: false },
 };
 
 /** The single messages of versions ≤ 0.16, as they shipped (replaced by the new defaults when never edited). */
@@ -100,7 +103,7 @@ export function withDefaults(c: (Partial<Omit<AutoConfig, 'fav'>> & { fav?: Stor
     templates: f.templates?.length ? f.templates : legacy(template, DEFAULT_FAV_OFFER),
     templatesNoOffer: f.templatesNoOffer?.length ? f.templatesNoOffer : legacy(templateNoOffer, DEFAULT_FAV_NO_OFFER),
   };
-  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, replies: { ...DEFAULT_AUTO.replies, ...c?.replies }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered, template: deliveredTemplate(c?.delivered?.template) } };
+  return { ...DEFAULT_AUTO, ...c, fav, offers: { ...DEFAULT_AUTO.offers, ...c?.offers }, replies: { ...DEFAULT_AUTO.replies, ...c?.replies }, followUp: { ...DEFAULT_AUTO.followUp, ...c?.followUp }, delivered: { ...DEFAULT_AUTO.delivered, ...c?.delivered, template: deliveredTemplate(c?.delivered?.template) } };
 }
 
 type Json = Record<string, unknown>;
@@ -149,13 +152,34 @@ export interface FavItem {
   itemId?: string;
 }
 
+/** A favourite waiting for its delay, as the Pilote's live queue shows it (written by each real pass). */
+export const FAV_QUEUE_KEY = 'autoFavQueue';
+export interface FavQueued {
+  key: string;
+  userId: string;
+  title: string;
+  /** When it becomes sendable (the next pass after that sends it). */
+  dueAt: number;
+  /** The offer's % off, or null for a message only. */
+  offerPct: number | null;
+}
+
+/** Spread a seller would have: each favourite waits its own delay, from the minimum to 8 minutes more (4–12 min by
+ * default), the same for the same favourite at every pass. */
+export const HUMAN_JITTER_MIN = 8;
+export function humanDelayMs(key: string, minMin: number): number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return (minMin + ((h >>> 0) % (HUMAN_JITTER_MIN + 1))) * 60_000;
+}
+
 export type FavPlan =
   | { send: true; message: boolean; offerCents: number | null; note: string | null }
   | { send: false; reason: 'SEEN' | 'TOO_RECENT' | 'TOO_OLD' | 'DAY_CAP' | 'NO_OFFER'; final: boolean; note?: string };
 
 export function planFavorite(n: FavoriteNotice, item: FavItem | null, cfg: AutoConfig, ctx: { seen: ReadonlySet<string>; sentToday: number; now: number }): FavPlan {
   if (ctx.seen.has(n.key)) return { send: false, reason: 'SEEN', final: true };
-  if (ctx.now - n.at < cfg.fav.minDelayMin * 60_000) return { send: false, reason: 'TOO_RECENT', final: false };
+  if (ctx.now - n.at < humanDelayMs(n.key, cfg.fav.minDelayMin)) return { send: false, reason: 'TOO_RECENT', final: false };
   // A favourite from days ago is no longer a warm lead: skipped for good, not messaged late.
   if (ctx.now - n.at > 3 * 86_400_000) return { send: false, reason: 'TOO_OLD', final: true };
   if (ctx.sentToday >= cfg.fav.perDay) return { send: false, reason: 'DAY_CAP', final: false };

@@ -9,7 +9,7 @@ import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
 import { enqueueReposts, forgetRepost, repostJobs, resumeRepost, runRepostQueue, skipWait } from '@/data/repost-now';
 import { REPOST_ALARM, isActive } from '@/intelligence/repost-now';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
-import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
+import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runFollowUps, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
 import { createVintedDraft, publishDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
@@ -262,7 +262,7 @@ let exportingPhotos: Promise<PhotoExportResult> | null = null;
 /** One automation pass at a time, never during an import or a price edit. */
 function runAuto(kind: AutoKind, dryRun: boolean): Promise<AutoRunResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, kind, dryRun, done: 0, skipped: 0, failed: 0, stopped: 'une autre opération Vinted est en cours' });
-  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : kind === 'OFFERS' ? runOffers(dryRun) : kind === 'REPLIES' ? runReplies(dryRun) : runDelivered(dryRun)).finally(() => {
+  autoRunning = (kind === 'FAV' ? runFavorites(dryRun) : kind === 'OFFERS' ? runOffers(dryRun) : kind === 'REPLIES' ? runReplies(dryRun) : kind === 'FOLLOWUP' ? runFollowUps(dryRun) : runDelivered(dryRun)).finally(() => {
     autoRunning = null;
   });
   return autoRunning;
@@ -274,7 +274,7 @@ const AUTO_ALARM = 'era-auto';
 async function scheduleAuto(): Promise<void> {
   const cfg = await loadAutoConfig();
   await browser.alarms.clear(AUTO_ALARM);
-  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled || cfg.delivered.enabled || cfg.replies.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
+  if (cfg.enabled && (cfg.fav.enabled || cfg.offers.enabled || cfg.delivered.enabled || cfg.replies.enabled || cfg.followUp.enabled)) await browser.alarms.create(AUTO_ALARM, { periodInMinutes: Math.max(15, cfg.everyMinutes) });
 }
 
 async function onAutoAlarm(): Promise<void> {
@@ -289,6 +289,7 @@ async function onAutoAlarm(): Promise<void> {
     if (cfg.fav.enabled && (await scheduledRunAllowed('auto'))) await runAuto('FAV', false);
     if (cfg.delivered.enabled && (await scheduledRunAllowed('auto'))) await runAuto('DELIVERED', false);
     if (cfg.replies.enabled && (await scheduledRunAllowed('auto'))) await runAuto('REPLIES', false);
+    if (cfg.followUp.enabled && (await scheduledRunAllowed('auto'))) await runAuto('FOLLOWUP', false);
   });
 }
 
@@ -412,6 +413,12 @@ async function runPilotRound(hour: number, dryRun = false, manual = false): Prom
       };
       r.offers = await auto('OFFERS', cfg.offers.enabled, 'offers');
       r.favourites = await auto('FAV', cfg.fav.enabled, 'fav');
+      // Members who have not answered after 24 h: one follow-up each (counted with the favourites' step).
+      if (cfg.followUp.enabled && !r.stopped?.match(STOP) && (await allowed())) {
+        const f = await runAuto('FOLLOWUP', dryRun);
+        r.followUps = f.done;
+        if (f.stopped && STOP.test(f.stopped)) r.stopped = f.stopped;
+      }
       r.delivered = await auto('DELIVERED', cfg.delivered.enabled, 'delivered');
       // Buyers' messages: plain questions answered when sure, the rest waiting in ERA with a draft.
       if ((cfg.replies.enabled || dryRun) && !r.stopped?.match(STOP) && (await allowed())) {

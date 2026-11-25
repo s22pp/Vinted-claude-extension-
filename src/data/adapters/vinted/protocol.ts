@@ -169,7 +169,7 @@ export interface BudgetStatus {
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
 
 /** New favourites, offers received, parcels delivered. */
-export type AutoKind = 'FAV' | 'OFFERS' | 'DELIVERED' | 'REPLIES';
+export type AutoKind = 'FAV' | 'OFFERS' | 'DELIVERED' | 'REPLIES' | 'FOLLOWUP';
 
 export interface AutoRunResult {
   ok: boolean;

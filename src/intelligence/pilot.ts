@@ -83,6 +83,8 @@ export interface PilotRound {
   imported: { listings: number; sold: number } | null;
   offers: number;
   favourites: number;
+  /** Follow-ups sent to members who had not answered after 24 h. */
+  followUps?: number;
   delivered: number;
   deals: number;
   /** Labels saved as PDF, and labels Vinted gave that the browser could not save. */
@@ -143,6 +145,7 @@ export function pilotNotice(r: PilotRound): { title: string; lines: string[] } {
   const done = [
     r.offers && plural(r.offers, 'offre traitée', 'offres traitées'),
     r.favourites && plural(r.favourites, 'message aux favoris', 'messages aux favoris'),
+    r.followUps && plural(r.followUps, 'relance sans réponse', 'relances sans réponse'),
     r.replies && plural(r.replies, 'réponse à un acheteur', 'réponses aux acheteurs'),
     r.delivered && plural(r.delivered, 'remerciement (colis livré)', 'remerciements (colis livrés)'),
     r.priceCut && `${r.simulated ? 'baisserait le prix' : 'prix baissé'} : ${r.priceCut.title} ${eurText(r.priceCut.from, 2)} → ${eurText(r.priceCut.to, 2)}${r.priceCut.unconfirmed ? ' (non confirmé : à vérifier)' : ''}`,

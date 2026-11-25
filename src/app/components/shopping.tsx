@@ -89,6 +89,7 @@ const SCAN_NICHES = 5;
  * and only the listings whose all-in cost stays under the niche's maximum.
  */
 import { BuyAlertsCard } from './buy-alerts';
+import { MarginBadge } from './margin-badge';
 
 export function DealScanner() {
   const { t } = useI18n();
@@ -182,8 +183,8 @@ export function DealScanner() {
                       <td className="num t-muted">
                         <Money cents={d.maxLandedCents} />
                       </td>
-                      <td className="num" style={{ fontWeight: 700 }}>
-                        <Money cents={d.marginCents} sign />
+                      <td>
+                        <MarginBadge cents={d.marginCents} />
                       </td>
                       <td>
                         {!demo && (
