@@ -1682,6 +1682,7 @@ export const fr = {
       OFFER_REJECT: 'Refuser une offre',
       OFFER_COUNTER: 'Contre-offre',
       DELIVERED_MESSAGE: 'Message colis livré',
+      REPLY: 'Réponse aux messages',
       API: 'API de recherche',
       LEARNED: 'Adresse apprise',
       PAGE: 'Page de recherche',

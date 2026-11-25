@@ -1,5 +1,6 @@
 import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type CatalogPageRead, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
+import { challengeOn } from '@/data/adapters/vinted/challenge';
 import { editDescriptionOnPage, editPriceOnPage, editTextOnPage, publishOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
@@ -14,6 +15,27 @@ export default defineContentScript({
   // document_end: ready as soon as the DOM is parsed, without waiting for Vinted's heavy scripts.
   runAt: 'document_end',
   main() {
+    // An anti-bot check shown on this page (now, or a frame added later): everything stops, like a 403. ERA never
+    // answers nor works around it; the seller resumes once Vinted lets them through.
+    let challenged = false;
+    const challenge = () => {
+      if (challenged || !challengeOn(document)) return;
+      challenged = true;
+      void browser.runtime.sendMessage({ type: 'era:challenge', path: location.pathname } satisfies EraMessage).catch(() => undefined);
+    };
+    challenge();
+    // Vinted's pages change constantly: one cheap look at the frames at most every 0.8 s, never per change.
+    let pending = false;
+    const observer = new MutationObserver(() => {
+      if (pending || challenged) return;
+      pending = true;
+      window.setTimeout(() => {
+        pending = false;
+        challenge();
+        if (challenged) observer.disconnect();
+      }, 800);
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
     browser.runtime.onMessage.addListener((msg: EraMessage, _sender, sendResponse) => {
       // Always an answer, even when something throws: the extension never waits on a closed channel.
       const reply = (p: Promise<unknown>) => {

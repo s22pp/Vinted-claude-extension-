@@ -1596,3 +1596,106 @@ input[type='checkbox'][role='switch']:disabled {
   justify-self: start;
   align-self: flex-start;
 }
+
+/* ══ Locomotive geometry (0.60): a 1 px grid, no diffuse shadow on cards, sharp radii, mechanical motion ═══════════ */
+:root {
+  --ease-locomotive: cubic-bezier(0.19, 1, 0.22, 1);
+  --duration-fast: 240ms;
+  --duration-smooth: 450ms;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 4px;
+  --border-grid: rgba(255, 255, 255, 0.09);
+  --border-highlight: rgba(255, 255, 255, 0.16);
+}
+:root[data-theme='light'] {
+  --border-grid: #dcdad3;
+  --border-highlight: #c8c5bc;
+}
+/* Cards are cells of the grid: a sharp 1 px frame, the top edge catching the light, no blur under them. */
+.card,
+.bulkbar,
+.kpi-strip {
+  border-radius: 4px;
+  border: 1px solid var(--border-grid);
+  border-top-color: var(--border-highlight);
+  box-shadow: none;
+}
+.kpi-strip > .kpi,
+.item-kpis > .metric {
+  border-color: var(--border-grid);
+}
+.btn,
+.input,
+select.input,
+textarea.input,
+.seg,
+.seg__btn {
+  border-radius: 3px;
+}
+.badge,
+.kbd,
+.palette__open kbd,
+.status-pill,
+.flag {
+  border-radius: 2px;
+}
+/* Titles: monumental but contained, tight. */
+.page-head .t-h1 {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+/* Sidebar: the current page marked by a clean 2 px rule at the very edge, its label stepping 4 px in. */
+.nav__marker::before {
+  background: #ffffff;
+}
+:root[data-theme='light'] .nav__marker::before {
+  background: #0f141c;
+}
+.nav__label {
+  transition: transform var(--duration-fast) var(--ease-locomotive);
+}
+.nav__item[aria-current='page'] .nav__label {
+  transform: translateX(4px);
+}
+.nav__item:hover {
+  background: transparent;
+  color: var(--text);
+}
+/* Secondary buttons: the glacier fill slides up from below on hover and turns the text; a press gives way. */
+.btn:not(.btn--primary):not(.btn--ghost) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: color 280ms var(--ease-locomotive), border-color 280ms var(--ease-locomotive), transform 120ms ease;
+}
+.btn:not(.btn--primary):not(.btn--ghost)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--accent);
+  transform: translateY(101%);
+  transition: transform 280ms var(--ease-locomotive);
+}
+.btn:not(.btn--primary):not(.btn--ghost):not(:disabled):hover {
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+.btn:not(.btn--primary):not(.btn--ghost):not(:disabled):hover::before {
+  transform: translateY(0);
+}
+.btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+:root[data-motion='reduced'] .btn::before,
+:root[data-motion='reduced'] .nav__label {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn::before,
+  .nav__label {
+    transition: none;
+  }
+}

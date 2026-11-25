@@ -2378,6 +2378,21 @@ test('« Republier maintenant » for two articles: one after the other, each cop
   await expect(page.locator('tbody tr', { hasText: 'Chemise Oxford Pierre Cardin L' })).toContainText('Aujourd’hui');
 });
 
+test('an anti-bot check shown on a Vinted page: everything stops, like a 403 — never answered, never worked around', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true });
+  // Test fixture only: a Vinted page that shows DataDome's check in a frame.
+  await context.route('https://www.vinted.fr/fake-challenge', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<html><body>Vinted<iframe src="https://geo.captcha-delivery.com/captcha/?initialCid=test"></iframe></body></html>' }));
+  await context.route('https://geo.captcha-delivery.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<html><body>check</body></html>' }));
+  const vinted = await context.newPage();
+  await vinted.goto('https://www.vinted.fr/fake-challenge');
+  const [worker] = context.serviceWorkers();
+  await expect.poll(async () => ((await worker!.evaluate(() => chrome.storage.local.get('eraHalt'))) as { eraHalt?: { code: string } }).eraHalt?.code ?? null, { timeout: 20_000 }).toBe('NETWORK_403');
+  // The seller sees it: requests suspended, in Réglages.
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await expect(page.getByText(/Requêtes suspendues jusqu’à/)).toBeVisible({ timeout: 15_000 });
+});
+
 test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {
   test.setTimeout(90_000);
   await fakeVinted(context, { loggedIn: true });
