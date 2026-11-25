@@ -145,9 +145,9 @@ export function IllustrationWelcome() {
         <rect x="0" y="76" width="30" height="4" rx="1" fill="var(--border)" />
       </g>
       <g fontFamily="var(--font-mono)" fontSize="10.5" letterSpacing=".02em">
-        <rect x="246" y="96" width="122" height="28" rx="2" fill="var(--bg)" style={{ stroke: 'var(--onb-line)' }} />
-        <circle cx="260" cy="110" r="3" fill="var(--emerald)" />
-        <text x="270" y="114" fill="var(--emerald)">+36 € profit</text>
+        <rect x="234" y="96" width="122" height="28" rx="2" fill="var(--bg)" style={{ stroke: 'var(--onb-line)' }} />
+        <circle cx="248" cy="110" r="3" fill="var(--emerald)" />
+        <text x="258" y="114" fill="var(--emerald)">+36 € profit</text>
         <rect x="36" y="272" width="132" height="28" rx="2" fill="var(--bg)" style={{ stroke: 'var(--onb-line)' }} />
         <circle cx="50" cy="286" r="3" fill="var(--amber)" />
         <text x="60" y="290" fill="var(--amber)">83 j · capital</text>

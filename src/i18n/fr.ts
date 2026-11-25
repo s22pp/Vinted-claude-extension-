@@ -29,6 +29,15 @@ export const fr = {
     salesHint: 'Combien est-ce que je gagne ?',
     insightsHint: 'Qu’est-ce qu’ERA apprend ?',
   },
+  side: {
+    synced: 'Compte synchronisé',
+    waiting: 'En attente d’import',
+    pilotOn: 'Pilote actif',
+    pilotOff: 'Pilote en veille',
+  },
+  topbar: {
+    stock: 'Stock : {n}',
+  },
   data: {
     stateFresh: 'Données à jour',
     stateLocal: 'Local · {n} articles',
@@ -1958,6 +1967,7 @@ export const fr = {
     cogs: 'Coût des articles vendus',
     margin: 'Marge brute',
     purchases: 'Achats de l’année',
+    addPurchase: '+ Ajouter un achat',
     purchasesN: '{n} achats datés',
     purchasesN_one: '1 achat daté',
     refunds: 'Remboursements',
@@ -2815,8 +2825,9 @@ export const fr = {
     label: 'Entrée de la maison {name}',
     enter: 'Accéder à l’espace',
     skip: 'Passer l’intro',
-    statusSynced: '[ SYSTÈME PRÊT · STOCK SYNCHRONISÉ LE {date} ]',
-    statusLocal: '[ SYSTÈME PRÊT · STOCK LOCAL, AUCUN IMPORT VINTED ]',
+    ready: '[ SYSTÈME PRÊT ]',
+    statusSynced: 'Stock synchronisé le {date}',
+    statusLocal: 'Stock local · aucun import Vinted',
   },
   portfolio: {
     title: 'Le stock comme un portefeuille',

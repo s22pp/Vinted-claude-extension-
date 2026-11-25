@@ -308,14 +308,20 @@ export function EraTrainScene({ name, status, onDone }: { name: string; status: 
     <div className={`era-train ${leaving ? 'is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label={t('intro.label', { name })} data-testid="era-intro">
       <div ref={host} className="era-train__stage" />
       <div className={`era-train__reveal ${revealed ? 'is-on' : ''}`}>
+        <p className="era-train__ready num" data-testid="intro-ready">
+          {t('intro.ready')}
+        </p>
         <p className="era-train__status num">{status}</p>
         <button type="button" className="btn btn--primary era-train__enter" onClick={finish}>
           {t('intro.enter')} <span aria-hidden="true">→</span>
         </button>
       </div>
-      <button type="button" className="era-train__skip num" onClick={finish}>
-        {t('intro.skip')} <kbd className="kbd">Échap</kbd>
-      </button>
+      {/* Once « Accéder à l'espace » is there, the skip has nothing left to skip. */}
+      {!revealed && (
+        <button type="button" className="era-train__skip num" onClick={finish}>
+          {t('intro.skip')} <kbd className="kbd">Échap</kbd>
+        </button>
+      )}
     </div>
   );
 }

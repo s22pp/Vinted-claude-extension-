@@ -70,8 +70,11 @@ export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
                       className="pbelt__box"
                       data-late={p.late || undefined}
                     >
-                      <span className="num">{boxInitials(p.title)}</span>
-                      {p.days !== null && <span className="pbelt__age num">{p.days} j</span>}
+                      {/* « SN · 3j » inside the box: nothing sticks out over the belt. */}
+                      <span className="pbelt__code num">
+                        {boxInitials(p.title)}
+                        {p.days !== null && <span className="pbelt__age"> · {p.days}j</span>}
+                      </span>
                     </button>
                   ))}
                 </div>

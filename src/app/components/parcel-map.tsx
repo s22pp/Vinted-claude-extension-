@@ -58,6 +58,8 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
       iconAnchor: [14, 14],
     });
     L.marker([home.lat, home.lng], { icon: homeIcon, title: `Chez moi — ${home.label}`, keyboard: false }).bindTooltip(`Chez moi — ${home.label}`).addTo(g);
+    // The 5 km around home (the seller's own place, stored on this device only): a fine dashed ring, no fill.
+    L.circle([home.lat, home.lng], { radius: HOME_RADIUS_M, color: 'rgba(56, 189, 248, 0.25)', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(g);
     for (const p of pins) {
       const color = p.direction === 'IN' ? (css('--emerald') ?? '#10b981') : (css('--violet') ?? '#8b5cf6');
       if (p.direction === 'OUT') L.polyline([[home.lat, home.lng], [p.lat, p.lng]], { color, weight: 2, dashArray: '6 6', opacity: 0.8 }).addTo(g);
@@ -74,7 +76,23 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
     if (box.current) box.current.style.cursor = placing ? 'crosshair' : '';
   }, [placing]);
 
-  return <div ref={box} className="pmap" data-testid="parcel-map" role="region" aria-label="Carte des colis" />;
+  return (
+    <div className="pmap-wrap">
+      <div ref={box} className="pmap" data-testid="parcel-map" role="region" aria-label="Carte des colis" />
+      <span className="pmap-legend num" data-testid="pmap-legend">
+        {coordText(home.lat, home.lng)} · RAYON {HOME_RADIUS_M / 1000} KM
+      </span>
+    </div>
+  );
+}
+
+/** The ring drawn around home on the map. */
+const HOME_RADIUS_M = 5000;
+
+/** « 48.8566° N, 2.3522° E »: the place as a navigator writes it (from the seller's stored home, never a constant). */
+export function coordText(lat: number, lng: number): string {
+  const f = (v: number) => Math.abs(v).toFixed(4);
+  return `${f(lat)}° ${lat >= 0 ? 'N' : 'S'}, ${f(lng)}° ${lng >= 0 ? 'E' : 'O'}`;
 }
 
 function escapeHtml(s: string): string {

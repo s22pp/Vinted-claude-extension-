@@ -722,28 +722,29 @@ test('automations: a simulation sends nothing; a real run writes only whiteliste
   await noOffer.getByRole('checkbox').nth(1).uncheck();
   await noOffer.getByRole('checkbox').nth(3).check();
 
-  // Simulation: reads only; the purchase cost is unknown, so no offer is planned.
+  // Simulation: reads only. The purchase cost is unknown: the floor is optional, the offer goes at −10 % alone.
   const before = calls.length;
   await page.getByRole('button', { name: 'Simuler', exact: true }).first().click();
-  await expect(log).toContainText('coût d’achat inconnu', { timeout: 30_000 });
+  await expect(log).toContainText('offre 54,00 €', { timeout: 30_000 });
   expect(calls.slice(before).every((c) => c.method === 'GET')).toBe(true);
 
-  // Real run on the new favourite: open the conversation, send the message — nothing else.
+  // Real run on the new favourite: open the conversation, send the message, make the offer — nothing else.
   await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
-  const sent = 'Bonjour, merci pour votre favori ! Je reste disponible si vous avez des questions sur la veste Ralph Lauren.';
+  const sent = 'Hello ! J’ai vu ton favori sur la veste Ralph Lauren 🙂 Je te fais 54 € au lieu de 59 €, l’offre t’attend dans la conversation.';
   const writes = () => calls.filter((c) => c.method !== 'GET');
   // (The simulation already logged this text: wait for the real writes.)
-  await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
+  await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(3);
   await expect(log).toContainText(sent);
-  expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
+  expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies', 'POST /api/v2/transactions/7001/offers']);
   expect(JSON.parse(writes()[1]!.body!).reply.body).toBe(sent);
   expect(JSON.parse(writes()[0]!.body!)).toEqual({ initiator: 'seller_enters_notification', item_id: 101, opposite_user_id: 555 });
-  expect(writes().map((w) => w.csrf)).toEqual(['t-123', 't-123']);
+  expect(JSON.parse(writes()[2]!.body!)).toEqual({ offer: { price: '54.00', currency: 'EUR' } });
+  expect(writes().map((w) => w.csrf)).toEqual(['t-123', 't-123', 't-123']);
 
   // Offer received: 40 € on 59 € (68 %) → one counter-offer at 92 % → 55 €.
   await page.getByRole('button', { name: 'Lancer maintenant' }).nth(1).click();
   await expect(log).toContainText('contre-offre 55,00 €', { timeout: 60_000 });
-  const counter = writes().slice(2);
+  const counter = writes().slice(3);
   expect(counter.map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/transactions/7100/offers']);
   expect(JSON.parse(counter[0]!.body!)).toEqual({ offer: { price: '55.00', currency: 'EUR' } });
 });

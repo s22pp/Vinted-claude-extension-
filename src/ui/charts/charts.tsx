@@ -175,11 +175,14 @@ export function LineChart({
     if (all.length < minPoints) return null;
     let lo = Math.min(...all);
     let hi = Math.max(...all);
+    const allPositive = lo >= 0;
     if (zeroBased) lo = Math.min(0, lo);
     else {
       const m = (hi - lo) * 0.15 || hi * 0.1;
       lo -= m;
       hi += m;
+      // Amounts that are never negative: the axis, the curve and its fill never go under 0 €.
+      if (allPositive) lo = Math.max(0, lo);
     }
     const ticks = niceTicks(lo, hi, 4);
     const y0 = ticks[0]!;

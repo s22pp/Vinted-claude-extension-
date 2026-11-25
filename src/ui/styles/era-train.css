@@ -39,6 +39,14 @@
   transform: translate(-50%, 0);
   pointer-events: auto;
 }
+.era-train__ready {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  color: #f8fafc;
+}
 .era-train__status {
   margin: 0;
   font-family: var(--font-mono);
@@ -50,9 +58,9 @@
 .era-train__enter {
   height: 42px;
   padding: 0 20px;
-  border-radius: 3px;
-  background: #e2e8f0;
-  color: #080c12;
+  border-radius: 2px;
+  background: #f8fafc;
+  color: #070a0f;
 }
 .era-train__skip {
   position: absolute;

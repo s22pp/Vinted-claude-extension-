@@ -1,0 +1,534 @@
+/* ══ ERA · Locomotive architectural system (1.2) ═══════════════════════════════════════════════════════════════════
+   The last layer, over Maison and the 0.60 geometry: no shadow anywhere, a continuous 1 px Swiss grid, radii of 2 px
+   (containers, dialogs, buttons, fields) and 1 px (badges, keys), the serif for titles only, mono for labels and
+   figures. Gradients live only inside the SVG charts. Motion: masked title reveal, wipe hover, the nav bar. */
+
+:root {
+  --bg-canvas: #070a0f;
+  --bg: #070a0f;
+  --bg-elev: #0c1018;
+  --surface: #0c1018;
+  --surface-solid: #0c1018;
+  --surface-hover: #121824;
+  --surface-sunken: #090d14;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-grid: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-highlight: rgba(255, 255, 255, 0.22);
+  --edge-light: rgba(255, 255, 255, 0.1);
+  --text: #f8fafc;
+  --text-2: #94a3b8;
+  --text-3: #8794a7;
+  --accent: #f8fafc;
+  --on-accent: #070a0f;
+  --focus: #f8fafc;
+  --emerald: #34d399;
+  --amber: #fbbf24;
+  --coral: #f87171;
+  --glacier: #38bdf8;
+  --r-xs: 1px;
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 2px;
+  --r-xl: 2px;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-card: none;
+  --ease-locomotive: cubic-bezier(0.19, 1, 0.22, 1);
+}
+:root[data-theme='light'] {
+  --bg-canvas: #f4f3ee;
+  --bg: #f4f3ee;
+  --bg-elev: #faf9f6;
+  --surface: #faf9f6;
+  --surface-solid: #faf9f6;
+  --surface-hover: #efede6;
+  --surface-sunken: #eceae3;
+  --border: #d8d6ce;
+  --border-grid: #d8d6ce;
+  --border-strong: #b9b6ac;
+  --border-highlight: #b9b6ac;
+  --edge-light: #d8d6ce;
+  --text: #0b0e14;
+  --text-2: #3d4652;
+  --text-3: #58626e;
+  --accent: #0b0e14;
+  --on-accent: #faf9f6;
+  --focus: #0b0e14;
+  --glacier: #0369a1;
+}
+
+/* No shadow, anywhere. Focus stays visible through an outline, never a shadow. */
+*,
+*::before,
+*::after {
+  box-shadow: none !important;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+body,
+.app {
+  background: var(--bg-canvas);
+}
+
+/* ── Radii: 2 px for what holds, 1 px for what labels ─────────────────────────────────────────────────────────────── */
+.card,
+.modal,
+.drawer,
+.bulkbar,
+.kpi-strip,
+.palette,
+.toast,
+.btn,
+.input,
+select.input,
+textarea.input,
+.seg,
+.seg__btn,
+.seg__thumb,
+.offer-tiers,
+.integ,
+.look,
+.repost-now__wait,
+.table-wrap {
+  border-radius: 2px;
+}
+.badge,
+.kbd,
+kbd,
+.status-pill,
+.nav__count {
+  border-radius: 1px;
+}
+
+/* ── The Swiss grid: every container is a cell of the same 1 px rule ──────────────────────────────────────────────── */
+.card,
+.bulkbar,
+.kpi-strip,
+.modal,
+.drawer {
+  border: 1px solid var(--border-grid);
+  border-top-color: var(--border-grid);
+  background: var(--surface);
+}
+.sidebar {
+  background: var(--bg-canvas);
+  backdrop-filter: none;
+  border-right: 1px solid var(--border-grid);
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.page-head .t-h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4vw, 3.75rem);
+  line-height: 0.94;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+  /* The mask the title rises through. */
+  overflow: hidden;
+  padding-bottom: 0.08em;
+  animation: none;
+}
+.t-h1__line {
+  display: inline-block;
+  transform-origin: left bottom;
+  animation: h1-reveal 650ms var(--ease-locomotive) backwards;
+}
+@keyframes h1-reveal {
+  from {
+    transform: translateY(105%) rotate(1.5deg);
+  }
+  to {
+    transform: none;
+  }
+}
+/* Labels: mono capitals, 10 px, wide. */
+.t-caption,
+.dt th,
+.page-head__eyebrow,
+.metric__label,
+.kpi-strip .metric__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* KPI figures: mono, 24 px, regular. */
+.metric__value,
+.kpi-strip .metric__value,
+.item-kpis .metric__value {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+.metric__value--sm {
+  font-size: 18px;
+}
+
+/* ── Wipe hover: the fill rises from below by a clip, glacier white, the text turns ───────────────────────────────── */
+.btn:not(.btn--primary):not(.btn--ghost)::before {
+  transform: none;
+  clip-path: inset(100% 0 0 0);
+  background: var(--accent);
+  transition: clip-path 320ms var(--ease-locomotive);
+}
+.btn:not(.btn--primary):not(.btn--ghost):not(:disabled):hover::before {
+  transform: none;
+  clip-path: inset(0);
+}
+
+/* ── Navigation: a 2 px bar at the edge, the label stepping 6 px in ──────────────────────────────────────────────── */
+.nav__marker::before {
+  width: 2px;
+  background: var(--accent);
+}
+.nav__label {
+  transition: transform 300ms var(--ease-locomotive);
+}
+.nav__item[aria-current='page'] .nav__label {
+  transform: translateX(6px);
+}
+
+/* ── Sidebar head: 56 px, ruled underneath — the account, or ERA's E ─────────────────────────────────────────────── */
+.sidebar {
+  padding-top: 0;
+}
+.side-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  margin: 0 calc(-1 * var(--s-3)) var(--s-3);
+  padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--border-grid);
+  text-decoration: none;
+  color: var(--text);
+}
+.side-id__avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 2px;
+  border: 1px solid var(--border-strong);
+  object-fit: cover;
+}
+.side-id__avatar--mark {
+  display: grid;
+  place-items: center;
+  background: #0d131d;
+  color: #f8fafc;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+}
+.side-id__text {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.side-id__name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-id__status {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.side-id__status.is-synced {
+  color: #34d399;
+}
+.side-id__status.is-waiting {
+  color: #fbbf24;
+}
+:root[data-theme='light'] .side-id__status.is-synced {
+  color: #047857;
+}
+:root[data-theme='light'] .side-id__status.is-waiting {
+  color: #92400e;
+}
+
+/* ── Sidebar foot: version · Pilote · Ctrl K, in ruled cells ─────────────────────────────────────────────────────── */
+.side-status {
+  display: grid;
+  margin: var(--s-3) calc(-1 * var(--s-3)) calc(-1 * var(--s-5));
+  border-top: 1px solid var(--border-grid);
+}
+.side-status__cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--s-4);
+  border: 0;
+  border-bottom: 1px solid var(--border-grid);
+  background: none;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.side-status__cell:last-child {
+  border-bottom: 0;
+}
+.side-status__pilot.is-on {
+  color: #34d399;
+}
+:root[data-theme='light'] .side-status__pilot.is-on {
+  color: #047857;
+}
+.side-status__kbd kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-2);
+}
+
+/* ── Top bar: one row of 56 px cells, a 1 px rule between each, « + Ajouter » filled at the right edge ─────────── */
+.topbar.topbar--cells {
+  height: 56px;
+  gap: 0;
+  padding: 0;
+  background: var(--bg-canvas);
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--border-grid);
+}
+.topbar__cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 18px;
+  border: 0;
+  border-right: 1px solid var(--border-grid);
+  background: none;
+  color: var(--text);
+  font: inherit;
+}
+.topbar__when {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.topbar__sep {
+  color: var(--border-strong);
+}
+.topbar__search {
+  min-width: 240px;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 240ms var(--ease-locomotive);
+}
+.topbar__search:hover {
+  color: var(--text);
+}
+.topbar__kbd {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+.topbar__spacer {
+  flex: 1;
+  align-self: stretch;
+  border-right: 1px solid var(--border-grid);
+}
+.topbar__action {
+  padding: 0 10px;
+}
+.topbar__theme {
+  justify-content: center;
+  width: 56px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-2);
+}
+.topbar__theme:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.topbar__add {
+  border-right: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 22px;
+  cursor: pointer;
+  transition: opacity 200ms var(--ease-locomotive);
+}
+.topbar__add:hover {
+  opacity: 0.88;
+}
+@media (max-width: 1180px) {
+  .side-id {
+    justify-content: center;
+    margin: 0 calc(-1 * var(--s-2)) var(--s-3);
+    padding: 0;
+  }
+  .side-id__text,
+  .side-status__cell:not(.side-status__pilot) {
+    display: none;
+  }
+  .side-status {
+    margin: var(--s-3) calc(-1 * var(--s-2)) calc(-1 * var(--s-5));
+  }
+  .side-status__pilot {
+    justify-content: center;
+    padding: 0;
+    font-size: 0;
+  }
+  .side-status__pilot span {
+    font-size: 12px;
+  }
+}
+@media (max-width: 760px) {
+  .topbar__search {
+    min-width: 0;
+  }
+  .topbar__cell {
+    padding: 0 10px;
+  }
+}
+
+/* ── Motion respected: nothing moves when reduced ────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .t-h1__line,
+  .nav__label,
+  .btn::before {
+    animation: none;
+    transition: none;
+  }
+}
+:root[data-motion='reduced'] .t-h1__line,
+:root[data-motion='reduced'] .nav__label,
+:root[data-motion='reduced'] .btn::before {
+  animation: none;
+  transition: none;
+}
+
+/* ── Vitrine: the card's foot breathes (14 px), the grid ends 40 px above whatever follows ───────────────────────── */
+.look__text {
+  padding-bottom: 14px;
+}
+.vitrine {
+  padding-bottom: 40px;
+}
+
+/* ── Analyses (and every page's sub-tabs): a 1 px rule under the row, the current tab underlined 2 px on it ──────── */
+.page-head__tabs .subtabs,
+.subtabs {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-grid);
+  border-radius: 0;
+  background: none;
+}
+.subtabs a,
+.subtabs button {
+  position: relative;
+  padding: 12px 16px;
+  border-radius: 0;
+  background: none;
+}
+.subtabs [aria-current='page']::after,
+.subtabs [aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--text);
+}
+
+/* « + Ajouter un achat »: the amber way in, where a figure is missing. */
+.fill-costs--amber {
+  font-size: 12px;
+}
+
+/* ── Colis map: the place and its 5 km, written small in the corner ───────────────────────────────────────────────── */
+.pmap-wrap {
+  position: relative;
+}
+.pmap-legend {
+  position: absolute;
+  right: 10px;
+  bottom: 22px;
+  z-index: 500;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #8794a7;
+  background: color-mix(in srgb, var(--bg-canvas) 82%, transparent);
+  border: 1px solid var(--border-grid);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* ── Colis belt: 48 × 42 boxes, initials and age inside, the belt passing behind their middle ────────────────────── */
+.pbelt__line {
+  top: 53px;
+}
+.pbelt__boxes {
+  min-height: 42px;
+}
+.pbelt__box {
+  width: 48px;
+  height: 42px;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.pbelt__code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.pbelt__box .pbelt__age {
+  position: static;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-3);
+}
+.pbelt__box[data-late] .pbelt__age {
+  color: var(--coral);
+}

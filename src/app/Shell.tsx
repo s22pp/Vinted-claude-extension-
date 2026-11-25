@@ -1,13 +1,14 @@
-import Dexie from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ACTIVATION_STEPS } from './components/domain';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
+import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
+import { PROFILE_KEY, identity, validProfile } from '@/intelligence/profile';
 import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/icons';
-import { LogoMark, Wordmark } from '@/ui/components/Logo';
+import { LogoMark } from '@/ui/components/Logo';
 import { useToast } from '@/ui/components/overlays';
-import { Button, DemoBadge, IconButton } from '@/ui/components/primitives';
+import { Button, DemoBadge } from '@/ui/components/primitives';
 import { type ThemeSetting, setTheme } from './providers';
 import { VintedImportButton } from './components/vinted-import';
 import { type RouteName, go, useEra } from './state';
@@ -26,15 +27,50 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 import { CommandPalette } from './components/palette';
 import { UpdateBanner } from './components/update-banner';
 
-/** Counts the local writes that went through (IndexedDB, this page or another of ERA's): each one pulses the badge. */
-function useSaves(): number {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    const on = () => setN((x) => x + 1);
-    Dexie.on('storagemutated').subscribe(on);
-    return () => Dexie.on('storagemutated').unsubscribe(on);
-  }, []);
-  return n;
+/**
+ * The sidebar's head (56 px, ruled underneath): the seller's Vinted avatar and login once synced (read on « Actualiser »
+ * or on a Vinted page, kept on this device only), else ERA's serif E and « en attente d'import ».
+ */
+function SidebarIdentity() {
+  const { t } = useI18n();
+  const stored = useLiveQuery(async () => validProfile(await repo.getSetting<unknown>(PROFILE_KEY, null)), []);
+  const id = identity(stored ?? null);
+  return (
+    <a className="sidebar__brand side-id" href="#/today" aria-label={t('app.fullName')} data-testid="side-id" data-synced={id.synced}>
+      {id.avatar ? <img className="side-id__avatar" src={id.avatar} alt="" width={32} height={32} /> : <span className="side-id__avatar side-id__avatar--mark" aria-hidden="true">E</span>}
+      <span className="side-id__text">
+        <span className="side-id__name">{id.name}</span>
+        <span className={`side-id__status ${id.synced ? 'is-synced' : 'is-waiting'}`}>
+          <span aria-hidden="true">●</span> {t(id.synced ? 'side.synced' : 'side.waiting')}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+/** The sidebar's foot: ERA's version, the Pilote's state, the palette's shortcut. */
+function SidebarStatus() {
+  const { t } = useI18n();
+  const on = useLiveQuery(async () => pilotConfig(await repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null)).enabled, []) ?? false;
+  return (
+    <div className="side-status" data-testid="side-status">
+      <span className="side-status__cell num">v{browser.runtime.getManifest().version}</span>
+      <a className={`side-status__cell side-status__pilot ${on ? 'is-on' : 'is-off'}`} href="#/automations">
+        <span aria-hidden="true">●</span> {t(on ? 'side.pilotOn' : 'side.pilotOff')}
+      </a>
+      <button type="button" className="side-status__cell side-status__kbd" onClick={() => window.dispatchEvent(new Event('era:palette'))} aria-keyshortcuts="Control+K" title={t('palette.open')}>
+        <kbd>Ctrl</kbd> + <kbd>K</kbd>
+      </button>
+    </div>
+  );
+}
+
+/** « MER. 25 NOV »: the day as the top bar's first cell says it. */
+export function topDate(now: number): string {
+  const d = new Date(now);
+  const wd = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' }).format(d).replace(/\.$/, '');
+  const mo = new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(d).replace(/\.$/, '');
+  return `${wd}. ${d.getDate()} ${mo}`.toUpperCase();
 }
 
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
@@ -58,9 +94,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
         {t('app.skipToContent')}
       </a>
       <aside className="sidebar" aria-label="ERA">
-        <a className="sidebar__brand" href="#/today" aria-label={t('app.fullName')}>
-          <Wordmark />
-        </a>
+        <SidebarIdentity />
         <nav className="nav" ref={navRef} aria-label="Navigation">
           {marker !== null && <span className="nav__marker" style={{ transform: `translateY(${marker}px)` }} aria-hidden="true" />}
           {NAV.map((n) => (
@@ -81,6 +115,7 @@ export function Shell({ route, children }: { route: RouteName; children: ReactNo
             <IconTile name="settings" tone="neutral" size="sm" />
             <span className="nav__label">{t('nav.settings')}</span>
           </a>
+          <SidebarStatus />
         </div>
       </aside>
       <div className="main">
@@ -119,44 +154,45 @@ function DemoBannerBar() {
 }
 
 function Topbar() {
-  const { t, dateLong } = useI18n();
+  const { t } = useI18n();
   const era = useEra();
   const theme = useLiveQuery(() => repo.getSetting<ThemeSetting>('theme', 'dark'), []) ?? 'dark';
   const next: Record<ThemeSetting, ThemeSetting> = { dark: 'light', light: 'system', system: 'dark' };
   const themeIcon: Record<ThemeSetting, IconName> = { dark: 'moon', light: 'sun', system: 'monitor' };
   const inStock = era.views.filter((v) => v.inStock).length;
-  const saves = useSaves();
+  // One row of cells, 56 px high, each separated from the next by a 1 px rule; « + Ajouter » fills the last one.
   return (
-    <header className="topbar">
+    <header className="topbar topbar--cells">
       <span className="only-sm" style={{ display: 'none' }}>
         <LogoMark size={24} />
       </span>
-      <span className="t-small t-muted topbar__hide-sm topbar__date">
-        {dateLong(era.now)}
+      <span className="topbar__cell topbar__when topbar__hide-sm num" data-testid="topbar-when">
+        {topDate(era.now)} <span className="topbar__sep" aria-hidden="true">|</span> {t('topbar.stock', { n: inStock })}
       </span>
-      <span className="badge b-emerald topbar__hide-sm" title={t('settings.dataLocal')}>
-        {/* A short pulse at each local write that went through: nothing typed is lost. */}
-        <span key={saves} className={`badge-dot ${saves ? 'is-saved' : ''}`} aria-hidden="true" />
-        {era.mode === 'empty' ? t('data.stateEmpty') : t('data.stateLocal', { n: inStock })}
-      </span>
-      <span className="topbar__spacer" />
-      <button type="button" className="palette__open topbar__hide-sm" onClick={() => window.dispatchEvent(new Event('era:palette'))} aria-keyshortcuts="Control+K">
-        <Icon name="search" size={14} /> {t('palette.open')} <kbd className="palette__kbd">Ctrl K</kbd>
+      <button type="button" className="topbar__cell topbar__search topbar__hide-sm" onClick={() => window.dispatchEvent(new Event('era:palette'))} aria-keyshortcuts="Control+K">
+        <Icon name="search" size={14} /> <span>{t('palette.open')}</span> <kbd className="topbar__kbd">CTRL K</kbd>
       </button>
-      <VintedImportButton size="sm" variant={era.mode === 'real' ? 'default' : 'primary'} label="short" />
-      <span className="topbar__hide-sm">
-        <Button size="sm" icon="buy" onClick={() => go('buy')}>
+      <span className="topbar__spacer" />
+      <span className="topbar__cell topbar__action">
+        <VintedImportButton size="sm" variant="ghost" label="short" />
+      </span>
+      <span className="topbar__cell topbar__action topbar__hide-sm">
+        <Button size="sm" variant="ghost" icon="buy" onClick={() => go('buy')}>
           {t('buy.title')}
         </Button>
       </span>
-      <Button size="sm" variant="primary" icon="plus" aria-label={t('stock.add')} onClick={() => go('stock?add=1')}>
-        <span className="topbar__label">{t('stock.add')}</span>
-      </Button>
-      <IconButton
-        icon={themeIcon[theme]}
-        label={`${t('settings.theme')} : ${t(`settings.theme${theme[0]!.toUpperCase()}${theme.slice(1)}`)}`}
+      <button
+        type="button"
+        className="topbar__cell topbar__theme"
+        aria-label={`${t('settings.theme')} : ${t(`settings.theme${theme[0]!.toUpperCase()}${theme.slice(1)}`)}`}
+        title={`${t('settings.theme')} : ${t(`settings.theme${theme[0]!.toUpperCase()}${theme.slice(1)}`)}`}
         onClick={() => void setTheme(next[theme])}
-      />
+      >
+        <Icon name={themeIcon[theme]} size={16} />
+      </button>
+      <button type="button" className="topbar__cell topbar__add" aria-label={t('stock.add')} onClick={() => go('stock?add=1')}>
+        <Icon name="plus" size={15} /> <span className="topbar__label">{t('stock.add')}</span>
+      </button>
     </header>
   );
 }
@@ -166,7 +202,9 @@ export function PageHead({ eyebrow, title, sub, actions, tabs }: { eyebrow?: Rea
     <div className="page-head">
       <div className="page-head__titles">
         {eyebrow && <div className="page-head__eyebrow">{eyebrow}</div>}
-        <h1 className="t-h1">{title}</h1>
+        <h1 className="t-h1">
+          <span className="t-h1__line">{title}</span>
+        </h1>
         {sub && <p className="page-head__sub">{sub}</p>}
       </div>
       {actions && <div className="page-head__actions">{actions}</div>}

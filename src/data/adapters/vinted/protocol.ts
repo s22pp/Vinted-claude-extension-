@@ -107,6 +107,8 @@ export type EraMessage =
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
   | { type: 'era:budget:report'; status: number; retryAfterMs?: number | null }
+  /** The seller's login / avatar, read passively on a Vinted page (__NEXT_DATA__ or the header's avatar). */
+  | { type: 'era:profile'; username: string | null; avatarUrl: string | null }
   | { type: 'era:challenge'; path: string }
   | { type: 'era:open'; path: string }
   | { type: 'era:budget:status' }

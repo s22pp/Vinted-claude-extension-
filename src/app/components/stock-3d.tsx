@@ -15,10 +15,16 @@ const TEX_W = 256;
 const TEX_H = 342;
 
 const reducedMotion = () => document.documentElement.dataset.motion === 'reduced' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** A rack sign's height as a share of the view's height (sizeAttenuation off): about 32 px on a 720 px view. */
+const SIGN_H = 0.045;
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** Without a photo: a neutral garment silhouette with the title — never an invented picture of the article. */
-function silhouette(title: string): THREE.CanvasTexture {
+/** Bottoms (jeans, trousers, shorts) get a pair of legs, everything else a top. */
+const LEGS = new Set(['JEANS', 'TROUSERS', 'SHORTS']);
+
+/** Without a photo: a neutral silhouette of the category with the title — never an invented picture of the article. */
+function silhouette(title: string, category: string): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = TEX_W;
   c.height = TEX_H;
@@ -27,21 +33,45 @@ function silhouette(title: string): THREE.CanvasTexture {
   g.fillRect(0, 0, TEX_W, TEX_H);
   g.fillStyle = '#94a3b8';
   g.beginPath();
-  // A plain top: shoulders, sleeves, body.
-  g.moveTo(88, 40);
-  g.lineTo(40, 70);
-  g.lineTo(18, 130);
-  g.lineTo(52, 142);
-  g.lineTo(66, 104);
-  g.lineTo(66, 250);
-  g.lineTo(190, 250);
-  g.lineTo(190, 104);
-  g.lineTo(204, 142);
-  g.lineTo(238, 130);
-  g.lineTo(216, 70);
-  g.lineTo(168, 40);
-  g.quadraticCurveTo(128, 72, 88, 40);
-  g.fill();
+  if (LEGS.has(category)) {
+    // A pair of jeans: waistband, then two legs parted at the crotch (shorter for shorts).
+    const hem = category === 'SHORTS' ? 150 : 250;
+    g.moveTo(70, 34);
+    g.lineTo(186, 34);
+    g.lineTo(196, hem);
+    g.lineTo(140, hem);
+    g.lineTo(128, 96);
+    g.lineTo(116, hem);
+    g.lineTo(60, hem);
+    g.closePath();
+    g.fill();
+    // The waistband's seam and the fly: a darker line each.
+    g.strokeStyle = '#64748b';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(70, 50);
+    g.lineTo(186, 50);
+    g.moveTo(128, 50);
+    g.lineTo(128, 92);
+    g.stroke();
+    g.beginPath();
+  } else {
+    // A plain top: shoulders, sleeves, body.
+    g.moveTo(88, 40);
+    g.lineTo(40, 70);
+    g.lineTo(18, 130);
+    g.lineTo(52, 142);
+    g.lineTo(66, 104);
+    g.lineTo(66, 250);
+    g.lineTo(190, 250);
+    g.lineTo(190, 104);
+    g.lineTo(204, 142);
+    g.lineTo(238, 130);
+    g.lineTo(216, 70);
+    g.lineTo(168, 40);
+    g.quadraticCurveTo(128, 72, 88, 40);
+    g.fill();
+  }
   g.fillStyle = '#0f172a';
   g.font = '600 22px "Geist Variable", system-ui, sans-serif';
   g.textAlign = 'center';
@@ -174,10 +204,11 @@ export default function Stock3D() {
     floor.position.set(0, 0, -(rows - 1) * 1.7);
     scene.add(floor);
     const span = Math.ceil(Math.max(width + 12, depth));
-    const grid = new THREE.GridHelper(span, span, 0x1e293b, 0x1e293b);
+    // The floor's grid: slate rgba(148, 163, 184, 0.14), readable without competing with the racks.
+    const grid = new THREE.GridHelper(span, span, 0x94a3b8, 0x94a3b8);
     const gridMat = grid.material as THREE.LineBasicMaterial;
     gridMat.transparent = true;
-    gridMat.opacity = 0.3;
+    gridMat.opacity = 0.14;
     grid.position.set(0, 0.002, -(rows - 1) * 1.7);
     scene.add(grid);
     // The back wall: a quiet vertical fade from deep night to slate.
@@ -240,8 +271,9 @@ export default function Stock3D() {
       g.fillText(label, 72, 49);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
-      const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
-      sign.scale.set(Math.min(2.6, len), Math.min(2.6, len) * 0.19, 1);
+      // The same size on screen whatever the distance (no perspective shrink): the name reads at ~11 px everywhere.
+      const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false }));
+      sign.scale.set(SIGN_H * (512 / 96), SIGN_H, 1);
       sign.position.set((r.x0 + r.x1) / 2, RAIL_Y + 0.32, r.z);
       scene.add(sign);
       disposables.push(tex, sign.material);
@@ -256,7 +288,7 @@ export default function Stock3D() {
     const garmentGeo = new THREE.PlaneGeometry(W, H);
     disposables.push(garmentGeo);
     const garments = hung.map((h, i) => {
-      const tex = silhouette(h.title);
+      const tex = silhouette(h.title, h.category);
       const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide });
       const m = new THREE.Mesh(garmentGeo, mat);
       m.position.set(h.x, h.y, h.z);

@@ -1,7 +1,7 @@
 import { isScheduledRun } from './budget-store';
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
-import { brandOf, currentUserId, currentUserLogin, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
+import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
 import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult } from './protocol';
 import { visitSearchPage } from './search-page';
 import { mayResend, ping, waitForLoad } from './tabs';
@@ -10,6 +10,8 @@ export { ping, waitForLoad } from './tabs';
 export { templateFromObserved, visitSearchPage } from './search-page';
 import type { MarketCandidate } from '@/domain/entities';
 import { db } from '../../db';
+import { syncProfile } from '../../profile-sync';
+import { profileFromUser } from '@/intelligence/profile';
 
 /**
  * The vinted.fr tab ERA talks through: one where its content script answers (the active one first) — a tab Chrome
@@ -223,9 +225,9 @@ export class VintedTabAdapter implements MarketplaceAdapter {
     const json = await this.api('/api/v2/users/current');
     const id = currentUserId(json);
     if (!id) throw new MarketplaceError('NOT_LOGGED_IN');
-    // The login comes with the same read (no extra call): kept on this device for the house's name in the intro.
-    const login = currentUserLogin(json);
-    if (login) await db.settings.put({ key: 'vintedLogin', value: login }).catch(() => undefined);
+    // The login and avatar come with the same read (no extra API call): kept on this device only (sidebar, intro).
+    const profile = profileFromUser(json);
+    if (profile) await syncProfile(profile).catch(() => undefined);
     return id;
   }
 

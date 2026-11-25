@@ -34,6 +34,7 @@ import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
 import { repo } from '@/data/repo';
 import { AUTO_FLOOR, MANUAL_FLOOR, autoAllowed } from '@/data/budget-plan';
 import { journal } from '@/data/journal';
+import { syncProfile } from '@/data/profile-sync';
 
 /**
  * The service worker holds no state in memory: it can be killed at any time. Budgets live in
@@ -700,6 +701,9 @@ export default defineBackground(() => {
         return answer(budget.reserve(budget.useOf(msg.path, msg.method)), () => ({ ok: false, code: 'UNAVAILABLE' }));
       case 'era:budget:report':
         return answer(budget.report(msg.status, typeof msg.retryAfterMs === 'number' ? msg.retryAfterMs : null).then(() => ({ ok: true })), unavailable);
+      case 'era:profile':
+        // Read on a Vinted page the seller opened (no request): validated, merged, then kept in Dexie only.
+        return answer(syncProfile({ username: typeof msg.username === 'string' ? msg.username : null, avatarUrl: typeof msg.avatarUrl === 'string' ? msg.avatarUrl : null }).then(() => ({ ok: true })), unavailable);
       case 'era:open': {
         // From a Vinted page (the item bar's « Analyser dans ERA »): ERA's buy analysis, prefilled — that screen only.
         const path = String(msg.path ?? '');

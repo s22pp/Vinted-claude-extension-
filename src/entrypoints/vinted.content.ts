@@ -1,6 +1,7 @@
 import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type CatalogPageRead, type EraMessage, type PageResult, type ReserveResult } from '@/data/adapters/vinted/protocol';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { challengeOn } from '@/data/adapters/vinted/challenge';
+import { isLogin, isVintedImage, profileFromNextData } from '@/intelligence/profile';
 import { editDescriptionOnPage, editPriceOnPage, editTextOnPage, publishOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
@@ -36,6 +37,12 @@ export default defineContentScript({
       }, 800);
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    // The seller's login and avatar, read from what the page already holds (no request), once the header is drawn.
+    window.setTimeout(() => {
+      if (challenged) return;
+      const p = readProfile();
+      if (p.username || p.avatarUrl) void browser.runtime.sendMessage({ type: 'era:profile', ...p } satisfies EraMessage).catch(() => undefined);
+    }, 2500);
     browser.runtime.onMessage.addListener((msg: EraMessage, _sender, sendResponse) => {
       // Always an answer, even when something throws: the extension never waits on a closed channel.
       const reply = (p: Promise<unknown>) => {
@@ -134,6 +141,25 @@ export default defineContentScript({
     });
   },
 });
+
+/**
+ * The seller's identity as the page shows it: __NEXT_DATA__ first (the current user, when the page carries it), else
+ * the header's avatar (`[data-testid="header-user-menu-button"] img`), its login from the profile link when there.
+ */
+function readProfile(): { username: string | null; avatarUrl: string | null } {
+  try {
+    const raw = document.getElementById('__NEXT_DATA__')?.textContent;
+    const fromNext = raw ? profileFromNextData(JSON.parse(raw)) : null;
+    if (fromNext) return fromNext;
+  } catch {
+    /* malformed: fall back on the header */
+  }
+  const img = document.querySelector<HTMLImageElement>('[data-testid="header-user-menu-button"] img');
+  const src = img?.currentSrc || img?.src || null;
+  const link = document.querySelector<HTMLAnchorElement>('[data-testid="header-user-menu-button"] a[href*="/member/"], a[data-testid="header-profile-link"]');
+  const login = link ? /\/member\/\d+-([\w.-]{1,40})/.exec(link.getAttribute('href') ?? '')?.[1] ?? null : null;
+  return { username: isLogin(login) ? login : null, avatarUrl: isVintedImage(src) ? src : null };
+}
 
 /** Vinted's own « Retry-After » on a 429 (seconds or a date), in ms; null when absent. */
 function retryAfterMs(res: Response): number | null {

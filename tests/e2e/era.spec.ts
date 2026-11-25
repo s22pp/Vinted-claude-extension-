@@ -162,7 +162,11 @@ test('the entrance: replayed from the palette, the house’s name on the bridge,
   await expect(intro).toBeVisible();
   await expect(intro).toHaveAttribute('aria-label', 'Entrée de la maison ERA');
   // The status says what is true: no Vinted import in the demo.
-  await expect(intro.getByText('[ SYSTÈME PRÊT · STOCK LOCAL, AUCUN IMPORT VINTED ]')).toBeVisible({ timeout: 10_000 });
+  await expect(intro.getByTestId('intro-ready')).toHaveText('[ SYSTÈME PRÊT ]', { timeout: 10_000 });
+  await expect(intro.getByText('Stock local · aucun import Vinted')).toBeVisible();
+  await expect(intro.getByRole('button', { name: 'Accéder à l’espace' })).toBeVisible();
+  // « Accéder à l'espace » there: the skip is gone.
+  await expect(intro.getByRole('button', { name: /Passer l’intro/ })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(intro).toHaveCount(0);
 });

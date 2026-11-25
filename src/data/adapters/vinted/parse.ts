@@ -223,13 +223,6 @@ export function currentUserId(json: unknown): string | null {
   return isObj(u) ? str(u.id) : null;
 }
 
-/** The seller's own Vinted login (shown only on this device, never written anywhere else). */
-export function currentUserLogin(json: unknown): string | null {
-  const u = isObj(json) && isObj(json.user) ? json.user : json;
-  const login = isObj(u) ? u.login : null;
-  return typeof login === 'string' && /^[\w.-]{1,40}$/.test(login) ? login : null;
-}
-
 /** Item page context from schema.org JSON-LD — read from the open page, zero network calls. */
 export interface PageItem {
   platformListingId: string | null;

@@ -49,7 +49,7 @@ export function Accounting() {
             <Metric small label={t('accounting.margin')} icon="trendUp" tone="violet" value={sum.grossMargin.status === 'unknown' ? <UnknownCost n={sum.grossMargin.missing} /> : <MetricValue metric={sum.grossMargin} sign />} foot={<MetricFootPartial metric={sum.grossMargin} />} />
           </div>
           <div className="kpi">
-            <Metric small label={t('accounting.purchases')} icon="buy" tone="cobalt" value={<MetricValue metric={sum.purchases} />} foot={t('accounting.purchasesN', { n: register.rows.length })} />
+            <Metric small label={t('accounting.purchases')} icon="buy" tone="cobalt" value={sum.purchases.status === 'unknown' ? <AddPurchaseLink /> : <MetricValue metric={sum.purchases} />} foot={t('accounting.purchasesN', { n: register.rows.length })} />
           </div>
           <div className="kpi">
             <Metric small label={t('accounting.refunds')} icon="alert" tone="coral" value={<span className="num">{sum.refunds}</span>} foot={sum.refunds ? money(sum.refundedCents) : null} />
@@ -256,5 +256,15 @@ function Gauge({ label, ratio }: { label: string; ratio: number }) {
         <span className="gauge__mark" aria-hidden="true" style={{ left: '80%' }} />
       </span>
     </div>
+  );
+}
+
+/** No dated purchase this year: not a static « Inconnu », the way to add one (opens Achats). */
+function AddPurchaseLink() {
+  const { t } = useI18n();
+  return (
+    <button type="button" className="fill-costs fill-costs--amber" onClick={() => go('buy')} data-testid="add-purchase">
+      {t('accounting.addPurchase')}
+    </button>
   );
 }
