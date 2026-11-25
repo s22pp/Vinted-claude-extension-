@@ -18,6 +18,7 @@ import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { type MessageExample, MessagePicker } from '../components/fav-messages';
 import { ProvenOnly, UntilProven, VerifyFlag } from '../components/verify-flag';
+import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
 
 /** The offer shown in previews: the discount on the price, rounded up to the euro (the real one also respects the floor). */
 const favoriteOfferPreview = (price: number, pct: number) => Math.ceil((price * (1 - pct / 100)) / 100) * 100;
@@ -44,6 +45,8 @@ export function Automations() {
   const log = useLiveQuery(() => db.autoLog.orderBy('at').reverse().limit(60).toArray(), []);
   // The status words Vinted gave your imported sales: whether ERA reads "delivered" in them is seen here, without a call.
   const statuses = useLiveQuery(async () => statusReport((await db.sales.filter((s) => !s.isDemo).toArray()).map((s) => s.vintedStatus)), []);
+  // The Pilote's own switch (its rules stay open until it runs). Before any early return: hooks keep their order.
+  const pilotOn = pilotConfig(useLiveQuery(() => repo.getSetting<Partial<PilotConfig> | null>(PILOT_KEY, null), [])).enabled;
   if (!cfg) return null;
   // Previews use one of the seller's own listings (the most favourited), else a plain example.
   const listed = era.views.filter((v) => v.current && !v.item.isDemo).sort((a, b) => (b.current!.favorites ?? 0) - (a.current!.favorites ?? 0))[0];
@@ -132,11 +135,16 @@ export function Automations() {
     <>
       <PageHead title={t('auto.title')} sub={t('auto.sub')} />
       <div className="grid-12">
-        <Card className="span-12" title={t('auto.warnTitle')} icon="alert" tone="coral">
-          <div className="stack">
-            <p className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <PilotCard auto={cfg} onAll={all} onAgent={agent} />
+        {/* The Pilote's rules: open before it is switched on, folded once it runs (always one click away). */}
+        <details className="card span-12 pilot-rules" open={!pilotOn} data-testid="pilot-rules">
+          <summary className="pilot-rules__head">
+            <span className="card__title">{t('auto.warnTitle')}</span>
+            <span className="row" style={{ gap: 8 }}>
               <VerifyFlag proof="auto" /> <VerifyFlag proof="auto" kind="UNVERIFIED" />
-            </p>
+            </span>
+          </summary>
+          <div className="stack" style={{ marginTop: 12 }}>
             <UntilProven proof="auto">
               <p className="t-small">{t('auto.warnBody')}</p>
             </UntilProven>
@@ -150,9 +158,7 @@ export function Automations() {
               <li>{t('auto.guard4')}</li>
             </ul>
           </div>
-        </Card>
-
-        <PilotCard auto={cfg} onAll={all} onAgent={agent} />
+        </details>
         <ChosenRepostsCard />
         <PendingReplies />
         <OutcomesCard />

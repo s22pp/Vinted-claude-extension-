@@ -108,11 +108,12 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
     <Card className="span-12" title={t('pilot.title')} hint={t('pilot.hint')} icon="repost" tone="violet">
       <div className="stack-4" data-testid="pilot">
         {/* The master switch, the next round, and « everything to ERA ». */}
-        <div className="row wrap" style={{ gap: 16, alignItems: 'center', padding: 14, borderRadius: 14, background: cfg.enabled ? 'var(--emerald-soft)' : 'var(--surface-sunken)', border: `1px solid ${cfg.enabled ? 'var(--emerald)' : 'var(--border)'}` }}>
-          <label htmlFor="pilot-on" className="row" style={{ gap: 12, alignItems: 'center', cursor: 'pointer' }}>
-            <input id="pilot-on" type="checkbox" role="switch" className="checkbox" checked={cfg.enabled} disabled={!others.real} onChange={(e) => void save({ ...cfg, enabled: e.target.checked })} style={{ width: 22, height: 22 }} />
-            <span className="stack" style={{ gap: 2 }}>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>{t('pilot.enable')}</span>
+        <div className="pilot-switch" data-on={cfg.enabled}>
+          <label htmlFor="pilot-on" className="row" style={{ gap: 16, alignItems: 'center', cursor: 'pointer' }}>
+            <input id="pilot-on" type="checkbox" role="switch" className="checkbox" checked={cfg.enabled} disabled={!others.real} onChange={(e) => void save({ ...cfg, enabled: e.target.checked })} />
+            <span className="stack" style={{ gap: 3 }}>
+              <span className="pilot-switch__state">{cfg.enabled ? t('pilot.stateOn') : t('pilot.stateOff')}</span>
+              <span className="pilot-switch__label">{t('pilot.enable')}</span>
               {next !== null ? (
                 <span className="t-small" data-testid="pilot-next">
                   {t('pilot.next', { when: dateLong(next), hour: new Date(next).getHours() })} <span className="t-muted">({untilText(next, Date.now())})</span>

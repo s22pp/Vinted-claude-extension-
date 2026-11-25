@@ -8,6 +8,7 @@ import { PhotoCheck } from '../components/photo-check';
 import { Replies } from '../components/replies';
 import { TextSeries } from '../components/text-series';
 import { go, useEra } from '../state';
+import { PageHead } from '../Shell';
 
 type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'automations' | 'listing' | 'series' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
@@ -47,20 +48,15 @@ export function Tools() {
 
   return (
     <>
-      <section className="tools-hero">
-        <div>
-          <span className="pill">{t('tools.eyebrow')}</span>
-          <h1 className="tools-hero__title">
-            {t('tools.headline')} <span className="t-accent">{t('tools.headlineItalic')}</span>
-          </h1>
-          <p className="t-muted" style={{ fontSize: 16, marginTop: 10, maxWidth: 560 }}>
-            {t('tools.sub')}
-          </p>
-        </div>
-        <Button variant="primary" size="lg" icon="market" loading={!!bulk.busy} disabled={bulk.pending === 0} onClick={() => bulk.run()}>
-          {bulk.busy ? `${bulk.busy.done}/${bulk.busy.total}` : t('today.analyzeStock', { n: bulk.pending })}
-        </Button>
-      </section>
+      <PageHead
+        title={t('tools.title')}
+        sub={t('tools.sub')}
+        actions={
+          <Button variant="primary" icon="market" loading={!!bulk.busy} disabled={bulk.pending === 0} onClick={() => bulk.run()}>
+            {bulk.busy ? `${bulk.busy.done}/${bulk.busy.total}` : t('today.analyzeStock', { n: bulk.pending })}
+          </Button>
+        }
+      />
       <div className="tools-grid">
         {TOOLS.map((tool, k) => (
           <button
