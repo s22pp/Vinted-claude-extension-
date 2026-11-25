@@ -909,11 +909,12 @@ kbd,
   position: absolute !important;
   grid-area: 1 / 1;
   margin: 0;
-  pointer-events: none;
 }
+/* The drawn track lets clicks through to the box under it (and the label around both). */
 .ctrl__track {
   grid-column: 1;
   grid-row: 1;
+  pointer-events: none;
 }
 .ctrl__rule-text {
   grid-column: 2;
