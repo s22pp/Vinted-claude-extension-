@@ -176,3 +176,17 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
 - **Outils** : même tête de page que les autres écrans (titre serif, phrase, action à droite).
 - **Textes** : plus de promesse que le produit ne tient plus (« ERA ne modifie jamais vos annonces », « ERA ne publie
   jamais ») ni de référence à un autre outil.
+
+## 0.58 : Ventes et Analyses à la hauteur du reste
+
+- **Ventes** : l'écran s'ouvre sur deux chiffres en grand (chiffre d'affaires, profit connu), la phrase du panier
+  moyen, puis, s'il y a lieu, une seule barre ambre « N ventes sans coût d'achat » avec le bouton qui mène au stock
+  filtré. Les sept chiffres secondaires (marge moyenne, ROI, taux d'écoulement, délai médian, capital retourné,
+  remboursements, efficacité du capital) suivent en barre à filets, comme sur la fiche article.
+- **Bandeaux de chiffres** (Analyses, Capital, Comptabilité, Atelier, Précision) : plus de pastille d'icône colorée,
+  libellés en petites capitales espacées, et une même ligne de base pour toute la rangée (CSS subgrid), qu'un libellé
+  tienne sur une ligne ou deux.
+- **Qualité de la donnée** : le repère (plein, demi, pointillé, losange, vide) est dessiné en CSS ; le caractère ◐
+  tombait sur une police de secours et s'affichait comme une virgule.
+- **Mots** : « Sell-through » devient « Taux d'écoulement » ; « coûts manquants : minimum » devient « au moins : des
+  coûts manquent ».
