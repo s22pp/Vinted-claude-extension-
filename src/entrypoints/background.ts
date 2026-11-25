@@ -26,9 +26,10 @@ import { AUTO_UPDATE_KEY, UPDATE_ALARM, firstSeen, fromFolder, justUpdated, page
 import { parcelAlerts } from '@/intelligence/shipping';
 import { pilotMissions } from '@/data/pilot-missions';
 import { db } from '@/data/db';
-import { loadAutoBackup, runAutoBackup } from '@/data/auto-backup';
+import { loadAutoBackup, runAutoBackup, runSaleBackup } from '@/data/auto-backup';
 import { DIGEST_ALARM, digestEnabled, nextMonday9, runDigest } from '@/data/digest';
 import { recordError } from '@/data/error-journal';
+import { log } from '@/data/log';
 import { BUY_ALERTS_KEY, runBuyAlerts } from '@/data/buy-alerts';
 import { type PhotoExportResult, exportPhotos } from '@/data/photo-export';
 import { repo } from '@/data/repo';
@@ -65,6 +66,9 @@ function runImport(auto = false): Promise<ImportResult> {
     .then(async (r): Promise<ImportResult> => {
       // Purchases follow in the background; the stock is already usable.
       importFollowUp = Promise.all([importPurchasesFromVinted().then(async () => afterPurchases(await stagesBefore, auto)), afterImport(await before, auto)]).catch(() => undefined);
+      void log('info', 'import', `${r.items} nouveaux articles, ${r.updated} mis à jour, ${r.sales} vente(s)`);
+      // A new sale: a full copy of the data, the 7 latest kept.
+      if (r.sales > 0) void runSaleBackup().catch((e: unknown) => recordError('backup:sale', e));
       return { ok: true, ...r };
     })
     .catch((e): ImportResult => {

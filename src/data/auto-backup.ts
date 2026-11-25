@@ -1,5 +1,6 @@
 import { exportBackup } from './backup';
 import { db } from './db';
+import { log } from './log';
 import { saveFile } from './downloads';
 import { repo } from './repo';
 
@@ -51,5 +52,55 @@ export async function runAutoBackup(now = Date.now(), force = false): Promise<Au
   const saved = await saveFile(jsonDataUrl(JSON.stringify(backup)), backupFileName(now), 30_000, 'overwrite');
   if (!saved.ok) return { ok: false, reason: 'FAILED', detail: saved.detail };
   await repo.setSetting(LAST_BACKUP_KEY, now);
+  return { ok: true, file: saved.file };
+}
+
+/* ── A copy at each new sale, the last 7 kept ───────────────────────────────────────────────────────────────────── */
+
+/** The copies saved after a sale (download ids), oldest first; beyond SALE_BACKUP_KEEP the oldest file is deleted. */
+export const SALE_BACKUPS_KEY = 'eraSaleBackups';
+export const SALE_BACKUP_KEEP = 7;
+
+export interface SaleBackup {
+  id: number;
+  file: string;
+  at: number;
+}
+
+/** The copies to keep (the newest `keep`) and those to delete. Pure. */
+export function rotateBackups(list: readonly SaleBackup[], keep = SALE_BACKUP_KEEP): { keep: SaleBackup[]; drop: SaleBackup[] } {
+  const sorted = [...list].sort((a, b) => a.at - b.at);
+  const cut = Math.max(0, sorted.length - keep);
+  return { keep: sorted.slice(cut), drop: sorted.slice(0, cut) };
+}
+
+/** ERA-sauvegardes/era-vente-2026-11-25-14h05.json: one file per sale's copy, never overwritten. */
+export function saleBackupName(now: number): string {
+  const d = new Date(now);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `ERA-sauvegardes/era-vente-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}.json`;
+}
+
+/**
+ * After an import that brought a new sale: a full copy in Téléchargements/ERA-sauvegardes, whatever the periodic
+ * setting; the 7 latest kept, the older files deleted from the disk (only the ones ERA wrote for this rotation).
+ */
+export async function runSaleBackup(now = Date.now()): Promise<AutoBackupResult> {
+  if ((await repo.getSetting('dataMode', 'empty')) !== 'real') return { ok: false, reason: 'NOT_REAL' };
+  const backup = await exportBackup(db, browser.runtime.getManifest().version, now);
+  const saved = await saveFile(jsonDataUrl(JSON.stringify(backup)), saleBackupName(now), 30_000, 'uniquify');
+  if (!saved.ok) return { ok: false, reason: 'FAILED', detail: saved.detail };
+  await repo.setSetting(LAST_BACKUP_KEY, now);
+  if (saved.id !== undefined) {
+    const raw = (await browser.storage.local.get(SALE_BACKUPS_KEY))[SALE_BACKUPS_KEY];
+    const list = Array.isArray(raw) ? raw.filter((x): x is SaleBackup => typeof x === 'object' && x !== null && typeof (x as SaleBackup).id === 'number' && typeof (x as SaleBackup).at === 'number') : [];
+    const { keep, drop } = rotateBackups([...list, { id: saved.id, file: saved.file, at: now }]);
+    for (const old of drop) {
+      await browser.downloads.removeFile(old.id).catch(() => undefined);
+      await browser.downloads.erase({ id: old.id }).catch(() => undefined);
+    }
+    await browser.storage.local.set({ [SALE_BACKUPS_KEY]: keep });
+    void log('info', 'sauvegarde', `copie après une vente : ${saved.file} (${keep.length} gardées${drop.length ? `, ${drop.length} ancienne(s) supprimée(s)` : ''})`);
+  }
   return { ok: true, file: saved.file };
 }

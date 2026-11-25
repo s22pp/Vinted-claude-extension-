@@ -4,6 +4,7 @@ import { errorInfo } from './adapters/marketplace';
 import { loadBudget, writeWait } from './adapters/vinted/budget-store';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { db, uid } from './db';
+import { log } from './log';
 import { repo } from './repo';
 import { PENDING_REPOSTS_KEY, deleteForRepost, pendingReposts, repostAsDraft } from './vinted-repost';
 import { publishDraft } from './vinted-draft';
@@ -148,6 +149,7 @@ async function stopped(j: RepostNow, code: string, detail: string | undefined, r
   const { haltedUntil } = await loadBudget().catch(() => ({ haltedUntil: null }));
   const until = /^(NETWORK_403|RATE_LIMITED)/.test(code) && haltedUntil ? haltedUntil : now + AUTO_RESUME_MS;
   await browser.storage.local.set({ [REPOST_PAUSE_KEY]: { code, detail: text, at: now, until, itemId: j.itemId } satisfies Pause });
+  void log('warn', 'repost', `file en pause (${code}) sur « ${j.title} », reprise automatique à ${new Date(until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
   return 'paused';
 }
 
@@ -230,6 +232,7 @@ export async function runRepostQueue(): Promise<void> {
         return;
       }
       await browser.storage.local.remove(REPOST_PAUSE_KEY);
+      void log('info', 'repost', 'pause terminée : la file reprend d’elle-même');
       if (typeof pause.itemId === 'string') await resumeRepost(pause.itemId);
     }
     const move = nextMove(await repostJobs(), Date.now());

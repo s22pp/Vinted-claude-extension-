@@ -1,5 +1,6 @@
 import { suggestMatches } from '@/intelligence/purchase-match';
 import { db } from './db';
+import { log } from './log';
 import { repo } from './repo';
 
 /**
@@ -23,5 +24,6 @@ export async function autoLinkSurePurchases(now = Date.now()): Promise<number> {
     taken.add(s.best.itemId);
     linked++;
   }
+  if (linked) void log('info', 'achats', `${linked} achat(s) Vinted rattaché(s) au stock (correspondance sûre)`);
   return linked;
 }

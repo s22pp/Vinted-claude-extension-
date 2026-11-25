@@ -12,11 +12,12 @@ export default defineConfig({
     description: 'Cockpit de décision pour revendeurs Vinted : stock, capital, marché, achats, apprentissage.',
     // scripting + activeTab: on your click only, read the product the open shop page publishes (sourcing).
     // alarms: the automations' schedule — off unless you switch it on, and only with a vinted.fr tab open.
-    // downloads: the shipping labels Vinted issues, saved as PDF files (Téléchargements/ERA-bordereaux).
+    // downloads: the shipping labels Vinted issues (ERA-bordereaux), the listings' photos (ERA-photos) and the data
+    // copies (ERA-sauvegardes, the 7 latest kept after each sale), all in Téléchargements.
     // notifications: only if you switch them on (a new order to ship, a new sale), after an import.
     permissions: ['sidePanel', 'activeTab', 'scripting', 'storage', 'unlimitedStorage', 'alarms', 'downloads', 'notifications'],
     // vinted.fr only: read the page you have open, call its API with your session — reads, plus the few
-    // whitelisted writes of the automations you switch on (EXPERIMENTAL).
+    // whitelisted writes of the automations you switch on.
     // vinted.net: Vinted's image servers, read only to copy a listing's own photos into its repost draft.
     host_permissions: ['https://www.vinted.fr/*', 'https://*.vinted.net/*'],
     action: { default_title: 'ERA Intelligence' },

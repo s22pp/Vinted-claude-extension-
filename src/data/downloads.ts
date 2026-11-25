@@ -1,4 +1,4 @@
-export type Saved = { ok: true; file: string } | { ok: false; detail: string };
+export type Saved = { ok: true; file: string; id?: number } | { ok: false; detail: string };
 
 /** Download one file into the browser's downloads folder and wait (≤ 20 s) to know whether it was saved. */
 export async function saveFile(url: string, filename: string, timeoutMs = 20_000, conflictAction: 'uniquify' | 'overwrite' = 'uniquify'): Promise<Saved> {
@@ -19,7 +19,7 @@ export async function saveFile(url: string, filename: string, timeoutMs = 20_000
     };
     const check = async () => {
       const [d] = await browser.downloads.search({ id });
-      if (d?.state === 'complete') finish({ ok: true, file: d.filename.split(/[\\/]/).slice(-2).join('/') });
+      if (d?.state === 'complete') finish({ ok: true, file: d.filename.split(/[\\/]/).slice(-2).join('/'), id });
       else if (d?.state === 'interrupted') finish({ ok: false, detail: `téléchargement interrompu (${d.error ?? 'inconnu'})` });
     };
     const onChanged = (delta: { id: number; state?: unknown }) => {

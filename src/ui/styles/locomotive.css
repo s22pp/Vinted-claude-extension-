@@ -325,6 +325,7 @@ kbd,
   font: inherit;
 }
 .topbar__when {
+  text-transform: uppercase;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
@@ -531,4 +532,45 @@ kbd,
 }
 .pbelt__box[data-late] .pbelt__age {
   color: var(--coral);
+}
+
+/* ── Diagnostic: ERA's activity log, one ruled line each, the level as a dot ─────────────────────────────────────── */
+.era-log__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border-grid);
+}
+.era-log__line {
+  display: grid;
+  grid-template-columns: 8px 44px 84px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-grid);
+  font-size: 12px;
+}
+.era-log__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  align-self: center;
+}
+.era-log__line[data-level='warn'] .era-log__dot {
+  background: var(--amber);
+}
+.era-log__line[data-level='error'] .era-log__dot {
+  background: var(--coral);
+}
+.era-log__where {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.era-log__msg {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
 }

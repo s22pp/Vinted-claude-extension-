@@ -12,6 +12,7 @@ import { Badge, Button, Card } from '@/ui/components/primitives';
 import { useVintedImport } from './vinted-import';
 import { go } from '../state';
 import { type UiError, readUiErrors } from './error-boundary';
+import { LOG_KEY, type LogLine, readLog } from '@/data/log';
 
 /** Checks what ERA can read on Vinted from this browser, and a report to copy when something fails. */
 export function DiagnosticCard() {
@@ -22,9 +23,15 @@ export function DiagnosticCard() {
   const [lastError, setLastError] = useState<{ code: string; detail?: string; at: number } | null>(null);
   const journal = useLiveQuery(() => repo.getSetting<VintedErrorEntry[]>(ERROR_LOG_KEY, []), []) ?? [];
   const [uiErrors, setUiErrors] = useState<UiError[]>([]);
+  const [activity, setActivity] = useState<LogLine[]>([]);
   useEffect(() => {
     void browser.storage.local.get('eraLastImportError').then((r) => setLastError((r.eraLastImportError as typeof lastError) ?? null));
     void readUiErrors().then(setUiErrors);
+    void readLog().then(setActivity);
+    // The log, followed live: what ERA does while the seller watches.
+    const on = (changes: Record<string, unknown>, area: string) => area === 'local' && LOG_KEY in changes && void readLog().then(setActivity);
+    browser.storage.onChanged.addListener(on);
+    return () => browser.storage.onChanged.removeListener(on);
   }, [running]);
   const report = () =>
     [
@@ -34,6 +41,7 @@ export function DiagnosticCard() {
       ...journal.map((j) => `${new Date(j.at).toLocaleString()} · ${j.code} · ${j.detail} (${j.path})${j.count && j.count > 1 ? ` · ×${j.count} depuis ${new Date(j.first ?? j.at).toLocaleString()}` : ''}`),
       // ERA's own errors (a screen that failed, a service worker operation that threw), newest first.
       ...uiErrors.slice(0, 5).map((e) => `${e.where.startsWith('service-worker') ? 'Erreur interne' : 'Affichage'} ${new Date(e.at).toLocaleString()} · ${e.where} · ${e.message}\n${e.stack.split('\n').slice(0, 6).join('\n')}`),
+      ...activity.slice(0, 40).map((l) => `${new Date(l.at).toLocaleString()} · ${l.level.toUpperCase()} · ${l.where} · ${l.message}`),
     ]
       .filter(Boolean)
       .join('\n');
@@ -70,7 +78,7 @@ export function DiagnosticCard() {
         >
           {t('vinted.checkRun')}
         </Button>
-        {(steps.length > 0 || lastError || journal.length > 0 || uiErrors.length > 0) && (
+        {(steps.length > 0 || lastError || journal.length > 0 || uiErrors.length > 0 || activity.length > 0) && (
           <Button
             icon="layers"
             onClick={async () => {
@@ -113,6 +121,23 @@ export function DiagnosticCard() {
             ))}
           </ul>
           <p className="t-small t-faint">{t('vinted.journalHint')}</p>
+        </div>
+      )}
+      {activity.length > 0 && (
+        <div className="era-log" data-testid="era-log">
+          <div className="t-caption" style={{ margin: '12px 0 6px' }}>
+            {t('vinted.activity')}
+          </div>
+          <ol className="era-log__list">
+            {activity.slice(0, 12).map((l, i) => (
+              <li key={`${l.at}-${i}`} className="era-log__line" data-level={l.level}>
+                <span className="era-log__dot" aria-hidden="true" />
+                <span className="num t-faint">{new Date(l.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="era-log__where">{l.where}</span>
+                <span className="era-log__msg">{l.message}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </Card>

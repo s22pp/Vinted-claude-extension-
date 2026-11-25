@@ -3,6 +3,7 @@ import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { type Mark, OVERLAY_KEY, OVERLAY_ON_KEY, type OverlayNiche, markFor, priceFromText } from '@/intelligence/overlay';
 import { eurText } from '@/domain/money';
 import type { EraMessage } from '@/data/adapters/vinted/protocol';
+import { querySelectorResilient } from '@/lib/dom-resilient';
 
 /**
  * ERA's marks on vinted.fr pages (EXPERIMENTAL: depends on how Vinted builds its pages). For each listing card the
@@ -73,7 +74,13 @@ export default defineContentScript({
       return host;
     };
     /** Vinted's price on an item page (EXPERIMENTAL: these selectors are not verified on the real site yet). */
-    const priceEl = () => document.querySelector('[data-testid="item-price"], [data-testid*="item-price"], [itemprop="price"]');
+    const priceEl = () =>
+      querySelectorResilient(document, [
+        { kind: 'testid', value: 'item-price' },
+        { kind: 'testid', value: 'item-price', partial: true },
+        { kind: 'css', value: '[itemprop="price"]' },
+        { kind: 'aria', value: /^prix/i },
+      ])?.el ?? null;
 
     const clear = () => {
       for (const el of document.querySelectorAll('[data-era-mark]')) el.remove();

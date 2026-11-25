@@ -905,6 +905,7 @@ export const fr = {
     modePRUDENT_hint: '60 requêtes par session, 12 par minute, modifications espacées de 20 s (15 par session), envois automatiques espacés de 12 s (40 par jour).',
     modeLine: 'Mode d’exécution : {mode} · Reprise auto activée',
     budgetUsed: 'utilisées : {list}',
+    activity: 'Journal d’activité',
     use: { IMPORT: 'import', ORDERS: 'commandes', SEARCH: 'recherche', AUTO: 'automatisations', LISTING: 'annonces lues', WRITE: 'modifications', OTHER: 'autres' },
     diagnostic: 'Diagnostic du dernier import',
     diagTitle: 'Diagnostic de connexion Vinted',

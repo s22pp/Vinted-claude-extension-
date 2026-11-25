@@ -278,3 +278,42 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
   - « Analyser dans ERA », qui ouvre l'analyse d'achat préremplie avec l'annonce.
 - **Messagerie** : le bouton « Réponses ERA », son menu et trois réponses rapides au-dessus du champ (Contre-offre,
   Prix ferme, Envoi) partagent une même racine Shadow DOM. Un clic écrit comme une frappe, ERA n'envoie jamais.
+
+## 1.2 : mode direct, architecture Locomotive
+
+- **Mode d'exécution** (Réglages) : **Direct** par défaut, ou Prudent.
+  - Direct : aucun quota local (ni appels par session ou par minute, ni écritures), aucune attente forcée entre
+    deux envois. Les appels restent espacés de 1,2 s.
+  - Prudent : les limites mesurées après les blocages du compte (60 appels par session, 12 par minute, écritures
+    espacées de 20 s, 15 par session, envois automatiques espacés de 12 s, 40 par jour).
+  - Dans les deux modes, un 403, un 429 ou une page de contrôle Vinted arrête tout aussitôt. La reprise est
+    automatique à la fin de la pause : Retry-After de Vinted ou 15 min pour un 429, 6 h pour un 403. ERA ne
+    réessaie jamais à travers un blocage.
+- **Sans confirmations** :
+  - republication en un clic, le coût (vues, favoris) dans l'info-bulle du bouton ;
+  - baisse prévue appliquée en un clic ;
+  - achats rattachés d'eux-mêmes quand la correspondance est sûre ;
+  - plancher optionnel : sans coût connu, l'offre et la baisse suivent le pourcentage seul.
+- **Étiquettes** : plus d'EXPÉRIMENTAL ni de NON VÉRIFIÉ ; seul « Vérifié ici » reste, quand le journal le prouve.
+- **Locomotive** :
+  - aucune ombre ;
+  - grille de 1 px ;
+  - rayons de 2 px (conteneurs, boutons, champs) et de 1 px (badges, touches) ;
+  - titres serif révélés à travers un masque (650 ms) ;
+  - libellés en mono 10 px capitales ; chiffres KPI en mono 24 px ;
+  - survol en volet par `clip-path` ;
+  - navigation : barre de 2 px et libellé décalé de 6 px.
+- **Identité** : l'avatar et le pseudo Vinted en tête de barre latérale. Ils viennent de users/current ou, en
+  passant, de __NEXT_DATA__ ou de l'avatar de l'en-tête, et restent en Dexie seulement, l'image en cache. Avant
+  le premier import : le E serif et « en attente d'import ».
+- **Barre supérieure** : des cellules de 56 px — date et stock, recherche Ctrl K, Actualiser, Achats, thème, et
+  « + Ajouter » plein.
+- **Outils** :
+  - photos pour ChatGPT, avec un dossier daté et `articles.txt` ;
+  - « Créer un lot » (2 à 5 articles, −15 %, coûts cumulés) ;
+  - générateur d'annonce (emoji, marque, modèle, style, taille, coupe ; médiane + 10 %) avec publication en un clic ;
+  - sauvegarde à chaque vente, 7 versions gardées ;
+  - journal d'activité dans Diagnostic ;
+  - sélecteurs DOM en cascade.
+- **Vie privée** : aucun lieu de domicile dans le code. La carte montre la France tant que le vendeur n'a pas
+  placé chez lui ; le cercle de 5 km et ses coordonnées n'apparaissent qu'ensuite.

@@ -1,6 +1,7 @@
 import { DEFAULT_EXEC_MODE, EXEC_MODE_KEY, type ExecMode, LIMITS, SESSION_GAP_MS, isExecMode, sessionOver } from '@/data/budget-plan';
 import { MarketplaceError, RequestBudget, haltPauseMs } from '../marketplace';
 import type { BudgetStatus, ReserveResult } from './protocol';
+import { log } from '../../log';
 
 /** `lastAt`: when the session's last call was reserved. */
 type Stored = ReturnType<RequestBudget['toJSON']> & { lastAt?: number };
@@ -103,7 +104,9 @@ export async function report(status: number, retryAfterMs: number | null = null)
   const { budget } = await loadBudget();
   budget.report(status);
   await browser.storage.session.set({ eraBudget: { ...budget.toJSON(), lastAt: Date.now() } satisfies Stored });
-  await browser.storage.local.set({ eraHalt: { code: budget.halted, until: Date.now() + haltPauseMs(status, retryAfterMs) } });
+  const until = Date.now() + haltPauseMs(status, retryAfterMs);
+  await browser.storage.local.set({ eraHalt: { code: budget.halted, until } });
+  void log('warn', 'budget', `HTTP ${status} de Vinted : tout s’arrête, reprise automatique à ${new Date(until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
 }
 
 export async function status(): Promise<BudgetStatus> {

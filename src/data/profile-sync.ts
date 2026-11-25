@@ -1,5 +1,6 @@
 import { PROFILE_KEY, type VintedProfile, isAvatarData, isLogin, isVintedImage, mergeProfile, validProfile } from '@/intelligence/profile';
 import { db } from './db';
+import { log } from './log';
 
 /** The stored profile, validated (null when none). */
 export async function storedProfile(): Promise<VintedProfile | null> {
@@ -40,5 +41,6 @@ export async function syncProfile(next: { username: string | null; avatarUrl: st
   if (prev && prev.username === ok.username && prev.avatarUrl === ok.avatarUrl && prev.avatarData === ok.avatarData) return prev;
   await db.settings.put({ key: PROFILE_KEY, value: ok });
   await db.settings.put({ key: 'vintedLogin', value: ok.username });
+  void log('info', 'profil', `compte Vinted synchronisé${ok.avatarData ? ', avatar en cache' : ''}`);
   return ok;
 }

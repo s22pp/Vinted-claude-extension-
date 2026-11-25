@@ -2,6 +2,7 @@ import { PHOTO_UPLOAD_PATH, isAllowedApi, isAllowedWrite, type ApiResult, type C
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
 import { challengeOn } from '@/data/adapters/vinted/challenge';
 import { isLogin, isVintedImage, profileFromNextData } from '@/intelligence/profile';
+import { querySelectorResilient } from '@/lib/dom-resilient';
 import { editDescriptionOnPage, editPriceOnPage, editTextOnPage, publishOnPage } from '@/data/adapters/vinted/edit-form';
 
 /**
@@ -154,7 +155,11 @@ function readProfile(): { username: string | null; avatarUrl: string | null } {
   } catch {
     /* malformed: fall back on the header */
   }
-  const img = document.querySelector<HTMLImageElement>('[data-testid="header-user-menu-button"] img');
+  const img = querySelectorResilient<HTMLImageElement>(document, [
+    { kind: 'css', value: '[data-testid="header-user-menu-button"] img' },
+    { kind: 'relative', from: { kind: 'testid', value: 'header-user-menu', partial: true }, select: (a) => a.querySelector('img') },
+    { kind: 'relative', from: { kind: 'aria', value: /^(mon profil|profil|menu utilisateur)/i }, select: (a) => a.querySelector('img') },
+  ])?.el;
   const src = img?.currentSrc || img?.src || null;
   const link = document.querySelector<HTMLAnchorElement>('[data-testid="header-user-menu-button"] a[href*="/member/"], a[data-testid="header-profile-link"]');
   const login = link ? /\/member\/\d+-([\w.-]{1,40})/.exec(link.getAttribute('href') ?? '')?.[1] ?? null : null;
