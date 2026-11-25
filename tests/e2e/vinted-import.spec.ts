@@ -833,15 +833,14 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
   await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/automations`);
-  // The delivered message switched on and saved: the round runs it.
-  await page.getByTestId('auto-delivered').getByLabel('Activer le message après livraison').check();
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  // Direct mode: the delivered message and the offers are on by default — the round runs them.
+  await expect(page.getByTestId('auto-delivered').getByLabel('Activer le message après livraison')).toBeChecked();
   const pilot = page.getByTestId('pilot');
   await pilot.getByLabel('Activer les tournées automatiques').check();
   await expect(pilot.getByTestId('pilot-next')).toContainText(/Prochaine tournée : .* à (9|13|21) h\./);
   await expect(pilot.getByLabel('Tournée 3', { exact: true })).toHaveValue('21');
   await expect(pilot).toContainText('Colis livrés ✓');
-  await expect(pilot).toContainText('Offres reçues (désactivé)');
+  await expect(pilot).toContainText('Offres reçues ✓');
   const before = calls.length;
   // Counted as Chrome sees them (a tab on an error page still has its vinted.fr address).
   const vintedTabs = () => context.serviceWorkers().at(-1)!.evaluate(() => chrome.tabs.query({ url: 'https://www.vinted.fr/*' }).then((ts) => ts.length));
@@ -849,7 +848,7 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
   await expect(page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first()).toContainText(/Tournée de \d+ h faite/, { timeout: 90_000 });
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
-  await expect(row).toContainText('Fait pour vous : 1 remerciement (colis livré)');
+  await expect(row).toContainText('1 remerciement (colis livré)');
   // The round's footprint on Vinted, said in the notice; the message sent is in the contacts database, shown measured.
   await expect(row).toContainText(/Vinted : \d+ requêtes pour toute la tournée/);
   await expect(page.getByTestId('outcomes-messages')).toContainText('Colis livré → remerciement');
@@ -876,10 +875,11 @@ test('autopilot round: refresh, then the automations switched on, then what is l
   expect(csv.length).toBe(1);
   expect(csv[0]![0]).toBe('complete');
   expect(csv[0]![1]).toContain('Colis livré → remerciement');
-  // The round read the stock and sales again, then sent the one message, nothing else.
+  // The round read the stock and sales again, then sent the one message and answered the pending offer (offers on by
+  // default), nothing else.
   const mine = calls.slice(before);
   expect(mine.some((c) => c.path.startsWith('/api/v2/wardrobe/'))).toBe(true);
-  expect(mine.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
+  expect(mine.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`).sort()).toEqual(['POST /api/v2/conversations/9401/replies', 'POST /api/v2/transactions/7100/offers']);
   // A tab the round opened in the background is closed again: no more vinted.fr tabs than before.
   await expect.poll(vintedTabs, { timeout: 10_000 }).toBeLessThanOrEqual(tabsBefore);
 });
@@ -1096,6 +1096,8 @@ test('all labels at once: each order handled in turn, each PDF saved under a cle
     const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string; state: string; mime: string }[]> } } }).chrome;
     return (await c.downloads.search({})).map((d) => [d.url, d.state, d.mime]);
   });
+  // (The copy of the data saved after the new sales is a download too: not a label.)
+  files.splice(0, files.length, ...files.filter((f) => f[2] !== 'application/json'));
   expect(files.sort()).toEqual([
     ['https://labels.example/6200.pdf', 'complete', 'application/pdf'],
     ['https://labels.example/6201.pdf', 'complete', 'application/pdf'],
@@ -1128,8 +1130,9 @@ test('autopilot with labels: the labels of the orders to ship are ready as PDF a
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
   await expect(row).toContainText('2 bordereaux prêts (Téléchargements/ERA-bordereaux)', { timeout: 150_000 });
   await expect(row).toContainText('2 colis à déposer');
-  // The ready label only fetched, the other one ordered like Vinted's own button: the only write of the round.
-  expect(calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/v2/transactions/7200/shipment/order']);
+  // The ready label only fetched, the other one ordered like Vinted's own button: the only shipment write of the round
+  // (the offers agent, on by default, answered the pending offer too).
+  expect(calls.filter((c) => c.method !== 'GET' && !c.path.endsWith('/offers')).map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/v2/transactions/7200/shipment/order']);
   await closeCarrier();
 });
 
@@ -1218,12 +1221,9 @@ test('missing costs: the matching Vinted purchase in one click, the others typed
   await page.goto(`${base}#/today`);
   await page.getByRole('button', { name: /coûts d’achat manquent/ }).click();
   const costs = page.getByTestId('costs');
-  await expect(costs).toContainText('Veste Harrington Ralph Lauren M');
-  // The Harrington was bought on Vinted (purchases are read right after the stock): 18 € + protection = 19,60 €.
-  await expect(costs.getByText('Achat Vinted trouvé')).toBeVisible({ timeout: 30_000 });
-  await expect(costs).toContainText('19,60');
-  await costs.getByRole('button', { name: 'Utiliser' }).click();
-  await expect(page.getByText('Coût repris de l’achat Vinted')).toBeVisible();
+  // The Harrington was bought on Vinted (purchases are read right after the stock): a sure match, attached by itself
+  // (18 € + protection = 19,60 €) — it leaves the missing costs.
+  await expect(costs).not.toContainText('Veste Harrington Ralph Lauren M', { timeout: 30_000 });
   // The sold Carhartt comes first among the rest: type, Enter, the next field is focused.
   const carhartt = costs.getByLabel('Coût d’achat de Veste Carhartt Detroit M');
   await carhartt.fill('25');
@@ -1285,8 +1285,8 @@ test('bundle offer: one member favourites two listings — one message for both,
   const writes = () => calls.filter((c) => c.method !== 'GET');
   await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
   expect(writes().map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations', 'POST /api/v2/conversations/9001/replies']);
-  // Costs unknown: the bundle is proposed without a promised price.
-  expect(JSON.parse(writes()[1]!.body!).reply.body).toBe('Hello ! J’ai vu tes favoris sur la veste Ralph Lauren et le jean Levi’s 🙂 Si tu les prends ensemble en lot, je te fais un prix : dis-moi !');
+  // The floor is optional: an unknown cost adds none, the known ones still hold the price — 89 € −15 % → 76 €.
+  expect(JSON.parse(writes()[1]!.body!).reply.body).toBe('Hello ! J’ai vu tes favoris sur la veste Ralph Lauren et le jean Levi’s 🙂 Si tu les prends ensemble en lot, je te fais 76 € au lieu de 89 €.');
   await expect(page.getByTestId('auto-log')).toContainText('Offre groupée');
 });
 
@@ -1314,12 +1314,8 @@ test('favourite: the message reached the member, the offer after it was stopped 
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
   await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
-  // The Harrington's cost known (its Vinted purchase): an offer is planned after the message.
-  await page.goto(`${base}#/today`);
-  await page.getByRole('button', { name: /coûts d’achat manquent/ }).click();
-  await expect(page.getByTestId('costs').getByText('Achat Vinted trouvé')).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId('costs').getByRole('button', { name: 'Utiliser' }).click();
-  await expect(page.getByText('Coût repris de l’achat Vinted')).toBeVisible();
+  // An offer is planned after the message (the floor is optional; the Harrington's cost, its Vinted purchase, is
+  // attached by itself once purchases are read).
   await page.goto(`${base}#/automations`);
   await page.getByLabel('Activer pour les nouveaux favoris').check();
   await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
@@ -1365,6 +1361,8 @@ test('favourite messages learnt from the seller’s results: the wording members
   await expect(learning.locator('li[data-state="BEST"]')).toContainText('ERA envoie désormais surtout « Salut ! Merci pour ton favori');
   await expect(learning.locator('li[data-state="BEST"]')).toContainText('60 % de réponses sur 20, contre 10 %');
   await page.getByLabel('Activer pour les nouveaux favoris').check();
+  // Message only: the wording learnt is the one without an offer.
+  await page.getByTestId('auto-fav').getByRole('button', { name: 'Message seul' }).click();
   await page.getByRole('button', { name: 'Lancer maintenant' }).first().click();
   const writes = () => calls.filter((c) => c.method !== 'GET');
   await expect.poll(() => writes().length, { timeout: 60_000 }).toBe(2);
@@ -1676,7 +1674,8 @@ test('download my photos: every photo of each live listing, a folder per listing
     const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string }[]> } } }).chrome;
     return (await c.downloads.search({})).map((d) => d.url).sort();
   });
-  expect(urls).toEqual(['https://images1.vinted.net/t/101/1.jpeg', 'https://images1.vinted.net/t/101/2.jpeg']);
+  // (The copy of the data saved after the import's sale is not a photo.)
+  expect(urls.filter((u) => !u.startsWith('data:application/json'))).toEqual(['https://images1.vinted.net/t/101/1.jpeg', 'https://images1.vinted.net/t/101/2.jpeg']);
 });
 
 test('replies in Vinted messaging: the open conversation’s listing, never another one listed beside it', async ({ context, base }) => {
@@ -1768,7 +1767,13 @@ test('automatic backup and full CSV exports: a dated copy in Downloads once swit
     const c = (globalThis as unknown as { chrome: { downloads: { search: (q: object) => Promise<{ url: string; state: string; mime: string }[]> } } }).chrome;
     return (await c.downloads.search({})).map((d) => [d.url.slice(0, 29), d.state, d.mime]);
   });
-  expect(files).toEqual([['data:application/json;base64,', 'complete', 'application/json']]);
+  // The periodic copy, switched on here; and the copy saved after the import's new sale (one kept in the rotation).
+  expect(files).toEqual([
+    ['data:application/json;base64,', 'complete', 'application/json'],
+    ['data:application/json;base64,', 'complete', 'application/json'],
+  ]);
+  const rotation = await context.serviceWorkers().at(-1)!.evaluate(async () => ((await chrome.storage.local.get('eraSaleBackups')) as { eraSaleBackups?: unknown[] }).eraSaleBackups ?? []);
+  expect(rotation).toHaveLength(1);
   await expect(page.getByTestId('backup')).toContainText('Dernière sauvegarde');
   // Full exports, one click each.
   const [sales] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Mes ventes \(CSV/ }).click()]);
@@ -2122,7 +2127,7 @@ test('buyers’ messages: a plain question answered from ERA’s facts, a proble
   await expect(page.getByTestId('outcomes-messages')).toContainText('Réponse à un acheteur');
 });
 
-test('autopilot price cut: the one the plan says is due, verified on Vinted — never without a known cost', async ({ context, base }) => {
+test('autopilot price cut: the one the plan says is due, verified on Vinted, never under the floor once the cost is known', async ({ context, base }) => {
   test.setTimeout(200_000);
   const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ok' });
   const page = await context.newPage();
@@ -2135,34 +2140,15 @@ test('autopilot price cut: the one the plan says is due, verified on Vinted — 
   await pilot.getByLabel(/Faire les baisses de prix prévues par votre plan/).check();
   await expect(pilot).toContainText('Baisses de prix ✓');
   const rows = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' });
-  // No cost known: nothing is cut by itself, whatever the plan says.
-  await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
-  await expect(rows.first()).toContainText(/Tournée de \d+ h faite/, { timeout: 90_000 });
-  await expect(rows.first()).not.toContainText('prix baissé');
-  expect(fake.prices['101']).toBe('59.0');
-  // The cost entered: the plan's cut due is made, one, read back on Vinted, never under the floor (cost + margin).
-  await page.evaluate(
-    () =>
-      new Promise<void>((done, fail) => {
-        const req = indexedDB.open('era-intelligence');
-        req.onsuccess = () => {
-          const tx = req.result.transaction('items', 'readwrite');
-          const st = tx.objectStore('items');
-          const all = st.getAll();
-          all.onsuccess = () => {
-            for (const it of all.result as { title: string; purchasePriceCents: number | null }[]) if (/Ralph Lauren/.test(it.title)) st.put({ ...it, purchasePriceCents: 1500 });
-          };
-          tx.oncomplete = () => (req.result.close(), done());
-          tx.onerror = () => fail(tx.error);
-        };
-      }),
-  );
+  // The plan's cut due is made, one, read back on Vinted. The Harrington's cost (its Vinted purchase, 19,60 €, attached
+  // by itself) sets the floor: cost + margin, never under it.
   await pilot.getByRole('button', { name: 'Lancer une tournée maintenant' }).click();
   await expect(rows.first()).toContainText('prix baissé : Veste Harrington Ralph Lauren M 59,00 €', { timeout: 120_000 });
   const now = Number(fake.prices['101']);
   expect(now).toBeLessThan(59);
-  expect(now).toBeGreaterThanOrEqual(15);
+  expect(now).toBeGreaterThanOrEqual(23);
 });
+
 
 test('workshop → my photos chosen in ERA, the draft made with them, published from ERA and read back — Vinted never opened', async ({ context, base }) => {
   test.setTimeout(150_000);
@@ -2256,7 +2242,8 @@ test('autopilot repost: a listing stalling 30 days with no favourite — copied 
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
   await expect(row).toContainText('republié : Chemise Pierre Cardin L', { timeout: 240_000 });
   // The copy (photos sent again, the draft), published from its page, then the old listing deleted — nothing else written.
-  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
+  // (The offers agent, on by default, answered the pending offer in the same round: not part of the repost.)
+  expect(calls.slice(before).filter((c) => c.method !== 'GET' && !c.path.endsWith('/offers')).map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
 });
 
@@ -2293,7 +2280,8 @@ test('the seller’s « À republier » list: any article, its favourites accept
   const row = page.getByTestId('auto-log').locator('tr', { hasText: 'Pilote automatique' }).first();
   await expect(row).toContainText('republié (votre liste) : Chemise Pierre Cardin L', { timeout: 240_000 });
   // The copy (photos, draft), published from its page, the old listing deleted — nothing else written; off the list.
-  expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
+  // (The offers agent, on by default, answered the pending offer in the same round: not part of the repost.)
+  expect(calls.slice(before).filter((c) => c.method !== 'GET' && !c.path.endsWith('/offers')).map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
   await expect(page.getByTestId('chosen-reposts')).toHaveCount(0);
 });

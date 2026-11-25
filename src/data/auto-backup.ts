@@ -90,7 +90,7 @@ export async function runSaleBackup(now = Date.now()): Promise<AutoBackupResult>
   const backup = await exportBackup(db, browser.runtime.getManifest().version, now);
   const saved = await saveFile(jsonDataUrl(JSON.stringify(backup)), saleBackupName(now), 30_000, 'uniquify');
   if (!saved.ok) return { ok: false, reason: 'FAILED', detail: saved.detail };
-  await repo.setSetting(LAST_BACKUP_KEY, now);
+  // (Not counted as the periodic copy: that one keeps its own schedule.)
   if (saved.id !== undefined) {
     const raw = (await browser.storage.local.get(SALE_BACKUPS_KEY))[SALE_BACKUPS_KEY];
     const list = Array.isArray(raw) ? raw.filter((x): x is SaleBackup => typeof x === 'object' && x !== null && typeof (x as SaleBackup).id === 'number' && typeof (x as SaleBackup).at === 'number') : [];
