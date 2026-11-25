@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDecision, checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
+import { checkDecision, checkDraft, cleanDraft, descriptionRequest, factLines, nothingToAdd, offerInMessage, replyRequest, rewriteRequest, splitHashtags } from '@/intelligence/ai-draft';
 import { apiError, parseGeneration, parseModels, pickModel } from '@/intelligence/gemini-parse';
 
 const facts = { title: 'Veste Harrington Ralph Lauren M', brand: 'Ralph Lauren', size: 'M', condition: 'très bon état', defects: null, material: '100 % coton', measures: 'longueur 70 cm · aisselle-aisselle 55 cm', price: '59 €' };
@@ -90,5 +90,23 @@ describe('drafts held to what ERA knows', () => {
     expect(checkDecision('Ok pour 40 €', { verdict: 'COUNTER', offer: '40 €', counter: '55 €' })).toHaveLength(1);
     expect(checkDecision('Je vous le laisse à 55 €.', { verdict: 'COUNTER', offer: '40 €', counter: '55 €' })).toEqual([]);
     expect(checkDecision('D’accord pour 40 €', { verdict: 'ACCEPT', offer: '40 €' })).toEqual([]);
+  });
+});
+
+describe('rewording ERA’s generated description', () => {
+  const facts = { title: 'Chemise Ralph Lauren', brand: 'Ralph Lauren', size: 'L', condition: 'Très bon état', defects: 'aucun', material: null, measures: null, price: '30 €' };
+  const generated = 'Chemise Ralph Lauren\n\n✦ Détails\n• Taille : L\n• Défauts : aucun\n\n#ralphlauren #chemise #homme';
+  it('keeps the hashtags apart: never sent, put back by ERA', () => {
+    expect(splitHashtags(generated)).toEqual({ body: 'Chemise Ralph Lauren\n\n✦ Détails\n• Taille : L\n• Défauts : aucun', tags: '#ralphlauren #chemise #homme' });
+    // A line that only starts with a hashtag-looking word but says more is the seller's text.
+    expect(splitHashtags('#1 des ventes, très demandé').tags).toBe('');
+  });
+  it('sends the facts and the text, with the rules: nothing added, nothing dropped', () => {
+    const r = rewriteRequest(facts, generated);
+    expect(r.system).toContain('N’utilise QUE les faits fournis.');
+    expect(r.system).toContain('n’en ajoute aucun');
+    expect(r.prompt).toContain('- Taille (étiquette) : L');
+    expect(r.prompt).toContain('• Défauts : aucun');
+    expect(r.prompt).not.toContain('#ralphlauren');
   });
 });

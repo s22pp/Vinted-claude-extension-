@@ -525,6 +525,36 @@ test('description templates: written once, applied to the sheet, the standard on
   await expect(desc).toHaveText(standard);
 });
 
+test('the workshop’s description reworded by Gemini: same facts, ERA’s hashtags put back, a claim not in the facts flagged before use', async ({ context, base }) => {
+  const seen = await fakeGemini(context, { reply: '« Pièce propre en cachemire, jamais porté. »' });
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await setGeminiKey(page, base);
+  await page.goto(`${base}#/workshop`);
+  const step = page.locator('.wstep', { has: page.locator('.wstep__title', { hasText: /^Description$/ }) });
+  // A blank (« __ ») is the seller's to fill first: the model would drop it.
+  await step.getByRole('button', { name: 'Modifier', exact: true }).click();
+  const area = step.locator('textarea');
+  await area.fill('Pièce propre, taille sur l’étiquette.\n\n#vintage #mode');
+  await area.blur();
+  await expect(step.locator('pre.wdesc')).toContainText('Pièce propre, taille sur l’étiquette.');
+  const ai = step.getByTestId('gemini-rewrite');
+  await ai.getByRole('button', { name: 'Réécrire avec Gemini' }).click();
+  await expect(ai.locator('pre.wdesc')).toHaveText('Pièce propre en cachemire, jamais porté.\n\n#vintage #mode');
+  await expect(ai.getByTestId('draft-issues')).toContainText('matière « cachemire »');
+  await expect(ai.getByTestId('draft-issues')).toContainText('affirmation « jamais porte »');
+  // Not used until the seller has looked at what is flagged.
+  await expect(ai.getByRole('button', { name: 'Utiliser ce texte' })).toBeDisabled();
+  await ai.getByLabel(/J’ai vérifié ces points/).check();
+  await ai.getByRole('button', { name: 'Utiliser ce texte' }).click();
+  await expect(step.locator('pre.wdesc').first()).toHaveText('Pièce propre en cachemire, jamais porté.\n\n#vintage #mode');
+  // What went to Google: the facts and the text, never the hashtags.
+  const gen = seen.find((x) => x.method === 'POST')!;
+  const body = gen.body as { contents: { parts: { text: string }[] }[] };
+  expect(body.contents[0]!.parts[0]!.text).toContain('Pièce propre, taille sur l’étiquette.');
+  expect(body.contents[0]!.parts[0]!.text).not.toContain('#vintage');
+});
+
 test('title words: what comparable listings write and your title lacks, added before the reference in one click', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

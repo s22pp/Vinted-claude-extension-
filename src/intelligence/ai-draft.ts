@@ -65,6 +65,24 @@ export function descriptionRequest(f: DraftFacts, current: string): AiRequest {
   };
 }
 
+/** The hashtag lines of a description (kept as ERA wrote them), and the rest. */
+export function splitHashtags(text: string): { body: string; tags: string } {
+  const lines = text.split('\n');
+  const isTags = (l: string) => /^\s*#\S/.test(l) && l.trim().split(/\s+/).every((w) => w.startsWith('#'));
+  return { body: lines.filter((l) => !isTags(l)).join('\n').trim(), tags: lines.filter(isTags).join(' ').trim() };
+}
+
+/**
+ * ERA's generated description, reworded by the model so that it reads like the seller wrote it: the same facts, none
+ * added, none dropped. The hashtags are not sent: ERA puts its own back under the text.
+ */
+export function rewriteRequest(f: DraftFacts, text: string): AiRequest {
+  return {
+    system: ['Tu reformules des descriptions d’annonces Vinted en français pour un vendeur particulier : naturel, simple, exact.', ...RULES, 'Garde chaque fait du texte, n’en ajoute aucun.', 'Réponds par le texte seul, 600 caractères au plus.'].join('\n'),
+    prompt: ['Faits connus :', ...factLines(f).map((l) => `- ${l}`), '', `Description à reformuler :\n« ${splitHashtags(text).body} »`].join('\n'),
+  };
+}
+
 export type ReplyDecision =
   | { verdict: 'NONE' }
   | { verdict: 'ACCEPT'; offer: string }

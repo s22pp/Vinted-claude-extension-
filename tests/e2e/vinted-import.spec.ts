@@ -648,6 +648,25 @@ test('price edit on Vinted: only the price, saved, then verified on Vinted', asy
   await expect(row).toHaveAttribute('data-state', 'VERIFIED');
 });
 
+test('a cost unknown in the stock table: the field is in the row, typed and saved there, the row is not opened', async ({ context, base }) => {
+  await fakeVinted(context, { loggedIn: true });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/stock?filter=listed`);
+  // The jeans: no cost known, no other advice before it.
+  const row = page.locator('tbody tr[aria-rowindex]').filter({ hasText: '501 W32' });
+  await row.getByTestId('inline-cost').click();
+  const field = row.getByLabel('Prix d’achat');
+  await expect(field).toBeFocused();
+  await field.fill('18');
+  await field.press('Enter');
+  await expect(page).toHaveURL(/#\/stock/);
+  await expect(row.getByTestId('inline-cost')).toHaveCount(0);
+  await expect(row).toContainText('18 €');
+});
+
 test('ambiguous form: nothing is saved on Vinted', async ({ context, base }) => {
   const fake = await fakeVinted(context, { loggedIn: true, editForm: 'ambiguous' });
   const page = await context.newPage();

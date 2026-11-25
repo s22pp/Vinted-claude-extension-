@@ -22,6 +22,8 @@ import { go, useEra } from '../state';
 import { DescTemplatePicker, useDescTemplates } from './desc-templates';
 import { CategorySelect, ConditionSelect, useMoneyField } from './forms';
 import { TitleWords } from './title-words';
+import { GeminiRewrite } from './gemini';
+import type { DraftFacts } from '@/intelligence/ai-draft';
 import { CopyButton } from './tools';
 
 const IDLE_MS = 120_000;
@@ -139,11 +141,22 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
       r.readAsDataURL(f);
     });
   // The listing generator: the house's title, a structured description with hashtags, the market's median + 10 %.
+  const measures = fields
+    .map((k) => (prep.measures[k]?.trim() ? `${t(`workshop.m.${k}`)} ${/^\d+([.,]\d+)?$/.test(prep.measures[k]!.trim()) ? `${prep.measures[k]!.trim()} cm` : prep.measures[k]!.trim()}` : null))
+    .filter(Boolean)
+    .join(' · ');
+  // What Gemini may draw on when it rewords the description: ERA's facts only.
+  const aiFacts: DraftFacts = {
+    title,
+    brand: item.brand,
+    size: item.size,
+    condition: item.condition ? t(`condition.${item.condition}`) : null,
+    defects: prep.defects.trim() || null,
+    material: prep.material.trim() || item.material || null,
+    measures: measures || null,
+    price: chosen !== null ? i18n.money(chosen) : null,
+  };
   const generate = async () => {
-    const measures = fields
-      .map((k) => (prep.measures[k]?.trim() ? `${t(`workshop.m.${k}`)} ${/^\d+([.,]\d+)?$/.test(prep.measures[k]!.trim()) ? `${prep.measures[k]!.trim()} cm` : prep.measures[k]!.trim()}` : null))
-      .filter(Boolean)
-      .join(' · ');
     const facts = { category: item.category, brand: item.brand, model: item.model, size: item.size, era: item.era, condition: item.condition, colors: prep.colors || null, material: prep.material || item.material || null, defects: prep.defects || null, measures: measures || null };
     const genPrice = generatedPrice(intel && !intel.analysisStale ? intel.analysis : null);
     await save({ titleOverride: generatedTitle(facts), descriptionOverride: generatedDescription(facts), ...(genPrice !== null ? { priceCents: genPrice } : {}) });
@@ -370,6 +383,7 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
               </Button>
             )}
           </div>
+          <GeminiRewrite facts={aiFacts} text={description} brand={item.brand} onUse={(x) => void save({ descriptionOverride: x })} />
         </Step>
 
         <Step n={10} title={t('workshop.s.price')} hint={t('workshop.h.price')} done={done('price')}>

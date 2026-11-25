@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { GEMINI_STORE, type GeminiConfig, clearGemini, geminiConfig, geminiWrite, keyHint, saveGemini, testGeminiKey } from '@/data/gemini';
 import { useI18n } from '@/i18n';
-import { type DraftFacts, type DraftIssue, type ReplyDecision, checkDecision, checkDraft, cleanDraft, factLines, offerInMessage, replyRequest } from '@/intelligence/ai-draft';
+import { type DraftFacts, type DraftIssue, type ReplyDecision, checkDecision, checkDraft, cleanDraft, factLines, offerInMessage, replyRequest, rewriteRequest, splitHashtags } from '@/intelligence/ai-draft';
 import type { ItemIntel } from '@/intelligence/decision';
 import { evaluateOffer } from '@/intelligence/offer';
 import { stagnationThreshold } from '@/intelligence/stagnation';
@@ -212,6 +212,72 @@ export function AiReply({ intel }: { intel: ItemIntel }) {
         </>
       )}
       <p className="t-small t-faint">{t('gemini.replyNever')}</p>
+    </div>
+  );
+}
+
+/**
+ * « Réécrire avec Gemini » under ERA's generated description: the same facts reworded, then checked against them —
+ * a number, a material or a claim that is not in the facts is flagged and must be acknowledged before the text is
+ * used. ERA's hashtags go back under it. Nothing leaves ERA: the seller uses the text in the listing, or not.
+ */
+export function GeminiRewrite({ facts, text, brand, onUse }: { facts: DraftFacts; text: string; brand: string | null; onUse: (text: string) => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const gemini = useGeminiConfig();
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const issues = draft ? checkDraft(draft, `${factLines(facts).join('\n')}\n${text}`, brand) : [];
+  const [ack, setAck] = useAck(issues);
+  if (!gemini) return null;
+  // A blank (« __ ») is the seller's to fill: the model would drop it.
+  if (text.includes('__')) return <p className="t-small t-faint">{t('gemini.rewriteBlanks')}</p>;
+  const run = async () => {
+    setBusy(true);
+    const r = await geminiWrite(rewriteRequest(facts, text));
+    setBusy(false);
+    if (!r.ok) return toast('error', t('gemini.failed'), r.detail);
+    const body = cleanDraft(r.text);
+    if (!body) return toast('error', t('gemini.failed'), t('gemini.empty'));
+    const { tags } = splitHashtags(text);
+    setDraft(tags ? `${body}\n\n${tags}` : body);
+    setAck(false);
+  };
+  return (
+    <div className="stack" style={{ gap: 8, marginTop: 8 }} data-testid="gemini-rewrite">
+      {draft === null ? (
+        <div>
+          <Button size="sm" variant="ghost" icon="edit" loading={busy} onClick={() => void run()}>
+            {t('gemini.rewrite')}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="t-small t-muted">{t('gemini.rewritten')}</p>
+          <pre className="wdesc">{draft}</pre>
+          <DraftIssues issues={issues} ack={ack} onAck={setAck} />
+          <div className="row wrap" style={{ gap: 8 }}>
+            <Button
+              size="sm"
+              variant="primary"
+              icon="check"
+              disabled={!ack}
+              onClick={() => {
+                onUse(draft);
+                setDraft(null);
+              }}
+            >
+              {t('gemini.useText')}
+            </Button>
+            <Button size="sm" variant="ghost" loading={busy} onClick={() => void run()}>
+              {t('gemini.again')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+              {t('gemini.discard')}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
