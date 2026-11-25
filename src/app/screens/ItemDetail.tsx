@@ -12,7 +12,8 @@ import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState
 import { Thumb } from '@/ui/components/Thumb';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
-import { CostEditor, SaleModal } from '../components/forms';
+import { CostEditor, InlineCost, SaleModal } from '../components/forms';
+import { NEGOTIATION_DEFAULT, projectNet } from '@/intelligence/pro-figures';
 import { CostBreakdown, VintedCostForm } from '../components/cost';
 import { PredictionRow } from '../components/precision';
 import { Replies } from '../components/replies';
@@ -104,7 +105,7 @@ export function ItemDetail({ id }: { id: string }) {
               small
               label={t('capital.invested')}
               value={<Money cents={v.cost} unknownLabel={t('data.notProvided')} />}
-              foot={v.cost !== null && !v.costComplete ? <QualityTag quality="PARTIAL" text={t('cost.exShippingShort')} /> : <QualityTag quality={qualityOf(v.cost, item.meta.purchasePriceCents)} />}
+              foot={v.cost === null && !item.isDemo ? <InlineCost itemId={item.id} /> : v.cost !== null && !v.costComplete ? <QualityTag quality="PARTIAL" text={t('cost.exShippingShort')} /> : <QualityTag quality={qualityOf(v.cost, item.meta.purchasePriceCents)} />}
             />
             <Metric
               small
@@ -116,7 +117,22 @@ export function ItemDetail({ id }: { id: string }) {
               small
               label={v.sale ? t('insights.niche.profit') : t('item.potentialProfit')}
               value={v.sale ? <Money cents={v.cost === null ? null : v.sale.salePriceCents - v.cost} sign /> : v.inStock ? <Money cents={v.potentialProfit} sign /> : <span className="t-faint">—</span>}
-              foot={pos?.potentialRoi != null ? `ROI ${pct(pos.potentialRoi)}` : v.cost === null && v.inStock ? <QualityTag quality="UNKNOWN" text={t('reco.w.missingCost')} /> : null}
+              foot={
+                v.inStock && v.askPrice !== null && v.cost !== null ? (
+                  (() => {
+                    const p = projectNet(v.askPrice, v.cost);
+                    return (
+                      <span className="num" title={t('item.projectedHint', { pct: Math.round(NEGOTIATION_DEFAULT * 100) })}>
+                        {t('item.projected', { v: money(p.profitCents!, { sign: true }), roi: p.roi === null ? '—' : pct(p.roi) })}
+                      </span>
+                    );
+                  })()
+                ) : pos?.potentialRoi != null ? (
+                  `ROI ${pct(pos.potentialRoi)}`
+                ) : v.cost === null && v.inStock ? (
+                  <QualityTag quality="UNKNOWN" text={t('reco.w.missingCost')} />
+                ) : null
+              }
             />
             <Metric small label={t('item.held')} value={v.daysHeld === null ? <span className="t-faint">—</span> : <span className="num">{t('kpi.days', { n: v.daysHeld })}</span>} foot={v.daysHeldInferred ? <QualityTag quality="INFERRED" /> : null} />
             {v.inStock && (

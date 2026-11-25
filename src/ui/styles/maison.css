@@ -1699,3 +1699,159 @@ textarea.input,
     transition: none;
   }
 }
+
+/* ── Offer tiers: three ruled cells, the figure in mono, the message one click away ─────────────────────────────────── */
+.offer-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border-grid);
+  border-radius: 4px;
+}
+.offer-tiers__cell {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  justify-items: start;
+  padding: 10px 12px;
+  border-left: 1px solid var(--border-grid);
+}
+.offer-tiers__cell:first-child {
+  border-left: 0;
+}
+.offer-tiers__cell b {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.offer-tiers__cell[data-tier='floor'] b {
+  color: var(--amber);
+}
+.offer-tiers__cell .btn {
+  margin-left: -8px;
+}
+.inline-cost {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── La Vitrine as an archive (0.60): one ruled card — index and state, the 3:4 photo, name, maker, price · profit ─── */
+.vitrine {
+  gap: 22px;
+}
+.look {
+  border: 1px solid var(--border-grid);
+  border-top-color: var(--border-highlight);
+  border-radius: 4px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.look__link {
+  gap: 0;
+  outline-offset: 2px;
+}
+.look__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-grid);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.look__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 550;
+}
+.look__status > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.look[data-state='live'] .look__status {
+  color: var(--emerald);
+}
+.look[data-state='sold'] .look__status {
+  color: #94a3b8;
+}
+.look[data-state='stale'] .look__status {
+  color: var(--amber);
+}
+.look__frame {
+  aspect-ratio: 3 / 4;
+  border: 0;
+  border-radius: 0;
+}
+.look__frame img {
+  transition: transform 900ms var(--ease-locomotive);
+}
+.look__link:hover .look__frame img,
+.look__link:focus-visible .look__frame img {
+  transform: scale(1.03);
+}
+.look__none {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  background-color: #0b1018;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+:root[data-theme='light'] .look__none {
+  background-color: var(--surface-sunken);
+  background-image:
+    linear-gradient(rgba(15, 20, 28, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 20, 28, 0.05) 1px, transparent 1px);
+}
+.look__text {
+  gap: 4px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border-grid);
+}
+.look__title {
+  font-size: 13px;
+  -webkit-line-clamp: 1;
+}
+.look__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 0;
+}
+.look__meta {
+  font-size: 11.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.look__money {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.look__money .is-pos {
+  color: var(--emerald);
+}
+.look__money .is-neg {
+  color: var(--coral);
+}
+.look__cost {
+  color: var(--amber);
+}
+.look__facts {
+  font-size: 11px;
+  color: var(--text-3);
+}

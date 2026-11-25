@@ -3,6 +3,7 @@ import { useI18n } from '@/i18n';
 import type { ItemIntel } from '@/intelligence/decision';
 import { buildDescription, buildTitle, type ShieldIssue, shieldCheck, skuOf, titleIssues } from '@/intelligence/listing';
 import { evaluateOffer, offerLadder } from '@/intelligence/offer';
+import { offerTiers } from '@/intelligence/pro-figures';
 import { stagnationThreshold } from '@/intelligence/stagnation';
 import { Icon } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
@@ -16,6 +17,44 @@ import { TitleWords } from './title-words';
 import { TitleOnVinted } from './text-series';
 
 /* ── Offer calculator ─────────────────────────────────────── */
+
+/**
+ * Three tiers to answer an offer, each with its counter-offer message ready to paste on Vinted (never sent by ERA):
+ * the floor (30 % return on the cost — none while the cost is unknown), the target (−10 %), the firm price.
+ */
+function OfferTiersRow({ ask, cost }: { ask: number; cost: number | null }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const tiers = offerTiers(ask, cost);
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('success', t('offer.tier.copied'), text);
+    } catch {
+      toast('error', t('offer.tier.copyFailed'));
+    }
+  };
+  const cells: { key: 'floor' | 'target' | 'firm'; cents: number | null }[] = [
+    { key: 'floor', cents: tiers.floor },
+    { key: 'target', cents: tiers.target },
+    { key: 'firm', cents: tiers.firm },
+  ];
+  return (
+    <div className="offer-tiers" data-testid="offer-tiers">
+      {cells.map((c) => (
+        <div key={c.key} className="offer-tiers__cell" data-tier={c.key}>
+          <span className="t-caption">{t(`offer.tier.${c.key}`)}</span>
+          <b className="num">{c.cents === null ? t('offer.tier.noCost') : money(c.cents)}</b>
+          {c.cents !== null && (
+            <Button size="sm" variant="ghost" icon="copy" onClick={() => void copy(t(`offer.tier.msg.${c.key}`, { price: money(c.cents!) }))}>
+              {t('offer.tier.copy')}
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function OfferCalculator({ intel, compact }: { intel: ItemIntel; compact?: boolean }) {
   const { t, money, pct } = useI18n();
@@ -52,6 +91,7 @@ export function OfferCalculator({ intel, compact }: { intel: ItemIntel; compact?
         </div>
       </div>
       <p className="t-small t-faint">{t(`offer.basis.${ladder.floorBasis}`)}</p>
+      <OfferTiersRow ask={v.askPrice} cost={v.cost} />
       <div className="row" style={{ alignItems: 'flex-end', gap: 12 }}>
         <Field label={t('offer.received')} htmlFor={`offer-${v.item.id}`} error={offer.invalid ? t('add.invalidAmount') : null}>
           <Input id={`offer-${v.item.id}`} money value={offer.raw} onChange={(e) => offer.setRaw(e.target.value)} placeholder={String(Math.round(ladder.floor / 100))} style={{ width: compact ? 110 : 140 }} />

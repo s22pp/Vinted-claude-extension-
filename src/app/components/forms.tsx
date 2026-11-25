@@ -136,6 +136,48 @@ export function AddItemDrawer({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+/**
+ * « + Saisir le coût d'achat », in place: one click opens a field already focused, Entrée saves, Échap closes. The
+ * figures around it (profit, ROI) follow at once.
+ */
+export function InlineCost({ itemId }: { itemId: string }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const cost = useMoneyField(null);
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button type="button" className="fill-costs" onClick={() => setOpen(true)} data-testid="inline-cost">
+        {t('cost.inlineAdd')}
+      </button>
+    );
+  return (
+    <form
+      className="inline-cost"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (cost.invalid || cost.cents === null) return;
+        await repo.setPurchasePrice(itemId, cost.cents);
+        toast('success', t('common.saved'));
+        setOpen(false);
+      }}
+    >
+      <Input
+        autoFocus
+        money
+        aria-label={t('item.field.purchasePrice')}
+        value={cost.raw}
+        onChange={(e) => cost.setRaw(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+        placeholder="18"
+        style={{ width: 92, height: 28 }}
+        aria-invalid={cost.invalid}
+      />
+      <span className="t-small t-faint">{t('cost.inlineEnter')}</span>
+    </form>
+  );
+}
+
 export function CostEditor({ itemId, initial, onDone }: { itemId: string; initial: number | null; onDone?: () => void }) {
   const { t } = useI18n();
   const toast = useToast();
