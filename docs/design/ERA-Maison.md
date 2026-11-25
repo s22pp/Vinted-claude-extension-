@@ -190,3 +190,43 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
   tombait sur une police de secours et s'affichait comme une virgule.
 - **Mots** : « Sell-through » devient « Taux d'écoulement » ; « coûts manquants : minimum » devient « au moins : des
   coûts manquent ».
+
+## 0.59 : la republication dans l'ordre du vendeur, et le poli des écrans
+
+- **Republier maintenant** (un article ou plusieurs, dans l'ordre du stock), dans l'ordre demandé par le vendeur :
+  1. tout copier en brouillon Vinted, relu (rien n'est supprimé si la copie échoue) ;
+  2. supprimer l'ancienne annonce, relue absente ;
+  3. attendre un délai tiré entre un minimum et un maximum choisis (3 et 10 min par défaut) ;
+  4. publier le brouillon, relu en ligne.
+
+  La file est enregistrée. Une attente de plus d'une minute est confiée à une alarme Chrome, elle survit donc à
+  l'arrêt du service worker. Un arrêt qui concerne le compte (403, 429, déconnexion, budget épuisé) met toute la file
+  en pause jusqu'à « Reprendre ». La fenêtre montre les quatre étapes en direct, le compte à rebours et « Remettre en
+  ligne maintenant ».
+- **Étiquettes EXPÉRIMENTAL / NON VÉRIFIÉ** : fines, ambre, mono 10 px, un point de 5 px. Elles s'effacent en fondu
+  quand la preuve arrive.
+- **Réglages → Intégrations Vinted** : pleine largeur, une ligne « état du système » par fonction :
+  - le nom et ce que fait la fonction ;
+  - une pastille : « Vérifié » avec l'heure de la dernière preuve, ou « En attente de test » avec la manière de faire
+    la preuve ;
+  - « Tester → », qui lance l'import pour les lectures et ouvre le bon écran pour les écritures.
+- **Pilote** : l'avertissement permanent devient une note de sécurité éditoriale (filet ambre de 2 px, bouclier).
+- **Boutique 3D** : un showroom de nuit :
+  - sol obsidienne quadrillé, mur de fond en dégradé nuit, brume ;
+  - portants en acier brossé ;
+  - enseignes en mono avec un point d'état ;
+  - marge affichée au survol ;
+  - caméra bornée à ±25°.
+- **Colis** :
+  - les boîtes posées sur le tapis, avec leur âge ;
+  - la carte de nuit (tuiles OpenStreetMap assombries par filtre CSS, fond quadrillé hors ligne) ;
+  - des boutons de zoom ERA et un point radar.
+- **Accueil** : un seul titre et la promesse dessous ; carte à 4 px, filet de séparation, grille technique, badges
+  nets, bouton flèche.
+- **Ventes, Analyses, Comptabilité** :
+  - onglets soulignés de 2 px sur un filet plein ;
+  - « + Renseigner (n) » à la place de « Inconnu », qui ouvre le tiroir des coûts manquants (vendus d'abord) ;
+  - bandeau des coûts éditorial ;
+  - graphiques avec grille pointillée, dégradé sous les courbes, points par mois, info-bulle de nuit, barres fines
+    avec leur valeur ;
+  - DAC7 avec jauges fines, repère à 80 % et statut « Sous les seuils · Vinted ne transmet pas ».
