@@ -230,3 +230,37 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
   - graphiques avec grille pointillée, dégradé sous les courbes, points par mois, info-bulle de nuit, barres fines
     avec leur valeur ;
   - DAC7 avec jauges fines, repère à 80 % et statut « Sous les seuils · Vinted ne transmet pas ».
+
+## 0.60 : Locomotive, l'entrée en train, le clavier, les chiffres du vendeur pro
+
+- **Géométrie Locomotive** :
+  - les cartes sont des cellules d'une grille de 1 px : cadre net, arête haute éclairée, aucune ombre floue ;
+  - rayons de 4 px (conteneurs), 3 px (boutons et champs), 2 px (badges) ;
+  - titres de 32 à 48 px, serrés ;
+  - page courante marquée d'un trait blanc de 2 px au bord de la barre latérale, son libellé avancé de 4 px ;
+  - boutons secondaires remplis de glacier par le bas au survol ;
+  - courbe `cubic-bezier(0.19, 1, 0.22, 1)`.
+- **L'entrée** (3,2 s, three.js chargé à la demande) :
+  - un tunnel de nuit sous des néons froids ;
+  - un train d'archives brutaliste longé caméra basse, avec un frisson sous l'arche ;
+  - puis le recul face au pont, où le nom de la maison est gravé dans le métal : le pseudo Vinted lu sur cet appareil,
+    ou « ERA » ;
+  - enfin un statut factuel et « Accéder à l'espace → ».
+
+  Elle se joue une fois par version et se rejoue depuis la palette ; `Échap` la passe ; avec les mouvements réduits,
+  seule l'image finale s'affiche. Sur la frise du jour, « maintenant » est une petite locomotive sur le rail.
+- **Clavier** :
+  - `Ctrl K` agit : republier les articles qui stagnent (présélection, confirmation toujours requise), exporter le
+    CSV, basculer le thème, importer, revoir l'intro, voir les raccourcis ;
+  - `G` puis `A`, `S`, `P`, `M`, `V` ou `R` pour naviguer, `N` pour ajouter, `?` pour la fiche des raccourcis ;
+  - notifications en bas à droite avec une barre de temps.
+- **Chiffres du vendeur pro** (calculs purs, testés) :
+  - net projeté (hypothèse de 10 % de négociation, affichée comme telle) ;
+  - trois paliers d'offre (plancher à ROI 30 %, cible −10 %, ferme), chacun avec un message de contre-offre à copier ;
+  - rotation (frais, à surveiller, stagnant à 30 j) ;
+  - « + Saisir le coût d'achat » directement sur la fiche ;
+  - Vitrine en fiches d'archive (#001, état, photo 3:4, prix · profit) ;
+  - Analyses en portefeuille : profit du mois, capital immobilisé, valeur potentielle, délai moyen, marques par ROI.
+- **Sécurité** : un contrôle anti-robot affiché sur une page Vinted (DataDome, hCaptcha, reCAPTCHA, Cloudflare) arrête
+  tout, comme un 403. ERA n'y répond jamais et ne le contourne jamais.
+- **Sauvegarde** : le témoin « Local » pulse à chaque écriture locale réussie.
