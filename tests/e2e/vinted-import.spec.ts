@@ -6,7 +6,7 @@ import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string; purchasesSlowMs?: number; onPurchasesRead?: () => void }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null; at?: number }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
-  const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
+  const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, drafts: new Map<number, object>(), published: new Map<number, number>(), labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Map<number, number>() };
   const prices: Record<string, string> = { '101': '59.0' };
   const descriptions: Record<string, string> = { '101': 'Veste Harrington, bon état.' };
   const titles: Record<string, string> = { '101': 'Veste Harrington Ralph Lauren M' };
@@ -16,14 +16,17 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
   await context.route('https://www.vinted.fr/**', (route) => {
     const url = new URL(route.request().url());
     // Test fixture only: the draft's page — « Enregistrer le brouillon » and « Ajouter » (publish); publishing leaves /edit.
-    if (opts.publishPage && url.pathname === '/items/555/edit')
-      return route.fulfill({
-        contentType: 'text/html; charset=utf-8',
-        body: `<html><body><form action="/items/555/published" method="get"><label for="title">Titre</label><input id="title" type="text" value="brouillon">
+    const draftPage = /^\/items\/(\d+)\/(edit|published)$/.exec(url.pathname);
+    if (opts.publishPage && draftPage && (draftPage[1] === '555' || state.drafts.has(Number(draftPage[1])))) {
+      const id = Number(draftPage[1]);
+      if (draftPage[2] === 'edit')
+        return route.fulfill({
+          contentType: 'text/html; charset=utf-8',
+          body: `<html><body><form action="/items/${id}/published" method="get"><label for="title">Titre</label><input id="title" type="text" value="brouillon">
           <button type="button">Enregistrer le brouillon</button><button type="button">Supprimer le brouillon</button><button type="submit">Ajouter</button></form></body></html>`,
-      });
-    if (opts.publishPage && url.pathname === '/items/555/published') {
-      state.published555 = true;
+        });
+      state.published.set(id, Date.now());
+      if (id === 555) state.published555 = true;
       return route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<html><body>Annonce publiée</body></html>' });
     }
     if (/^\/items\/\d+\/edit$/.test(url.pathname) && opts.editForm) {
@@ -175,14 +178,29 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/catalogs/1812/package_sizes') return json({ package_sizes: [{ id: 1 }, { id: 2 }, { id: 3 }] });
     if (url.pathname === '/api/v2/item_upload/drafts' && method === 'POST') {
       state.draft = JSON.parse(route.request().postData() ?? '{}').draft;
-      return json({ draft: { id: 555 } });
+      // Test fixture only: drafts numbered from 555, one per copy.
+      const id = 555 + state.drafts.size;
+      state.drafts.set(id, state.draft!);
+      return json({ draft: { id } });
     }
-    if (url.pathname === '/api/v2/item_upload/items/555') {
-      const d = state.draft as { title?: string; price?: string; assigned_photos?: { id: number }[] } | null;
-      return json({ item: { id: 555, title: d?.title, price: opts.draftPriceLocked ? '25.0' : d?.price, is_draft: !state.published555, photos: (d?.assigned_photos ?? []).map((p) => ({ id: p.id, full_size_url: `https://images1.vinted.net/t/copy/${p.id}.jpeg` })) } });
+    const draftRead = /^\/api\/v2\/item_upload\/items\/(\d+)$/.exec(url.pathname);
+    if (draftRead && (draftRead[1] === '555' || state.drafts.has(Number(draftRead[1])))) {
+      const id = Number(draftRead[1]);
+      const d = (state.drafts.get(id) ?? state.draft) as { title?: string; price?: string; assigned_photos?: { id: number }[] } | null;
+      const published = id === 555 ? state.published555 : state.published.has(id);
+      return json({ item: { id, title: d?.title, price: opts.draftPriceLocked ? '25.0' : d?.price, is_draft: !published, photos: (d?.assigned_photos ?? []).map((p) => ({ id: p.id, full_size_url: `https://images1.vinted.net/t/copy/${p.id}.jpeg` })) } });
     }
     // Test fixture only: a listing with no favourite, its photos, the upload route and the delete route.
     if (url.pathname === '/api/v2/photos' && method === 'POST') return json({ photo: { id: 7001 + state.photos++, url: 'https://images1.vinted.net/t/new.jpeg' } });
+    // Test fixture only: another listing of the seller's, read for its copy (fields from the wardrobe entry).
+    const extraRead = /^\/api\/v2\/item_upload\/items\/(\d+)$/.exec(url.pathname);
+    const extra = extraRead && extraRead[1] !== '110' ? (opts.extra ?? []).find((e) => (e as { id: number }).id === Number(extraRead[1])) : undefined;
+    if (extra) {
+      const e = extra as { id: number; title: string; price: string; favourite_count?: number; photos?: { url: string }[] };
+      return state.deleted.has(e.id)
+        ? json({ code: 404 }, 404)
+        : json({ item: { id: e.id, title: e.title, description: `${e.title}, très bon état.`, price: { amount: e.price, currency_code: 'EUR' }, brand_id: 5575, brand: 'Pierre Cardin', size_id: 209, catalog_id: 1803, status_id: 2, package_size_id: 1, color_ids: [9], favourite_count: e.favourite_count ?? 0, is_draft: false, photos: (e.photos ?? []).map((ph, i) => ({ id: i + 1, full_size_url: ph.url })) } });
+    }
     if (url.pathname === '/api/v2/item_upload/items/110')
       return state.deleted.has(110)
         ? json({ code: 404 }, 404)
@@ -206,7 +224,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
           });
     if (/^\/api\/v2\/items\/\d+\/delete$/.test(url.pathname) && method === 'POST') {
       const id = Number(url.pathname.split('/')[4]);
-      state.deleted.add(id);
+      state.deleted.set(id, Date.now());
       state.hide.add(id);
       return json({});
     }
@@ -2252,7 +2270,7 @@ test('the seller’s « À republier » list: any article, its favourites accept
   await expect(page.getByTestId('chosen-reposts')).toHaveCount(0);
 });
 
-test('« Republier maintenant »: a jacket published yesterday with 9 favourites, the Pilote off — reposted at once, followed in three steps', async ({ context, base }) => {
+test('« Republier maintenant »: a jacket published yesterday with 9 favourites, the Pilote off — copied, deleted, then put back online, in the seller’s order', async ({ context, base }) => {
   test.setTimeout(300_000);
   // Test fixture only: a jacket put online yesterday, 57 views and 9 favourites — the seller's own choice to repost it.
   const yesterday = Math.floor((Date.now() - 26 * 3_600_000) / 1000);
@@ -2278,25 +2296,86 @@ test('« Republier maintenant »: a jacket published yesterday with 9 favourites
   await expect(dialog.getByTestId('repost-now-cost')).toContainText('Les compteurs de l’ancienne annonce repartiront de zéro.');
   await expect(dialog.getByTestId('repost-now-cost')).toContainText('57');
   await expect(dialog.getByTestId('repost-now-cost')).toContainText('9');
+  // The wait between deletion and publication: 3 to 10 minutes unless the seller changes it (none here, for the test).
+  await expect(dialog.getByLabel('Attente minimum (min)')).toHaveValue('3');
+  await expect(dialog.getByLabel('Attente maximum (min)')).toHaveValue('10');
+  await dialog.getByLabel('Attente minimum (min)').fill('0');
+  await dialog.getByLabel('Attente maximum (min)').fill('0');
   const before = calls.length;
   await dialog.getByRole('button', { name: 'Confirmer la republication' }).click();
-  // Three steps, live; then « Republié », with the new listing's link.
+  // Four steps, live; then « Annonce republiée », with the new listing's link.
   await expect(page.getByRole('heading', { name: 'Republication en cours' })).toBeVisible();
-  await expect(dialog.locator('li[data-step="publish"]')).toBeVisible();
+  await expect(dialog.locator('li[data-step="copy"]')).toBeVisible();
+  await expect(dialog.locator('li[data-step="wait"]')).toBeVisible();
   await expect(dialog.getByTestId('repost-now-done')).toBeVisible({ timeout: 240_000 });
-  await expect(dialog.locator('li[data-step="done"]')).toHaveAttribute('data-status', 'done');
+  await expect(dialog.locator('li[data-step="publish"]')).toHaveAttribute('data-status', 'done');
   await expect(dialog.getByRole('button', { name: 'Ouvrir la nouvelle annonce' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Annonce republiée' })).toBeVisible();
   // The sheet keeps the article and shows its new listing at once (read back online), not after the next import.
   await page.keyboard.press('Escape');
   await expect(page.locator('tbody tr', { hasText: 'Veste Baracuta G9 M' })).toContainText('Aujourd’hui');
-  // The copy (same photos sent again, the draft), published from its page, read back, then the old listing deleted.
+  // In the seller's order: the copy (same photos sent again, the draft), the old listing deleted, then the draft published.
   expect(calls.slice(before).filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/v2/photos', '/api/v2/photos', '/api/v2/item_upload/drafts', '/api/v2/items/110/delete']);
   expect(calls.state.published555).toBe(true);
+  expect(calls.state.deleted.get(110)!).toBeLessThan(calls.state.published.get(555)!);
   expect(calls.state.draft).toMatchObject({ title: 'Veste Baracuta G9 M' });
   // Still off: the gesture did not need it, and did not switch it on.
   await page.goto(`${base}#/automations`);
   await expect(page.getByTestId('pilot').getByLabel('Activer les tournées automatiques')).not.toBeChecked();
+});
+
+test('« Republier maintenant » for two articles: one after the other, each copied, deleted, waited for, put back online — the wait taken up by an alarm', async ({ context, base }) => {
+  test.setTimeout(360_000);
+  const yesterday = Math.floor((Date.now() - 26 * 3_600_000) / 1000);
+  // Test fixture only: two of the seller's listings, chosen together in the stock.
+  const jacket = { id: 110, title: 'Veste Baracuta G9 M', price: '65.0', view_count: 57, favourite_count: 0, brand_title: 'Baracuta', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
+  const oxford = { id: 111, title: 'Chemise Oxford Pierre Cardin L', price: '30.0', view_count: 12, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/111/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [jacket, oxford], item110Title: 'Veste Baracuta G9 M' });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
+  await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/stock`);
+  await page.getByRole('checkbox', { name: 'Veste Baracuta G9 M' }).check();
+  await page.getByRole('checkbox', { name: 'Chemise Oxford Pierre Cardin L' }).check();
+  await page.getByRole('region', { name: '2 articles sélectionnés' }).getByRole('button', { name: 'Republier maintenant (2)' }).click();
+  const dialog = page.getByTestId('repost-now');
+  await expect(page.getByRole('heading', { name: 'Republier ces 2 annonces ?' })).toBeVisible();
+  await expect(dialog.getByTestId('repost-now-cost')).toContainText('69');
+  // One minute each, at the least and at the most.
+  await dialog.getByLabel('Attente minimum (min)').fill('1');
+  await dialog.getByLabel('Attente maximum (min)').fill('1');
+  await dialog.getByRole('button', { name: 'Confirmer la republication' }).click();
+  const queue = dialog.getByTestId('repost-queue');
+  // In the stock's order: whichever comes first goes first.
+  const first = queue.locator('li[data-item]').nth(0);
+  const second = queue.locator('li[data-item]').nth(1);
+  const firstId = (await first.textContent())!.includes('Veste Baracuta') ? 110 : 111;
+  const secondId = firstId === 110 ? 111 : 110;
+  // The first is copied and deleted, then waits — offline, the second still in line behind it.
+  await expect(first).toHaveAttribute('data-outcome', 'WAITING', { timeout: 120_000 });
+  await expect(first).toContainText(/Remise en ligne dans (\d+ min \d+ s|\d+ s)/);
+  await expect(second).toHaveAttribute('data-outcome', 'QUEUED');
+  // The wait is in Chrome's hands (an alarm at its end), not in the page's.
+  const [worker] = context.serviceWorkers();
+  const alarm = await worker!.evaluate(() => chrome.alarms.get('era-repost'));
+  expect(alarm?.scheduledTime ?? 0).toBeGreaterThan(Date.now() + 20_000);
+  // The seller ends the first wait now; the second article then goes through, and its wait is taken up by the alarm.
+  await first.getByRole('button', { name: 'Remettre en ligne maintenant' }).click();
+  await expect(first).toHaveAttribute('data-outcome', 'DONE', { timeout: 120_000 });
+  await expect(second).toHaveAttribute('data-outcome', 'WAITING', { timeout: 120_000 });
+  await expect(second).toHaveAttribute('data-outcome', 'DONE', { timeout: 150_000 });
+  await expect(page.getByRole('heading', { name: 'Annonces republiées' })).toBeVisible();
+  await expect(dialog.getByTestId('repost-now-done')).toContainText('2 annonce(s) republiée(s)');
+  // Each in the seller's order, one article after the other; the second waited its minute before going back online.
+  expect(calls.filter((c) => c.method !== 'GET' && /delete|drafts/.test(c.path)).map((c) => c.path)).toEqual(['/api/v2/item_upload/drafts', `/api/v2/items/${firstId}/delete`, '/api/v2/item_upload/drafts', `/api/v2/items/${secondId}/delete`]);
+  expect(calls.state.deleted.get(firstId)!).toBeLessThan(calls.state.published.get(555)!);
+  expect(calls.state.published.get(555)!).toBeLessThan(calls.state.deleted.get(secondId)!);
+  expect(calls.state.published.get(556)! - calls.state.deleted.get(secondId)!).toBeGreaterThan(55_000);
+  // Both back in the stock as the same articles, online today.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('tbody tr', { hasText: 'Veste Baracuta G9 M' })).toContainText('Aujourd’hui');
+  await expect(page.locator('tbody tr', { hasText: 'Chemise Oxford Pierre Cardin L' })).toContainText('Aujourd’hui');
 });
 
 test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {

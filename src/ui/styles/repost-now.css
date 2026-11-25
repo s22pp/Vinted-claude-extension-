@@ -126,3 +126,81 @@
 :root[data-motion='reduced'] .repost-now__steps [data-status='run'] .repost-now__dot {
   animation: none;
 }
+
+/* The seller's wait window: a ruled fieldset, two short numbers. */
+.repost-now__wait {
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: grid;
+  gap: 10px;
+}
+.repost-now__wait legend {
+  padding: 0 6px;
+}
+.repost-now__steps [data-step='wait'][data-status='run'] .repost-now__dot {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+.repost-now__steps [data-status='done'] .repost-now__dot {
+  border-color: var(--emerald);
+  background: var(--emerald);
+}
+
+/* Several articles: one ruled line each, its state in words and a tone dot. */
+.repost-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.repost-queue__row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.repost-queue--plan .repost-queue__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.repost-queue__main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.repost-queue__main b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 550;
+}
+.repost-queue__state {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.repost-queue__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.repost-queue__row[data-outcome='RUNNING'] .repost-queue__dot {
+  background: var(--accent);
+}
+.repost-queue__row[data-outcome='WAITING'] .repost-queue__dot,
+.repost-queue__row[data-outcome='UNCERTAIN'] .repost-queue__dot {
+  background: var(--amber);
+}
+.repost-queue__row[data-outcome='DONE'] .repost-queue__dot {
+  background: var(--emerald);
+}
+.repost-queue__row[data-outcome='FAILED'] .repost-queue__dot {
+  background: var(--coral);
+}
+.repost-queue__acts:empty {
+  display: none;
+}

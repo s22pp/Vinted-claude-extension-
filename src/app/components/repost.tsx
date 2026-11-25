@@ -147,7 +147,8 @@ export function RepostPending({ v }: { v: ItemView }) {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  if (!pending) return null;
+  // « Republier maintenant » (old listing already deleted, the copy waiting its time) is followed in its own dialog.
+  if (!pending || pending.deletedAt) return null;
   const live = v.listings.some((l) => l.platformListingId === pending.draftId && isLiveListing(l.status));
   const text = pending.deleteSentAt ? t('repost.pendingSent') : live ? t('repost.pendingLive') : t('repost.pendingDraft', { date: date(pending.at) });
   return (

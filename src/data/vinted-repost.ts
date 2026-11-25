@@ -159,6 +159,67 @@ export async function repostAsDraft(itemId: string, now = Date.now(), newPrice: 
   }
 }
 
+/**
+ * « Republier maintenant », step 2 (the seller's order: delete first, then wait, then publish the copy): the old listing
+ * deleted once its draft copy exists on Vinted — favourites read again, at most as many as accepted — then read back
+ * gone. The copy stays waiting (with `deletedAt`) until it is published. Already gone (404, closed): taken as deleted.
+ */
+export async function deleteForRepost(itemId: string, now = Date.now()): Promise<RepostFinishResult> {
+  const pending = (await pendingReposts(now)).find((p) => p.itemId === itemId);
+  const title = pending?.title ?? (await db.items.get(itemId))?.title ?? itemId;
+  const gone = async (old: Listing, how: string) => {
+    await db.transaction('rw', [db.listings, db.events], async () => {
+      await db.listings.put({ ...old, status: 'REMOVED', removedAt: now });
+      await db.events.put({ id: uid('ev'), type: 'LISTING_REMOVED', at: now, inventoryItemId: itemId, listingId: old.id, data: { views: old.views, favorites: old.favorites, price: old.priceCents }, provenance: 'OBSERVED', isDemo: false });
+    });
+    await savePending((await pendingReposts(now)).map((p) => (p.itemId === itemId ? { ...p, deletedAt: now, deleteSentAt: undefined } : p)));
+    await log({ kind: 'DELETE', ok: true, target: title, detail: `ancienne annonce ${old.platformListingId} ${how} · la copie ${pending!.draftId} attend en brouillon d’être remise en ligne` });
+  };
+  try {
+    if (!pending) throw new MarketplaceError('NOT_APPLIED', 'aucune copie en brouillon pour cet article : rien n’est supprimé');
+    const old = await db.listings.get(pending.oldListingId);
+    if (!old) throw new MarketplaceError('NOT_APPLIED', 'ancienne annonce inconnue dans ERA');
+    if (pending.deletedAt || old.status === 'REMOVED') return { ok: true, verified: true };
+    const adapter = new VintedTabAdapter();
+    // The copy must exist on Vinted before anything is deleted.
+    const copy = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${pending.draftId}`)).item);
+    if (idText(copy.id) !== pending.draftId && typeof copy.title !== 'string') throw new MarketplaceError('NOT_APPLIED', `copie ${pending.draftId} introuvable sur Vinted : l’ancienne annonce est gardée`);
+    let src: ReturnType<typeof repostSource> = null;
+    try {
+      src = repostSource(await adapter.rawGet(`/api/v2/item_upload/items/${pending.oldPlatformListingId}`));
+    } catch (e) {
+      if (e instanceof MarketplaceError && /HTTP 404/.test(e.message)) {
+        await gone(old, 'déjà absente de Vinted');
+        return { ok: true, verified: true };
+      }
+      throw e;
+    }
+    const favs = favouritesOf(src?.favorites ?? null, old, now);
+    if (favs === null) throw new MarketplaceError('NOT_APPLIED', 'favoris de l’ancienne annonce non confirmés : importez depuis Vinted puis reprenez');
+    if (favs > (pending.acceptFavourites ?? 0)) throw new MarketplaceError('NOT_APPLIED', `l’ancienne annonce a reçu ${favs} favori(s)${pending.acceptFavourites ? `, ${pending.acceptFavourites} accepté(s)` : ''} : elle est gardée, la copie attend en brouillon`);
+
+    await vintedWrite('POST', `/api/v2/items/${pending.oldPlatformListingId}/delete`, {});
+    let verified = false;
+    try {
+      const still = obj(obj(await adapter.rawGet(`/api/v2/item_upload/items/${pending.oldPlatformListingId}`)).item);
+      verified = still.is_deleted === true || still.is_closed === true;
+    } catch (e) {
+      verified = e instanceof MarketplaceError && /HTTP 404/.test(e.message);
+    }
+    if (!verified) {
+      await savePending((await pendingReposts(now)).map((p) => (p.itemId === itemId ? { ...p, deleteSentAt: now } : p)));
+      await log({ kind: 'DELETE', ok: true, unconfirmed: true, target: title, detail: `suppression de ${pending.oldPlatformListingId} envoyée ; la relecture la montre encore (non confirmé) · la copie attend en brouillon` });
+      return { ok: true, verified: false };
+    }
+    await gone(old, 'supprimée, confirmé par Vinted');
+    return { ok: true, verified: true };
+  } catch (e) {
+    const { code, detail } = errorInfo(e);
+    await log({ kind: 'DELETE', ok: false, target: title, detail: `${code}${detail ? ` · ${detail}` : ''}` });
+    return { ok: false, code, detail: detail ?? undefined };
+  }
+}
+
 /** Step 2 — the old listing goes, only once the copy is live and the old one has no more favourites than the seller accepted. */
 export async function finishRepost(itemId: string, now = Date.now()): Promise<RepostFinishResult> {
   const pending = (await pendingReposts(now)).find((p) => p.itemId === itemId);

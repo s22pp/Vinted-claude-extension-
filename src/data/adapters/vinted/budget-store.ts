@@ -113,6 +113,15 @@ export async function reserveWrite(now = Date.now()): Promise<void> {
   await browser.storage.session.set({ eraWrites: { last: now, count: w.count + 1 } });
 }
 
+/** How long before the seller's next write may go (0 = now); throws when the session's quota is spent. */
+export async function writeWait(now = Date.now()): Promise<number> {
+  await rollSession(now);
+  const { eraWrites } = (await browser.storage.session.get('eraWrites')) as { eraWrites?: { last: number; count: number } };
+  const w = eraWrites ?? { last: 0, count: 0 };
+  if (w.count >= WRITE_MAX) throw new MarketplaceError('BUDGET_EXHAUSTED', `${WRITE_MAX} modifications maximum par session`);
+  return Math.max(0, w.last + WRITE_SPACING_MS - now);
+}
+
 /**
  * Automations send little, slowly: ≥ 12 s between two writes and ≤ 40 per day, on top of the read budget
  * (60 per session, 12 per minute) that every request still goes through. A 403/429 stops everything.

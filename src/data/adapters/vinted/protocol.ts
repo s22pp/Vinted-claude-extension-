@@ -100,7 +100,10 @@ export type EraMessage =
   | { type: 'era:photo:upload'; base64: string; mime: string; tempUuid: string; name: string }
   | { type: 'era:repost:create'; itemId: string; priceCents?: number; acceptFavourites?: number }
   | { type: 'era:repost:finish'; itemId: string }
-  | { type: 'era:repost:now'; itemId: string; acceptFavourites: number }
+  | { type: 'era:repost:now'; items: { itemId: string; acceptFavourites: number }[]; waitMin: number; waitMax: number }
+  | { type: 'era:repost:resume'; itemId: string }
+  | { type: 'era:repost:skipWait'; itemId: string }
+  | { type: 'era:repost:forget'; itemId: string }
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
   | { type: 'era:budget:report'; status: number }
@@ -225,6 +228,8 @@ export interface PendingRepost {
   at: number;
   /** The old listing's deletion was sent but not confirmed by the read-back. */
   deleteSentAt?: number;
+  /** « Republier maintenant » (delete first): the old listing is gone, read back; the draft waits for its time. */
+  deletedAt?: number;
   /** Favourites the seller accepted to lose for this repost (their own choice); absent: none. */
   acceptFavourites?: number;
 }

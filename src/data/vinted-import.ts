@@ -377,11 +377,13 @@ export async function importFromVinted(
       }
       removed++;
     }
-    // A copy is done waiting once its old listing is no longer on sale (deleted, by ERA or by hand, or sold).
+    // A copy is done waiting once its old listing is no longer on sale (deleted, by ERA or by hand, or sold) — unless
+    // the copy itself is still a draft: « Republier maintenant » deletes first, then publishes it after the wait.
     const done = new Set<string>();
+    const stillDraft = new Set(snapshot.filter((s) => s.status === 'DRAFT').map((s) => s.platformListingId));
     for (const p of pending) {
       const old = await db.listings.get(p.oldListingId);
-      if (!old || !isLiveListing(old.status)) done.add(p.itemId);
+      if ((!old || !isLiveListing(old.status)) && !(p.deletedAt && stillDraft.has(p.draftId))) done.add(p.itemId);
     }
     if (done.size) await repo.setSetting(PENDING_REPOSTS_KEY, pending.filter((p) => !done.has(p.itemId)));
     await repo.setSetting('dataMode', 'real');

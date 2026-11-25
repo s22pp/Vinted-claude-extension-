@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ChooseRepostsModal } from '../components/repost-list';
-import { RepostNowButton } from '../components/repost-now';
+import { RepostNowButton, RepostNowManyButton } from '../components/repost-now';
 import { StockVitrine } from '../components/stock-vitrine';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
@@ -337,6 +337,7 @@ export function Stock({ route }: { route: Route }) {
                 </Button>
               )}
               {era.mode === 'real' && selectedOne && <RepostNowButton v={selectedOne} size="sm" />}
+              {era.mode === 'real' && selected.size > 1 && <RepostNowManyButton views={era.views.filter((v) => selected.has(v.item.id))} />}
             </div>
           )}
           <ChooseRepostsModal views={era.views.filter((v) => selected.has(v.item.id))} open={chooseOpen} onClose={() => setChooseOpen(false)} onDone={() => setSelected(new Set())} />

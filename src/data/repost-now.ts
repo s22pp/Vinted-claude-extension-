@@ -1,10 +1,43 @@
 import { CHOSEN_REPOSTS_KEY, type ChosenRepost, removeChosen } from '@/intelligence/repost-choice';
-import { REPOST_NOW_KEY, type RepostNow, startNow } from '@/intelligence/repost-now';
+import { REPOST_ALARM, REPOST_JOBS_KEY, REPOST_WAIT_KEY, type RepostNow, type WaitWindow, clampWindow, drawWaitMs, isActive, nextMove, startNow } from '@/intelligence/repost-now';
 import { errorInfo } from './adapters/marketplace';
+import { writeWait } from './adapters/vinted/budget-store';
+import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { db, uid } from './db';
 import { repo } from './repo';
-import { finishRepost, pendingReposts, repostAsDraft } from './vinted-repost';
+import { PENDING_REPOSTS_KEY, deleteForRepost, pendingReposts, repostAsDraft } from './vinted-repost';
 import { publishDraft } from './vinted-draft';
+import { waitAlive } from './vinted-write';
+
+/** The list paused by a stop that concerns the account (never taken up without the seller). */
+export const REPOST_PAUSE_KEY = 'eraRepostPause';
+/** These stop the whole list: the account comes first. Anything else stops only the article concerned. */
+const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
+/** Finished jobs are kept a day, for the seller to read what happened. */
+const KEEP_MS = 24 * 3_600_000;
+
+const obj = (x: unknown): Record<string, unknown> => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : {});
+
+export async function repostJobs(): Promise<RepostNow[]> {
+  const v = await browser.storage.local.get(REPOST_JOBS_KEY);
+  const list = v[REPOST_JOBS_KEY];
+  return Array.isArray(list) ? (list as RepostNow[]) : [];
+}
+
+// One change at a time: the worker, the dashboard's clicks and the alarm all go through here.
+let lock: Promise<unknown> = Promise.resolve();
+function change<T>(fn: (jobs: RepostNow[]) => { jobs: RepostNow[]; out: T }): Promise<T> {
+  const run = lock.then(async () => {
+    const { jobs, out } = fn(await repostJobs());
+    await browser.storage.local.set({ [REPOST_JOBS_KEY]: jobs });
+    return out;
+  });
+  lock = run.catch(() => undefined);
+  return run;
+}
+
+const patch = (itemId: string, p: Partial<RepostNow>) =>
+  change((jobs) => ({ jobs: jobs.map((j) => (j.itemId === itemId ? { ...j, ...p } : j)), out: undefined }));
 
 /** The copy, published and read back online, as the article's live listing (the old one is already REMOVED). */
 async function recordCopy(itemId: string, draftId: string, now: number): Promise<void> {
@@ -36,49 +69,160 @@ async function recordCopy(itemId: string, draftId: string, now: number): Promise
 }
 
 /**
- * « Republier maintenant » (EXPERIMENTAL): the seller's own repost of one listing, run at once, Pilote on or off — the
- * same verified steps as a round's repost: the copy made with the same photos and published, read back online, and only
- * then the old listing removed. Favourites: at most as many as the seller saw and accepted in the confirmation.
- * A copy already waiting for this article is finished, never made twice. Each step is written to the browser session,
- * so the dialog (dashboard or popup) follows it live, and can be closed meanwhile.
+ * The seller's « Republier maintenant », for one article or several: each joins the list (an article already under way
+ * is not added twice) with the seller's wait window and the favourites accepted in the confirmation.
  */
-export async function repostNow(itemId: string, acceptFavourites: number, now = Date.now()): Promise<RepostNow> {
-  const item = await db.items.get(itemId);
-  let r = startNow(itemId, item?.title ?? itemId, now);
-  const save = async (patch: Partial<RepostNow>) => {
-    r = { ...r, ...patch };
-    await browser.storage.session.set({ [REPOST_NOW_KEY]: r }).catch(() => undefined);
-    return r;
-  };
-  await save({});
-  const stop = (detail: string, resumable: boolean, outcome: 'FAILED' | 'UNCERTAIN' = 'FAILED') => save({ outcome, detail, resumable, endedAt: Date.now() });
-  try {
-    // 1. Publication en cours: a copy waiting for this article is taken up; else one is made.
-    let draftId = (await pendingReposts(now)).find((p) => p.itemId === itemId)?.draftId ?? null;
-    if (!draftId) {
-      const copy = await repostAsDraft(itemId, now, null, acceptFavourites);
-      if (!copy.ok) return stop(`${copy.code}${copy.detail ? ` · ${copy.detail}` : ''}`, false);
-      draftId = copy.draftId;
+export async function enqueueReposts(items: readonly { itemId: string; acceptFavourites: number }[], window: WaitWindow, now = Date.now()): Promise<number> {
+  const w = clampWindow(window);
+  await repo.setSetting(REPOST_WAIT_KEY, w);
+  const titles = new Map<string, string>();
+  for (const it of items) {
+    const item = await db.items.get(it.itemId);
+    if (item && !item.isDemo) titles.set(it.itemId, item.title);
+  }
+  return change((jobs) => {
+    const kept = jobs.filter((j) => isActive(j) || now - (j.endedAt ?? j.startedAt) < KEEP_MS);
+    let added = 0;
+    const out = [...kept];
+    for (const it of items) {
+      const title = titles.get(it.itemId);
+      if (!title || out.some((j) => j.itemId === it.itemId && isActive(j))) continue;
+      const i = out.findIndex((j) => j.itemId === it.itemId);
+      if (i >= 0) out.splice(i, 1);
+      out.push(startNow(it.itemId, title, now, it.acceptFavourites, w));
+      added++;
     }
-    await save({ newListingId: draftId });
-    const pub = await publishDraft(draftId, itemId, r.title);
-    if (!pub.ok) return stop(`copie ${draftId} faite, pas encore publiée : ${pub.code}${pub.detail ? ` · ${pub.detail}` : ''}`, true);
-    // 2. Vérification: the copy read back online, then the old listing removed (favourites checked again on Vinted).
-    await save({ step: 'verify' });
-    const fin = await finishRepost(itemId, Date.now());
-    if (!fin.ok) return stop(`copie ${draftId} en ligne, ancienne annonce gardée : ${fin.code}${fin.detail ? ` · ${fin.detail}` : ''}`, true);
-    // Done: off the seller's « À republier » list if it was there (its new listing is never picked again).
+    return { jobs: out, out: added };
+  });
+}
+
+/** « Reprendre »: the article goes on from where it stopped; the list's pause, if any, is lifted by the seller here. */
+export async function resumeRepost(itemId: string): Promise<boolean> {
+  await browser.storage.local.remove(REPOST_PAUSE_KEY);
+  return change((jobs) => {
+    const j = jobs.find((x) => x.itemId === itemId);
+    if (!j || !j.resumable || isActive(j)) return { jobs, out: false };
+    return { jobs: jobs.map((x) => (x === j ? { ...x, outcome: 'RUNNING' as const, detail: null, resumable: false, endedAt: null } : x)), out: true };
+  });
+}
+
+/** « Remettre en ligne maintenant »: the wait ends now (the old listing is already gone). */
+export function skipWait(itemId: string, now = Date.now()): Promise<boolean> {
+  return change((jobs) => {
+    const j = jobs.find((x) => x.itemId === itemId && x.outcome === 'WAITING');
+    if (!j) return { jobs, out: false };
+    return { jobs: jobs.map((x) => (x === j ? { ...x, waitUntil: now } : x)), out: true };
+  });
+}
+
+/** Off the list: an article not started yet, or one finished or stopped (never one under way). */
+export function forgetRepost(itemId: string): Promise<boolean> {
+  return change((jobs) => {
+    const j = jobs.find((x) => x.itemId === itemId);
+    if (!j || j.outcome === 'RUNNING' || j.outcome === 'WAITING') return { jobs, out: false };
+    return { jobs: jobs.filter((x) => x !== j), out: true };
+  });
+}
+
+type StepOutcome = 'next' | 'paused';
+
+async function stopped(j: RepostNow, code: string, detail: string | undefined, resumable: boolean): Promise<StepOutcome> {
+  const text = `${code}${detail ? ` · ${detail}` : ''}`;
+  await patch(j.itemId, { outcome: 'FAILED', detail: text, resumable, endedAt: Date.now() });
+  if (!STOP.test(code)) return 'next';
+  await browser.storage.local.set({ [REPOST_PAUSE_KEY]: { code, detail: text, at: Date.now() } });
+  return 'paused';
+}
+
+/** One step of the article under way. */
+async function runStep(itemId: string, step: 'copy' | 'delete' | 'publish'): Promise<StepOutcome> {
+  const j = (await repostJobs()).find((x) => x.itemId === itemId);
+  if (!j) return 'next';
+  await patch(itemId, { step, outcome: 'RUNNING' });
+  try {
+    if (step === 'copy') {
+      // 1. Everything copied into a draft — an existing copy for this article is taken up, never made twice.
+      let draftId = (await pendingReposts()).find((p) => p.itemId === itemId)?.draftId ?? null;
+      if (!draftId) {
+        const c = await repostAsDraft(itemId, Date.now(), null, j.acceptFavourites);
+        if (!c.ok) {
+          const again = (await pendingReposts()).find((p) => p.itemId === itemId);
+          return stopped(j, c.code, c.detail, !!again || STOP.test(c.code));
+        }
+        draftId = c.draftId;
+      }
+      await patch(itemId, { newListingId: draftId, step: 'delete' });
+      return 'next';
+    }
+    if (step === 'delete') {
+      // 2. The old listing deleted, read back gone; then the wait is drawn in the seller's window.
+      const d = await deleteForRepost(itemId);
+      if (!d.ok) return stopped(j, d.code, d.detail, true);
+      if (!d.verified) {
+        await patch(itemId, { outcome: 'UNCERTAIN', detail: 'suppression de l’ancienne annonce envoyée, pas encore confirmée par Vinted', resumable: true, endedAt: Date.now() });
+        return 'next';
+      }
+      const now = Date.now();
+      await patch(itemId, { step: 'wait', outcome: 'WAITING', waitUntil: now + drawWaitMs(j.wait, Math.random()) });
+      return 'next';
+    }
+    // 4. The draft published, read back online.
+    const pending = (await pendingReposts()).find((p) => p.itemId === itemId);
+    const draftId = j.newListingId ?? pending?.draftId ?? null;
+    if (!draftId) return stopped(j, 'NOT_APPLIED', 'copie introuvable', false);
+    // Already published (a step taken up after Chrome stopped the worker): not published twice.
+    const back = obj(obj(await new VintedTabAdapter().rawGet(`/api/v2/item_upload/items/${draftId}`)).item);
+    let verified = back.is_draft === false;
+    if (back.is_draft !== false) {
+      const spacing = await writeWait();
+      if (spacing > 0) await waitAlive(spacing);
+      const pub = await publishDraft(draftId, itemId, j.title);
+      if (!pub.ok) return stopped(j, pub.code, `${pub.detail ?? pub.code} · ancienne annonce supprimée, la copie ${draftId} attend en brouillon sur Vinted`, true);
+      verified = pub.verified;
+    }
+    if (!verified) {
+      await patch(itemId, { outcome: 'UNCERTAIN', detail: 'publication envoyée, pas encore relue en ligne sur Vinted', resumable: false, endedAt: Date.now() });
+      return 'next';
+    }
+    // Done: the article shows its new listing now (not after the next import), off the waiting copies and off the
+    // seller's « À republier » list if it was there.
+    await recordCopy(itemId, draftId, Date.now());
+    await repo.setSetting(PENDING_REPOSTS_KEY, (await pendingReposts()).filter((p) => p.itemId !== itemId));
     await repo.setSetting(CHOSEN_REPOSTS_KEY, removeChosen(await repo.getSetting<ChosenRepost[]>(CHOSEN_REPOSTS_KEY, []), itemId));
-    // Both read back on Vinted: the article's sheet shows its new listing now, not after the next import (which then
-    // finds it by its Vinted id and fills in what it shows). Its views and favourites are not read yet: unknown.
-    if (pub.verified && fin.verified) await recordCopy(itemId, draftId, Date.now());
-    if (!pub.verified || !fin.verified)
-      return save({ step: 'verify', outcome: 'UNCERTAIN', detail: !pub.verified ? 'publication envoyée, pas encore relue en ligne sur Vinted' : 'suppression de l’ancienne annonce envoyée, pas encore confirmée par Vinted', resumable: false, endedAt: Date.now() });
-    // 3. Republié.
-    return save({ step: 'done', outcome: 'DONE', detail: null, resumable: false, endedAt: Date.now() });
+    await patch(itemId, { step: 'done', outcome: 'DONE', detail: null, resumable: false, waitUntil: null, endedAt: Date.now() });
+    return 'next';
   } catch (e) {
     const { code, detail } = errorInfo(e);
-    const waiting = (await pendingReposts(Date.now()).catch(() => [])).some((p) => p.itemId === itemId);
-    return stop(`${code}${detail ? ` · ${detail}` : ''}`, waiting);
+    return stopped(j, code, detail ?? undefined, true);
+  }
+}
+
+/**
+ * Background-only: the list, worked one article at a time. A wait of more than a minute is left to the alarm (Chrome
+ * stops an idle worker); a shorter one is slept on here. Paused by a stop concerning the account: nothing goes on
+ * until the seller's « Reprendre ».
+ */
+export async function runRepostQueue(): Promise<void> {
+  for (let guard = 0; guard < 500; guard++) {
+    if ((await browser.storage.local.get(REPOST_PAUSE_KEY))[REPOST_PAUSE_KEY]) {
+      await browser.alarms.clear(REPOST_ALARM);
+      return;
+    }
+    const move = nextMove(await repostJobs(), Date.now());
+    if (move.kind === 'idle') {
+      await browser.alarms.clear(REPOST_ALARM);
+      return;
+    }
+    if (move.kind === 'sleep') {
+      await browser.alarms.create(REPOST_ALARM, { when: move.until });
+      const left = move.until - Date.now();
+      if (left > 55_000) return;
+      await waitAlive(Math.max(0, left));
+      continue;
+    }
+    if ((await runStep(move.itemId, move.step)) === 'paused') {
+      await browser.alarms.clear(REPOST_ALARM);
+      return;
+    }
   }
 }

@@ -6,7 +6,8 @@ import { applyDescriptionOnVinted, applyPriceOnVinted, applyTextOnVinted } from 
 import type { AutoKind, AutoRunResult, DescEditResult, DetailsResult, EraMessage, ImportResult, LabelBatchResult, PriceEditResult, TextEditResult } from '@/data/adapters/vinted/protocol';
 import type { TextField, TextOp } from '@/intelligence/text-edit';
 import { finishRepost, repostAsDraft } from '@/data/vinted-repost';
-import { repostNow } from '@/data/repost-now';
+import { enqueueReposts, forgetRepost, repostJobs, resumeRepost, runRepostQueue, skipWait } from '@/data/repost-now';
+import { REPOST_ALARM, isActive } from '@/intelligence/repost-now';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
@@ -619,6 +620,28 @@ function vintedBusy(): boolean {
   return !!(autoRunning || importing || editing || reposting || labelling);
 }
 
+/**
+ * The seller's reposts (« Republier maintenant »), worked one article at a time. Started from a click, the alarm at the
+ * end of a wait, or the worker waking with work left. Another Vinted operation under way: tried again in a minute.
+ */
+let repostRun: Promise<void> | null = null;
+function kickReposts(): Promise<void> {
+  if (repostRun) return repostRun;
+  if (autoRunning || importing || editing || reposting || labelling) {
+    void browser.alarms.create(REPOST_ALARM, { delayInMinutes: 1 });
+    return Promise.resolve();
+  }
+  const run = afterImportReads(() => runRepostQueue())
+    .catch((e) => recordError('service-worker:repost', e))
+    .finally(() => {
+      repostRun = null;
+      reposting = null;
+    });
+  repostRun = run;
+  reposting = run;
+  return run;
+}
+
 export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((a) => {
     if (a.name === AUTO_ALARM) void onAutoAlarm();
@@ -628,7 +651,12 @@ export default defineBackground(() => {
     if (a.name === UPDATE_ALARM) void onUpdateAlarm().catch((e) => recordError('service-worker:update', e));
     if (a.name === PILOT_ALARM || a.name === PILOT_RETRY_ALARM) void onPilotAlarm(a).catch((e) => recordError('service-worker:pilot', e));
     if (a.name === SEARCH_TAB_ALARM) void closeIdleSearchTab().catch(() => undefined);
+    if (a.name === REPOST_ALARM) void kickReposts();
   });
+  // Reposts left under way when the worker stopped (a wait over, a step cut short): taken up.
+  void repostJobs()
+    .then((jobs) => (jobs.some(isActive) ? kickReposts() : undefined))
+    .catch(() => undefined);
   // A search tab left from before the worker slept: closed if idle.
   void closeIdleSearchTab().catch(() => undefined);
   void scheduleAuto();
@@ -729,17 +757,37 @@ export default defineBackground(() => {
         );
       }
       case 'era:repost:now': {
-        // The seller's « Republier maintenant »: the whole repost at once, Pilote on or off; followed in the session store.
-        if (vintedBusy()) {
-          sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
-          return undefined;
-        }
-        const run = afterImportReads(() => repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites))));
-        reposting = run.finally(() => {
-          reposting = null;
-        });
-        return answer(reposting, unavailable);
+        // The seller's « Republier maintenant » (one article or several), Pilote on or off: copy, delete, wait, publish —
+        // each article in turn. Answered at once; the list (storage.local) is followed live by the dashboard and popup.
+        const items = (Array.isArray(msg.items) ? msg.items : [])
+          .filter((x) => typeof x?.itemId === 'string')
+          .map((x) => ({ itemId: x.itemId, acceptFavourites: Math.max(0, Math.floor(Number(x.acceptFavourites) || 0)) }));
+        return answer(
+          enqueueReposts(items, { minMin: Number(msg.waitMin), maxMin: Number(msg.waitMax) }).then((queued) => {
+            void kickReposts();
+            return { ok: true, queued };
+          }),
+          unavailable,
+        );
       }
+      case 'era:repost:resume':
+        return answer(
+          resumeRepost(msg.itemId).then((ok) => {
+            if (ok) void kickReposts();
+            return { ok };
+          }),
+          unavailable,
+        );
+      case 'era:repost:skipWait':
+        return answer(
+          skipWait(msg.itemId).then((ok) => {
+            if (ok) void kickReposts();
+            return { ok };
+          }),
+          unavailable,
+        );
+      case 'era:repost:forget':
+        return answer(forgetRepost(msg.itemId).then((ok) => ({ ok })), unavailable);
       case 'era:draft:create':
       case 'era:repost:create':
       case 'era:repost:finish':
