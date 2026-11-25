@@ -52,9 +52,10 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
     const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || undefined;
     const homeIcon = L.divIcon({
       className: 'pmap-home',
-      html: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3 2 11.5h3V21h5.5v-6h3v6H19v-9.5h3z"/></svg>',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
+      // A radar point: the seller's place, a calm pulse around it.
+      html: '<span class="pmap-radar" aria-hidden="true"><i></i></span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
     L.marker([home.lat, home.lng], { icon: homeIcon, title: `Chez moi — ${home.label}`, keyboard: false }).bindTooltip(`Chez moi — ${home.label}`).addTo(g);
     for (const p of pins) {

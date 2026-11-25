@@ -18,6 +18,7 @@ const PATHS = {
   chevronDown: 'm6 9.5 6 6 6-6',
   arrowUp: 'M12 19V5M6 11l6-6 6 6',
   arrowDown: 'M12 5v14M6 13l6 6 6-6',
+  arrowRight: 'M5 12h14M13 6l6 6-6 6',
   arrowUpRight: 'M7 17 17 7M8.5 7H17v8.5',
   alert: 'M12 9v4.5M12 17h.01M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 11v5.5M12 7.5h.01',

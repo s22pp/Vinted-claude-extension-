@@ -133,30 +133,24 @@ export function IllustrationWelcome() {
           <stop offset="0" style={{ stopColor: 'var(--accent)' }} />
           <stop offset="1" style={{ stopColor: 'var(--accent)' }} />
         </linearGradient>
-        <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
-          <stop offset="0" style={{ stopColor: 'var(--accent)' }} stopOpacity=".45" />
-          <stop offset="1" style={{ stopColor: 'var(--accent)' }} stopOpacity="0" />
-        </radialGradient>
       </defs>
-      <circle cx="200" cy="200" r="170" fill="url(#w-glow)" />
-      <circle cx="200" cy="200" r="150" fill="none" stroke="var(--border)" />
-      <circle cx="200" cy="200" r="104" fill="none" stroke="var(--border)" strokeDasharray="2 6" />
+      {/* No halo: three cards cut sharp on the technical grid (drawn by the panel behind). */}
       {[0, 1, 2].map((i) => (
-        <rect key={i} x={112 + i * 14} y={128 + i * 14} width="150" height="104" rx="14" fill="var(--surface-solid)" stroke="var(--border-strong)" opacity={0.45 + i * 0.27} />
+        <rect key={i} x={112 + i * 14} y={128 + i * 14} width="150" height="104" rx="4" fill="var(--surface)" style={{ stroke: 'var(--onb-line)' }} strokeWidth="1" />
       ))}
       <g transform="translate(140 170)">
         <path d="M0 50 L30 38 L56 44 L86 18 L118 26" fill="none" stroke="url(#w-brand)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="chart-draw" style={{ ['--len' as string]: 160 }} />
         <circle cx="118" cy="26" r="7" fill="var(--bg)" stroke="url(#w-brand)" strokeWidth="3" />
-        <rect x="0" y="64" width="48" height="6" rx="3" fill="var(--border-strong)" />
-        <rect x="0" y="76" width="30" height="6" rx="3" fill="var(--border)" />
+        <rect x="0" y="64" width="48" height="4" rx="1" fill="var(--border-strong)" />
+        <rect x="0" y="76" width="30" height="4" rx="1" fill="var(--border)" />
       </g>
-      <g fontFamily="var(--font-sans)" fontSize="11" fill="var(--text-2)">
-        <rect x="262" y="96" width="92" height="30" rx="8" fill="var(--surface-solid)" stroke="var(--border-strong)" />
-        <circle cx="277" cy="111" r="4" fill="var(--emerald)" />
-        <text x="288" y="115">+36 € profit</text>
-        <rect x="46" y="272" width="104" height="30" rx="8" fill="var(--surface-solid)" stroke="var(--border-strong)" />
-        <circle cx="61" cy="287" r="4" fill="var(--amber)" />
-        <text x="72" y="291">83 j · capital</text>
+      <g fontFamily="var(--font-mono)" fontSize="10.5" letterSpacing=".02em">
+        <rect x="246" y="96" width="122" height="28" rx="2" fill="var(--bg)" style={{ stroke: 'var(--onb-line)' }} />
+        <circle cx="260" cy="110" r="3" fill="var(--emerald)" />
+        <text x="270" y="114" fill="var(--emerald)">+36 € profit</text>
+        <rect x="36" y="272" width="132" height="28" rx="2" fill="var(--bg)" style={{ stroke: 'var(--onb-line)' }} />
+        <circle cx="50" cy="286" r="3" fill="var(--amber)" />
+        <text x="60" y="290" fill="var(--amber)">83 j · capital</text>
       </g>
     </svg>
   );

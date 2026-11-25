@@ -1280,3 +1280,178 @@ input[type='checkbox'][role='switch']:disabled {
   line-height: 1.55;
   max-width: 72ch;
 }
+
+/* ── Colis: the belt carries its boxes; the map at night ─────────────────────────────────────────────────────────────── */
+.pbelt__line {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 68px;
+  height: 1px;
+  background: var(--border-strong);
+}
+.pbelt__boxes {
+  min-height: 36px;
+  margin-top: 4px;
+  align-items: flex-end;
+}
+.pbelt__box {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color var(--duration-fast, 200ms) ease, transform 120ms ease;
+}
+.pbelt__box:hover {
+  border-color: var(--text-2);
+}
+.pbelt__box:active {
+  transform: scale(0.98);
+}
+.pbelt__box[data-late] {
+  border-color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface));
+}
+.pbelt__age {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 9.5px;
+  line-height: 15px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+}
+.pbelt__box[data-late] .pbelt__age {
+  color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 45%, transparent);
+}
+
+.pmap,
+.pmap.leaflet-container {
+  border-radius: 4px;
+  background-color: #0a0f18;
+  background-image:
+    linear-gradient(rgba(30, 41, 59, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+:root:not([data-theme='light']) .pmap .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%) saturate(40%);
+}
+.pmap.leaflet-container .leaflet-bar {
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 4px;
+}
+.pmap.leaflet-container .leaflet-bar a,
+.pmap.leaflet-container .leaflet-bar a:hover {
+  width: 30px;
+  height: 30px;
+  line-height: 28px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #0d131d;
+  color: #f8fafc;
+}
+.pmap.leaflet-container .leaflet-bar a:hover {
+  background: #131b29;
+}
+.pmap.leaflet-container .leaflet-control-attribution {
+  background: rgba(8, 12, 18, 0.75);
+  color: #94a3b8;
+}
+.pmap.leaflet-container .leaflet-control-attribution a {
+  color: #cbd5e1;
+}
+.pmap-home {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+.pmap-radar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+}
+.pmap-radar::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.25);
+  animation: radar 2.4s var(--ease-out, ease-out) infinite;
+}
+.pmap-radar > i {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 0 2px #0a0f18;
+}
+@keyframes radar {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+:root[data-motion='reduced'] .pmap-radar::before {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pmap-radar::before {
+    animation: none;
+  }
+}
+
+/* ── Welcome: a sharp card, a ruled divider, the technical grid behind crisp cards ─────────────────────────────────── */
+.onb__card {
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+.onb__art {
+  --onb-line: rgba(255, 255, 255, 0.16);
+  --onb-grid: rgba(255, 255, 255, 0.045);
+  background-color: var(--surface-sunken);
+  background-image:
+    linear-gradient(var(--onb-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--onb-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root[data-theme='light'] .onb__card {
+  border-color: var(--border-strong);
+}
+:root[data-theme='light'] .onb__art {
+  --onb-line: #c8c5bc;
+  --onb-grid: rgba(15, 20, 28, 0.05);
+  border-right-color: var(--border);
+}
+.onb .t-h1 {
+  line-height: 1.02;
+}
+.onb .btn {
+  border-radius: 3px;
+}

@@ -43,7 +43,7 @@ function silhouette(title: string): THREE.CanvasTexture {
   g.quadraticCurveTo(128, 72, 88, 40);
   g.fill();
   g.fillStyle = '#0f172a';
-  g.font = '600 22px system-ui, sans-serif';
+  g.font = '600 22px "Geist Variable", system-ui, sans-serif';
   g.textAlign = 'center';
   const words = title.split(/\s+/);
   const lines: string[] = [];
@@ -118,6 +118,7 @@ export default function Stock3D() {
         needsShip: !!v.sale?.needsAction && v.sale.status !== 'REFUNDED',
         soldAt: v.sale?.soldAt ?? null,
         cut: plan?.status === 'DUE' && v.askPrice !== null ? { from: v.askPrice, to: plan.step.targetCents } : null,
+        marginCents: v.potentialProfit,
       };
     });
     return layoutRacks(sceneItems(sources, staleDays, era.now));
@@ -155,22 +156,49 @@ export default function Stock3D() {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.copy(home.target);
     controls.maxPolarAngle = Math.PI / 2.05;
+    // A showroom walked from the front: ±25° around, a bounded zoom.
+    controls.minAzimuthAngle = -THREE.MathUtils.degToRad(25);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(25);
     controls.minDistance = 1.5;
-    controls.maxDistance = 60;
+    controls.maxDistance = 30;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x3f3a36, 1.7));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    // The showroom: night blue, an obsidian floor ruled by a fine grid, brushed steel — the clothes are the show.
+    scene.fog = new THREE.Fog(0x080c12, 22, 70);
+    scene.add(new THREE.HemisphereLight(0xe2e8f0, 0x0b1018, 1.5));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.25);
     sun.position.set(4, 9, 8);
     scene.add(sun);
-    // The shop floor: warm, plain — the clothes are the show.
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width + 12, rows * 3.4 + 10), new THREE.MeshStandardMaterial({ color: 0x5b4636, roughness: 0.85 }));
+    const depth = rows * 3.4 + 10;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width + 12, depth), new THREE.MeshStandardMaterial({ color: 0x0b1018, roughness: 0.5, metalness: 0.25 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, -(rows - 1) * 1.7);
     scene.add(floor);
+    const span = Math.ceil(Math.max(width + 12, depth));
+    const grid = new THREE.GridHelper(span, span, 0x1e293b, 0x1e293b);
+    const gridMat = grid.material as THREE.LineBasicMaterial;
+    gridMat.transparent = true;
+    gridMat.opacity = 0.3;
+    grid.position.set(0, 0.002, -(rows - 1) * 1.7);
+    scene.add(grid);
+    // The back wall: a quiet vertical fade from deep night to slate.
+    const wc = document.createElement('canvas');
+    wc.width = 2;
+    wc.height = 256;
+    const wg = wc.getContext('2d')!;
+    const fade = wg.createLinearGradient(0, 0, 0, 256);
+    fade.addColorStop(0, '#080C12');
+    fade.addColorStop(1, '#0F172A');
+    wg.fillStyle = fade;
+    wg.fillRect(0, 0, 2, 256);
+    const wallTex = new THREE.CanvasTexture(wc);
+    wallTex.colorSpace = THREE.SRGBColorSpace;
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(width + 12, 9), new THREE.MeshBasicMaterial({ map: wallTex, fog: false }));
+    wall.position.set(0, 4.5, -(rows - 1) * 3.4 - 3.5);
+    scene.add(wall);
 
-    const disposables: { dispose: () => void }[] = [floor.geometry, floor.material as THREE.Material];
+    const disposables: { dispose: () => void }[] = [floor.geometry, floor.material as THREE.Material, grid.geometry, gridMat, wall.geometry, wall.material as THREE.Material, wallTex];
     // The racks: a chrome rail on two posts, and the rack's sign.
-    const metal = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.8, roughness: 0.3 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.32, emissive: 0x94a3b8, emissiveIntensity: 0.06 });
     disposables.push(metal);
     for (const r of racks) {
       const len = r.x1 - r.x0;
@@ -189,13 +217,27 @@ export default function Stock3D() {
       c.width = 512;
       c.height = 96;
       const g = c.getContext('2d')!;
-      g.fillStyle = r.kind === 'TO_SHIP' ? 'rgba(109,40,217,0.9)' : r.kind === 'SOLD' ? 'rgba(4,120,87,0.9)' : 'rgba(15,23,42,0.85)';
+      // The rack's sign: night blue, a fine rule, the name in mono capitals, one state dot (online, to ship, sold).
+      g.fillStyle = '#080C12';
       g.fillRect(0, 0, 512, 96);
-      g.fillStyle = '#fff';
-      g.font = '600 42px system-ui, sans-serif';
-      g.textAlign = 'center';
+      g.strokeStyle = 'rgba(255,255,255,0.16)';
+      g.lineWidth = 3;
+      g.strokeRect(1.5, 1.5, 509, 93);
+      g.fillStyle = r.kind === 'TO_SHIP' ? '#F87171' : r.kind === 'SOLD' ? '#94A3B8' : '#34D399';
+      g.beginPath();
+      g.arc(44, 48, 9, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#F8FAFC';
+      const label = `${rackName(r)} · ${r.count}`.toUpperCase();
+      let fs = 32;
+      g.letterSpacing = '3px';
+      do {
+        g.font = `500 ${fs}px "JetBrains Mono Variable", ui-monospace, monospace`;
+        fs -= 2;
+      } while (g.measureText(label).width > 400 && fs > 16);
+      g.textAlign = 'left';
       g.textBaseline = 'middle';
-      g.fillText(`${rackName(r)} · ${r.count}`, 256, 48);
+      g.fillText(label, 72, 49);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
@@ -389,14 +431,15 @@ export default function Stock3D() {
         role="application"
         aria-label={t('stock3d.label', { n: hung.length })}
         onKeyDown={onKey}
-        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 14, overflow: 'hidden', background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)', outline: 'none' }}
+        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 4, overflow: 'hidden', background: '#080C12', border: '1px solid rgba(255,255,255,0.09)', outline: 'none' }}
       >
         {hover && !s && (
-          <div className="card" style={{ position: 'absolute', left: hover.x + 14, top: hover.y + 14, padding: '8px 10px', pointerEvents: 'none', maxWidth: 260 }}>
+          <div className="card stock3d-hover" style={{ position: 'absolute', left: hover.x + 14, top: hover.y + 14, padding: '8px 10px', pointerEvents: 'none', maxWidth: 260 }}>
             <strong className="t-small">{hover.p.title}</strong>
-            <div className="t-small t-muted">
-              {hover.p.priceCents === null ? t('stock3d.priceUnknown') : money(hover.p.priceCents)} · {t(`stock3d.s.${hover.p.state}`)}
+            <div className="t-small t-muted num">
+              {hover.p.priceCents === null ? t('stock3d.priceUnknown') : money(hover.p.priceCents)} · {hover.p.marginCents === null || hover.p.marginCents === undefined ? t('stock3d.marginUnknown') : t('stock3d.margin', { v: money(hover.p.marginCents, { sign: true }) })}
             </div>
+            <div className="t-small t-faint">{t(`stock3d.s.${hover.p.state}`)}</div>
           </div>
         )}
         {s && (
@@ -407,7 +450,7 @@ export default function Stock3D() {
                 <strong>{s.title}</strong>
                 <span className="t-small t-muted">{t('stock3d.hanger', { rack: rackName(racks[s.rack]!), slot: s.slot })}</span>
                 <span>
-                  <Badge tone={s.state === 'TO_SHIP' ? 'violet' : s.state === 'SOLD' ? 'emerald' : s.state === 'CUT_DUE' ? 'amber' : 'neutral'}>{t(`stock3d.s.${s.state}`)}</Badge>
+                  <Badge tone={s.state === 'TO_SHIP' ? 'coral' : s.state === 'SOLD' ? 'emerald' : s.state === 'STALE' ? 'amber' : 'neutral'}>{t(`stock3d.s.${s.state}`)}</Badge>
                 </span>
               </div>
             </div>

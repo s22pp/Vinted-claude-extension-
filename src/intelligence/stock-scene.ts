@@ -18,6 +18,8 @@ export interface SceneItem {
   photoUrl: string | null;
   /** The plan's cut due: from → to (cents). */
   cut: { from: number; to: number } | null;
+  /** Price minus cost, when the cost is known (null: unknown, never zero). */
+  marginCents?: number | null;
 }
 
 export interface SceneSource {
@@ -36,6 +38,7 @@ export interface SceneSource {
   needsShip: boolean;
   soldAt: number | null;
   cut: { from: number; to: number } | null;
+  marginCents?: number | null;
 }
 
 const DAY = 86_400_000;
@@ -61,7 +64,7 @@ export function sceneItems(sources: readonly SceneSource[], staleDays: number, n
     const state = sceneState(s, staleDays);
     if (!state) continue;
     if (state === 'SOLD' && (s.soldAt === null || now - s.soldAt > SOLD_SHOWN_DAYS * DAY)) continue;
-    out.push({ itemId: s.itemId, title: s.title, category: s.category, state, priceCents: s.priceCents, views: s.views, favourites: s.favourites, daysListed: s.daysListed, photoUrl: s.photoUrl, cut: s.cut });
+    out.push({ itemId: s.itemId, title: s.title, category: s.category, state, priceCents: s.priceCents, views: s.views, favourites: s.favourites, daysListed: s.daysListed, photoUrl: s.photoUrl, cut: s.cut, marginCents: s.marginCents ?? null });
   }
   return out;
 }
@@ -138,17 +141,20 @@ export function layoutRacks(items: readonly SceneItem[]): { hung: Hung[]; racks:
   return { hung, racks };
 }
 
-/** The tags' colours by state (sober); a filter paints its own tags orange and dims the rest (the « mask »). */
+/**
+ * The tags' colours by state, in the house's state tones (coral: to ship, amber: stalls, emerald: sold, glacier: a price
+ * cut due); a listing simply online stays neutral. A filter lights its own tags and dims the rest (the « mask »).
+ */
 export const STATE_COLOR: Record<SceneState, number> = {
-  TO_SHIP: 0x8b5cf6,
-  CUT_DUE: 0x3b82f6,
-  STALE: 0x64748b,
-  LIVE: 0x2563eb,
-  RESERVED: 0x94a3b8,
+  TO_SHIP: 0xf87171,
+  CUT_DUE: 0xe2e8f0,
+  STALE: 0xfbbf24,
+  LIVE: 0x8e9bae,
+  RESERVED: 0x64748b,
   HIDDEN: 0x334155,
-  SOLD: 0x10b981,
+  SOLD: 0x34d399,
 };
-export const HIGHLIGHT = 0xf97316;
+export const HIGHLIGHT = 0xf4f2ec;
 
 export type SceneFilter = 'ALL' | 'CUT_DUE' | 'REPOST' | 'TO_SHIP' | 'SOLD' | 'STALE';
 

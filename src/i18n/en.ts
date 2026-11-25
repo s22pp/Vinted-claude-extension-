@@ -6,7 +6,7 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]>
 export const en: DeepPartial<Dict> = {
   app: {
     tagline: 'Decide better.',
-    taglineItalic: 'sell smarter.',
+    taglineItalic: 'Sell smarter.',
     demoBadge: 'DEMO',
     demoBanner: 'Demo data — none of it is real.',
     demoClear: 'Leave demo',

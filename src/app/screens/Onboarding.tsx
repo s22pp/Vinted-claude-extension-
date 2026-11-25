@@ -74,18 +74,15 @@ export function Onboarding() {
             ))}
           </div>
           <div key={step} className="stack-3" style={{ animation: 'rise var(--t-slow) var(--ease) both' }}>
-            {step === 0 && (
-              <p className="t-display" style={{ fontSize: 38 }}>
-                {t('app.tagline')}
-                <br />
-                <span className="t-serif" style={{ fontSize: 42, background: 'var(--brand-grad)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-                  {t('app.taglineItalic')}
-                </span>
-              </p>
-            )}
+            {/* One title per step; on the first, the house's promise beneath it, in plain words — no second headline. */}
             <h1 className="t-h1" id="onb-title">
               {t(`onboarding.s${step + 1}Title`)}
             </h1>
+            {step === 0 && (
+              <p className="onb__lede">
+                {t('app.tagline')} {t('app.taglineItalic')}
+              </p>
+            )}
             <p className="t-muted" id="onb-body" style={{ fontSize: 15 }}>
               {t(`onboarding.s${step + 1}Body`)}
             </p>
@@ -142,11 +139,11 @@ export function Onboarding() {
             )}
             <span className="grow" />
             {step < total - 1 ? (
-              <Button variant="primary" iconRight="chevronRight" onClick={() => setS(step + 1)}>
+              <Button variant="primary" iconRight="arrowRight" onClick={() => setS(step + 1)}>
                 {t('onboarding.next')}
               </Button>
             ) : (
-              <Button variant="primary" iconRight="chevronRight" onClick={finish}>
+              <Button variant="primary" iconRight="arrowRight" onClick={finish}>
                 {t('onboarding.finish')}
               </Button>
             )}

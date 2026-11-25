@@ -52,13 +52,13 @@ export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, position: 'relative' }}>
             {/* The conveyor: one belt under the five stations. */}
-            <div aria-hidden="true" style={{ position: 'absolute', left: '4%', right: '4%', top: 30, height: 4, borderRadius: 4, background: 'linear-gradient(90deg, var(--violet), var(--cobalt), var(--cyan), var(--amber), var(--emerald))', opacity: 0.45 }} />
+            <div aria-hidden="true" className="pbelt__line" />
             {lane.stations.map((st) => (
               <div key={st.stage} className="stack" style={{ gap: 6, alignItems: 'center', minWidth: 0 }} data-station={st.stage}>
                 <span className="t-small t-muted" style={{ textAlign: 'center', minHeight: 22 }}>
                   {t(`parcelmap.step.${st.stage}`)} · {st.parcels.length}
                 </span>
-                <div className="row wrap" style={{ gap: 4, justifyContent: 'center', position: 'relative', paddingTop: 2 }}>
+                <div className="row wrap pbelt__boxes" style={{ gap: 6, justifyContent: 'center', position: 'relative' }}>
                   {st.parcels.map((p) => (
                     <button
                       key={p.key}
@@ -67,20 +67,11 @@ export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
                       onClick={() => goTo(p)}
                       title={`${p.title} — ${p.status ?? t(`parcelmap.step.${p.stage}`)}${p.days !== null ? ` · ${t('parcelmap.since', { n: p.days })}` : ''}`}
                       aria-label={`${p.title}, ${t(`parcelmap.step.${p.stage}`)}${p.late ? `, ${t('parcelboard.lateOne')}` : ''}`}
-                      style={{
-                        width: 34,
-                        height: 30,
-                        borderRadius: 6,
-                        border: `2px solid ${p.late ? 'var(--coral)' : 'var(--border-strong)'}`,
-                        background: p.late ? 'var(--coral-soft)' : 'var(--surface-solid)',
-                        color: 'var(--text)',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: 'var(--shadow-1)',
-                      }}
+                      className="pbelt__box"
+                      data-late={p.late || undefined}
                     >
-                      {boxInitials(p.title)}
+                      <span className="num">{boxInitials(p.title)}</span>
+                      {p.days !== null && <span className="pbelt__age num">{p.days} j</span>}
                     </button>
                   ))}
                 </div>
