@@ -3,7 +3,7 @@ import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtu
 import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string; purchasesSlowMs?: number; onPurchasesRead?: () => void }) {
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string; purchasesSlowMs?: number; onPurchasesRead?: () => void; extraUploads?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null; at?: number }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, drafts: new Map<number, object>(), published: new Map<number, number>(), labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Map<number, number>() };
@@ -194,12 +194,12 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (url.pathname === '/api/v2/photos' && method === 'POST') return json({ photo: { id: 7001 + state.photos++, url: 'https://images1.vinted.net/t/new.jpeg' } });
     // Test fixture only: another listing of the seller's, read for its copy (fields from the wardrobe entry).
     const extraRead = /^\/api\/v2\/item_upload\/items\/(\d+)$/.exec(url.pathname);
-    const extra = extraRead && extraRead[1] !== '110' ? (opts.extra ?? []).find((e) => (e as { id: number }).id === Number(extraRead[1])) : undefined;
+    const extra = opts.extraUploads && extraRead && extraRead[1] !== '110' ? (opts.extra ?? []).find((e) => (e as { id: number }).id === Number(extraRead[1])) : undefined;
     if (extra) {
-      const e = extra as { id: number; title: string; price: string; favourite_count?: number; photos?: { url: string }[] };
+      const e = extra as { id: number; title: string; price: string; brand_title?: string; favourite_count?: number; photos?: { url: string }[] };
       return state.deleted.has(e.id)
         ? json({ code: 404 }, 404)
-        : json({ item: { id: e.id, title: e.title, description: `${e.title}, très bon état.`, price: { amount: e.price, currency_code: 'EUR' }, brand_id: 5575, brand: 'Pierre Cardin', size_id: 209, catalog_id: 1803, status_id: 2, package_size_id: 1, color_ids: [9], favourite_count: e.favourite_count ?? 0, is_draft: false, photos: (e.photos ?? []).map((ph, i) => ({ id: i + 1, full_size_url: ph.url })) } });
+        : json({ item: { id: e.id, title: e.title, description: `${e.title}, très bon état.`, price: { amount: e.price, currency_code: 'EUR' }, brand: e.brand_title ?? '', size_id: 209, catalog_id: 1803, status_id: 2, package_size_id: 1, color_ids: [9], favourite_count: e.favourite_count ?? 0, is_draft: false, photos: (e.photos ?? []).map((ph, i) => ({ id: i + 1, full_size_url: ph.url })) } });
     }
     if (url.pathname === '/api/v2/item_upload/items/110')
       return state.deleted.has(110)
@@ -2330,7 +2330,7 @@ test('« Republier maintenant » for two articles: one after the other, each cop
   // Test fixture only: two of the seller's listings, chosen together in the stock.
   const jacket = { id: 110, title: 'Veste Baracuta G9 M', price: '65.0', view_count: 57, favourite_count: 0, brand_title: 'Baracuta', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
   const oxford = { id: 111, title: 'Chemise Oxford Pierre Cardin L', price: '30.0', view_count: 12, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/111/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
-  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [jacket, oxford], item110Title: 'Veste Baracuta G9 M' });
+  const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [jacket, oxford], item110Title: 'Veste Baracuta G9 M', extraUploads: true });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
