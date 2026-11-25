@@ -17,16 +17,3 @@ export function LogoMark({ size = 28, title }: { size?: number; title?: string }
     </svg>
   );
 }
-
-export function Wordmark({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className="row" style={{ gap: 10 }}>
-      <LogoMark size={compact ? 24 : 30} />
-      {!compact && (
-        <span className="sidebar__brand-text">
-          <span className="sidebar__brand-name">ERA</span>
-        </span>
-      )}
-    </span>
-  );
-}

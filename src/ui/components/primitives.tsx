@@ -44,16 +44,6 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
   );
 });
 
-export function IconButton({ icon, label, ...rest }: { icon: IconName; label: string } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <Tooltip content={label}>
-      <button type="button" className="icon-btn" aria-label={label} {...rest}>
-        <Icon name={icon} size={17} />
-      </button>
-    </Tooltip>
-  );
-}
-
 export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
   return (
     <span className="tip">

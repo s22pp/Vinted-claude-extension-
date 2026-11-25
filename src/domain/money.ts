@@ -5,10 +5,6 @@
 export type Cents = number;
 export type MaybeCents = Cents | null;
 
-export function euros(amount: number): Cents {
-  return Math.round(amount * 100);
-}
-
 /**
  * Plain-text euros for messages, file names and pages outside the app: "12 €", "12,50 €"; with `decimals: 2`
  * always two decimals ("12,00 €"). The app's own screens use the i18n money formatter.

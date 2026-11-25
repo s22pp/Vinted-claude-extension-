@@ -77,10 +77,6 @@ export class MarketplaceError extends Error {
   }
 }
 
-export function errorCode(e: unknown): MarketplaceErrorCode {
-  return e instanceof MarketplaceError ? e.code : 'UNAVAILABLE';
-}
-
 /** Code for the UI + the technical cause (HTTP status, path) for the "details" disclosure. */
 export function errorInfo(e: unknown): { code: MarketplaceErrorCode; detail: string | null } {
   if (e instanceof MarketplaceError) return { code: e.code, detail: e.message !== e.code ? e.message : null };

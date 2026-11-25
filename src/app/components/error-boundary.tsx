@@ -3,7 +3,7 @@ import { useI18n } from '@/i18n';
 import { Button, Card } from '@/ui/components/primitives';
 import { recordError } from '@/data/error-journal';
 
-export { ERROR_JOURNAL_KEY as UI_ERRORS_KEY, type JournalError as UiError, readErrors as readUiErrors } from '@/data/error-journal';
+export { type JournalError as UiError, readErrors as readUiErrors } from '@/data/error-journal';
 
 interface Props {
   /** Where the error happened (a screen, a page of the extension): written in the report. */

@@ -10,8 +10,6 @@ import type { ContactRow } from './outcomes';
  */
 
 export const WEEK_DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'] as const;
-/** Monday. */
-export const WEEKLY_DAY_DEFAULT = 1;
 /** A listing online this long without a favourite: worth reposting (the seller's click; never one with favourites). */
 export const REPOST_AFTER_DAYS = 30;
 
