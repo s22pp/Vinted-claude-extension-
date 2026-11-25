@@ -1803,7 +1803,7 @@ test('photo check: every photo of the live listings read from Vinted’s image s
   expect(calls.slice(before).filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
 });
 
-test('parcels on a map around home (Roanne): steps from Vinted statuses, the pickup point placed only once Vinted gives it', async ({ context, base }) => {
+test('parcels on a map around home: steps from Vinted statuses, the pickup point placed only once Vinted gives it', async ({ context, base }) => {
   test.setTimeout(150_000);
   const day = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
   const calls = await fakeVinted(context, { loggedIn: true, purchases: [{ title: 'Chemise Oxford Ralph Lauren L', price: { amount: '12.0' }, date: day, status: 'Colis disponible au point relais', conversation_id: 9301 }] });
@@ -1812,7 +1812,7 @@ test('parcels on a map around home (Roanne): steps from Vinted statuses, the pic
     calls.push({ method: 'GET', path: '/api/v2/conversations/9301', csrf: null });
     return route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ conversation: { transaction: { id: 7301, shipment: { id: 8301, tracking_code: 'MR123', carrier: { name: 'Mondial Relay' }, pickup_point: { name: 'Relais Tabac de la Gare', address_line: '12 rue Jean Jaurès', postal_code: '42300', city: 'Roanne', latitude: 46.0405, longitude: 4.0762 } } }, opposite_user: { id: 1, city: 'Ailleurs', latitude: 48.85, longitude: 2.35 } } }),
+      body: JSON.stringify({ conversation: { transaction: { id: 7301, shipment: { id: 8301, tracking_code: 'MR123', carrier: { name: 'Mondial Relay' }, pickup_point: { name: 'Relais Tabac de la Gare', address_line: '12 rue Jean Jaurès', postal_code: '63000', city: 'Clermont-Ferrand', latitude: 45.7772, longitude: 3.087 } } }, opposite_user: { id: 1, city: 'Ailleurs', latitude: 48.85, longitude: 2.35 } } }),
     });
   });
   // Test fixture only: map tiles served locally (the real ones come from OpenStreetMap).
@@ -1825,9 +1825,21 @@ test('parcels on a map around home (Roanne): steps from Vinted statuses, the pic
   // The parcel waiting at the pickup point is in the daily run (purchases are read right after the stock).
   await page.goto(`${base}#/today`);
   await expect(page.getByTestId('daily-run')).toContainText('Chemise Oxford Ralph Lauren L', { timeout: 40_000 });
+  // Home is the seller's own place, stored on this device (test fixture: a made-up home in Clermont-Ferrand).
+  await page.evaluate(async () => {
+    const req = indexedDB.open('era-intelligence');
+    const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+    await new Promise((r) => {
+      const tx = db.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put({ key: 'homePlace', value: { lat: 45.7797, lng: 3.0863, label: 'chez moi' } });
+      tx.oncomplete = r;
+    });
+  });
   await page.goto(`${base}#/sales`);
   await page.getByRole('link', { name: 'Colis' }).click();
   await expect(page).toHaveURL(/#\/parcels/);
+  // The 5 km ring's legend, from the stored home.
+  await expect(page.getByTestId('pmap-legend')).toHaveText('45.7797° N, 3.0863° E · RAYON 5 KM');
   const parcel = page.getByTestId('parcel').filter({ hasText: 'Chemise Oxford Ralph Lauren L' });
   await expect(parcel.locator('li.is-now')).toHaveText('Au point relais', { timeout: 20_000 });
   await expect(parcel).toContainText('au moins 3 j');
@@ -1837,18 +1849,19 @@ test('parcels on a map around home (Roanne): steps from Vinted statuses, the pic
   const before = calls.length;
   await parcel.getByRole('button', { name: 'Localiser' }).click();
   await expect(page.getByText('1 lieu trouvé dans la commande')).toBeVisible({ timeout: 20_000 });
-  await expect(parcel).toContainText('Point relais : Relais Tabac de la Gare · 12 rue Jean Jaurès · 42300 Roanne');
+  await expect(parcel).toContainText('Point relais : Relais Tabac de la Gare · 12 rue Jean Jaurès · 63000 Clermont-Ferrand');
   await expect(parcel).toContainText(/à 0,\d km de chez vous/);
   await expect(parcel).toContainText('Mondial Relay · MR123');
   await expect(page.locator('.pmap path.leaflet-interactive')).toHaveCount(1);
   // One read, of that order only (the other member's location is never used).
   expect(calls.slice(before).map((c) => c.path)).toEqual(['/api/v2/conversations/9301']);
-  // Home can be moved on the map, and put back.
+  // Home can be moved on the map, and forgotten (then no ring, no legend, no distance).
   await page.getByRole('button', { name: 'Déplacer chez moi' }).click();
   await page.getByTestId('parcel-map').click({ position: { x: 60, y: 60 } });
-  await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toBeVisible();
-  await page.getByRole('button', { name: 'Revenir à Roanne' }).click();
-  await expect(page.getByRole('button', { name: 'Revenir à Roanne' })).toHaveCount(0);
+  await expect(page.getByTestId('pmap-legend')).not.toHaveText('45.7797° N, 3.0863° E · RAYON 5 KM');
+  await page.getByRole('button', { name: 'Oublier chez moi' }).click();
+  await expect(page.getByRole('button', { name: 'Oublier chez moi' })).toHaveCount(0);
+  await expect(page.getByTestId('pmap-legend')).toHaveCount(0);
 });
 
 test('complete a description: the seller’s text kept, blanks to fill first, then replaced on Vinted and read back', async ({ context, base }) => {

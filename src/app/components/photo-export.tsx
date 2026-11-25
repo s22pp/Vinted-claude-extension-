@@ -53,3 +53,29 @@ export function PhotoExport() {
     </div>
   );
 }
+
+/**
+ * In the stock's selection bar: every photo of the ticked articles, in one dated folder with « articles.txt » —
+ * ready to drop into ChatGPT (ERA sends nothing anywhere itself).
+ */
+export function PhotosForChatGpt({ itemIds }: { itemIds: readonly string[] }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const r = (await browser.runtime.sendMessage({ type: 'era:photos:export', scope: 'SELECTED', itemIds: [...itemIds] } satisfies EraMessage)) as PhotoExportResult;
+      toast(r.stopped || r.missing ? 'warning' : 'success', t('photos.chatgptDone', { n: r.photos, k: r.listings }), r.stopped ?? (r.missing ? t('photos.missing', { n: r.missing }) : t('photos.chatgptHint')));
+    } catch (e) {
+      toast('error', t('photos.chatgptFailed'), e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button size="sm" icon="download" loading={busy} onClick={() => void run()} data-testid="photos-chatgpt">
+      {t('photos.chatgpt', { n: itemIds.length })}
+    </Button>
+  );
+}

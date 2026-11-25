@@ -17,7 +17,7 @@ import { SalesTabs } from '../components/section-tabs';
 const ParcelMap = lazy(() => import('../components/parcel-map').then((m) => ({ default: m.ParcelMap })));
 
 /**
- * Colis: the parcels coming to the seller (purchases) and leaving (sales), on a map around home (Roanne by
+ * Colis: the parcels coming to the seller (purchases) and leaving (sales), on a map around home (France until the seller places it,
  * default). Steps read from Vinted's statuses; places only where Vinted gives coordinates ("Localiser").
  */
 export function Parcels() {
@@ -30,6 +30,7 @@ export function Parcels() {
   const info = useMemo(() => infoRow ?? {}, [infoRow]);
   const storedHome = useLiveQuery(() => repo.getSetting<Place | null>(HOME_KEY, null), []);
   const home = storedHome ?? DEFAULT_HOME;
+  const homeSet = !!storedHome;
   const [placing, setPlacing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -90,7 +91,13 @@ export function Parcels() {
           <div className="t-small stack" style={{ gap: 2, marginTop: 4 }}>
             {found.points.map((pt) => (
               <span key={`${pt.lat},${pt.lng}`}>
-                {t(`parcelmap.kind.${pt.kind}`)} : {pt.label} · <span className="num">{t('parcelmap.km', { km: distanceKm(home, pt).toFixed(1).replace('.', ',') })}</span>
+                {t(`parcelmap.kind.${pt.kind}`)} : {pt.label}
+                {homeSet && (
+                  <>
+                    {' · '}
+                    <span className="num">{t('parcelmap.km', { km: distanceKm(home, pt).toFixed(1).replace('.', ',') })}</span>
+                  </>
+                )}
               </span>
             ))}
             {!found.points.length && <span className="t-faint">{t('parcelmap.noPlace')}</span>}
@@ -136,7 +143,7 @@ export function Parcels() {
         )}
         <div className="span-7 stack-4">
           <Card
-            title={t('parcelmap.mapTitle', { home: home.label })}
+            title={homeSet ? t('parcelmap.mapTitle', { home: home.label }) : t('parcelmap.mapTitleNoHome')}
             icon="target"
             tone="cyan"
             actions={
@@ -146,14 +153,14 @@ export function Parcels() {
                 </Button>
                 {storedHome && (
                   <Button size="sm" variant="ghost" onClick={() => void repo.setSetting(HOME_KEY, null)}>
-                    {t('parcelmap.backToRoanne')}
+                    {t('parcelmap.forgetHome')}
                   </Button>
                 )}
               </div>
             }
           >
             <Suspense fallback={<div className="pmap skeleton" aria-hidden="true" />}>
-              <ParcelMap home={home} pins={pins} placing={placing} onPlace={(at) => void placeHome(at)} />
+              <ParcelMap home={home} homeSet={homeSet} pins={pins} placing={placing} onPlace={(at) => void placeHome(at)} />
             </Suspense>
             <p className="t-small t-faint" style={{ marginTop: 8 }}>
               {t('parcelmap.honest')}

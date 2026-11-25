@@ -15,7 +15,7 @@ export interface MapPin extends Place {
  * seller, the destination of a parcel sent). Parcels sent are joined to home by a dashed line — a direction, not a
  * route. Map background from OpenStreetMap (only the tiles shown are fetched).
  */
-export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins: MapPin[]; placing: boolean; onPlace: (p: { lat: number; lng: number }) => void }) {
+export function ParcelMap({ home, homeSet = true, pins, placing, onPlace }: { home: Place; homeSet?: boolean; pins: MapPin[]; placing: boolean; onPlace: (p: { lat: number; lng: number }) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -26,7 +26,7 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
 
   useEffect(() => {
     if (!box.current) return;
-    const m = L.map(box.current, { zoomControl: true, attributionControl: true }).setView([home.lat, home.lng], 12);
+    const m = L.map(box.current, { zoomControl: true, attributionControl: true }).setView([home.lat, home.lng], homeSet ? 12 : 6);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
@@ -57,20 +57,22 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
       iconSize: [28, 28],
       iconAnchor: [14, 14],
     });
-    L.marker([home.lat, home.lng], { icon: homeIcon, title: `Chez moi — ${home.label}`, keyboard: false }).bindTooltip(`Chez moi — ${home.label}`).addTo(g);
-    // The 5 km around home (the seller's own place, stored on this device only): a fine dashed ring, no fill.
-    L.circle([home.lat, home.lng], { radius: HOME_RADIUS_M, color: 'rgba(56, 189, 248, 0.25)', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(g);
+    if (homeSet) {
+      L.marker([home.lat, home.lng], { icon: homeIcon, title: `Chez moi — ${home.label}`, keyboard: false }).bindTooltip(`Chez moi — ${home.label}`).addTo(g);
+      // The 5 km around home (the seller's own place, stored on this device only): a fine dashed ring, no fill.
+      L.circle([home.lat, home.lng], { radius: HOME_RADIUS_M, color: 'rgba(56, 189, 248, 0.25)', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(g);
+    }
     for (const p of pins) {
       const color = p.direction === 'IN' ? (css('--emerald') ?? '#10b981') : (css('--violet') ?? '#8b5cf6');
-      if (p.direction === 'OUT') L.polyline([[home.lat, home.lng], [p.lat, p.lng]], { color, weight: 2, dashArray: '6 6', opacity: 0.8 }).addTo(g);
+      if (p.direction === 'OUT' && homeSet) L.polyline([[home.lat, home.lng], [p.lat, p.lng]], { color, weight: 2, dashArray: '6 6', opacity: 0.8 }).addTo(g);
       L.circleMarker([p.lat, p.lng], { radius: 8, color, weight: 2, fillColor: color, fillOpacity: 0.6 })
         .bindPopup(`<b>${escapeHtml(p.title)}</b><br>${escapeHtml(p.label)}`)
         .addTo(g);
     }
-    const all: L.LatLngExpression[] = [[home.lat, home.lng], ...pins.map((p) => [p.lat, p.lng] as L.LatLngExpression)];
-    if (pins.length) m.fitBounds(L.latLngBounds(all), { padding: [40, 40], maxZoom: 14 });
-    else m.setView([home.lat, home.lng], 12);
-  }, [home, pins]);
+    const all: L.LatLngExpression[] = [...(homeSet ? [[home.lat, home.lng] as L.LatLngExpression] : []), ...pins.map((p) => [p.lat, p.lng] as L.LatLngExpression)];
+    if (all.length > 1 || (all.length === 1 && pins.length)) m.fitBounds(L.latLngBounds(all), { padding: [40, 40], maxZoom: 14 });
+    else m.setView([home.lat, home.lng], homeSet ? 12 : 6);
+  }, [home, homeSet, pins]);
 
   useEffect(() => {
     if (box.current) box.current.style.cursor = placing ? 'crosshair' : '';
@@ -79,9 +81,11 @@ export function ParcelMap({ home, pins, placing, onPlace }: { home: Place; pins:
   return (
     <div className="pmap-wrap">
       <div ref={box} className="pmap" data-testid="parcel-map" role="region" aria-label="Carte des colis" />
-      <span className="pmap-legend num" data-testid="pmap-legend">
-        {coordText(home.lat, home.lng)} · RAYON {HOME_RADIUS_M / 1000} KM
-      </span>
+      {homeSet && (
+        <span className="pmap-legend num" data-testid="pmap-legend">
+          {coordText(home.lat, home.lng)} · RAYON {HOME_RADIUS_M / 1000} KM
+        </span>
+      )}
     </div>
   );
 }

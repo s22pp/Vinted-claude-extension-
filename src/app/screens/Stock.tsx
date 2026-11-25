@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ChooseRepostsModal } from '../components/repost-list';
 import { RepostNowButton, RepostNowManyButton, canRepostNow } from '../components/repost-now';
+import { PhotosForChatGpt } from '../components/photo-export';
+import { SaleLotButton } from '../components/sale-lot';
 import { rotation } from '@/intelligence/pro-figures';
 import { StockVitrine } from '../components/stock-vitrine';
 import { useI18n } from '@/i18n';
@@ -339,6 +341,8 @@ export function Stock({ route }: { route: Route }) {
                 {t('stock.bulkClear')}
               </Button>
               <span className="bulkbar__spacer" />
+              <SaleLotButton views={era.views.filter((v) => selected.has(v.item.id))} onDone={() => setSelected(new Set())} />
+              {era.mode === 'real' && <PhotosForChatGpt itemIds={[...selected]} />}
               {era.mode === 'real' && (
                 <Button size="sm" variant="ghost" onClick={() => setChooseOpen(true)}>
                   {t('repostList.bulk', { n: selected.size })}

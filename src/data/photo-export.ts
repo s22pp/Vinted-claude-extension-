@@ -12,7 +12,7 @@ import { db } from './db';
  * addresses the wardrobe did not give is read once in full (a budgeted call). Only listings still on your
  * wardrobe: a deleted listing's photos are gone from Vinted.
  */
-export type PhotoScope = 'LIVE' | 'ALL';
+export type PhotoScope = 'LIVE' | 'ALL' | 'SELECTED';
 export interface PhotoExportResult {
   listings: number;
   photos: number;
@@ -21,10 +21,19 @@ export interface PhotoExportResult {
   stopped: string | null;
 }
 
-export async function exportPhotos(scope: PhotoScope, onProgress: (done: number, total: number) => void = () => undefined): Promise<PhotoExportResult> {
-  const listings = (await db.listings.filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '') && (scope === 'ALL' ? l.status !== 'REMOVED' : l.status === 'ACTIVE' || l.status === 'RESERVED' || l.status === 'HIDDEN')).toArray()).sort(
-    (a, b) => b.listedAt - a.listedAt,
-  );
+/**
+ * `SELECTED`: only the articles the seller ticked (their current listing), gathered in one dated folder
+ * (ERA-photos/ChatGPT-<date>/…) with an « articles.txt » that names each one — ready to drop into ChatGPT.
+ */
+export async function exportPhotos(scope: PhotoScope, onProgress: (done: number, total: number) => void = () => undefined, itemIds: readonly string[] = [], now = Date.now()): Promise<PhotoExportResult> {
+  const chosen = new Set(itemIds);
+  const all = await db.listings
+    .filter((l) => !l.isDemo && /^\d+$/.test(l.platformListingId ?? '') && (scope === 'LIVE' ? l.status === 'ACTIVE' || l.status === 'RESERVED' || l.status === 'HIDDEN' : l.status !== 'REMOVED') && (scope !== 'SELECTED' || chosen.has(l.inventoryItemId)))
+    .toArray();
+  // One listing per article when chosen by article: its latest.
+  const listings = (scope === 'SELECTED' ? [...new Map(all.sort((a, b) => a.listedAt - b.listedAt).map((l) => [l.inventoryItemId, l])).values()] : all).sort((a, b) => b.listedAt - a.listedAt);
+  const folder = scope === 'SELECTED' ? chatGptFolder(now) : null;
+  const sheet: string[] = [];
   const adapter = new VintedTabAdapter();
   let photos = 0;
   let missing = 0;
@@ -50,14 +59,31 @@ export async function exportPhotos(scope: PhotoScope, onProgress: (done: number,
       missing++;
       continue;
     }
+    if (folder) sheet.push(sheetLine(sheet.length + 1, l.title, l.priceCents, urls.length, photoFileName(l.title, l.platformListingId!, 0, urls[0]!).split('/')[1]!));
     for (const [n, url] of urls.entries()) {
       // Same article, same file name: exporting again replaces the copy instead of piling up « 01 (1).jpg ».
-      await browser.downloads.download({ url, filename: photoFileName(l.title, l.platformListingId!, n, url), conflictAction: 'overwrite', saveAs: false }).catch(() => undefined);
+      const name = photoFileName(l.title, l.platformListingId!, n, url);
+      await browser.downloads.download({ url, filename: folder ? name.replace(/^[^/]+/, folder) : name, conflictAction: 'overwrite', saveAs: false }).catch(() => undefined);
       photos++;
       // Gentle on the image servers.
       await new Promise((r) => setTimeout(r, 150));
     }
   }
   onProgress(listings.length, listings.length);
+  if (folder && sheet.length) {
+    const text = [CHATGPT_HEAD, '', ...sheet, ''].join('\n');
+    const data = `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`;
+    await browser.downloads.download({ url: data, filename: `${folder}/articles.txt`, conflictAction: 'overwrite', saveAs: false }).catch(() => undefined);
+  }
   return { listings: listings.length, photos, missing, stopped };
+}
+
+/** ERA-photos/ChatGPT-2026-11-25: one folder per day's selection. */
+export const chatGptFolder = (now: number) => `ERA-photos/ChatGPT-${new Date(now).toISOString().slice(0, 10)}`;
+
+/** The note that goes with the photos: what each folder is, so ChatGPT knows which photos belong together. */
+const CHATGPT_HEAD = 'Photos de mes articles Vinted, un dossier par article (photos dans l’ordre de l’annonce). Pour chacun : titre, prix demandé, nombre de photos, dossier.';
+
+export function sheetLine(n: number, title: string, priceCents: number, photos: number, dir: string): string {
+  return `${n}. ${title} — ${(priceCents / 100).toFixed(2).replace('.', ',')} € — ${photos} photo(s) — ${dir}/`;
 }

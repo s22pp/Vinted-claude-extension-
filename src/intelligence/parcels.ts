@@ -189,8 +189,11 @@ export function distanceKm(a: Place | { lat: number; lng: number }, b: { lat: nu
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
-/** Home by default: Roanne (Loire), town centre. The seller can place it anywhere on the map. */
-export const DEFAULT_HOME: Place = { lat: 46.0367, lng: 4.0683, label: 'Roanne' };
+/**
+ * Before the seller places home: the map shows France, with no home marker, ring or distance. Home itself is only
+ * ever the seller's own click, stored on this device (never a place written in the code).
+ */
+export const DEFAULT_HOME: Place = { lat: 46.6, lng: 2.4, label: 'France' };
 export const HOME_KEY = 'homePlace';
 export const PARCEL_INFO_KEY = 'parcelInfo';
 

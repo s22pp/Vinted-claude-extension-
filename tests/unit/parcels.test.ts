@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_HOME, arrivedAtPickup, distanceKm, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
+import { arrivedAtPickup, distanceKm, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
 
 const NOW = Date.UTC(2026, 8, 29, 12);
 const DAY = 86_400_000;
@@ -52,21 +52,22 @@ describe('parcels on their way', () => {
         id: 8,
         tracking_code: 'XY123',
         carrier: { name: 'Mondial Relay' },
-        pickup_point: { name: 'Relais Tabac de la Gare', address_line: '12 rue Jean Jaurès', postal_code: '42300', city: 'Roanne', latitude: '46.0405', longitude: '4.0762' },
+        pickup_point: { name: 'Relais Tabac de la Gare', address_line: '12 rue Jean Jaurès', postal_code: '63000', city: 'Clermont-Ferrand', latitude: '45.7772', longitude: '3.0870' },
         to_address: { city: 'Lyon', lat: 45.764, lng: 4.8357 },
         weird: { latitude: 0, longitude: 0 },
       },
     };
     const pts = pointsIn(tx);
     expect(pts).toEqual([
-      { lat: 46.0405, lng: 4.0762, label: 'Relais Tabac de la Gare · 12 rue Jean Jaurès · 42300 Roanne', kind: 'PICKUP' },
+      { lat: 45.7772, lng: 3.087, label: 'Relais Tabac de la Gare · 12 rue Jean Jaurès · 63000 Clermont-Ferrand', kind: 'PICKUP' },
       { lat: 45.764, lng: 4.8357, label: 'Lyon', kind: 'ADDRESS' },
     ]);
     expect(pointsIn({ transaction: { id: 1 } })).toEqual([]);
     expect(trackingIn(tx)).toEqual({ carrier: 'Mondial Relay', code: 'XY123', url: null });
-    // From Roanne town centre to that relay point: under a kilometre; to Lyon: about 70 km.
-    expect(distanceKm(DEFAULT_HOME, pts[0]!)).toBeLessThan(1);
-    expect(Math.round(distanceKm(DEFAULT_HOME, pts[1]!))).toBeGreaterThan(60);
+    // Test data only: a home in Clermont-Ferrand's centre — that relay point under a kilometre away, Lyon over 100 km.
+    const home = { lat: 45.7797, lng: 3.0863, label: 'test' };
+    expect(distanceKm(home, pts[0]!)).toBeLessThan(1);
+    expect(Math.round(distanceKm(home, pts[1]!))).toBeGreaterThan(100);
   });
 });
 

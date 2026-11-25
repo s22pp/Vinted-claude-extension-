@@ -11,6 +11,7 @@ import { skuOf, titleIssues } from '@/intelligence/listing';
 import type { ItemView } from '@/intelligence/portfolio';
 import { withWord } from '@/intelligence/title-words';
 import { type CheckKey, type PackageSize, brandWarning, draftDescription, draftTitle, measureFields, readiness, suggestPrice, suggestedPackage } from '@/intelligence/workshop';
+import { generatedDescription, generatedPrice, generatedTitle } from '@/intelligence/listing-generator';
 import { Ring } from '@/ui/charts/ring';
 import { Icon } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
@@ -85,7 +86,8 @@ function Step({ n, title, hint, children, done }: { n: number; title: string; hi
 
 /** The listing sheet of one article, in Vinted's form order: every field to type, check or copy, then publish. */
 export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly RefundGuard[] }) {
-  const { t, date } = useI18n();
+  const i18n = useI18n();
+  const { t, date } = i18n;
   const era = useEra();
   const toast = useToast();
   const errorToast = useErrorToast();
@@ -136,8 +138,21 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
       r.onerror = () => fail(r.error);
       r.readAsDataURL(f);
     });
-  const createDraft = async () => {
-    if (chosen === null) return;
+  // The listing generator: the house's title, a structured description with hashtags, the market's median + 10 %.
+  const generate = async () => {
+    const measures = fields
+      .map((k) => (prep.measures[k]?.trim() ? `${t(`workshop.m.${k}`)} ${/^\d+([.,]\d+)?$/.test(prep.measures[k]!.trim()) ? `${prep.measures[k]!.trim()} cm` : prep.measures[k]!.trim()}` : null))
+      .filter(Boolean)
+      .join(' · ');
+    const facts = { category: item.category, brand: item.brand, model: item.model, size: item.size, era: item.era, condition: item.condition, colors: prep.colors || null, material: prep.material || item.material || null, defects: prep.defects || null, measures: measures || null };
+    const genPrice = generatedPrice(intel && !intel.analysisStale ? intel.analysis : null);
+    await save({ titleOverride: generatedTitle(facts), descriptionOverride: generatedDescription(facts), ...(genPrice !== null ? { priceCents: genPrice } : {}) });
+    if (genPrice !== null) price.setRaw(String(genPrice / 100).replace('.', ','));
+    toast('success', t('workshop.generated'), genPrice !== null ? t('workshop.generatedPrice', { price: i18n.money(genPrice) }) : t('workshop.generatedNoPrice'));
+  };
+
+  const createDraft = async (): Promise<string | null> => {
+    if (chosen === null) return null;
     setDrafting(true);
     try {
       await repo.savePrep(item.id, { priceCents: chosen, packageSize: pkg });
@@ -146,14 +161,33 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
       const res = (await browser.runtime.sendMessage({ type: 'era:draft:create', input } satisfies EraMessage)) as DraftResult;
       if (!res.ok) {
         errorToast(res);
-        return;
+        return null;
       }
       const todo = res.missing.map((k) => t(`workshop.draftField.${k}`)).join(', ');
       toast('success', t('workshop.draftDone'), res.missing.length ? t('workshop.draftTodo', { fields: todo }) : t('workshop.draftAllSet'));
       // Without the seller's photos, the draft is completed on Vinted; with them, it can be published from here.
       if (!photos.length) window.open(`https://www.vinted.fr/items/${res.draftId}/edit`, '_blank', 'noopener');
+      return res.draftId;
     } finally {
       setDrafting(false);
+    }
+  };
+
+  /** « Publier sur Vinted maintenant »: the draft made with the chosen photos, then published — one click. */
+  const publishNow = async () => {
+    const draftId = await createDraft();
+    if (!draftId) return;
+    setPublishing(true);
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'era:draft:publish', draftId, itemId: item.id } satisfies EraMessage)) as PublishResult;
+      if (!res.ok) {
+        errorToast(res);
+        return;
+      }
+      toast('success', t('workshop.publishedOnVinted'), res.verified ? t('workshop.publishedVerified') : t('workshop.publishedUnconfirmed'));
+      await publish();
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -274,6 +308,12 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
         </Step>
 
         <Step n={8} title={t('workshop.s.title')} hint={t('workshop.h.title')} done={done('title')}>
+          <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
+            <Button size="sm" variant="primary" icon="edit" onClick={() => void generate()} data-testid="generate-listing">
+              {t('workshop.generate')}
+            </Button>
+            <span className="t-small t-faint">{t('workshop.generateHint')}</span>
+          </div>
           <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
             <span className="t-small t-muted">{t('workshop.productRef')}</span>
             <FactInput value={prep.productRef} label={t('workshop.productRef')} placeholder="FZ6700-121" onSave={(x) => save({ productRef: x })} width={180} />
@@ -422,8 +462,11 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
                 <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple aria-label={t('workshop.photosPick')} style={{ display: 'none' }} onChange={(e) => setPhotos([...(e.target.files ?? [])].slice(0, 20))} />
                 {photos.length ? t('workshop.photosChosen', { n: photos.length }) : t('workshop.photosPick')}
               </label>
-              <Button variant="ghost" size="sm" icon="upload" loading={drafting} disabled={chosen === null || !title.trim()} onClick={createDraft}>
+              <Button variant="ghost" size="sm" icon="upload" loading={drafting && !publishing} disabled={chosen === null || !title.trim()} onClick={() => void createDraft()}>
                 {t('workshop.draftCreate')}
+              </Button>
+              <Button variant="primary" size="sm" icon="upload" loading={publishing} disabled={chosen === null || !title.trim() || !photos.length || drafting} title={photos.length ? undefined : t('workshop.publishNowNeedsPhotos')} onClick={() => void publishNow()} data-testid="publish-now">
+                {t('workshop.publishNow')}
               </Button>
             </>
           ))}

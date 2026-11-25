@@ -854,7 +854,11 @@ export default defineBackground(() => {
           sendResponse({ listings: 0, photos: 0, missing: 0, stopped: BUSY } satisfies PhotoExportResult);
           return undefined;
         }
-        exportingPhotos = exportPhotos(msg.scope, (done, total) => void browser.runtime.sendMessage({ type: 'era:photos:progress', done, total } satisfies EraMessage).catch(() => undefined)).finally(() => {
+        exportingPhotos = exportPhotos(
+          msg.scope,
+          (done, total) => void browser.runtime.sendMessage({ type: 'era:photos:progress', done, total } satisfies EraMessage).catch(() => undefined),
+          Array.isArray(msg.itemIds) ? msg.itemIds.filter((x): x is string => typeof x === 'string').slice(0, 500) : [],
+        ).finally(() => {
           exportingPhotos = null;
         });
         return answer(exportingPhotos, (detail) => ({ listings: 0, photos: 0, missing: 0, stopped: detail }) satisfies PhotoExportResult);
