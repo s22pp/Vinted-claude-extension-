@@ -149,6 +149,24 @@ test('keyboard: « ? » lists the shortcuts, G then S goes to the stock, Ctrl K 
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).not.toBe(before);
 });
 
+test('the entrance: replayed from the palette, the house’s name on the bridge, Échap leaves; never on its own under automation', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  // Under automation (these tests), it never plays on its own.
+  await expect(page.getByTestId('era-intro')).toHaveCount(0);
+  await page.keyboard.press('Control+k');
+  await page.getByRole('dialog', { name: 'Aller à…' }).getByRole('textbox').fill('> intro');
+  await page.keyboard.press('Enter');
+  const intro = page.getByTestId('era-intro');
+  await expect(intro).toBeVisible();
+  await expect(intro).toHaveAttribute('aria-label', 'Entrée de la maison ERA');
+  // The status says what is true: no Vinted import in the demo.
+  await expect(intro.getByText('[ SYSTÈME PRÊT · STOCK LOCAL, AUCUN IMPORT VINTED ]')).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press('Escape');
+  await expect(intro).toHaveCount(0);
+});
+
 test('stock as a Vitrine: the same filtered rows, photo first; the keyboard opens an article', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

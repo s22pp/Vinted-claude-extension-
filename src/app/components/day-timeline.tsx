@@ -103,7 +103,14 @@ export function DayTimeline() {
           <g className="day-now">
             {/* Now: a lit vertical line, said in words above it. */}
             <line x1={px(nowX)} x2={px(nowX)} y1={TRACK - 58} y2={TRACK + 12} stroke="var(--accent)" strokeWidth={2} className="day-now__line" />
-            <circle cx={px(nowX)} cy={TRACK} r={5.5} fill="var(--accent)" className="day-now__dot" />
+            {/* The day's train: a small engine on the rail, at the hour it is now, heading for the next round. */}
+            <g className="day-now__dot day-now__train" transform={`translate(${px(nowX)} ${TRACK})`}>
+              <rect x={-11} y={-9} width={18} height={7} rx={1} fill="var(--bg)" stroke="var(--accent)" strokeWidth={1.25} />
+              <rect x={-11} y={-13} width={7} height={4} rx={0.5} fill="var(--accent)" />
+              <path d="M7 -9 L11 -5.5 L7 -2 Z" fill="var(--accent)" />
+              <circle cx={-6} cy={0} r={1.9} fill="var(--accent)" />
+              <circle cx={3} cy={0} r={1.9} fill="var(--accent)" />
+            </g>
             <text x={px(nowX)} y={TRACK - 66} textAnchor={nowX > 0.88 ? 'end' : nowX < 0.12 ? 'start' : 'middle'} fontSize={12.5} fontWeight={600} fill="var(--text)">
               {t('day.now', { time: nowLabel })}
             </text>

@@ -1,0 +1,82 @@
+/* The entrance: the stage full screen, the status and the door at the foot, a way out in the corner. */
+.era-train {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #080c12;
+  color: #f8fafc;
+  opacity: 1;
+  transition: opacity 450ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.era-train.is-leaving {
+  opacity: 0;
+}
+.era-train__stage {
+  position: absolute;
+  inset: 0;
+}
+.era-train__stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.era-train__reveal {
+  position: absolute;
+  left: 50%;
+  bottom: 12vh;
+  transform: translate(-50%, 14px);
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  opacity: 0;
+  transition:
+    opacity 450ms cubic-bezier(0.19, 1, 0.22, 1),
+    transform 450ms cubic-bezier(0.19, 1, 0.22, 1);
+  pointer-events: none;
+}
+.era-train__reveal.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.era-train__status {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.era-train__enter {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  color: #080c12;
+}
+.era-train__skip {
+  position: absolute;
+  right: 24px;
+  bottom: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  background: rgba(8, 12, 18, 0.6);
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.era-train__skip:hover {
+  color: #f8fafc;
+}
+.era-train__skip .kbd {
+  font-size: 10px;
+}
+:root[data-motion='reduced'] .era-train,
+:root[data-motion='reduced'] .era-train__reveal {
+  transition: none;
+}

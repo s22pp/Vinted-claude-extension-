@@ -2826,6 +2826,13 @@ export const fr = {
     hours: 'toutes les {n} h',
     notify: 'Me notifier d’une nouvelle commande à envoyer, d’une vente ou d’un colis arrivé au point relais',
   },
+  intro: {
+    label: 'Entrée de la maison {name}',
+    enter: 'Accéder à l’espace',
+    skip: 'Passer l’intro',
+    statusSynced: '[ SYSTÈME PRÊT · STOCK SYNCHRONISÉ LE {date} ]',
+    statusLocal: '[ SYSTÈME PRÊT · STOCK LOCAL, AUCUN IMPORT VINTED ]',
+  },
   shortcuts: {
     title: 'Raccourcis clavier',
     then: 'puis',
@@ -2852,6 +2859,7 @@ export const fr = {
       theme: 'Basculer clair / sombre',
       import: 'Lancer un import Vinted',
       shortcuts: 'Raccourcis clavier',
+      intro: 'Revoir l’intro',
     },
     p: {
       parcels: 'Colis : carte et suivi',

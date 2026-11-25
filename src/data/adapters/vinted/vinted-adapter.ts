@@ -1,7 +1,7 @@
 import { isScheduledRun } from './budget-store';
 import type { ComparableQuery, InventorySnapshotItem, ListingObservationSnapshot, MarketplaceAdapter, SearchResult } from '../marketplace';
 import { MarketplaceError } from '../marketplace';
-import { brandOf, currentUserId, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
+import { brandOf, currentUserId, currentUserLogin, firstArray, parseCatalogCard, parseCatalogItem, parseOrder, parseTotalEntries, parseWardrobeItem, type SoldOrder } from './parse';
 import type { ApiResult, BudgetStatus, CatalogPageRead, EraMessage, PageResult } from './protocol';
 import { visitSearchPage } from './search-page';
 import { mayResend, ping, waitForLoad } from './tabs';
@@ -203,8 +203,12 @@ export class VintedTabAdapter implements MarketplaceAdapter {
   }
 
   async userId(): Promise<string> {
-    const id = currentUserId(await this.api('/api/v2/users/current'));
+    const json = await this.api('/api/v2/users/current');
+    const id = currentUserId(json);
     if (!id) throw new MarketplaceError('NOT_LOGGED_IN');
+    // The login comes with the same read (no extra call): kept on this device for the house's name in the intro.
+    const login = currentUserLogin(json);
+    if (login) await db.settings.put({ key: 'vintedLogin', value: login }).catch(() => undefined);
     return id;
   }
 

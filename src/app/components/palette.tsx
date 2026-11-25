@@ -182,6 +182,7 @@ function Palette({ onClose }: { onClose: () => void }) {
           .catch(() => undefined);
       }),
       act('shortcuts', 'info', () => window.dispatchEvent(new Event('era:shortcuts'))),
+      act('intro', 'eye', () => window.dispatchEvent(new Event('era:intro'))),
     ];
     return [...places, ...actions, ...items];
   }, [era.views, era.now, t, toast]);

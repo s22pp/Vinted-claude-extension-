@@ -5,6 +5,7 @@ import { EraScene } from './components/era-scene';
 import { type DataMode, repo } from '@/data/repo';
 import { Skeleton } from '@/ui/components/primitives';
 import { ErrorBoundary } from './components/error-boundary';
+import { Intro } from './components/intro';
 import { Today } from './screens/Today';
 
 /**
@@ -226,6 +227,7 @@ export function App() {
   return (
     <EraDataProvider>
       <Router />
+      <Intro />
     </EraDataProvider>
   );
 }
