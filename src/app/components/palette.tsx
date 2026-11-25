@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { EraMessage, ImportResult } from '@/data/adapters/vinted/protocol';
 import { useI18n } from '@/i18n';
+import { stockCsv } from '@/intelligence/accounting';
 import { skuOf } from '@/intelligence/listing';
 import { normalizeText } from '@/intelligence/normalize';
+import { rotation } from '@/intelligence/pro-figures';
+import { downloadText } from '@/lib/download';
 import { Icon, type IconName } from '@/ui/components/icons';
+import { Modal, useToast } from '@/ui/components/overlays';
 import { Money } from '@/ui/components/primitives';
+import { setTheme } from '../providers';
 import { go, useEra } from '../state';
 
 /**
@@ -15,10 +21,16 @@ interface Entry {
   label: string;
   hint?: string;
   icon: IconName;
-  href: string;
+  href?: string;
+  /** An action instead of a place (« > … »). */
+  run?: () => void;
   price?: number | null;
   words: string;
 }
+
+/** Where G then a letter goes. */
+const GO_TO: Record<string, string> = { a: 'today', s: 'stock', p: 'automations', m: 'market', v: 'sales', r: 'settings' };
+const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el instanceof HTMLElement && el.isContentEditable);
 
 const PLACES: { key: string; href: string; icon: IconName }[] = [
   { key: 'today', href: 'today', icon: 'today' },
@@ -46,28 +58,96 @@ const PLACES: { key: string; href: string; icon: IconName }[] = [
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [help, setHelp] = useState(false);
   useEffect(() => {
+    let gAt = 0;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setOpen((o) => !o);
+        return;
+      }
+      // Single keys: never while typing, never over an open window, never with a modifier.
+      if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || document.querySelector('[role="dialog"]')) return;
+      const k = e.key.toLowerCase();
+      if (gAt && Date.now() - gAt < 1200) {
+        gAt = 0;
+        const to = GO_TO[k];
+        if (to) {
+          e.preventDefault();
+          go(to);
+        }
+        return;
+      }
+      if (k === 'g') gAt = Date.now();
+      else if (k === 'n') {
+        e.preventDefault();
+        go('stock?add=1');
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setHelp(true);
       }
     };
     const onOpen = () => setOpen(true);
+    const onHelp = () => setHelp(true);
     window.addEventListener('keydown', onKey);
     window.addEventListener('era:palette', onOpen);
+    window.addEventListener('era:shortcuts', onHelp);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('era:palette', onOpen);
+      window.removeEventListener('era:shortcuts', onHelp);
     };
   }, []);
   // Mounted only while open: every opening starts empty, nothing to clear afterwards.
-  return open ? <Palette onClose={() => setOpen(false)} /> : null;
+  return (
+    <>
+      {open && <Palette onClose={() => setOpen(false)} />}
+      <Shortcuts open={help} onClose={() => setHelp(false)} />
+    </>
+  );
+}
+
+/** « ? »: every shortcut on one ruled sheet. */
+function Shortcuts({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useI18n();
+  const rows: [string[], string][] = [
+    [['Ctrl', 'K'], t('shortcuts.palette')],
+    [['G', 'A'], t('shortcuts.today')],
+    [['G', 'S'], t('shortcuts.stock')],
+    [['G', 'P'], t('shortcuts.pilot')],
+    [['G', 'M'], t('shortcuts.market')],
+    [['G', 'V'], t('shortcuts.sales')],
+    [['G', 'R'], t('shortcuts.settings')],
+    [['N'], t('shortcuts.add')],
+    [['/'], t('shortcuts.search')],
+    [['?'], t('shortcuts.help')],
+  ];
+  return (
+    <Modal open={open} onClose={onClose} title={t('shortcuts.title')}>
+      <dl className="shortcuts" data-testid="shortcuts">
+        {rows.map(([keys, what]) => (
+          <div key={keys.join('+')} className="shortcuts__row">
+            <dt>
+              {keys.map((k, i) => (
+                <span key={k}>
+                  {i > 0 && <span className="t-faint"> {keys[0] === 'Ctrl' ? '+' : t('shortcuts.then')} </span>}
+                  <kbd className="kbd">{k}</kbd>
+                </span>
+              ))}
+            </dt>
+            <dd>{what}</dd>
+          </div>
+        ))}
+      </dl>
+    </Modal>
+  );
 }
 
 function Palette({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const era = useEra();
+  const toast = useToast();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
 
@@ -85,19 +165,43 @@ function Palette({ onClose }: { onClose: () => void }) {
       price: v.askPrice ?? v.sale?.salePriceCents ?? null,
       words: normalizeText(`${v.item.title} ${v.item.brand} ${skuOf(v.item.id)} ${v.item.size ?? ''}`),
     }));
-    return [...places, ...items];
-  }, [era.views, t]);
+    // Actions: what can be done from here, each said as such (« > »), never sent anywhere without the seller.
+    const stale = era.views.filter((v) => v.item.status === 'LISTED' && rotation(v.daysListed, null, null).state === 'STALE').length;
+    const act = (key: string, icon: IconName, run: () => void, params?: Record<string, string | number>) => {
+      const label = `› ${t(`palette.a.${key}`, params)}`;
+      return { key: `a:${key}`, label, icon, run, words: normalizeText(`${label} action`) };
+    };
+    const actions: Entry[] = [
+      act('stale', 'repost', () => go('stock?select=stale'), { n: stale }),
+      act('csv', 'rows', () => downloadText(`era-stock-${new Date(era.now).toISOString().slice(0, 10)}.csv`, stockCsv(era.views.filter((v) => v.inStock)))),
+      act('theme', 'moon', () => void setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light')),
+      act('import', 'repost', () => {
+        toast('info', t('palette.importStarted'));
+        void (browser.runtime.sendMessage({ type: 'era:import' } satisfies EraMessage) as Promise<ImportResult>)
+          .then((r) => (r.ok ? toast('success', t('vinted.stageCOMPLETE'), t('vinted.imported', { n: r.items, updated: r.updated, sales: r.sales })) : toast('error', r.code, r.detail)))
+          .catch(() => undefined);
+      }),
+      act('shortcuts', 'info', () => window.dispatchEvent(new Event('era:shortcuts'))),
+    ];
+    return [...places, ...actions, ...items];
+  }, [era.views, era.now, t, toast]);
 
   const results = useMemo(() => {
     const words = normalizeText(q).split(' ').filter(Boolean);
-    const hit = words.length ? all.filter((e) => words.every((w) => e.words.includes(w))) : all.filter((e) => e.key.startsWith('p:'));
-    return hit.slice(0, 12);
+    // « > » alone: the actions only.
+    if (q.trim().startsWith('>')) {
+      const rest = words.filter((w) => w !== '>');
+      return all.filter((e) => e.key.startsWith('a:') && rest.every((w) => e.words.includes(w))).slice(0, 12);
+    }
+    const hit = words.length ? all.filter((e) => words.every((w) => e.words.includes(w))) : all.filter((e) => e.key.startsWith('p:') || e.key.startsWith('a:'));
+    return hit.slice(0, 14);
   }, [all, q]);
 
   const choose = (e: Entry | undefined) => {
     if (!e) return;
     onClose();
-    go(e.href);
+    if (e.run) e.run();
+    else if (e.href) go(e.href);
   };
 
   return (

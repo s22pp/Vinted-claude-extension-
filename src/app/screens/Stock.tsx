@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ChooseRepostsModal } from '../components/repost-list';
-import { RepostNowButton, RepostNowManyButton } from '../components/repost-now';
+import { RepostNowButton, RepostNowManyButton, canRepostNow } from '../components/repost-now';
+import { rotation } from '@/intelligence/pro-figures';
 import { StockVitrine } from '../components/stock-vitrine';
 import { useI18n } from '@/i18n';
 import { Icon } from '@/ui/components/icons';
@@ -58,6 +59,13 @@ export function Stock({ route }: { route: Route }) {
   const [cols, setCols] = useState<ColKey[]>(() => loadPref('era.stock.cols.v4', DEFAULT_COLS));
   const [showCols, setShowCols] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // From the palette, « Republier les articles qui stagnent »: those online 30 days or more come selected, the seller
+  // confirms (and sees what they lose) in the repost dialog.
+  const selectParam = route.query.get('select');
+  useEffect(() => {
+    if (selectParam === 'stale') setSelected(new Set(era.views.filter((v) => v.item.status === 'LISTED' && rotation(v.daysListed, null, null).state === 'STALE' && canRepostNow(v)).map((v) => v.item.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectParam]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [chooseOpen, setChooseOpen] = useState(false);
   // « Republier maintenant » applies to one article at a time.

@@ -129,6 +129,26 @@ test('stock: search, filter and open an item with its timeline', async ({ contex
   await expect(page.getByText('Non renseigné').first()).toBeVisible();
 });
 
+test('keyboard: « ? » lists the shortcuts, G then S goes to the stock, Ctrl K « > » lists the actions and runs one', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  await page.locator('body').click({ position: { x: 5, y: 300 } });
+  await page.keyboard.press('Shift+Slash');
+  await expect(page.getByTestId('shortcuts')).toContainText('Ajouter un article');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('shortcuts')).toHaveCount(0);
+  await page.keyboard.press('g');
+  await page.keyboard.press('s');
+  await expect(page).toHaveURL(/#\/stock/);
+  const before = await page.evaluate(() => document.documentElement.dataset.theme);
+  await page.keyboard.press('Control+k');
+  await page.getByRole('dialog', { name: 'Aller à…' }).getByRole('textbox').fill('> clair');
+  await expect(page.getByTestId('palette').getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).not.toBe(before);
+});
+
 test('stock as a Vitrine: the same filtered rows, photo first; the keyboard opens an article', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

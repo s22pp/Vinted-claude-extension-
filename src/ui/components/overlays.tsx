@@ -92,6 +92,8 @@ interface ToastItem {
   title: string;
   body?: string;
   leaving?: boolean;
+  /** How long it stays (ms): drawn as a thin bar running out. */
+  life: number;
 }
 
 const ToastCtx = createContext<(kind: ToastKind, title: string, body?: string) => void>(() => undefined);
@@ -114,9 +116,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0);
   const push = useCallback((kind: ToastKind, title: string, body?: string) => {
     const id = ++seq.current;
-    setItems((xs) => [...xs.slice(-3), { id, kind, title, body }]);
     // Errors stay long enough to read and copy their technical detail.
     const life = kind === 'error' ? 12_000 : 3800;
+    setItems((xs) => [...xs.slice(-3), { id, kind, title, body, life }]);
     setTimeout(() => setItems((xs) => xs.map((x) => (x.id === id ? { ...x, leaving: true } : x))), life);
     setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), life + 300);
   }, []);
@@ -133,6 +135,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div style={{ fontWeight: 600 }}>{x.title}</div>
               {x.body && <div className="t-small t-muted">{x.body}</div>}
             </div>
+            <span className="toast__life" aria-hidden="true" style={{ animationDuration: `${x.life}ms` }} />
           </div>
         ))}
       </div>
