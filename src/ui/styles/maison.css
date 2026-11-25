@@ -987,3 +987,136 @@ input[type='checkbox'][role='switch']:disabled {
   flex: 1;
   min-width: 0;
 }
+
+/* ── Ventes: the period in two figures, what keeps the profit unknown, then the rest on one ruled bar ───── */
+.sales-hero {
+  display: grid;
+  gap: 18px;
+  padding: 26px 28px 20px;
+}
+.sales-hero__main {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px 40px;
+}
+.sales-hero__figure {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.sales-hero__big {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(34px, 3.6vw, 48px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.sales-hero__big .unknown {
+  font-size: 0.5em;
+  letter-spacing: 0;
+}
+.sales-hero__fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--amber-soft);
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+}
+.sales-kpis {
+  margin-top: 2px;
+}
+
+/* ── Figure strips (Analyses, Capital…): the figure, a woven label, no coloured tile ───────────────────── */
+.kpi-strip .metric__label .icon-tile {
+  display: none;
+}
+.kpi-strip .metric__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  line-height: 1.35;
+}
+.kpi-strip .metric__value {
+  font-size: 26px;
+  font-weight: 600;
+}
+.kpi-strip > .kpi {
+  padding: 18px 20px;
+}
+/* One baseline across the strip: a label on two lines no longer pushes its figure below its neighbours'. */
+.kpi-strip {
+  grid-template-rows: auto auto auto;
+}
+.kpi-strip > .kpi {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+}
+.kpi-strip > .kpi > .metric {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+}
+.kpi-strip .metric__label,
+.item-kpis .metric__label {
+  align-items: flex-start;
+}
+.item-kpis > .metric {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+}
+.kpi-strip .metric__foot {
+  align-items: flex-start;
+}
+
+/* Data quality: the mark is drawn, not a font glyph that may fall back to a stray sign. */
+.dq {
+  align-items: flex-start;
+  line-height: 1.35;
+}
+.dq__glyph {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 0.3em;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 0;
+  color: inherit;
+}
+.dq[data-quality='KNOWN'] .dq__glyph {
+  background: currentColor;
+}
+.dq[data-quality='PARTIAL'] .dq__glyph {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.dq[data-quality='INFERRED'] .dq__glyph {
+  border-style: dashed;
+}
+.dq[data-quality='PREDICTED'] .dq__glyph {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+
+/* « Profit connu » unknown in the Ventes hero: the dash at the size of the figure beside it. */
+.sales-hero__big .unknown {
+  font-size: inherit;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.sales-hero__big .unknown__label {
+  font-size: 12.5px;
+  font-weight: 500;
+}

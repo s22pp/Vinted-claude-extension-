@@ -78,35 +78,38 @@ export function Sales({ route }: { route?: Route }) {
         <ToShipCard highlight={focusShip} />
         <ParcelsCard />
         {toComplete.length > 0 && <ToComplete views={toComplete} />}
-        <section className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, minmax(0,1fr))' }} aria-label={t('sales.title')}>
-          <div className="kpi">
-            <Metric small label={t('kpi.revenue')} icon="sales" tone="emerald" value={<span className="num">{money(s.period.revenue)}</span>} foot={`${s.period.count} ventes`} />
+        {/* The period in two figures (what came in, what is left of it), what keeps the second unknown and how to fix
+            it, then the rest as one ruled bar (ERA Maison). */}
+        <section className="card sales-hero" aria-label={t('sales.title')} data-testid="sales-hero">
+          <div className="sales-hero__main">
+            <div className="sales-hero__figure">
+              <span className="t-caption">{t('kpi.revenue')}</span>
+              <b className="num sales-hero__big">{money(s.period.revenue)}</b>
+              <span className="t-small t-muted">{t('sales.countLine', { n: s.period.count, avg: s.averageSalePrice === null ? '—' : money(s.averageSalePrice) })}</span>
+            </div>
+            <div className="sales-hero__figure">
+              <span className="t-caption">{t('kpi.knownProfit')}</span>
+              <b className="sales-hero__big">
+                <MetricValue metric={s.period.profit} sign />
+              </b>
+              <MetricFootPartial metric={s.period.profit} />
+            </div>
           </div>
-          <div className="kpi">
-            <Metric small label={t('kpi.knownProfit')} icon="price" tone="violet" value={<MetricValue metric={s.period.profit} sign />} foot={<MetricFootPartial metric={s.period.profit} />} />
-          </div>
-          <div className="kpi">
+          {unknownProfit > 0 && (
+            <div className="sales-hero__fix" data-testid="sales-fix-costs">
+              <span className="t-small">{t('sales.fixCosts', { n: unknownProfit })}</span>
+              <Button size="sm" onClick={() => go('stock?filter=nocost')}>
+                {t('sales.fixCostsCta')}
+              </Button>
+            </div>
+          )}
+          <div className="item-kpis sales-kpis">
             <Metric small label={t('kpi.avgMargin')} value={<span className="num">{pct(s.averageMargin)}</span>} foot={unknownProfit ? <QualityTag quality="PARTIAL" /> : null} />
-          </div>
-          <div className="kpi">
             <Metric small label={t('kpi.roi')} value={<span className="num">{pct(s.roi)}</span>} />
-          </div>
-          <div className="kpi">
             <Metric small label={t('kpi.sellThrough')} value={<span className="num">{pct(s.sellThrough)}</span>} />
-          </div>
-          <div className="kpi">
-            <Metric small label={t('kpi.medianDays')} icon="clock" tone="cyan" value={<span className="num">{s.medianDaysToSale === null ? '—' : t('kpi.days', { n: Math.round(s.medianDaysToSale) })}</span>} />
-          </div>
-          <div className="kpi">
-            <Metric small label={t('kpi.avgSale')} value={<Money cents={s.averageSalePrice} />} />
-          </div>
-          <div className="kpi">
-            <Metric small label={t('kpi.capitalReturned')} icon="capital" tone="amber" value={<MetricValue metric={s.capitalReturned} />} foot={<MetricFootPartial metric={s.capitalReturned} />} />
-          </div>
-          <div className="kpi">
+            <Metric small label={t('kpi.medianDays')} value={<span className="num">{s.medianDaysToSale === null ? '—' : t('kpi.days', { n: Math.round(s.medianDaysToSale) })}</span>} />
+            <Metric small label={t('kpi.capitalReturned')} value={<MetricValue metric={s.capitalReturned} />} foot={<MetricFootPartial metric={s.capitalReturned} />} />
             <Metric small label={t('kpi.refundRate')} value={<span className={`num ${s.refundRate && s.refundRate > 0.1 ? 't-neg' : ''}`}>{pct(s.refundRate, { digits: 1 })}</span>} foot={s.period.refunded ? `${s.period.refunded}` : null} />
-          </div>
-          <div className="kpi">
             <Metric small label={t('kpi.efficiency')} help={t('kpi.efficiencyHint')} value={<span className="num">{era.capital.efficiency30 === null ? '—' : `×${i.num(era.capital.efficiency30, 1)}`}</span>} />
           </div>
         </section>
