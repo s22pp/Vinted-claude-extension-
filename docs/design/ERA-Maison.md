@@ -5,7 +5,7 @@ le logo « l'étiquette coupée », le geste de vente toujours à portée.
 
 ## 1. Le brief, en une phrase
 
-Le vendeur tient une maison d'archives vintage (era-archives) : ERA doit ressembler au back-office d'une maison de
+Le vendeur tient une maison d'archives vintage : ERA doit ressembler au back-office d'une maison de
 mode, pas à un tableau de bord SaaS. On le montre à quelqu'un, il doit avoir envie de l'ouvrir.
 
 ## 2. Ce qui a été étudié (et ce qui ne l'a pas été)

@@ -133,7 +133,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (opts.buyerMessages && /^\/api\/v2\/conversations\/95\d\d$/.test(url.pathname)) {
       const id = url.pathname.split('/')[4]!;
       const body = id === '9500' ? 'Bonjour, elle taille comment ?' : 'Bonjour, le colis est arrivé abîmé, je veux un remboursement';
-      return json({ conversation: { id: Number(id), item: { id: 101 }, messages: [{ id: 1, entity_type: 'message', entity: { body, user_id: 556 }, created_at_ts: Math.floor(Date.now() / 1000) - 600 }, ...(state.replies[id] ?? []).map((b, i) => ({ id: 10 + i, entity_type: 'message', entity: { body: b, user_id: 177293623 } }))] } });
+      return json({ conversation: { id: Number(id), item: { id: 101 }, messages: [{ id: 1, entity_type: 'message', entity: { body, user_id: 556 }, created_at_ts: Math.floor(Date.now() / 1000) - 600 }, ...(state.replies[id] ?? []).map((b, i) => ({ id: 10 + i, entity_type: 'message', entity: { body: b, user_id: 100000001 } }))] } });
     }
     if (/^\/api\/v2\/conversations\/94\d\d\/replies$/.test(url.pathname) && method === 'POST') {
       const id = url.pathname.split('/')[4]!;
@@ -149,18 +149,18 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
     if (/^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) && opts.offerRateLimited) return json({ code: 106 }, 429);
     if (/^\/api\/v2\/conversations\/\d+\/replies$/.test(url.pathname) || /^\/api\/v2\/transactions\/\d+\/offers$/.test(url.pathname) || /offer_requests\/\d+\/(accept|reject)$/.test(url.pathname)) return json({});
     if (url.pathname === '/api/v2/inbox' && opts.buyerMessages)
-      return json({ conversations: ['9500', '9501'].map((id) => ({ id: Number(id), updated_at: new Date(Date.now() - 600_000).toISOString(), last_message: { user_id: state.replies[id]?.length ? 177293623 : 556 } })) });
+      return json({ conversations: ['9500', '9501'].map((id) => ({ id: Number(id), updated_at: new Date(Date.now() - 600_000).toISOString(), last_message: { user_id: state.replies[id]?.length ? 100000001 : 556 } })) });
     if (url.pathname === '/api/v2/inbox')
       return json({ conversations: [{ id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste Harrington Ralph Lauren M', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } }] });
     // Test fixture only: once the form is saved, Vinted cannot be read back (a server error on every read of the listing).
     if (opts.readBackDown && state.saved && (url.pathname === '/api/v2/item_upload/items/101' || url.pathname.startsWith('/api/v2/wardrobe/'))) return json({ code: 500 }, 500);
-    if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 177293623, login: 'era-archives' } }) : json({ code: 100 }, 401);
+    if (url.pathname === '/api/v2/users/current') return opts.loggedIn ? json({ user: { id: 100000001, login: 'boutique-test' } }) : json({ code: 100 }, 401);
     // A full first page of the wardrobe (96 listings), then page 2 unavailable.
-    if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items') && opts.wardrobePage2Down) {
+    if (url.pathname.startsWith('/api/v2/wardrobe/100000001/items') && opts.wardrobePage2Down) {
       if (url.searchParams.get('page') === '2') return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
       return json({ items: Array.from({ length: 96 }, (_, i) => ({ id: 5000 + i, title: `Article ${i}`, price: '20.0', view_count: 1, favourite_count: 0, is_draft: false, is_closed: false, is_hidden: false, photos: [] })) });
     }
-    if (url.pathname.startsWith('/api/v2/wardrobe/177293623/items'))
+    if (url.pathname.startsWith('/api/v2/wardrobe/100000001/items'))
       return json({
         items: [
           { id: 101, title: titles['101'], price: { amount: prices['101'], currency_code: 'EUR' }, view_count: 212, favourite_count: 9, brand_title: 'Ralph Lauren', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: null, is_main: true, high_resolution: { timestamp: 1756000000 } }] },
@@ -502,7 +502,7 @@ test('connection diagnostic pinpoints the failing link and produces a report', a
   await page.getByRole('button', { name: 'Lancer le diagnostic' }).click();
   for (const s of ['Extension (service worker)', 'Onglet vinted.fr', 'Session Vinted', 'Lecture du dressing', 'Recherche de comparables'])
     await expect(page.locator('#diagnostic li').filter({ hasText: s }).getByText('✓')).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('#diagnostic')).toContainText('connecté · id 177293623');
+  await expect(page.locator('#diagnostic')).toContainText('connecté · id 100000001');
   await expect(page.locator('#diagnostic')).toContainText('≥ 960');
 });
 

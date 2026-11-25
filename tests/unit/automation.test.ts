@@ -63,17 +63,17 @@ describe('offers received', () => {
     conversations: [
       { id: 9100, transaction: { id: 7100, item_id: 101, item_title: 'Veste', item_price: { amount: '59.0' }, offer: { id: 8100, status: 'pending', price: { amount: '40.0' }, user_id: 556 } } },
       { id: 9101, transaction: { id: 7101, item_id: 102, item_price: { amount: '30.0' }, offer: { id: 8101, status: 'accepted', price: { amount: '28.0' } } } },
-      { id: 9102, transaction: { id: 7102, item_id: 103, item_price: { amount: '30.0' }, offer: { id: 8102, status: 'pending', price: { amount: '25.0' }, user_id: 177293623 } } }, // mine
+      { id: 9102, transaction: { id: 7102, item_id: 103, item_price: { amount: '30.0' }, offer: { id: 8102, status: 'pending', price: { amount: '25.0' }, user_id: 100000001 } } }, // mine
     ],
   };
 
   it('keeps only pending offers from buyers', () => {
-    expect(parseInboxOffers(inbox, '177293623')).toEqual([{ offerId: '8100', conversationId: '9100', transactionId: '7100', itemId: '101', itemTitle: 'Veste', itemPriceCents: 5900, offerCents: 4000 }]);
+    expect(parseInboxOffers(inbox, '100000001')).toEqual([{ offerId: '8100', conversationId: '9100', transactionId: '7100', itemId: '101', itemTitle: 'Veste', itemPriceCents: 5900, offerCents: 4000 }]);
   });
 
   it('an offer whose author, or the seller, is unknown may be the seller’s own counter-offer: never acted on', () => {
     const noAuthor = { conversations: [{ id: 9103, transaction: { id: 7103, item_id: 104, item_price: { amount: '50.0' }, offer: { id: 8103, status: 'pending', price: { amount: '46.0' } } } }] };
-    expect(parseInboxOffers(noAuthor, '177293623')).toEqual([]);
+    expect(parseInboxOffers(noAuthor, '100000001')).toEqual([]);
     expect(parseInboxOffers(inbox, null)).toEqual([]);
   });
 
