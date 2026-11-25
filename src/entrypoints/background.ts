@@ -700,6 +700,12 @@ export default defineBackground(() => {
         return answer(budget.reserve(budget.useOf(msg.path, msg.method)), () => ({ ok: false, code: 'UNAVAILABLE' }));
       case 'era:budget:report':
         return answer(budget.report(msg.status).then(() => ({ ok: true })), unavailable);
+      case 'era:open': {
+        // From a Vinted page (the item bar's « Analyser dans ERA »): ERA's buy analysis, prefilled — that screen only.
+        const path = String(msg.path ?? '');
+        if (!/^buy\?[\w%=&.+~-]*$/.test(path)) return answer(Promise.resolve({ ok: false }), unavailable);
+        return answer(browser.tabs.create({ url: `${browser.runtime.getURL('/dashboard.html')}#/${path}` }).then(() => ({ ok: true })), unavailable);
+      }
       case 'era:challenge':
         // A Vinted page shows an anti-bot check: total stop, said in the error log (never answered, never bypassed).
         void recordError('vinted:challenge', new Error(`contrôle anti-robot affiché par Vinted (${String(msg.path).slice(0, 80)}) : arrêt total, rien ne repart avant votre reprise`));

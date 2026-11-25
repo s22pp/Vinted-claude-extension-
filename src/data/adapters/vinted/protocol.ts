@@ -108,6 +108,7 @@ export type EraMessage =
   | { type: 'era:budget:reserve'; path?: string; method?: string }
   | { type: 'era:budget:report'; status: number }
   | { type: 'era:challenge'; path: string }
+  | { type: 'era:open'; path: string }
   | { type: 'era:budget:status' }
   | { type: 'era:import' }
   | { type: 'era:import:stage'; stage: ImportStage }

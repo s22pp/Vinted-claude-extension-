@@ -18,18 +18,46 @@ export default defineContentScript({
     let timer: number | undefined;
     const Z = '2147483000';
     const FONT = 'system-ui,-apple-system,Segoe UI,sans-serif';
+    const MONO = `'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace`;
+
+    // Everything ERA adds here lives in one shadow root: Vinted's styles never reach it, ours never leak onto the page.
+    const host = document.createElement('era-replies');
+    host.style.cssText = `all:initial;position:fixed;top:0;left:0;width:0;height:0;z-index:${Z}`;
+    const root = host.attachShadow({ mode: 'open' });
+    const css = document.createElement('style');
+    css.textContent = `
+      .btn{position:fixed;display:none;height:26px;padding:0 10px;border:1px solid rgba(255,255,255,.16);border-radius:3px;background:#080C12;color:#F8FAFC;font:500 11.5px/24px ${MONO};cursor:pointer}
+      .btn:hover{border-color:rgba(255,255,255,.4)}
+      .chips{position:fixed;display:none;gap:6px}
+      .chip{height:24px;padding:0 9px;border:1px solid rgba(255,255,255,.16);border-radius:2px;background:#080C12;color:#F8FAFC;font:500 11px/22px ${MONO};cursor:pointer}
+      .chip:hover{background:#E2E8F0;color:#080C12}
+      .menu{position:fixed;display:none;width:340px;max-height:60vh;overflow:auto;padding:6px;border-radius:4px;background:#0D131D;color:#F8FAFC;border:1px solid rgba(255,255,255,.14);font:13px/1.4 ${FONT}}
+      .head{padding:6px 8px 8px;color:#94A3B8;font-size:12px}
+      .item{display:block;width:100%;text-align:left;padding:8px;border:0;border-radius:3px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+      .item:hover{background:#131B29}
+      .item b{display:block;font-weight:600}
+      .item span{display:block;color:#94A3B8;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .foot{padding:8px;color:#8794A7;font:11px/1.4 ${MONO}}`;
 
     const button = document.createElement('button');
     button.type = 'button';
+    button.className = 'btn';
     button.setAttribute('data-era-replies', 'button');
-    button.textContent = 'Réponses ERA';
+    button.textContent = 'E · Réponses ERA';
     button.title = 'ERA remplit la zone de message ; vous relisez et envoyez vous-même (expérimental)';
-    button.style.cssText = `position:fixed;z-index:${Z};display:none;padding:4px 10px;border:0;border-radius:999px;background:#4338ca;color:#fff;font:600 12px/1.4 ${FONT};box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer`;
+
+    // Three quick replies right above the box: one click writes, never sends.
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    chips.setAttribute('data-era-replies', 'chips');
 
     const menu = document.createElement('div');
+    menu.className = 'menu';
     menu.setAttribute('data-era-replies', 'menu');
     menu.setAttribute('role', 'menu');
-    menu.style.cssText = `position:fixed;z-index:${Z};display:none;width:340px;max-height:60vh;overflow:auto;padding:6px;border-radius:12px;background:#fff;color:#111;border:1px solid #e5e7eb;box-shadow:0 8px 28px rgba(0,0,0,.18);font:13px/1.4 ${FONT}`;
+    root.append(css, button, chips, menu);
+    const CHIP_KEYS = ['OFFER_COUNTER', 'OFFER_DECLINE', 'SHIPPING'] as const;
+    const CHIP_LABEL: Record<(typeof CHIP_KEYS)[number], string> = { OFFER_COUNTER: 'Contre-offre', OFFER_DECLINE: 'Prix ferme', SHIPPING: 'Envoi' };
 
     /** The message box of the open conversation: the last visible textarea on an /inbox/ page. */
     const findBox = (): HTMLTextAreaElement | null => {
@@ -71,8 +99,13 @@ export default defineContentScript({
       const r = target.getBoundingClientRect();
       if (r.bottom < 0 || r.top > innerHeight) return hide(false);
       button.style.display = 'block';
-      button.style.top = `${Math.max(4, r.top - 30)}px`;
+      button.style.top = `${Math.max(4, r.top - 32)}px`;
       button.style.left = `${Math.max(4, r.right - button.offsetWidth)}px`;
+      if (chips.childElementCount) {
+        chips.style.display = 'flex';
+        chips.style.top = `${Math.max(4, r.top - 31)}px`;
+        chips.style.left = `${Math.max(4, r.left)}px`;
+      }
       if (menu.style.display !== 'none') {
         const mh = Math.min(menu.scrollHeight, innerHeight * 0.6);
         menu.style.top = `${Math.max(4, r.top - 36 - mh)}px`;
@@ -81,6 +114,7 @@ export default defineContentScript({
     };
     const hide = (forget = true) => {
       button.style.display = 'none';
+      chips.style.display = 'none';
       menu.style.display = 'none';
       if (forget) target = null;
     };
@@ -91,7 +125,7 @@ export default defineContentScript({
       const name = itemId ? kit.items[itemId]?.title : null;
       menu.replaceChildren();
       const head = document.createElement('div');
-      head.style.cssText = 'padding:6px 8px 8px;color:#6b7280;font-size:12px';
+      head.className = 'head';
       head.textContent = name ? `ERA · ${name}` : 'ERA · annonce non reconnue : les blancs restent à compléter';
       menu.appendChild(head);
       for (const r of kitReplies(kit, itemId)) {
@@ -99,14 +133,10 @@ export default defineContentScript({
         b.type = 'button';
         b.setAttribute('role', 'menuitem');
         b.setAttribute('data-era-reply', r.key);
-        b.style.cssText = `display:block;width:100%;text-align:left;padding:8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;cursor:pointer`;
-        b.onmouseenter = () => (b.style.background = '#f3f4f6');
-        b.onmouseleave = () => (b.style.background = 'transparent');
-        const title = document.createElement('div');
-        title.style.fontWeight = '600';
+        b.className = 'item';
+        const title = document.createElement('b');
         title.textContent = r.blanks ? `${r.label} · à compléter` : r.label;
-        const preview = document.createElement('div');
-        preview.style.cssText = 'color:#6b7280;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        const preview = document.createElement('span');
         preview.textContent = r.text;
         b.append(title, preview);
         b.onclick = (e) => {
@@ -120,7 +150,7 @@ export default defineContentScript({
         menu.appendChild(b);
       }
       const foot = document.createElement('div');
-      foot.style.cssText = 'padding:8px;color:#9ca3af;font-size:11px';
+      foot.className = 'foot';
       foot.textContent = 'Expérimental · ERA écrit, n’envoie jamais : relisez, puis envoyez vous-même.';
       menu.appendChild(foot);
       menu.style.display = 'block';
@@ -132,8 +162,35 @@ export default defineContentScript({
       else menu.style.display = 'none';
     };
     document.addEventListener('mousedown', (e) => {
-      if (menu.style.display !== 'none' && !menu.contains(e.target as Node) && e.target !== button) menu.style.display = 'none';
+      // Inside the shadow root, the event's target is the host: the composed path says where it really happened.
+      const path = e.composedPath();
+      if (menu.style.display !== 'none' && !path.includes(menu) && !path.includes(button)) menu.style.display = 'none';
     });
+    /** The quick replies for the open conversation (the kit's own texts, filled with what ERA knows). */
+    const fillChips = () => {
+      chips.replaceChildren();
+      if (!kit || !target) return;
+      const itemId = conversationItem(kit, linkedIds(findBox()));
+      const all = kitReplies(kit, itemId);
+      for (const key of CHIP_KEYS) {
+        const r = all.find((x) => x.key === key);
+        if (!r) continue;
+        const c = document.createElement('button');
+        c.type = 'button';
+        c.className = 'chip';
+        c.setAttribute('data-era-chip', key);
+        c.textContent = CHIP_LABEL[key];
+        c.title = r.text;
+        c.onclick = (e) => {
+          e.preventDefault();
+          if (target) {
+            write(target, r.text);
+            void notePageProof('vreplies');
+          }
+        };
+        chips.appendChild(c);
+      }
+    };
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') menu.style.display = 'none';
     });
@@ -142,9 +199,12 @@ export default defineContentScript({
       if (!on || !kit || !kit.templates.length) return hide();
       const box = findBox();
       if (!box) return hide();
-      if (!button.isConnected) document.body.append(button, menu);
-      if (box !== target) menu.style.display = 'none';
-      target = box;
+      if (!host.isConnected) document.body.append(host);
+      if (box !== target) {
+        menu.style.display = 'none';
+        target = box;
+        fillChips();
+      }
       place();
     };
     const schedule = () => {
@@ -157,6 +217,8 @@ export default defineContentScript({
       const k = got[REPLY_KIT_KEY] as ReplyKit | undefined;
       kit = k && Array.isArray(k.templates) && typeof k.items === 'object' && k.items ? k : null;
       on = got[REPLIES_ON_KEY] !== false;
+      // A new kit: the quick replies are drawn again for the open conversation.
+      target = null;
       scan();
     };
     void load();
@@ -165,7 +227,7 @@ export default defineContentScript({
     });
     // Vinted's app changes pages without reloading: look again after each change, and keep the button in place.
     // ERA's own button and menu never trigger another look.
-    const mine = (n: Node) => button.contains(n) || menu.contains(n);
+    const mine = (n: Node) => n === host || host.contains(n);
     new MutationObserver((records) => {
       if (on && kit && records.some((r) => !mine(r.target) && [...r.addedNodes, ...r.removedNodes].some((n) => !mine(n)))) schedule();
     }).observe(document.documentElement, { childList: true, subtree: true });

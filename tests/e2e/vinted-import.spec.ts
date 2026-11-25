@@ -1607,13 +1607,21 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await context.route('https://www.vinted.fr/items/601**', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html><head>${ld('Chemise Oxford Ralph Lauren', '10.00')}</head><body>item</body></html>` }));
   await page.goto('https://www.vinted.fr/items/601-chemise');
   const chip = page.locator('[data-era-mark="PAGE"]');
-  await expect(chip).toHaveText('ERA ✓ marge ~18,80 €');
+  // A 36 px bar now: its label, then what you sold in this niche and your max, and a way into ERA.
+  await expect(chip).toContainText('ERA ✓ marge ~18,80 €');
+  await expect(chip).toContainText('vos ventes ~30 € · 9');
+  await expect(chip).toContainText('max 12 €');
+  // The bar (in its own shadow root) opens ERA's buy analysis, prefilled with this listing.
+  const [analysis] = await Promise.all([context.waitForEvent('page'), chip.getByRole('button', { name: 'Analyser dans ERA' }).click()]);
+  await expect.poll(() => analysis.url()).toMatch(/#\/buy\?vinted=1&title=Chemise\+Oxford\+Ralph\+Lauren/);
+  await analysis.close();
   await page.evaluate((html) => {
     history.pushState({}, '', '/items/602-chemise');
     for (const x of document.querySelectorAll('script[type="application/ld+json"]')) x.remove();
     document.head.insertAdjacentHTML('beforeend', html);
   }, ld('Chemise Ralph Lauren slim', '25.00'));
-  await expect(chip).toHaveText('ERA · votre max 12 €');
+  await expect(chip).toContainText('ERA · votre max 12 €');
+  await expect(chip).not.toContainText('ERA ✓');
   await expect(chip).toHaveCount(1);
   // Switched off in ERA: every mark goes.
   await sw.evaluate(() => chrome.storage.local.set({ eraOverlayOn: false }));
@@ -1731,6 +1739,10 @@ test('replies in Vinted messaging: your templates filled for the conversation’
   await open.click();
   await menu.locator('[data-era-reply="SHIPPING"]').click();
   await expect(box).toHaveValue(/meilleur prix\. Bonjour, j’envoie sous 1 à 2 jours/);
+  // The quick replies above the box (isolated from Vinted's page in a shadow root): one click writes, never sends.
+  await box.fill('');
+  await inbox.locator('[data-era-chip="OFFER_COUNTER"]').click();
+  await expect(box).toHaveValue(/^Bonjour, merci pour votre offre !/);
   // Written, never sent: no click on "Envoyer", no message request.
   expect(calls.clicked).not.toContain('send');
   expect(calls.filter((c) => c.method !== 'GET')).toHaveLength(0);
