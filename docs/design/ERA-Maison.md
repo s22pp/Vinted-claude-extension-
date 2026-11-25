@@ -163,3 +163,16 @@ Clair (« Papier ») : fond `#F4F2EC`, surface `#FDFCF7`, texte `#101923`, actio
   EXPÉRIMENTAL / NON VÉRIFIÉ.
 
 Maquette interactive (mêmes jetons, données de démonstration) : https://claude.ai/artifact/GhVZeBAsUsMugs7TgNDFX9
+
+## 0.56–0.57 : les étiquettes suivent la preuve, le Pilote ouvre sur son état
+
+- **Expérimental / Non vérifié** : une seule règle pour toute l'interface (`VerifyFlag`, `UntilProven`). L'étiquette
+  et les phrases « pas encore vu fonctionner » ne s'affichent que tant que le registre des intégrations (ou, pour les
+  repères et les réponses posés dans les pages Vinted, la première trace laissée par le script de page) ne montre pas
+  la fonction réussie sur cet appareil. Jamais retirées sur la foi des tests sur faux Vinted.
+- **Pilote** : l'écran s'ouvre sur l'état (« Le Pilote tourne » en émeraude, « Le Pilote est éteint ») à côté d'un vrai
+  interrupteur ; tous les marche/arrêt du Pilote et de ses agents sont des interrupteurs. Les règles viennent après,
+  ouvertes tant que le Pilote ne tourne pas, repliées ensuite (un clic pour les relire).
+- **Outils** : même tête de page que les autres écrans (titre serif, phrase, action à droite).
+- **Textes** : plus de promesse que le produit ne tient plus (« ERA ne modifie jamais vos annonces », « ERA ne publie
+  jamais ») ni de référence à un autre outil.
