@@ -343,3 +343,12 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
 - **Marge estimée** : un badge « Marge est. +X € (Opportunité) » sur les affaires du Marché et les alertes d'achat. Il est en émeraude à partir de 10 €.
 - **Chargement** : plus de roue qui tourne. Un balayage lumineux passe dans les boutons occupés, les cellules d'analyse et l'écran qui se charge ; en mouvements réduits, une teinte fixe.
 - **Lot** : les articles d'un lot affichent « Réservé · En lot » dans le Stock.
+
+## 1.4 : saisir sur place, la cote du vendeur
+
+- **Saisie en ligne** : dans le Stock, le conseil « Renseigner le prix d'achat » devient le champ lui-même (« + Saisir le coût d'achat », Entrée enregistre). La ligne ne s'ouvre pas pendant la saisie.
+- **Barre vinted.fr** : « Cote ERA : 24–35 € · Marge est. +18,80 € », puis « ✓ sous votre max 12 € » ou « au-dessus de votre max 12 € », et « vendu 9× par vous ».
+  - La cote est la moitié centrale (25e–75e centile) des prix que le vendeur a encaissés dans la niche, à l'euro ; « ~30 € » quand il n'y a qu'un prix.
+  - La marge porte toujours son signe (« −3,05 € »).
+- **Atelier → Réécrire avec Gemini** (clé Gemini du vendeur) : la description générée reformulée à partir des mêmes faits. Les hashtags ne partent pas chez Google, ERA les remet dessous. Un chiffre, une matière ou une affirmation absents des faits est signalé et doit être coché avant « Utiliser ce texte ». Tant qu'il reste un « __ », le bouton attend.
+

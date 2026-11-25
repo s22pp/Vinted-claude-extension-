@@ -182,6 +182,8 @@ Stock (ou Atelier) → **« Ajouter un lot »** : une ligne par article, comme v
 
 ## Coûts manquants en un clic
 
+Dans le Stock, un article sans coût d'achat n'affiche pas un conseil à lire : **« + Saisir le coût d'achat »** ouvre le champ dans la ligne même, Entrée enregistre, la marge suit aussitôt.
+
 Aujourd'hui → **« coûts d'achat manquent »** ouvre la saisie rapide : les articles vendus d'abord (leur bénéfice est inconnu), puis les plus chers. Si un **achat Vinted** correspond à l'article, il est proposé (prix + protection acheteur, port à ajouter) : **« Utiliser »**. Sinon, tapez le montant, Entrée : le suivant est prêt. Un coût inconnu n'est jamais compté comme zéro.
 
 ## Dossier d'envoi (litige)
@@ -190,7 +192,7 @@ Ventes → À envoyer (ou la fiche d'un article vendu) → **« Dossier d'envoi 
 
 ## Repères ERA sur les pages Vinted (EXPERIMENTAL)
 
-Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de **vos niches** (liste de courses : 3 ventes et plus d'une même marque et d'un même type) porte un repère : **« ERA ✓ marge ~X € »** sous votre prix max, **« votre max X € »** au-dessus, **« ⚠ niche à éviter »** si elle se vend mal chez vous. ERA lit seulement ce que la page affiche (titre et prix du lien, données produit de l'annonce) : **aucune requête**, rien de cliqué ni de modifié sur Vinted. Vos propres annonces n'ont pas de repère. Réglages → désactivable. Dépend de la construction des pages Vinted : peut cesser de fonctionner si Vinted la change.
+Sur une recherche, un profil ou une annonce vinted.fr, chaque article d'une de **vos niches** (liste de courses : 3 ventes et plus d'une même marque et d'un même type) porte un repère : **« ERA ✓ marge ~X € »** sous votre prix max, **« votre max X € »** au-dessus, **« ⚠ niche à éviter »** si elle se vend mal chez vous. Sur la page d'une annonce, la barre ERA dit **« Cote ERA : 24–35 € · Marge est. +X € »** : la fourchette est celle de **vos propres ventes** dans la niche (la moitié centrale de ce que vous avez encaissé), la marge estimée est votre prix médian moins ce que l'article vous coûterait (protection acheteur comprise, port en plus). ERA lit seulement ce que la page affiche (titre et prix du lien, données produit de l'annonce) : **aucune requête**, rien de cliqué ni de modifié sur Vinted. Vos propres annonces n'ont pas de repère. Réglages → désactivable. Dépend de la construction des pages Vinted : peut cesser de fonctionner si Vinted la change.
 
 ## Alertes d'achat
 
