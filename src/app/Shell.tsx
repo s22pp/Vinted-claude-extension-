@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ACTIVATION_STEPS } from './components/domain';
@@ -24,6 +25,17 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 
 import { CommandPalette } from './components/palette';
 import { UpdateBanner } from './components/update-banner';
+
+/** Counts the local writes that went through (IndexedDB, this page or another of ERA's): each one pulses the badge. */
+function useSaves(): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const on = () => setN((x) => x + 1);
+    Dexie.on('storagemutated').subscribe(on);
+    return () => Dexie.on('storagemutated').unsubscribe(on);
+  }, []);
+  return n;
+}
 
 export function Shell({ route, children }: { route: RouteName; children: ReactNode }) {
   const { t } = useI18n();
@@ -113,6 +125,7 @@ function Topbar() {
   const next: Record<ThemeSetting, ThemeSetting> = { dark: 'light', light: 'system', system: 'dark' };
   const themeIcon: Record<ThemeSetting, IconName> = { dark: 'moon', light: 'sun', system: 'monitor' };
   const inStock = era.views.filter((v) => v.inStock).length;
+  const saves = useSaves();
   return (
     <header className="topbar">
       <span className="only-sm" style={{ display: 'none' }}>
@@ -122,7 +135,8 @@ function Topbar() {
         {dateLong(era.now)}
       </span>
       <span className="badge b-emerald topbar__hide-sm" title={t('settings.dataLocal')}>
-        <span className="badge-dot" aria-hidden="true" />
+        {/* A short pulse at each local write that went through: nothing typed is lost. */}
+        <span key={saves} className={`badge-dot ${saves ? 'is-saved' : ''}`} aria-hidden="true" />
         {era.mode === 'empty' ? t('data.stateEmpty') : t('data.stateLocal', { n: inStock })}
       </span>
       <span className="topbar__spacer" />

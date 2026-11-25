@@ -56,3 +56,79 @@ export function rotation(daysOnline: number | null, favourites: number | null, o
   if (daysOnline < 30) return { state: 'WATCH', advice: (favourites ?? 0) >= 5 && (offers ?? 0) === 0 ? 'GROUP_OFFER' : null };
   return { state: 'STALE', advice: 'REPOST_CUT' };
 }
+
+const DAY = 86_400_000;
+
+/** What the portfolio figures need of an article (a subset of ItemView). */
+export interface PortfolioView {
+  inStock: boolean;
+  cost: number | null;
+  askPrice: number | null;
+  brand: string | null;
+  firstListedAt: number | null;
+  firstListedKnown: boolean;
+  sale: { soldAt: number; salePriceCents: number; status: string } | null;
+}
+
+export interface PortfolioFigures {
+  /** Profit of this calendar month's sales whose cost is known; partial when some lack a cost; null when none has. */
+  month: { profitCents: number | null; sales: number; missing: number; prevProfitCents: number | null; deltaPct: number | null };
+  /** What the stock cost (known costs only), and how many articles lack one. */
+  immobilized: { cents: number; missing: number; n: number };
+  /** The stock's asking prices after the assumed negotiation. */
+  potential: { cents: number; n: number };
+  /** Days from first listing to sale, on sales with a real listing date. */
+  rotation: { days: number | null; n: number };
+  /** Brands by return on cost (sales with a known cost), best first. */
+  brands: { brand: string; roi: number; profitCents: number; costCents: number; sales: number; days: number | null }[];
+}
+
+const monthStart = (t: number, back = 0) => {
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth() - back, 1).getTime();
+};
+
+export function portfolioFigures(views: readonly PortfolioView[], now: number, negotiation = NEGOTIATION_DEFAULT): PortfolioFigures {
+  const sold = views.filter((v) => v.sale && v.sale.status !== 'REFUNDED');
+  const inMonth = (from: number, to: number) => sold.filter((v) => v.sale!.soldAt >= from && v.sale!.soldAt < to);
+  const profitOf = (list: PortfolioView[]) => {
+    const known = list.filter((v) => v.cost !== null);
+    return { cents: known.length ? known.reduce((s, v) => s + v.sale!.salePriceCents - v.cost!, 0) : null, missing: list.length - known.length };
+  };
+  const cur = inMonth(monthStart(now), monthStart(now, -1));
+  const prev = inMonth(monthStart(now, 1), monthStart(now));
+  const c = profitOf(cur);
+  const p = profitOf(prev);
+  const deltaPct = c.cents !== null && p.cents !== null && p.cents !== 0 && p.missing === 0 && c.missing === 0 ? (c.cents - p.cents) / Math.abs(p.cents) : null;
+
+  const stock = views.filter((v) => v.inStock);
+  const withCost = stock.filter((v) => v.cost !== null);
+  const asked = stock.filter((v) => v.askPrice !== null);
+
+  const daysOf = (v: PortfolioView) => (v.firstListedKnown && v.firstListedAt !== null && v.sale!.soldAt >= v.firstListedAt ? (v.sale!.soldAt - v.firstListedAt) / DAY : null);
+  const dayList = sold.map(daysOf).filter((d): d is number => d !== null);
+
+  const byBrand = new Map<string, PortfolioView[]>();
+  for (const v of sold) {
+    const b = (v.brand ?? '').trim();
+    if (!b || /^inconnue?$/i.test(b) || v.cost === null || v.cost <= 0) continue;
+    byBrand.set(b, [...(byBrand.get(b) ?? []), v]);
+  }
+  const brands = [...byBrand.entries()]
+    .map(([brand, list]) => {
+      const costCents = list.reduce((s, v) => s + v.cost!, 0);
+      const profitCents = list.reduce((s, v) => s + v.sale!.salePriceCents - v.cost!, 0);
+      const ds = list.map(daysOf).filter((d): d is number => d !== null);
+      return { brand, roi: profitCents / costCents, profitCents, costCents, sales: list.length, days: ds.length ? ds.reduce((s, d) => s + d, 0) / ds.length : null };
+    })
+    .sort((a, b) => b.roi - a.roi || b.sales - a.sales)
+    .slice(0, 5);
+
+  return {
+    month: { profitCents: c.cents, sales: cur.length, missing: c.missing, prevProfitCents: p.cents, deltaPct },
+    immobilized: { cents: withCost.reduce((s, v) => s + v.cost!, 0), missing: stock.length - withCost.length, n: stock.length },
+    potential: { cents: asked.reduce((s, v) => s + projectNet(v.askPrice!, null, 0, negotiation).netSaleCents, 0), n: asked.length },
+    rotation: { days: dayList.length ? dayList.reduce((s, d) => s + d, 0) / dayList.length : null, n: dayList.length },
+    brands,
+  };
+}

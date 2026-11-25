@@ -1944,3 +1944,19 @@ textarea.input,
   animation: none;
   opacity: 0.4;
 }
+
+/* ── The local badge: a short emerald pulse at each write that went through ─────────────────────────────────────────── */
+.badge-dot.is-saved {
+  animation: saved-pulse 900ms var(--ease-locomotive, ease-out) 1;
+}
+@keyframes saved-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--emerald) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--emerald) 0%, transparent);
+  }
+}
+:root[data-motion='reduced'] .badge-dot.is-saved {
+  animation: none;
+}

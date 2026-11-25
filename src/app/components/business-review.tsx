@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { PortfolioStrip } from './portfolio-figures';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
@@ -67,6 +68,7 @@ export function BusinessReview() {
 
   return (
     <div className="stack-4" data-testid="business-review">
+      <PortfolioStrip />
       <section className="kpi-strip" aria-label={t('review.last30')}>
         <div className="kpi">
           <Metric small label={t('review.k.revenue')} icon="capital" tone="emerald" value={<span className="num">{money(a.revenueCents)}</span>} foot={<Versus now={a.revenueCents} before={b.revenueCents} text={t('review.vs', { v: money(b.revenueCents) })} />} />
