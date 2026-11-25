@@ -264,3 +264,17 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
 - **Sécurité** : un contrôle anti-robot affiché sur une page Vinted (DataDome, hCaptcha, reCAPTCHA, Cloudflare) arrête
   tout, comme un 403. ERA n'y répond jamais et ne le contourne jamais.
 - **Sauvegarde** : le témoin « Local » pulse à chaque écriture locale réussie.
+
+## 0.61 : sur vinted.fr, isolé
+
+- **Repères de cartes** : un élément `era-mark` avec sa propre racine Shadow DOM :
+  - pastille de nuit, mono 10,5 px, un point d'état ;
+  - le texte reste dans le DOM normal (slot) ;
+  - le CSS de Vinted ne l'atteint pas, le sien ne déborde pas.
+- **Page article** : une barre de 36 px sous le prix de Vinted, ou dans le coin si le prix n'est pas trouvé (sélecteurs
+  pas encore vérifiés sur le vrai site). Elle contient :
+  - le E serif et le repère ;
+  - « vos ventes ~… · n » et « max … » ;
+  - « Analyser dans ERA », qui ouvre l'analyse d'achat préremplie avec l'annonce.
+- **Messagerie** : le bouton « Réponses ERA », son menu et trois réponses rapides au-dessus du champ (Contre-offre,
+  Prix ferme, Envoi) partagent une même racine Shadow DOM. Un clic écrit comme une frappe, ERA n'envoie jamais.
