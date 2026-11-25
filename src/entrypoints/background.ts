@@ -42,6 +42,13 @@ import { journal } from '@/data/journal';
 let importing: Promise<ImportResult> | null = null;
 /** What follows an import (purchases, then for a scheduled one the buy alerts): awaited by the scheduled refresh. */
 let importFollowUp: Promise<unknown> = Promise.resolve();
+/**
+ * After an import, the purchases are still being read in a Vinted tab that closes once done. A write the seller asks
+ * meanwhile waits for that rather than borrow the tab: it would vanish mid-way (« NO_VINTED_TAB »).
+ */
+function afterImportReads<T>(write: () => Promise<T>): Promise<T> {
+  return importFollowUp.catch(() => undefined).then(write);
+}
 
 /** One import at a time. After it: the icon's count, and what is new (notification, if switched on). */
 function runImport(auto = false): Promise<ImportResult> {
@@ -192,8 +199,10 @@ let editing: Promise<unknown> | null = null;
 
 function runPriceEdit(platformListingId: string, cents: number, itemId: string): Promise<PriceEditResult> {
   if (editing) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une modification est déjà en cours' });
-  const run = applyPriceOnVinted(platformListingId, cents, itemId, (stage) =>
-    void browser.runtime.sendMessage({ type: 'era:price:stage', stage } satisfies EraMessage).catch(() => undefined),
+  const run = afterImportReads(() =>
+    applyPriceOnVinted(platformListingId, cents, itemId, (stage) =>
+      void browser.runtime.sendMessage({ type: 'era:price:stage', stage } satisfies EraMessage).catch(() => undefined),
+    ),
   )
     .catch((e): PriceEditResult => {
       const { code, detail } = errorInfo(e);
@@ -209,7 +218,7 @@ function runPriceEdit(platformListingId: string, cents: number, itemId: string):
 /** A description replaced on Vinted: same lock as the price, never during another Vinted operation. */
 function runDescEdit(platformListingId: string, text: string, expectBefore?: string): Promise<DescEditResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
-  const run = applyDescriptionOnVinted(platformListingId, text, expectBefore)
+  const run = afterImportReads(() => applyDescriptionOnVinted(platformListingId, text, expectBefore))
     .catch((e): DescEditResult => {
       const { code, detail } = errorInfo(e);
       return { ok: false, code, detail: detail ?? undefined };
@@ -224,7 +233,7 @@ function runDescEdit(platformListingId: string, text: string, expectBefore?: str
 /** A title or description changed by an operation: same lock, never during another Vinted operation. */
 function runTextEdit(platformListingId: string, field: TextField, op: TextOp): Promise<TextEditResult> {
   if (vintedBusy()) return Promise.resolve({ ok: false, code: 'WRITE_COOLDOWN', detail: 'une autre opération Vinted est en cours' });
-  const run = applyTextOnVinted(platformListingId, field, op)
+  const run = afterImportReads(() => applyTextOnVinted(platformListingId, field, op))
     .catch((e): TextEditResult => {
       const { code, detail } = errorInfo(e);
       return { ok: false, code, detail: detail ?? undefined };
@@ -687,8 +696,8 @@ export default defineBackground(() => {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        if (msg.type === 'era:label:get') return answer(getShippingLabel(msg.conversationId, msg.title, msg.soldAt), unavailable);
-        return answer(setListingHidden(msg.platformListingId, msg.itemId, msg.hidden), unavailable);
+        if (msg.type === 'era:label:get') return answer(afterImportReads(() => getShippingLabel(msg.conversationId, msg.title, msg.soldAt)), unavailable);
+        return answer(afterImportReads(() => setListingHidden(msg.platformListingId, msg.itemId, msg.hidden)), unavailable);
       case 'era:details:read':
         if (vintedBusy()) {
           sendResponse({ read: 0, stopped: BUSY } satisfies DetailsResult);
@@ -700,7 +709,7 @@ export default defineBackground(() => {
           sendResponse({ results: [], stopped: BUSY, left: 0 } satisfies LabelBatchResult);
           return undefined;
         }
-        labelling = getAllLabels().finally(() => {
+        labelling = afterImportReads(getAllLabels).finally(() => {
           labelling = null;
         });
         return answer(labelling, (detail) => ({ results: [], stopped: detail, left: 0 }) satisfies LabelBatchResult);
@@ -710,7 +719,7 @@ export default defineBackground(() => {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        const run = db.items.get(msg.itemId).then((it) => publishDraft(msg.draftId, msg.itemId, it?.title ?? `brouillon ${msg.draftId}`));
+        const run = afterImportReads(() => db.items.get(msg.itemId).then((it) => publishDraft(msg.draftId, msg.itemId, it?.title ?? `brouillon ${msg.draftId}`)));
         editing = run;
         return answer(
           run.finally(() => {
@@ -725,9 +734,7 @@ export default defineBackground(() => {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        // After an import, the purchases are still being read in a Vinted tab that closes once done: the repost waits for
-        // it rather than borrow that tab (it would vanish mid-way: « NO_VINTED_TAB »).
-        const run = importFollowUp.catch(() => undefined).then(() => repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites))));
+        const run = afterImportReads(() => repostNow(msg.itemId, Math.max(0, Math.floor(msg.acceptFavourites))));
         reposting = run.finally(() => {
           reposting = null;
         });
@@ -740,8 +747,8 @@ export default defineBackground(() => {
           sendResponse({ ok: false, code: 'WRITE_COOLDOWN', detail: BUSY });
           return undefined;
         }
-        if (msg.type === 'era:draft:create') return answer(createVintedDraft(msg.input), unavailable);
-        reposting = (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId, Date.now(), msg.priceCents ?? null, msg.acceptFavourites ?? 0) : finishRepost(msg.itemId)).finally(() => {
+        if (msg.type === 'era:draft:create') return answer(afterImportReads(() => createVintedDraft(msg.input)), unavailable);
+        reposting = afterImportReads<unknown>(() => (msg.type === 'era:repost:create' ? repostAsDraft(msg.itemId, Date.now(), msg.priceCents ?? null, msg.acceptFavourites ?? 0) : finishRepost(msg.itemId))).finally(() => {
           reposting = null;
         });
         return answer(reposting, unavailable);
@@ -760,7 +767,7 @@ export default defineBackground(() => {
         return answer(pilotRound(new Date().getHours(), msg.dryRun === true, true), (detail) => ({ hour: new Date().getHours(), stopped: detail, imported: null, offers: 0, favourites: 0, delivered: 0, deals: 0, labels: 0, labelsNotSaved: 0, backup: false, toShip: 0, late: 0, toCollect: 0 }) satisfies PilotRound);
       case 'era:reply:send':
         if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
-        return answer(sendPendingReply(msg.key, msg.text), unavailable);
+        return answer(afterImportReads(() => sendPendingReply(msg.key, msg.text)), unavailable);
       case 'era:reply:dismiss':
         return answer(dismissPendingReply(msg.key).then(() => ({ ok: true })), unavailable);
       case 'era:update:status':

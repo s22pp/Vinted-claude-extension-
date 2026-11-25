@@ -3,8 +3,8 @@ import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtu
 import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
-async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string }) {
-  const calls: { method: string; path: string; csrf: string | null; body?: string | null }[] = [];
+async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string; purchasesSlowMs?: number; onPurchasesRead?: () => void }) {
+  const calls: { method: string; path: string; csrf: string | null; body?: string | null; at?: number }[] = [];
   // Test fixture only: the wardrobe can change between two imports (listings deleted, published again).
   const state = { saved: false, replies: {} as Record<string, string[]>, hide: new Set<number>(), add: [] as object[], draft: null as object | null, labelOrdered: false, hidden101: false, photos: 0, published555: false, deleted: new Set<number>() };
   const prices: Record<string, string> = { '101': '59.0' };
@@ -67,10 +67,13 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       return route.fulfill({ status: 204 });
     }
     if (url.pathname === '/my_orders' && url.searchParams.get('order_type') === 'purchased')
-      // Test fixture only: the purchases page calls an orders endpoint ERA learns by observation.
-      return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20')</script></body></html>` });
-    if (url.pathname === '/api/v2/my_orders' && (url.searchParams.get('era_test') === 'purchased' || url.searchParams.get('type') === 'purchased'))
+      // Test fixture only: the purchases page calls an orders endpoint ERA learns by observation (late on demand: the
+      // purchases page open and answering, still being read, when the seller's next click comes).
+      return route.fulfill({ contentType: 'text/html', body: `<html><body>achats<script>setTimeout(() => fetch('/api/v2/my_orders?era_test=purchased&page=1&per_page=20'), ${opts.purchasesSlowMs ?? 0})</script></body></html>` });
+    if (url.pathname === '/api/v2/my_orders' && (url.searchParams.get('era_test') === 'purchased' || url.searchParams.get('type') === 'purchased')) {
+      opts.onPurchasesRead?.();
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ my_orders: opts.purchases ?? [{ title: 'Veste Harrington Ralph Lauren taille M', price: { amount: '18.0' }, date: '2026-08-01', status: 'Terminée' }] }) });
+    }
     if (url.pathname === '/catalog' && opts.searchPageCards) {
       // Test fixture only: as seen on the seller's account (Sept. 2026) — the search page brings its listings with it,
       // calls no search API (only promoted closets), and shows a promoted closet block of another member.
@@ -103,7 +106,7 @@ async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bu
       });
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     const method = route.request().method();
-    const record = () => calls.push({ method, path: url.pathname + url.search, csrf: route.request().headers()['x-csrf-token'] ?? null, body: route.request().postData() });
+    const record = () => calls.push({ method, path: url.pathname + url.search, csrf: route.request().headers()['x-csrf-token'] ?? null, body: route.request().postData(), at: Date.now() });
     // Test fixture only: a new favourite (member 555 on item 101, an hour ago), as the notifications feed shows it.
     if (url.pathname === '/web/api/notifications/notifications') {
       record();
@@ -991,7 +994,10 @@ for (const locked of [false, true])
   test(`repost at a new price: the copy sent at that price${locked ? ', Vinted reading back another → said, the copy kept waiting' : ', read back'}`, async ({ context, base }) => {
     test.setTimeout(120_000);
     const shirt = { id: 110, title: 'Chemise Pierre Cardin L', price: '25.0', view_count: 18, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true }] };
-    const calls = await fakeVinted(context, { loggedIn: true, extra: [shirt], draftPriceLocked: locked });
+    // The purchases page slow to answer: the copy is asked while ERA still reads them in their own tab, and waits for it
+    // (that tab closes once done: borrowed, it would vanish mid-copy).
+    let purchasesReadAt = 0;
+    const calls = await fakeVinted(context, { loggedIn: true, extra: [shirt], draftPriceLocked: locked, purchasesSlowMs: 8000, onPurchasesRead: () => (purchasesReadAt = Date.now()) });
     const page = await context.newPage();
     await page.goto(`${base}#/settings`);
     await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
@@ -1008,11 +1014,15 @@ for (const locked of [false, true])
     await expect(dialog).toContainText('La copie garde le prix actuel');
     await dialog.getByLabel('Prix de la copie').fill('22');
     await expect(dialog).toContainText(/La copie partira à 22\s€ au lieu de 25\s€/);
+    const clickedAt = Date.now();
     await dialog.getByRole('button', { name: 'Créer la copie en brouillon' }).click();
     const draft = async () => JSON.parse(calls.find((c) => c.method === 'POST' && c.path === '/api/v2/item_upload/drafts')?.body ?? '{}').draft;
     if (!locked) {
       await expect(page.getByText('Copie créée en brouillon')).toBeVisible({ timeout: 40_000 });
       expect(await draft()).toMatchObject({ title: 'Chemise Pierre Cardin L', price: '22.00', brand_id: 5575 });
+      // Begun once the purchases were read, not in the middle: the copy's first read of the listing comes after them.
+      expect(purchasesReadAt).toBeGreaterThan(clickedAt);
+      expect(calls.find((c) => c.path === '/api/v2/item_upload/items/110' && c.at! >= clickedAt)!.at!).toBeGreaterThan(purchasesReadAt);
       await page.goto(`${base}#/automations`);
       await expect(page.getByText(/prix 25,00\s€ → 22,00\s€, relu/)).toBeVisible();
     } else {
