@@ -135,6 +135,16 @@ export default defineContentScript({
   },
 });
 
+/** Vinted's own « Retry-After » on a 429 (seconds or a date), in ms; null when absent. */
+function retryAfterMs(res: Response): number | null {
+  const h = res.headers.get('retry-after');
+  if (!h) return null;
+  const s = Number(h);
+  if (Number.isFinite(s)) return s * 1000;
+  const at = Date.parse(h);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
 function readPage(): PageResult {
   const isItemPage = /\/items\/\d+/.test(location.pathname);
   if (!isItemPage) return { item: null, isItemPage };
@@ -164,7 +174,7 @@ async function callApi(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', bod
         ? await fetch(path, { credentials: 'same-origin', headers: apiHeaders() })
         : await fetch(path, { method, credentials: 'same-origin', headers: { ...apiHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
     // Reporting the status must never turn an answer Vinted gave into a failure (a retry would send it twice).
-    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage).catch(() => undefined);
+    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status, retryAfterMs: retryAfterMs(res) } satisfies EraMessage).catch(() => undefined);
     const where = `HTTP ${res.status} · ${method === 'GET' ? '' : `${method} `}${path.split('?')[0]}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
     if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };
@@ -203,7 +213,7 @@ async function uploadPhoto(base64: string, mime: string, tempUuid: string, name:
     // No content-type header: the browser writes the multipart boundary itself.
     const res = await fetch(PHOTO_UPLOAD_PATH, { method: 'POST', credentials: 'same-origin', headers: apiHeaders(), body: form });
     // Reporting the status must never turn an answer Vinted gave into a failure (a retry would send it twice).
-    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status } satisfies EraMessage).catch(() => undefined);
+    await browser.runtime.sendMessage({ type: 'era:budget:report', status: res.status, retryAfterMs: retryAfterMs(res) } satisfies EraMessage).catch(() => undefined);
     const where = `HTTP ${res.status} · POST ${PHOTO_UPLOAD_PATH}`;
     if (res.status === 403) return { ok: false, code: 'NETWORK_403', status: 403, detail: where };
     if (res.status === 429) return { ok: false, code: 'RATE_LIMITED', status: 429, detail: where };

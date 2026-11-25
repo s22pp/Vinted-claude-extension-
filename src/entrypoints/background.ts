@@ -101,7 +101,7 @@ async function afterImport(before: SalesSnapshot | null, auto: boolean): Promise
             .map((d) => `${d.title} · ${(d.priceCents / 100).toFixed(0)} € → marge ~${Math.round(d.marginCents / 100)} €`)
             .join('\n'),
           // Listings read on the search page (or through an address learned from it): an unverified reading, said so.
-          ...(via ? { contextMessage: via === 'PAGE' ? 'Lu sur la page de recherche Vinted · expérimental' : 'Adresse de recherche apprise · non vérifié' } : {}),
+          ...(via ? { contextMessage: via === 'PAGE' ? 'Lu sur la page de recherche Vinted' : 'Recherche Vinted' } : {}),
           priority: 1,
         })
         .catch(() => undefined);
@@ -699,7 +699,7 @@ export default defineBackground(() => {
       case 'era:budget:reserve':
         return answer(budget.reserve(budget.useOf(msg.path, msg.method)), () => ({ ok: false, code: 'UNAVAILABLE' }));
       case 'era:budget:report':
-        return answer(budget.report(msg.status).then(() => ({ ok: true })), unavailable);
+        return answer(budget.report(msg.status, typeof msg.retryAfterMs === 'number' ? msg.retryAfterMs : null).then(() => ({ ok: true })), unavailable);
       case 'era:open': {
         // From a Vinted page (the item bar's « Analyser dans ERA »): ERA's buy analysis, prefilled — that screen only.
         const path = String(msg.path ?? '');
@@ -708,10 +708,10 @@ export default defineBackground(() => {
       }
       case 'era:challenge':
         // A Vinted page shows an anti-bot check: total stop, said in the error log (never answered, never bypassed).
-        void recordError('vinted:challenge', new Error(`contrôle anti-robot affiché par Vinted (${String(msg.path).slice(0, 80)}) : arrêt total, rien ne repart avant votre reprise`));
+        void recordError('vinted:challenge', new Error(`contrôle anti-robot affiché par Vinted (${String(msg.path).slice(0, 80)}) : arrêt total, reprise automatique après la pause`));
         return answer(budget.report(403).then(() => ({ ok: true })), unavailable);
       case 'era:budget:status':
-        return answer(budget.status(), () => ({ remaining: 0, halted: 'UNAVAILABLE', haltedUntil: null }));
+        return answer(budget.status(), () => ({ remaining: 0, halted: 'UNAVAILABLE', haltedUntil: null, mode: 'DIRECT' }));
       case 'era:search:visit':
         // One search-page visit, in the worker's own tab (see search-page.ts); the error keeps its code (budget, block…).
         visitInWorker(msg.q).then(

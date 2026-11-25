@@ -87,10 +87,21 @@ export function ApplyPriceModal({ v, cents, open, onClose }: { v: ItemView; cent
   );
 }
 
-export function PriceOnVintedButton({ v, suggested, label, variant = 'default', size = 'md' }: { v: ItemView; suggested: number | null; label?: string; variant?: 'default' | 'primary' | 'ghost'; size?: 'sm' | 'md' }) {
+/**
+ * « Modifier le prix sur Vinted » (the seller types the price), or with `direct` a price already decided (a cut the plan
+ * says is due): applied in one click — edited on Vinted, then read back — with no dialog in between.
+ */
+export function PriceOnVintedButton({ v, suggested, label, variant = 'default', size = 'md', direct = false }: { v: ItemView; suggested: number | null; label?: string; variant?: 'default' | 'primary' | 'ghost'; size?: 'sm' | 'md'; direct?: boolean }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const edit = useVintedPriceEdit();
   const id = vintedIdOf(v);
+  if (direct && suggested !== null)
+    return (
+      <Button variant={variant} size={size} icon="price" disabled={!id || edit.busy} loading={edit.busy} title={id ? (edit.stage ? t(`vintedPrice.stage${edit.stage}`) : undefined) : t('vintedPrice.onlyVinted')} onClick={() => void edit.run(v, suggested)} data-testid="price-direct">
+        {label ?? t('vintedPrice.button')}
+      </Button>
+    );
   return (
     <>
       <Button variant={variant} size={size} icon="price" disabled={!id} title={id ? undefined : t('vintedPrice.onlyVinted')} onClick={() => setOpen(true)}>

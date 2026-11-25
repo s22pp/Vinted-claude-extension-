@@ -3,9 +3,10 @@ import { DAY } from '@/domain/time';
 
 /**
  * Plan de baisse: a price calendar the seller sets once (by default −5 % after 14 days online, −10 % after 30),
- * counted from the listing's starting price, never below the floor (known cost + minimum margin). ERA never
- * lowers a price by itself: a step that is due is shown, the seller applies it — one listing at a time.
- * Unknown cost = unknown floor: the plan is shown but not applied (UNKNOWN ≠ ZERO).
+ * counted from the listing's starting price, never below the floor (known cost + minimum margin). A step that is due
+ * is applied in one click (or by the Pilote when the seller switched price cuts on).
+ * The floor is optional: with the cost unknown there is none (UNKNOWN ≠ ZERO — no floor is invented), and the step
+ * goes by the calendar alone; the price never goes under Vinted's 1 €.
  */
 
 export interface MarkdownStep {
@@ -44,10 +45,9 @@ export interface PlannedStep extends MarkdownStep {
 
 export type MarkdownPlan =
   | { status: 'NONE' }
-  | { status: 'DUE'; step: PlannedStep; steps: PlannedStep[]; startCents: number; floorCents: number }
+  | { status: 'DUE'; step: PlannedStep; steps: PlannedStep[]; startCents: number; floorCents: number | null }
   | { status: 'WAIT'; next: PlannedStep; steps: PlannedStep[]; startCents: number; floorCents: number | null }
-  | { status: 'NO_COST'; due: PlannedStep | null; steps: PlannedStep[]; startCents: number }
-  | { status: 'DONE'; steps: PlannedStep[]; startCents: number; floorCents: number; atFloor: boolean };
+  | { status: 'DONE'; steps: PlannedStep[]; startCents: number; floorCents: number | null; atFloor: boolean };
 
 /** A lower price that reads well: 50 cents under 20 €, whole euros above, rounded down. */
 export function niceDown(cents: number): number {
@@ -79,13 +79,9 @@ export function markdownPlan(x: MarkdownInput, steps: readonly MarkdownStep[]): 
   const current = due[due.length - 1] ?? null;
   const pending = current && !current.done && current.targetCents < ask ? current : null;
   const next = planned.find((s) => s.at > x.now && s.targetCents < ask) ?? null;
-  if (floor === null) {
-    if (pending || next) return { status: 'NO_COST', due: pending, steps: planned, startCents: start };
-    return { status: 'NONE' };
-  }
   if (pending) return { status: 'DUE', step: pending, steps: planned, startCents: start, floorCents: floor };
   if (next) return { status: 'WAIT', next, steps: planned, startCents: start, floorCents: floor };
-  return { status: 'DONE', steps: planned, startCents: start, floorCents: floor, atFloor: ask <= floor };
+  return { status: 'DONE', steps: planned, startCents: start, floorCents: floor, atFloor: floor !== null && ask <= floor };
 }
 
 /**

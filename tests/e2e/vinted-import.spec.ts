@@ -690,22 +690,19 @@ test('Vinted refuses the price: ERA says so instead of claiming success', async 
   await expect(row).toContainText('NOT_APPLIED · Vinted affiche toujours 59');
 });
 
-test('purchases: real buying prices imported and linked to stock in one click', async ({ context, base }) => {
+test('purchases: real buying prices imported and attached to stock by themselves when the match is sure', async ({ context, base }) => {
   await fakeVinted(context, { loggedIn: true });
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
   await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/stock`);
-  await expect(page.getByText('1 achat Vinted à rattacher')).toBeVisible({ timeout: 45_000 });
-  await page.getByRole('button', { name: 'Rattacher' }).first().click();
-  await expect(page.getByText('correspondance sûre', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Valider la correspondance sûre' }).click();
-  await expect(page.getByText('1 achat Vinted à rattacher')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  // A sure match: attached with no click — its real cost on the article, nothing left « à rattacher ».
   await page.locator('tbody tr[aria-rowindex]').filter({ hasText: 'Veste Harrington' }).click();
   // 18 € + 0,70 € + 5 % buyer protection = 19,60 €
-  await expect(page.locator('header').getByText('19,60 €')).toBeVisible();
+  await expect(page.locator('header').getByText('19,60 €')).toBeVisible({ timeout: 45_000 });
+  await page.goto(`${base}#/stock`);
+  await expect(page.getByText('1 achat Vinted à rattacher')).toHaveCount(0);
 });
 
 test('automations: a simulation sends nothing; a real run writes only whitelisted requests, with the page token', async ({ context, base }) => {
@@ -1478,7 +1475,9 @@ test('scheduled automations stop short of the reserve kept for the seller’s cl
   await vinted.goto('https://www.vinted.fr/');
   const favReads = () => calls.filter((c) => c.path.startsWith('/web/api/notifications')).length;
   const fire = () => sw.evaluate(() => chrome.alarms.create('era-auto', { when: Date.now() + 200 }));
-  // 15 calls left in the session: under the reserve of 20, the scheduled pass does not start — and says why, once.
+  // Prudent mode (Réglages): 15 calls left in the session — under the reserve of 20, the scheduled pass does not start,
+  // and says why, once.
+  await sw.evaluate(() => chrome.storage.local.set({ eraExecMode: 'PRUDENT' }));
   await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 45, halted: null } }));
   await fire();
   await page.goto(`${base}#/automations`);
@@ -1511,7 +1510,9 @@ test('analyse the whole stock on Vinted (search read on the page): stops short o
   await expect(page.getByText(/3 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
   await page.goto(`${base}#/tools`);
   const run = page.getByRole('button', { name: 'Analyser le stock (2)' });
-  // 20 calls left: a batch of up to 4 searches an article would eat the seller's reserve — nothing started, said.
+  // Prudent mode, 20 calls left: a batch of up to 4 searches an article would eat the seller's reserve — nothing
+  // started, said.
+  await sw.evaluate(() => chrome.storage.local.set({ eraExecMode: 'PRUDENT' }));
   await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 40, halted: null } }));
   await run.click();
   await expect(page.getByText('0 articles analysés, 2 laissés pour plus tard')).toBeVisible({ timeout: 20_000 });
@@ -1580,10 +1581,10 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect.poll(() => context.pages().some((p) => p.url().includes('dashboard.html')), { timeout: 10_000 }).toBe(true);
   await context.pages().find((p) => p.url().includes('dashboard.html'))!.waitForTimeout(1500);
   for (const p of context.pages().filter((x) => x.url().includes('dashboard.html'))) await p.close();
-  // Never seen working on this device yet: the switch says so.
+  // No « Expérimental » label next to the switch (direct mode: no labels at all).
   const before = await context.newPage();
   await before.goto(`${base}#/settings`);
-  await expect(before.locator('label', { hasText: 'Repères ERA sur les pages Vinted' })).toContainText('Expérimental');
+  await expect(before.locator('label', { hasText: 'Repères ERA sur les pages Vinted' })).not.toContainText('Expérimental');
   await before.close();
   await sw.evaluate(() =>
     chrome.storage.local.set({
@@ -1628,7 +1629,7 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect(page.locator('[data-era-mark]')).toHaveCount(0);
   // Not a single request to Vinted's API for this.
   expect(calls.filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
-  // Seen working on this device: the label is gone, the switch stays.
+  // Seen working on this device: still no label, the switch stays.
   const after = await context.newPage();
   await after.goto(`${base}#/settings`);
   const row = after.locator('label', { hasText: 'Repères ERA sur les pages Vinted' });
@@ -1899,7 +1900,7 @@ test('titles in series: prepared for the listings ticked, sent one per click, on
   await expect(dialog.getByLabel('Veste Carhartt Detroit M')).toHaveCount(0);
   await dialog.getByLabel('Veste Harrington Ralph Lauren M').check();
   await expect(dialog).toContainText('Devient : Veste Harrington Ralph Lauren M vintage');
-  await expect(dialog).toContainText('15 modifications au plus par session, 20 s entre deux');
+  await expect(dialog).toContainText('relue sur Vinted avant la suivante');
   await dialog.getByTestId('series-start').click();
   await expect(dialog.getByTestId('series-run')).toContainText('Annonce 1 sur 1');
   await dialog.getByTestId('series-send').click();
@@ -2195,6 +2196,7 @@ test('simulated round: every agent reads and says what it would do — nothing s
   // 19 requests left in the session: under the scheduled rounds' reserve of 20 — a round the seller starts by hand
   // still runs (it keeps only 5 for an urgent click), and the panel says so.
   const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await sw.evaluate(() => chrome.storage.local.set({ eraExecMode: 'PRUDENT' }));
   await sw.evaluate(() => chrome.storage.session.set({ eraBudget: { calls: [], total: 41, lastAt: Date.now(), halted: null } }));
   await page.goto(`${base}#/automations`);
   await expect(page.getByTestId('pilot-budget')).toContainText('19 requêtes sur 60');
@@ -2292,6 +2294,15 @@ test('« Republier maintenant »: a jacket published yesterday with 9 favourites
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
   await expect(page.getByText(/4 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // The wait between deletion and publication, in Réglages: 3 to 10 minutes unless the seller changes it (none here,
+  // for the test).
+  const wait = page.getByTestId('repost-wait');
+  await expect(wait.getByLabel('Attente minimum (min)')).toHaveValue('3');
+  await expect(wait.getByLabel('Attente maximum (min)')).toHaveValue('10');
+  await wait.getByLabel('Attente minimum (min)').fill('0');
+  await wait.getByLabel('Attente maximum (min)').fill('0');
+  await wait.getByLabel('Attente maximum (min)').blur();
+  await expect(wait.getByLabel('Attente minimum (min)')).toHaveValue('0');
   // The Pilote is off: nothing waits for a round.
   await page.goto(`${base}#/automations`);
   await expect(page.getByTestId('pilot').getByLabel('Activer les tournées automatiques')).not.toBeChecked();
@@ -2300,23 +2311,14 @@ test('« Republier maintenant »: a jacket published yesterday with 9 favourites
   await page.getByRole('checkbox', { name: 'Veste Baracuta G9 M' }).check();
   const bar = page.getByRole('region', { name: '1 article sélectionné' });
   await expect(bar.getByRole('button', { name: 'Ajouter à la prochaine tournée' })).toBeVisible();
-  await bar.getByRole('button', { name: 'Republier maintenant' }).click();
-  // The cost first, in the seller's numbers.
-  const dialog = page.getByTestId('repost-now');
-  await expect(page.getByRole('heading', { name: 'Republier cette annonce ?' })).toBeVisible();
-  await expect(dialog).toContainText('Taille M / Publiée hier');
-  await expect(dialog.getByTestId('repost-now-cost')).toContainText('Les compteurs de l’ancienne annonce repartiront de zéro.');
-  await expect(dialog.getByTestId('repost-now-cost')).toContainText('57');
-  await expect(dialog.getByTestId('repost-now-cost')).toContainText('9');
-  // The wait between deletion and publication: 3 to 10 minutes unless the seller changes it (none here, for the test).
-  await expect(dialog.getByLabel('Attente minimum (min)')).toHaveValue('3');
-  await expect(dialog.getByLabel('Attente maximum (min)')).toHaveValue('10');
-  await dialog.getByLabel('Attente minimum (min)').fill('0');
-  await dialog.getByLabel('Attente maximum (min)').fill('0');
+  // The cost is on the button, in the seller's numbers; one click starts — no confirmation.
+  await expect(bar.getByRole('button', { name: 'Republier maintenant' })).toHaveAttribute('title', /57 vues, 9 favoris/);
   const before = calls.length;
-  await dialog.getByRole('button', { name: 'Confirmer la republication' }).click();
+  await bar.getByRole('button', { name: 'Republier maintenant' }).click();
+  const dialog = page.getByTestId('repost-now');
+  await expect(dialog).toContainText('Taille M / Publiée hier');
   // Four steps, live; then « Annonce republiée », with the new listing's link.
-  await expect(page.getByRole('heading', { name: 'Republication en cours' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Republication en cours|Annonce republiée/ })).toBeVisible();
   await expect(dialog.locator('li[data-step="copy"]')).toBeVisible();
   await expect(dialog.locator('li[data-step="wait"]')).toBeVisible();
   await expect(dialog.getByTestId('repost-now-done')).toBeVisible({ timeout: 240_000 });
@@ -2347,17 +2349,18 @@ test('« Republier maintenant » for two articles: one after the other, each cop
   await page.goto(`${base}#/settings`);
   await page.getByRole('button', { name: /Importer mon stock Vinted/ }).first().click();
   await expect(page.getByText(/5 nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  // One minute each, at the least and at the most (Réglages).
+  const wait = page.getByTestId('repost-wait');
+  await wait.getByLabel('Attente minimum (min)').fill('1');
+  await wait.getByLabel('Attente maximum (min)').fill('1');
+  await wait.getByLabel('Attente maximum (min)').blur();
+  await expect(wait.getByLabel('Attente maximum (min)')).toHaveValue('1');
   await page.goto(`${base}#/stock`);
   await page.getByRole('checkbox', { name: 'Veste Baracuta G9 M' }).check();
   await page.getByRole('checkbox', { name: 'Chemise Oxford Pierre Cardin L' }).check();
   await page.getByRole('region', { name: '2 articles sélectionnés' }).getByRole('button', { name: 'Republier maintenant (2)' }).click();
   const dialog = page.getByTestId('repost-now');
-  await expect(page.getByRole('heading', { name: 'Republier ces 2 annonces ?' })).toBeVisible();
-  await expect(dialog.getByTestId('repost-now-cost')).toContainText('69');
-  // One minute each, at the least and at the most.
-  await dialog.getByLabel('Attente minimum (min)').fill('1');
-  await dialog.getByLabel('Attente maximum (min)').fill('1');
-  await dialog.getByRole('button', { name: 'Confirmer la republication' }).click();
+  await expect(page.getByRole('heading', { name: 'Republication en cours' })).toBeVisible();
   const queue = dialog.getByTestId('repost-queue');
   // In the stock's order: whichever comes first goes first.
   const first = queue.locator('li[data-item]').nth(0);
@@ -2399,10 +2402,15 @@ test('an anti-bot check shown on a Vinted page: everything stops, like a 403 —
   await vinted.goto('https://www.vinted.fr/fake-challenge');
   const [worker] = context.serviceWorkers();
   await expect.poll(async () => ((await worker!.evaluate(() => chrome.storage.local.get('eraHalt'))) as { eraHalt?: { code: string } }).eraHalt?.code ?? null, { timeout: 20_000 }).toBe('NETWORK_403');
-  // The seller sees it: requests suspended, in Réglages.
+  // The seller sees it: requests suspended, in Réglages — and when ERA takes up again by itself (no restart needed).
   const page = await context.newPage();
   await page.goto(`${base}#/settings`);
-  await expect(page.getByText(/Requêtes suspendues jusqu’à/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Requêtes suspendues après un blocage Vinted · reprise automatique à/)).toBeVisible({ timeout: 15_000 });
+  // The pause over: calls go again by themselves.
+  await worker!.evaluate(() => chrome.storage.local.set({ eraHalt: { code: 'NETWORK_403', until: Date.now() - 1000 } }));
+  await page.reload();
+  await expect(page.getByTestId('exec-mode-line')).toContainText('Direct sans limite locale · Reprise auto activée');
+  await expect(page.getByText(/Requêtes suspendues/)).toHaveCount(0);
 });
 
 test('the shop: ERA opens on it, the camera walks from room to room and stops drawing once there; reduced motion: drawn once, in place', async ({ context, base }) => {

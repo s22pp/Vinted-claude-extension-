@@ -1,5 +1,6 @@
 import type { Category, Condition, Gender, MarketCandidate } from '@/domain/entities';
 import type { SnapshotStatus } from '@/domain/status';
+import { type CallLimits, LIMITS, RATE_PAUSE_MS, UNLIMITED } from '@/data/budget-plan';
 
 export interface ComparableQuery {
   /** Free text sent to the marketplace. Brand + model/type — never a colour (colours don't narrow a market). */
@@ -105,9 +106,9 @@ export interface MarketplaceAdapter {
 }
 
 /**
- * Request budget that any network adapter MUST go through.
- * Numbers come from real account blocks: 60 calls / session, 12 / minute, ≥1.2 s spacing.
- * A 403 or 429 halts everything for the session — no retry, no workaround.
+ * Request pacing that any network adapter MUST go through: calls one after another (≥ 1.2 s apart), with the caps of
+ * the seller's execution mode (none in Direct). A 403 or 429 halts everything until its pause is over — no retry
+ * through it, no workaround.
  */
 export class RequestBudget {
   private calls: number[] = [];
@@ -115,7 +116,7 @@ export class RequestBudget {
   private haltedCode: MarketplaceErrorCode | null = null;
 
   constructor(
-    private readonly limits = { perSession: 60, perMinute: 12, minSpacingMs: 1200 },
+    private readonly limits: CallLimits = LIMITS.PRUDENT,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -123,7 +124,9 @@ export class RequestBudget {
     return this.haltedCode;
   }
 
+  /** Calls left this session; UNLIMITED when the mode sets no cap. */
   get remaining(): number {
+    if (!Number.isFinite(this.limits.perSession)) return UNLIMITED;
     return Math.max(0, this.limits.perSession - this.total);
   }
 
@@ -158,8 +161,9 @@ export class RequestBudget {
   static fromJSON(
     s: { calls: number[]; total: number; halted: MarketplaceErrorCode | null } | undefined,
     now: () => number = Date.now,
+    limits: CallLimits = LIMITS.PRUDENT,
   ): RequestBudget {
-    const b = new RequestBudget(undefined, now);
+    const b = new RequestBudget(limits, now);
     if (s) {
       b.calls = s.calls;
       b.total = s.total;
@@ -169,5 +173,11 @@ export class RequestBudget {
   }
 }
 
-/** After a block, stay silent for hours: "it works again" does not mean the flag is lifted. */
+/** After a 403 or a check page, stay silent for hours: "it works again" does not mean the flag is lifted. */
 export const HALT_COOLDOWN_MS = 6 * 3600_000;
+
+/** How long a block pauses every call: a 429 as long as Vinted asks (or RATE_PAUSE_MS), a 403 HALT_COOLDOWN_MS. */
+export function haltPauseMs(status: number, retryAfterMs: number | null = null): number {
+  if (status === 429) return retryAfterMs !== null && Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? Math.min(HALT_COOLDOWN_MS, Math.max(60_000, retryAfterMs)) : RATE_PAUSE_MS;
+  return HALT_COOLDOWN_MS;
+}

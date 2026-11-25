@@ -224,7 +224,7 @@ export function DailyRun() {
               <StepLine s={x.step} /> · {t('markdown.from', { price: i18n.money(x.v.askPrice ?? 0) })}
             </span>
             <div>
-              <PriceOnVintedButton v={x.v} suggested={x.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: i18n.money(x.step.targetCents) })} />
+              <PriceOnVintedButton direct v={x.v} suggested={x.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: i18n.money(x.step.targetCents) })} />
             </div>
           </div>
         );

@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import type { BudgetStatus, EraMessage } from '@/data/adapters/vinted/protocol';
-import { AUTO_FLOOR, MANUAL_FLOOR, SESSION_CALLS } from '@/data/budget-plan';
+import { AUTO_FLOOR, MANUAL_FLOOR, SESSION_CALLS, isUnlimited } from '@/data/budget-plan';
 import { AUTO_BACKUP_KEY } from '@/data/auto-backup';
 import { BUY_ALERTS_KEY } from '@/data/buy-alerts';
 import { db } from '@/data/db';
@@ -227,6 +227,22 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
  */
 function BudgetGauge({ b }: { b: BudgetStatus }) {
   const { t } = useI18n();
+  const hm = (ms: number) => `${new Date(ms).getHours()} h ${String(new Date(ms).getMinutes()).padStart(2, '0')}`;
+  if (isUnlimited(b.remaining) || (b.halted && b.mode !== 'PRUDENT')) {
+    // Direct mode: nothing to count down — the calls made, and what happens after a block.
+    const sent = Object.values(b.uses ?? {}).reduce<number>((s, n) => s + (n ?? 0), 0);
+    return (
+      <div className="pilot-budget" data-level={b.halted ? 'halted' : 'ok'} data-testid="pilot-budget">
+        <div className="row" style={{ gap: 10, justifyContent: 'space-between' }}>
+          <span className="t-small t-faint">{t('pilot.budgetTitle')}</span>
+          <strong className="num t-small">{t('pilot.budgetDirect')}</strong>
+        </div>
+        <p className="t-small" style={{ margin: 0 }}>
+          {b.halted ? t('pilot.budgetHalted', { at: b.haltedUntil ? hm(b.haltedUntil) : '—' }) : t('pilot.budgetDirectLine', { n: sent })}
+        </p>
+      </div>
+    );
+  }
   const level = b.halted ? 'halted' : b.remaining <= MANUAL_FLOOR ? 'empty' : b.remaining <= AUTO_FLOOR ? 'low' : 'ok';
   const pct = (n: number) => `${Math.max(0, Math.min(100, (n / SESSION_CALLS) * 100))}%`;
   const at = b.resetAt ? `${new Date(b.resetAt).getHours()} h ${String(new Date(b.resetAt).getMinutes()).padStart(2, '0')}` : null;
@@ -234,7 +250,7 @@ function BudgetGauge({ b }: { b: BudgetStatus }) {
     ok: t('pilot.budgetOk', { n: b.remaining, total: SESSION_CALLS }),
     low: t('pilot.budgetLow', { reserve: AUTO_FLOOR }),
     empty: t('pilot.budgetEmpty'),
-    halted: t('pilot.budgetHalted'),
+    halted: t('pilot.budgetHalted', { at: b.haltedUntil ? hm(b.haltedUntil) : '—' }),
   }[level];
   return (
     <div className="pilot-budget" data-level={level} data-testid="pilot-budget">

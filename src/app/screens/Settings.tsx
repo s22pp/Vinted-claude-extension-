@@ -17,6 +17,9 @@ import { RefreshSettings } from '../components/refresh-settings';
 import { OverlaySettings, RepliesSettings } from '../components/overlay-settings';
 import { DiagnosticCard, IntegrationsCard, SellerIdentityCard } from '../components/settings-cards';
 import { go, useEra } from '../state';
+import { ExecModeSwitch } from '../components/exec-mode';
+import { RepostWaitSetting } from '../components/repost-now';
+import { isUnlimited } from '@/data/budget-plan';
 
 export function Settings() {
   const i = useI18n();
@@ -138,12 +141,15 @@ export function Settings() {
           <Card title={t('settings.marketplace')} icon="repost" tone="cobalt">
             <div className="stack-3">
               <p className="t-small t-muted">{t('vinted.importHint')}</p>
-              <p className="t-small t-faint">{t('settings.budget')}</p>
+              <ExecModeSwitch />
+              <RepostWaitSetting />
               {budget && (
                 <p className="t-small">
                   {budget.halted && budget.haltedUntil
                     ? t('vinted.halted', { time: new Date(budget.haltedUntil).toLocaleTimeString(i.locale) })
-                    : t('vinted.budget', { n: budget.remaining })}
+                    : isUnlimited(budget.remaining)
+                      ? t('vinted.budgetDirect', { n: Object.values(budget.uses ?? {}).reduce<number>((s, n) => s + (n ?? 0), 0) })
+                      : t('vinted.budget', { n: budget.remaining })}
                   {budget.uses && Object.keys(budget.uses).length > 0 && (
                     <span className="t-faint" data-testid="budget-uses">
                       {' · '}

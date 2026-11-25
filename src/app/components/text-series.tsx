@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { WRITE_MAX, WRITE_SPACING_MS } from '@/data/adapters/vinted/budget-store';
+import { useExecMode } from './exec-mode';
 import type { EraMessage, TextEditResult } from '@/data/adapters/vinted/protocol';
 import { useI18n } from '@/i18n';
 import { type TextField, type TextOp, applyTextOp, textOpProblem } from '@/intelligence/text-edit';
@@ -9,7 +10,6 @@ import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Field, Input, Select } from '@/ui/components/primitives';
 import { useEra } from '../state';
 import { RouteFlag } from './route-flag';
-import { VerifyFlag } from './verify-flag';
 
 type OpKind = TextOp['kind'];
 type Outcome = { itemId: string; state: 'DONE' | 'UNCONFIRMED' | 'ALREADY' | 'FAILED' | 'SKIPPED'; detail?: string };
@@ -48,6 +48,10 @@ export function TextSeries() {
   const [busy, setBusy] = useState(false);
   const [readyAt, setReadyAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  // Prudent mode keeps its write quota and spacing; Direct has neither.
+  const prudent = useExecMode() === 'PRUDENT';
+  const cap = prudent ? WRITE_MAX : Number.POSITIVE_INFINITY;
+  const spacing = prudent ? WRITE_SPACING_MS : 0;
   useEffect(() => {
     if (readyAt <= now) return;
     const h = setTimeout(() => setNow(Date.now()), 1000);
@@ -91,7 +95,7 @@ export function TextSeries() {
       }
       setBusy(false);
       const at = Date.now();
-      setReadyAt(at + WRITE_SPACING_MS);
+      setReadyAt(at + spacing);
       setNow(at);
       if (r.ok) {
         setDone((d) => [...d, { itemId, state: !r.changed ? 'ALREADY' : r.unconfirmed ? 'UNCONFIRMED' : 'DONE', detail: r.after }]);
@@ -133,7 +137,7 @@ export function TextSeries() {
                 {t('series.stop')}
               </Button>
             </div>
-            <p className="t-small t-faint">{t('series.oneByOne', { cap: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
+            <p className="t-small t-faint">{t('series.oneByOne')}</p>
           </>
         ) : (
           <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
@@ -173,7 +177,7 @@ export function TextSeries() {
   return (
     <div className="stack" style={{ gap: 12 }} data-testid="series">
       <p className="t-small t-muted">
-        {t('series.intro')} <VerifyFlag proof="description" />
+        {t('series.intro')}
       </p>
       <div className="row wrap" style={{ gap: 8 }}>
         <Field label={t('series.field')} htmlFor="series-field">
@@ -232,7 +236,7 @@ export function TextSeries() {
           })}
         </ul>
       )}
-      {toSend.length > WRITE_MAX && <p className="t-small t-warn">{t('series.overCap', { n: toSend.length, cap: WRITE_MAX })}</p>}
+      {toSend.length > cap && <p className="t-small t-warn">{t('series.overCap', { n: toSend.length, cap })}</p>}
       <div>
         <Button
           variant="primary"
@@ -240,14 +244,14 @@ export function TextSeries() {
           disabled={!!problem || toSend.length === 0}
           onClick={() => {
             setDone([]);
-            setQueue(toSend.slice(0, WRITE_MAX).map((v) => v.item.id));
+            setQueue(toSend.slice(0, cap).map((v) => v.item.id));
           }}
           data-testid="series-start"
         >
-          {t('series.start', { n: Math.min(toSend.length, WRITE_MAX) })}
+          {t('series.start', { n: Math.min(toSend.length, cap) })}
         </Button>
       </div>
-      <p className="t-small t-faint">{t('series.oneByOne', { cap: WRITE_MAX, s: WRITE_SPACING_MS / 1000 })}</p>
+      <p className="t-small t-faint">{t('series.oneByOne')}</p>
     </div>
   );
 }

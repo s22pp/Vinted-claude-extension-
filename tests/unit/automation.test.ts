@@ -31,19 +31,20 @@ describe('new favourites', () => {
     expect(planFavorite(n!, item, cfg, { ...ctx, sentToday: cfg.fav.perDay })).toMatchObject({ send: false, reason: 'DAY_CAP' });
   });
 
-  it('offer only, and no offer possible (cost unknown): nothing sent, no conversation opened — looked at again later', () => {
+  it('offer only: sent even with the cost unknown (no floor); nothing sent when no offer is possible — looked at again later', () => {
     const [n] = parseFavoriteNotifications(json);
     const offerOnly = { ...cfg, fav: { ...cfg.fav, mode: 'OFFER' as const } };
     const ctx = { seen: new Set<string>(), sentToday: 0, now: NOW };
-    expect(planFavorite(n!, { title: 'Veste', priceCents: 5900, costCents: null }, offerOnly, ctx)).toMatchObject({ send: false, reason: 'NO_OFFER', final: false });
+    expect(planFavorite(n!, { title: 'Veste', priceCents: 5900, costCents: null }, offerOnly, ctx)).toMatchObject({ send: true, offerCents: 5400, note: 'coût d’achat inconnu : offre sans plancher' });
+    expect(planFavorite(n!, { title: 'Veste', priceCents: 2000, costCents: 1700 }, offerOnly, ctx)).toMatchObject({ send: false, reason: 'NO_OFFER', final: false });
     expect(planFavorite(n!, { title: 'Veste', priceCents: 5900, costCents: 1800 }, offerOnly, ctx)).toEqual({ send: true, message: false, offerCents: 5400, note: null });
   });
 
-  it('offers the discount, never under cost + margin, never without a known cost', () => {
+  it('offers the discount, never under cost + margin; with the cost unknown, the discount alone (optional floor)', () => {
     expect(favoriteOffer({ title: 'a', priceCents: 5900, costCents: 1800 }, cfg).cents).toBe(5400); // −10 % = 53,10 → 54 €
     expect(favoriteOffer({ title: 'a', priceCents: 2000, costCents: 1700 }, cfg).cents).toBeNull(); // floor 20 € = price
     expect(favoriteOffer({ title: 'a', priceCents: 2500, costCents: 1900 }, cfg).cents).toBe(2300); // floor 22 € beats −10 %
-    expect(favoriteOffer({ title: 'a', priceCents: 5900, costCents: null }, cfg)).toMatchObject({ cents: null });
+    expect(favoriteOffer({ title: 'a', priceCents: 5900, costCents: null }, cfg)).toMatchObject({ cents: 5400, note: 'coût d’achat inconnu : offre sans plancher' });
     expect(favoriteOffer(null, cfg).cents).toBeNull();
     expect(floorFor(null, cfg)).toBeNull();
   });
@@ -134,7 +135,7 @@ describe('bundle offer to a member who favourited several articles', () => {
     ['3', { title: 'Jean Levi’s 501', priceCents: 2500, costCents: null, brand: 'Levi’s' }],
   ]);
   const ctx = { seen: new Set<string>(), sentToday: 0, now };
-  it('one bundle per member with 2+ favourites; the price never under the sum of the floors', async () => {
+  it('one bundle per member with 2+ favourites; the price never under the sum of the known floors', async () => {
     const { planBundles } = await import('@/intelligence/automation');
     const b = planBundles([n('9', '1'), n('9', '2'), n('8', '1')], items, cfg, ctx);
     expect(b).toHaveLength(1);
@@ -143,8 +144,8 @@ describe('bundle offer to a member who favourited several articles', () => {
     const tight = planBundles([n('9', '1'), n('9', '2')], items, { ...cfg, minMarginCents: 3500 }, ctx);
     // Floors 53 + 43 = 96 € ≥ 89 €: no price is promised.
     expect(tight[0]!.bundleCents).toBeNull();
-    // A cost unknown: no price either.
-    expect(planBundles([n('9', '1'), n('9', '3')], items, cfg, ctx)[0]!.bundleCents).toBeNull();
+    // A cost unknown: that article adds no floor — the bundle price still goes (optional floor).
+    expect(planBundles([n('9', '1'), n('9', '3')], items, cfg, ctx)[0]!.bundleCents).not.toBeNull();
     // Too recent, seen, switched off: no bundle.
     expect(planBundles([n('9', '1', 5), n('9', '2', 5)], items, cfg, ctx)).toEqual([]);
     expect(planBundles([n('9', '1'), n('9', '2')], items, { ...cfg, fav: { ...cfg.fav, bundle: false } }, ctx)).toEqual([]);

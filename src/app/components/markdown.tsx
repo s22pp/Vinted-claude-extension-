@@ -34,7 +34,7 @@ export function MarkdownPlanView({ v, onAddCost }: { v: ItemView; onAddCost: () 
       </div>
     );
   }
-  const floor = plan.status === 'NO_COST' ? null : plan.floorCents;
+  const floor = plan.floorCents;
   const state = (s: PlannedStep) => (s.done ? 'done' : s.at <= era.now ? 'due' : 'later');
   return (
     <div className="stack" style={{ gap: 10 }} data-testid="markdown">
@@ -63,7 +63,7 @@ export function MarkdownPlanView({ v, onAddCost }: { v: ItemView; onAddCost: () 
             {t('markdown.dueNow', { from: money(v.askPrice ?? 0), to: money(plan.step.targetCents) })}
           </p>
           <div>
-            <PriceOnVintedButton v={v} suggested={plan.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: money(plan.step.targetCents) })} />
+            <PriceOnVintedButton direct v={v} suggested={plan.step.targetCents} variant="primary" size="sm" label={t('markdown.apply', { price: money(plan.step.targetCents) })} />
           </div>
         </div>
       )}
@@ -75,7 +75,7 @@ export function MarkdownPlanView({ v, onAddCost }: { v: ItemView; onAddCost: () 
       )}
       {plan.status === 'WAIT' && <p className="t-small t-muted">{t('markdown.next', { when: date(plan.next.at), price: money(plan.next.targetCents) })}</p>}
       {plan.status === 'DONE' && <p className="t-small t-muted">{plan.atFloor ? t('markdown.atFloor') : t('markdown.done')}</p>}
-      {plan.status === 'NO_COST' && (
+      {floor === null && (
         <p className="t-small t-muted">
           {t('markdown.noCost')}{' '}
           <Button size="sm" variant="ghost" onClick={onAddCost}>

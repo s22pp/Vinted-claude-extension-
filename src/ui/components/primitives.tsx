@@ -374,16 +374,3 @@ export function Sample({ n }: { n: number }) {
   return <span className="t-faint t-small num">{t('data.sample', { n })}</span>;
 }
 
-/**
- * Integration honesty. EXPERIMENTAL = a Vinted action that may break at any time;
- * UNVERIFIED = relies on a Vinted structure never confirmed on a real account.
- * Fixture tests prove ERA's logic, not the real Vinted integration.
- */
-export function Flag({ kind, title, leaving }: { kind: 'EXPERIMENTAL' | 'UNVERIFIED'; title?: string; leaving?: boolean }) {
-  const { t } = useI18n();
-  return (
-    <span className={`flag flag--${kind.toLowerCase()}${leaving ? ' flag--leaving' : ''}`} title={title ?? t(`flag.${kind}_hint`)} aria-hidden={leaving || undefined}>
-      {t(`flag.${kind}`)}
-    </span>
-  );
-}

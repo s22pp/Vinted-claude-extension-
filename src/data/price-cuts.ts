@@ -38,7 +38,7 @@ export async function duePriceCuts(now = Date.now()): Promise<DueCut[]> {
     const l = v.current;
     if (!v.inStock || l?.status !== 'ACTIVE' || !l.platformListingId || v.askPrice === null) continue;
     const p = markdownPlan({ askCents: v.askPrice, startCents: starts.get(l.id) ?? l.priceCents, listedAt: l.listedAt, floorCents: floorFor(v.cost, margin), now }, plan);
-    if (p.status !== 'DUE' || p.step.targetCents >= v.askPrice || p.step.targetCents < p.floorCents) continue;
+    if (p.status !== 'DUE' || p.step.targetCents >= v.askPrice || (p.floorCents !== null && p.step.targetCents < p.floorCents)) continue;
     out.push({ itemId: v.item.id, platformListingId: l.platformListingId, title: l.title, fromCents: v.askPrice, toCents: p.step.targetCents, dueAt: p.step.at });
   }
   return out.sort((a, b) => a.dueAt - b.dueAt);

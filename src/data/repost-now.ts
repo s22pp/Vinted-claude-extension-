@@ -1,7 +1,7 @@
 import { CHOSEN_REPOSTS_KEY, type ChosenRepost, removeChosen } from '@/intelligence/repost-choice';
 import { REPOST_ALARM, REPOST_JOBS_KEY, REPOST_WAIT_KEY, type RepostNow, type WaitWindow, clampWindow, drawWaitMs, isActive, nextMove, startNow } from '@/intelligence/repost-now';
 import { errorInfo } from './adapters/marketplace';
-import { writeWait } from './adapters/vinted/budget-store';
+import { loadBudget, writeWait } from './adapters/vinted/budget-store';
 import { VintedTabAdapter } from './adapters/vinted/vinted-adapter';
 import { db, uid } from './db';
 import { repo } from './repo';
@@ -9,8 +9,21 @@ import { PENDING_REPOSTS_KEY, deleteForRepost, pendingReposts, repostAsDraft } f
 import { publishDraft } from './vinted-draft';
 import { waitAlive } from './vinted-write';
 
-/** The list paused by a stop that concerns the account (never taken up without the seller). */
+/**
+ * The list paused by a stop that concerns the account. It takes up again by itself: after a Vinted block once its
+ * pause is over, after anything else (no tab, logged out) a minute later — the article concerned first.
+ */
 export const REPOST_PAUSE_KEY = 'eraRepostPause';
+/** Pause after a stop that is not a Vinted block (tab, login): then ERA tries again by itself. */
+export const AUTO_RESUME_MS = 60_000;
+
+interface Pause {
+  code: string;
+  detail: string;
+  at: number;
+  until: number;
+  itemId: string;
+}
 /** These stop the whole list: the account comes first. Anything else stops only the article concerned. */
 const STOP = /^(NETWORK_403|RATE_LIMITED|NOT_LOGGED_IN|BUDGET_EXHAUSTED|NO_VINTED_TAB)/;
 /** Finished jobs are kept a day, for the seller to read what happened. */
@@ -130,7 +143,11 @@ async function stopped(j: RepostNow, code: string, detail: string | undefined, r
   const text = `${code}${detail ? ` · ${detail}` : ''}`;
   await patch(j.itemId, { outcome: 'FAILED', detail: text, resumable, endedAt: Date.now() });
   if (!STOP.test(code)) return 'next';
-  await browser.storage.local.set({ [REPOST_PAUSE_KEY]: { code, detail: text, at: Date.now() } });
+  const now = Date.now();
+  // A Vinted block: as long as its pause lasts. Anything else: a minute.
+  const { haltedUntil } = await loadBudget().catch(() => ({ haltedUntil: null }));
+  const until = /^(NETWORK_403|RATE_LIMITED)/.test(code) && haltedUntil ? haltedUntil : now + AUTO_RESUME_MS;
+  await browser.storage.local.set({ [REPOST_PAUSE_KEY]: { code, detail: text, at: now, until, itemId: j.itemId } satisfies Pause });
   return 'paused';
 }
 
@@ -200,13 +217,20 @@ async function runStep(itemId: string, step: 'copy' | 'delete' | 'publish'): Pro
 /**
  * Background-only: the list, worked one article at a time. A wait of more than a minute is left to the alarm (Chrome
  * stops an idle worker); a shorter one is slept on here. Paused by a stop concerning the account: nothing goes on
- * until the seller's « Reprendre ».
+ * until the pause is over, then the list takes up again by itself (or at the seller's « Reprendre »).
  */
 export async function runRepostQueue(): Promise<void> {
   for (let guard = 0; guard < 500; guard++) {
-    if ((await browser.storage.local.get(REPOST_PAUSE_KEY))[REPOST_PAUSE_KEY]) {
-      await browser.alarms.clear(REPOST_ALARM);
-      return;
+    const pause = obj((await browser.storage.local.get(REPOST_PAUSE_KEY))[REPOST_PAUSE_KEY]);
+    if (Object.keys(pause).length > 0) {
+      const until = typeof pause.until === 'number' ? pause.until : 0;
+      if (until > Date.now()) {
+        // Taken up by itself at the end of the pause (the alarm wakes the worker).
+        await browser.alarms.create(REPOST_ALARM, { when: until });
+        return;
+      }
+      await browser.storage.local.remove(REPOST_PAUSE_KEY);
+      if (typeof pause.itemId === 'string') await resumeRepost(pause.itemId);
     }
     const move = nextMove(await repostJobs(), Date.now());
     if (move.kind === 'idle') {
@@ -220,9 +244,6 @@ export async function runRepostQueue(): Promise<void> {
       await waitAlive(Math.max(0, left));
       continue;
     }
-    if ((await runStep(move.itemId, move.step)) === 'paused') {
-      await browser.alarms.clear(REPOST_ALARM);
-      return;
-    }
+    if ((await runStep(move.itemId, move.step)) === 'paused') continue;
   }
 }

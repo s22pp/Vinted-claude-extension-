@@ -15,7 +15,7 @@ export interface AutoConfig {
   /** Master switch for the schedule. Manual runs ("Lancer maintenant") work with it off. */
   enabled: boolean;
   everyMinutes: number;
-  /** Floor = known purchase cost + this margin. No floor without a known cost (UNKNOWN ≠ 0). */
+  /** Floor = known purchase cost + this margin. No floor without a known cost (UNKNOWN ≠ 0): offers then go by % alone. */
   minMarginCents: number;
   fav: {
     enabled: boolean;
@@ -69,14 +69,16 @@ export const DEFAULT_AUTO: AutoConfig = {
     minDelayMin: 15,
     perDay: 15,
   },
+  // Direct mode: offers received (accept, counter, decline) and the post-delivery message are sent by themselves as
+  // soon as the seller switches the automations on — no per-agent opt-in left to find.
   offers: {
-    enabled: false,
+    enabled: true,
     acceptPct: 90,
     rejectBelowPct: 60,
     counterPct: 92,
     acceptMessage: 'Merci ! Offre acceptée, j’envoie dès le paiement reçu.',
   },
-  delivered: { enabled: false, template: DEFAULT_DELIVERED },
+  delivered: { enabled: true, template: DEFAULT_DELIVERED },
   replies: { enabled: false },
 };
 
@@ -166,14 +168,17 @@ export function planFavorite(n: FavoriteNotice, item: FavItem | null, cfg: AutoC
   return { send: true, message, offerCents: offer.cents, note: offer.note };
 }
 
-/** The offer for a new favourite: the discount, never under the floor; none when the floor is unknown. */
+/**
+ * The offer for a new favourite: the discount, never under the floor. The floor is optional: with the cost unknown the
+ * discount goes alone (said in the note), never under Vinted's 1 €.
+ */
 export function favoriteOffer(item: FavItem | null, cfg: AutoConfig): { cents: number | null; note: string | null } {
   if (!item) return { cents: null, note: 'article inconnu d’ERA : pas d’offre' };
   const floor = floorFor(item.costCents, cfg);
-  if (floor === null) return { cents: null, note: 'coût d’achat inconnu : pas d’offre sous un plancher inconnu' };
-  const target = Math.max(ceilEuro(item.priceCents * (1 - cfg.fav.discountPct / 100)), ceilEuro(floor));
-  if (target >= item.priceCents) return { cents: null, note: 'le plancher atteint le prix : pas d’offre' };
-  return { cents: target, note: null };
+  const raw = Math.max(100, ceilEuro(item.priceCents * (1 - cfg.fav.discountPct / 100)));
+  const target = floor === null ? raw : Math.max(raw, ceilEuro(floor));
+  if (target >= item.priceCents) return { cents: null, note: floor === null ? 'remise trop petite pour une offre' : 'le plancher atteint le prix : pas d’offre' };
+  return { cents: target, note: floor === null ? 'coût d’achat inconnu : offre sans plancher' : null };
 }
 
 /* ── Offers received ────────────────────────────────────── */
@@ -273,13 +278,13 @@ export interface BundlePlan {
   notices: FavoriteNotice[];
   itemIds: string[];
   totalCents: number;
-  /** null: a floor is unknown (a cost is missing) or the floors reach the total — no price is promised. */
+  /** null: the floors reach the total — no price is promised. An unknown cost adds no floor. */
   bundleCents: number | null;
 }
 
 /**
  * Members who favourited 2 articles or more (each one sendable now): one bundle each. The price is the total
- * minus `bundlePct`, never under the sum of the floors; unknown if any article's cost is unknown.
+ * minus `bundlePct`, never under the sum of the known floors (an unknown cost adds none).
  */
 export function planBundles(notices: readonly FavoriteNotice[], items: ReadonlyMap<string, FavItem>, cfg: AutoConfig, ctx: { seen: ReadonlySet<string>; sentToday: number; now: number }): BundlePlan[] {
   if (!cfg.fav.bundle || cfg.fav.mode === 'OFFER') return [];
@@ -297,8 +302,9 @@ export function planBundles(notices: readonly FavoriteNotice[], items: ReadonlyM
     const its = list.map((n) => items.get(n.itemId)!);
     const total = its.reduce((a, i) => a + i.priceCents, 0);
     const floors = its.map((i) => floorFor(i.costCents, cfg));
-    const floor = floors.every((f): f is number => f !== null) ? floors.reduce((a, b) => a + b, 0) : null;
-    const target = floor === null ? null : Math.max(ceilEuro(total * (1 - cfg.fav.bundlePct / 100)), ceilEuro(floor));
+    // The floor is optional: the known floors add up; an article whose cost is unknown has none (never an invented one).
+    const floor = floors.reduce<number>((a, f) => a + (f ?? 0), 0);
+    const target = Math.max(100, ceilEuro(total * (1 - cfg.fav.bundlePct / 100)), ceilEuro(floor));
     out.push({ userId, notices: list, itemIds: list.map((n) => n.itemId), totalCents: total, bundleCents: target !== null && target < total ? target : null });
   }
   return out;

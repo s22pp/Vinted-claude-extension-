@@ -1,9 +1,34 @@
 /**
- * The session budget (60 calls, never raised) shared between what runs by itself and what the seller clicks. Rule:
- * reduce the plan, never the budget. Scheduled runs stop short of a reserve kept for the seller's own actions (a label,
- * a price, a search), and each schedule says what it costs.
+ * How ERA paces its calls to Vinted, chosen by the seller in Réglages:
+ *  - DIRECT (default): no local cap — no calls-per-session or per-minute quota, no write quota, no forced wait between
+ *    writes. Calls still go one after another, ≥ 1.2 s apart.
+ *  - PRUDENT: the limits measured after the account's blocks (60 calls per session, 12 per minute, writes ≥ 20 s apart
+ *    and ≤ 15 per session, automatic sends ≥ 12 s apart and ≤ 40 per day), with a reserve kept for the seller's clicks.
+ * In both, a 403, a 429 or a Vinted check page stops every call at once, and ERA takes up again by itself once the
+ * pause is over — never a retry through the block.
  */
+export type ExecMode = 'DIRECT' | 'PRUDENT';
+export const EXEC_MODE_KEY = 'eraExecMode';
+export const DEFAULT_EXEC_MODE: ExecMode = 'DIRECT';
+export const isExecMode = (x: unknown): x is ExecMode => x === 'DIRECT' || x === 'PRUDENT';
 
+export interface CallLimits {
+  perSession: number;
+  perMinute: number;
+  minSpacingMs: number;
+}
+export const LIMITS: Readonly<Record<ExecMode, CallLimits>> = {
+  DIRECT: { perSession: Number.POSITIVE_INFINITY, perMinute: Number.POSITIVE_INFINITY, minSpacingMs: 1200 },
+  PRUDENT: { perSession: 60, perMinute: 12, minSpacingMs: 1200 },
+};
+/** What « remaining » reads when there is no cap (a finite number, so it survives messaging and storage). */
+export const UNLIMITED = Number.MAX_SAFE_INTEGER;
+export const isUnlimited = (remaining: number) => remaining >= UNLIMITED;
+
+/** After a 429: Vinted's own Retry-After when it gives one, else this pause. */
+export const RATE_PAUSE_MS = 15 * 60_000;
+
+/** The Prudent session budget (60 calls) shared between what runs by itself and what the seller clicks. */
 export const SESSION_CALLS = 60;
 /** Scheduled runs (refresh, buy alerts, automations) never start below this many calls left. */
 export const AUTO_FLOOR = 20;
@@ -15,9 +40,8 @@ export const MANUAL_FLOOR = 5;
 
 /**
  * A session ends with the browser, or after this long without a single call to Vinted — like a seller sitting down
- * again hours later: the autopilot's rounds (9 h, 13 h, 21 h) with Chrome left open for days each start a session of
- * 60, instead of all stopping from the second day. Within a session nothing changes (60 calls, 12 per minute, 1.2 s
- * apart), and a session stopped by a block (403/429) never starts again by itself: only a browser restart does.
+ * again hours later: the autopilot's rounds with Chrome left open for days each start a fresh session. A session
+ * stopped by a block (403/429) takes up again by itself once the block's pause is over.
  */
 export const SESSION_GAP_MS = 3 * 3_600_000;
 

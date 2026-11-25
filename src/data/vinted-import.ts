@@ -12,6 +12,7 @@ import { fetchPurchases } from './adapters/vinted/orders';
 import { db, uid } from './db';
 import { repo } from './repo';
 import { PENDING_REPOSTS_KEY, pendingReposts } from './vinted-repost';
+import { autoLinkSurePurchases } from './purchase-autolink';
 
 /**
  * Import the seller's own wardrobe + sold orders from Vinted (≤ 6 budgeted GET calls: profile, 2 wardrobe pages, 2 sales pages + one plain-form retry; purchases ≤ 4 more).
@@ -423,6 +424,8 @@ export async function importPurchasesFromVinted(now = Date.now()): Promise<numbe
       });
     }
     await repo.setSetting('purchasesError', null);
+    // A sure match is attached to its stock item at once (the real cost in), the rest waits for the seller.
+    await autoLinkSurePurchases(now);
     return purchases.length;
   } catch (e) {
     await repo.setSetting('purchasesError', e instanceof Error ? e.message : String(e));

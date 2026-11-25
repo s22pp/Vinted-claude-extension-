@@ -17,8 +17,6 @@ import { useMoneyField } from '../components/forms';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { type MessageExample, MessagePicker } from '../components/fav-messages';
-import { ProvenOnly, UntilProven, VerifyFlag } from '../components/verify-flag';
-import { Icon } from '@/ui/components/icons';
 import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
 
 /** The offer shown in previews: the discount on the price, rounded up to the euro (the real one also respects the floor). */
@@ -141,23 +139,8 @@ export function Automations() {
         <details className="card span-12 pilot-rules" open={!pilotOn} data-testid="pilot-rules">
           <summary className="pilot-rules__head">
             <span className="card__title">{t('auto.warnTitle')}</span>
-            <span className="row" style={{ gap: 8 }}>
-              <VerifyFlag proof="auto" /> <VerifyFlag proof="auto" kind="UNVERIFIED" />
-            </span>
           </summary>
           <div className="stack" style={{ marginTop: 12 }}>
-            {/* The standing safety note: an editorial aside, distinct from the « not yet verified » labels. */}
-            <aside className="safety-note" data-testid="pilot-safety">
-              <Icon name="shield" size={16} />
-              <div>
-                <UntilProven proof="auto">
-                  <p>{t('auto.warnBody')}</p>
-                </UntilProven>
-                <ProvenOnly proof="auto">
-                  <p>{t('auto.warnBodyProven')}</p>
-                </ProvenOnly>
-              </div>
-            </aside>
             <ul className="t-small t-muted stack" style={{ margin: 0, paddingLeft: 18 }}>
               <li>{t('auto.guard1')}</li>
               <li>{t('auto.guard2')}</li>
@@ -273,9 +256,6 @@ export function Automations() {
             <ul className="t-small t-faint stack" style={{ margin: 0, paddingLeft: 18, gap: 4 }}>
               <li>{t('auto.delivered.how')}</li>
               <li>{t('auto.delivered.once')}</li>
-              <UntilProven proof="auto">
-                <li>{t('auto.delivered.unverified')}</li>
-              </UntilProven>
             </ul>
             {runButtons('DELIVERED', cfg.delivered.enabled)}
           </div>
@@ -288,9 +268,6 @@ export function Automations() {
               <li>{t('auto.replies.how')}</li>
               <li>{t('auto.replies.never')}</li>
               <li>{t('auto.replies.key')}</li>
-              <UntilProven proof="auto">
-                <li>{t('auto.replies.unverified')}</li>
-              </UntilProven>
             </ul>
             {runButtons('REPLIES', cfg.replies.enabled)}
           </div>

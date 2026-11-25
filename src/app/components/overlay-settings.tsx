@@ -3,7 +3,6 @@ import { useI18n } from '@/i18n';
 import { OVERLAY_KEY, OVERLAY_ON_KEY } from '@/intelligence/overlay';
 import { REPLIES_ON_KEY } from '@/intelligence/replies';
 
-import { VerifyFlag } from './verify-flag';
 
 /** On/off for ERA's marks on vinted.fr pages, and how many of your niches they use. */
 export function OverlaySettings() {
@@ -31,7 +30,7 @@ export function OverlaySettings() {
         style={{ marginTop: 2 }}
       />
       <span>
-        <span style={{ fontWeight: 600 }}>{t('overlay.enable')}</span> <VerifyFlag proof="marks" />
+        <span style={{ fontWeight: 600 }}>{t('overlay.enable')}</span>
         <span className="t-small t-faint" style={{ display: 'block' }}>
           {n > 0 ? t('overlay.hint', { n }) : t('overlay.none')}
         </span>
@@ -62,7 +61,7 @@ export function RepliesSettings() {
         style={{ marginTop: 2 }}
       />
       <span>
-        <span style={{ fontWeight: 600 }}>{t('vreplies.enable')}</span> <VerifyFlag proof="vreplies" />
+        <span style={{ fontWeight: 600 }}>{t('vreplies.enable')}</span>
         <span className="t-small t-faint" style={{ display: 'block' }}>
           {t('vreplies.hint')}
         </span>

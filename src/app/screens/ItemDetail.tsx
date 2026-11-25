@@ -30,7 +30,6 @@ import { analyzeItem } from '../market-run';
 import { BackLink } from '../Shell';
 import { go, useEra } from '../state';
 import { RouteFlag } from '../components/route-flag';
-import { UntilProven, VerifyFlag } from '../components/verify-flag';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 
@@ -255,7 +254,7 @@ export function ItemDetail({ id }: { id: string }) {
             actions={
               analysis ? (
                 <span className="row" style={{ gap: 6 }}>
-                  {analysis.via && <VerifyFlag proof="search" kind="UNVERIFIED" title={t(analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+                  
                   {intel?.analysisStale && <Badge tone="amber">{t('item.stale')}</Badge>}
                   <Badge tone={analysis.quality === 'HIGH' ? 'emerald' : analysis.quality === 'MEDIUM' ? 'cyan' : 'amber'}>
                     {t('market.quality')} · {t(`compQuality.${analysis.quality}`)}
@@ -436,9 +435,6 @@ export function ItemDetail({ id }: { id: string }) {
               className="card--quiet"
             >
               <p className="t-small t-muted">{t('vintedPrice.sectionHint')}</p>
-              <UntilProven proof="priceEdit">
-                <p className="t-small t-faint">{t('vintedPrice.sectionUnproven')}</p>
-              </UntilProven>
               <PriceOnVintedButton v={v} suggested={v.askPrice} variant="ghost" size="sm" />
             </Card>
           )}

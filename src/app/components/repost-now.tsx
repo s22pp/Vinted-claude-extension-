@@ -8,7 +8,6 @@ import { DEFAULT_WAIT, NOW_STEPS, REPOST_JOBS_KEY, REPOST_WAIT_KEY, type RepostN
 import { Modal } from '@/ui/components/overlays';
 import { Button, Field, Input } from '@/ui/components/primitives';
 import '@/ui/styles/repost-now.css';
-import { UntilProven } from './verify-flag';
 
 const PAUSE_KEY = 'eraRepostPause';
 
@@ -40,11 +39,15 @@ export function useRepostNow(itemId: string): RepostNow | null {
 }
 
 /** The list paused by a stop concerning the account (403, 429, logged out, budget spent). */
-function useRepostPause(): { detail: string } | null {
-  const [p, setP] = useState<{ detail: string } | null>(null);
+function useRepostPause(): { detail: string; until: number } | null {
+  const [p, setP] = useState<{ detail: string; until: number } | null>(null);
   useEffect(() => {
     let alive = true;
-    const read = (v: unknown) => alive && setP(v && typeof v === 'object' ? (v as { detail: string }) : null);
+    const read = (v: unknown) => {
+      if (!alive) return;
+      const o = v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+      setP(o ? { detail: typeof o.detail === 'string' ? o.detail : '', until: typeof o.until === 'number' ? o.until : Date.now() } : null);
+    };
     void browser.storage.local
       .get(PAUSE_KEY)
       .then((v) => read(v[PAUSE_KEY]))
@@ -114,16 +117,15 @@ function QueueRow({ j, now }: { j: RepostNow; now: number }) {
 }
 
 /**
- * « Republier maintenant », for one article or several: the cost first (views and favourites lost), the seller's wait
- * window, then each article copied, deleted, waited for and published again — live. The dialog can be closed: the
- * list goes on in the background, the wait included, and every view of ERA follows it.
+ * « Republier maintenant », for one article or several, in one click: each article copied, deleted, waited for (the
+ * seller's window, Réglages) and published again — live. The cost (views and favourites lost) is on the button. The
+ * dialog can be closed: the list goes on in the background, the wait included, and every view of ERA follows it.
  */
 export function RepostNowDialog({ views, open, onClose }: { views: readonly ItemView[]; open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const jobs = useRepostJobs();
   const pause = useRepostPause();
   const saved = useLiveQuery(() => repo.getSetting<WaitWindow>(REPOST_WAIT_KEY, DEFAULT_WAIT), []);
-  const [win, setWin] = useState<{ min: string; max: string } | null>(null);
   const [started, setStarted] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const ids = new Set(views.map((v) => v.item.id));
@@ -131,13 +133,7 @@ export function RepostNowDialog({ views, open, onClose }: { views: readonly Item
   const one = views.length === 1 ? views[0]! : null;
   const live = one ? (mine[0] ?? null) : null;
   const anyActive = mine.some(isActive);
-  const showProgress = started || anyActive;
   const now = useNow(open && mine.some((j) => j.outcome === 'WAITING'));
-  const w = clampWindow(saved ?? DEFAULT_WAIT);
-  const minText = win?.min ?? String(w.minMin);
-  const maxText = win?.max ?? String(w.maxMin);
-  const totalViews = views.reduce((s, v) => s + (v.current?.views ?? 0), 0);
-  const totalFavs = views.reduce((s, v) => s + (v.current?.favorites ?? 0), 0);
   const allDone = mine.length > 0 && mine.length === views.length && mine.every((j) => j.outcome === 'DONE');
   const anyFailed = mine.some((j) => j.outcome === 'FAILED') || !!sendError;
   const anyUncertain = mine.some((j) => j.outcome === 'UNCERTAIN');
@@ -145,14 +141,12 @@ export function RepostNowDialog({ views, open, onClose }: { views: readonly Item
     if (!anyActive) {
       setStarted(false);
       setSendError(null);
-      setWin(null);
     }
     onClose();
   };
-  const go = async () => {
+  const go = async (window: WaitWindow) => {
     setStarted(true);
     setSendError(null);
-    const window = clampWindow({ minMin: Number(minText.replace(',', '.')), maxMin: Number(maxText.replace(',', '.')) });
     try {
       const r = await send({ type: 'era:repost:now', items: views.map((v) => ({ itemId: v.item.id, acceptFavourites: Math.max(0, v.current?.favorites ?? 0) })), waitMin: window.minMin, waitMax: window.maxMin });
       if (r && r.ok === false) setSendError(`${r.code ?? ''}${r.detail ? ` · ${r.detail}` : ''}`);
@@ -160,21 +154,24 @@ export function RepostNowDialog({ views, open, onClose }: { views: readonly Item
       setSendError(e instanceof Error ? e.message : String(e));
     }
   };
-  const title = !showProgress
+  // One click: opened, the list starts at once with the seller's wait window (Réglages, 3 to 10 minutes by default).
+  // An article already under way is not added twice; reopened while it runs, the dialog only shows its steps.
+  useEffect(() => {
+    if (!open || started || saved === undefined || views.length === 0 || views.every((v) => jobs.some((j) => j.itemId === v.item.id && isActive(j)))) return;
+    void go(clampWindow(saved));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, saved]);
+  const title = allDone
     ? one
-      ? t('repostNow.title')
-      : t('repostNow.titleMany', { n: views.length })
-    : allDone
-      ? one
-        ? t('repostNow.doneTitle')
-        : t('repostNow.doneTitleMany')
-      : anyActive
-        ? t('repostNow.progressTitle')
-        : anyUncertain
-          ? t('repostNow.uncertainTitle')
-          : anyFailed
-            ? t('repostNow.failedTitle')
-            : t('repostNow.progressTitle');
+      ? t('repostNow.doneTitle')
+      : t('repostNow.doneTitleMany')
+    : anyActive
+      ? t('repostNow.progressTitle')
+      : anyUncertain
+        ? t('repostNow.uncertainTitle')
+        : anyFailed
+          ? t('repostNow.failedTitle')
+          : t('repostNow.progressTitle');
   return (
     <Modal open={open} onClose={close} title={title}>
       <div className="repost-now" data-testid="repost-now">
@@ -191,67 +188,8 @@ export function RepostNowDialog({ views, open, onClose }: { views: readonly Item
             </span>
           </div>
         )}
-        {!showProgress ? (
           <>
-            <div className="repost-now__cost" data-testid="repost-now-cost">
-              <p className="repost-now__warn">{one ? t('repostNow.reset') : t('repostNow.resetMany')}</p>
-              <div className="repost-now__figures">
-                <span>
-                  <b className="num">{one ? (one.current?.views ?? '—') : totalViews}</b> {t('repostNow.views')}
-                </span>
-                <span>
-                  <b className="num">{one ? (one.current?.favorites ?? '—') : totalFavs}</b> {t('repostNow.favs')}
-                </span>
-              </div>
-            </div>
-            {!one && (
-              <ol className="repost-queue repost-queue--plan">
-                {views.map((v) => (
-                  <li key={v.item.id} className="repost-queue__row">
-                    <span className="repost-queue__main">
-                      <b>{v.current?.title ?? v.item.title}</b>
-                    </span>
-                    <span className="repost-queue__state num t-small t-muted">
-                      {v.current?.views ?? '—'} {t('repostNow.views')} · {v.current?.favorites ?? '—'} {t('repostNow.favs')}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <p className="t-small" style={{ margin: 0 }}>
-              {t('repostNow.order')}
-            </p>
-            <fieldset className="repost-now__wait" data-testid="repost-now-wait">
-              <legend className="t-caption">{t('repostNow.waitLegend')}</legend>
-              <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <Field label={t('repostNow.waitMin')} htmlFor="repost-wait-min">
-                  <Input id="repost-wait-min" inputMode="numeric" value={minText} onChange={(e) => setWin({ min: e.target.value, max: maxText })} style={{ width: 96 }} />
-                </Field>
-                <Field label={t('repostNow.waitMax')} htmlFor="repost-wait-max">
-                  <Input id="repost-wait-max" inputMode="numeric" value={maxText} onChange={(e) => setWin({ min: minText, max: e.target.value })} style={{ width: 96 }} />
-                </Field>
-              </div>
-              <p className="t-small t-muted" style={{ margin: 0 }}>
-                {t('repostNow.offline')} {t('repostNow.waitHint')}
-              </p>
-            </fieldset>
-            <UntilProven proof="repost">
-              <p className="t-small t-faint" style={{ margin: 0 }}>
-                {t('repostNow.experimental')}
-              </p>
-            </UntilProven>
-            <div className="repost-now__actions">
-              <Button variant="ghost" onClick={close}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" onClick={go}>
-                {t('repostNow.confirm')}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            {pause && <p className="t-small repost-now__error">{t('repostNow.paused', { detail: pause.detail })}</p>}
+            {pause && <p className="t-small repost-now__error">{t('repostNow.paused', { detail: pause.detail, at: new Date(pause.until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) })}</p>}
             {one ? (
               <>
                 <ol className="repost-now__steps" aria-live="polite">
@@ -325,7 +263,6 @@ export function RepostNowDialog({ views, open, onClose }: { views: readonly Item
               </Button>
             </div>
           </>
-        )}
       </div>
     </Modal>
   );
@@ -350,7 +287,7 @@ export function RepostNowButton({ v, size, block, variant = 'primary' }: { v: It
   if (!canRepostNow(v) && !active && !open) return null;
   return (
     <>
-      <Button size={size} block={block} variant={variant} icon="repost" onClick={() => setOpen(true)} data-testid="repost-now-button">
+      <Button size={size} block={block} variant={variant} icon="repost" onClick={() => setOpen(true)} data-testid="repost-now-button" title={t('repostNow.costTip', { views: v.current?.views ?? 0, favs: v.current?.favorites ?? 0 })}>
         {live?.outcome === 'WAITING' ? t('repostNow.waitingShort', { left: leftText((live.waitUntil ?? now) - now) }) : active ? t('repostNow.running') : t('repostNow.button')}
       </Button>
       <RepostNowDialog views={[v]} open={open} onClose={() => setOpen(false)} />
@@ -375,10 +312,36 @@ export function RepostNowManyButton({ views }: { views: readonly ItemView[] }) {
           setOpen(true);
         }}
         data-testid="repost-now-many"
+        title={t('repostNow.costTip', { views: ok.reduce((n, v) => n + (v.current?.views ?? 0), 0), favs: ok.reduce((n, v) => n + (v.current?.favorites ?? 0), 0) })}
       >
         {t('repostNow.buttonMany', { n: ok.length })}
       </Button>
       <RepostNowDialog views={chosen} open={open} onClose={() => setOpen(false)} />
     </>
+  );
+}
+
+/** Réglages: the wait between the old listing's deletion and the copy going online, in minutes (3 to 10 by default). */
+export function RepostWaitSetting() {
+  const { t } = useI18n();
+  const saved = useLiveQuery(() => repo.getSetting<WaitWindow>(REPOST_WAIT_KEY, DEFAULT_WAIT), []);
+  const w = clampWindow(saved ?? DEFAULT_WAIT);
+  const save = (p: Partial<WaitWindow>) => void repo.setSetting(REPOST_WAIT_KEY, clampWindow({ ...w, ...p }));
+  const num = (x: string) => Number(x.replace(',', '.'));
+  return (
+    <fieldset className="repost-now__wait" data-testid="repost-wait">
+      <legend className="t-caption">{t('repostNow.waitLegend')}</legend>
+      <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <Field label={t('repostNow.waitMin')} htmlFor="repost-wait-min">
+          <Input key={`min-${w.minMin}`} id="repost-wait-min" inputMode="numeric" defaultValue={String(w.minMin)} onBlur={(e) => save({ minMin: num(e.target.value) })} style={{ width: 96 }} />
+        </Field>
+        <Field label={t('repostNow.waitMax')} htmlFor="repost-wait-max">
+          <Input key={`max-${w.maxMin}`} id="repost-wait-max" inputMode="numeric" defaultValue={String(w.maxMin)} onBlur={(e) => save({ maxMin: num(e.target.value) })} style={{ width: 96 }} />
+        </Field>
+      </div>
+      <p className="t-small t-muted" style={{ margin: 0 }}>
+        {t('repostNow.offline')} {t('repostNow.waitHint')}
+      </p>
+    </fieldset>
   );
 }

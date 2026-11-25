@@ -5,6 +5,7 @@ import { PURCHASES_TEMPLATE_KEY } from './orders';
 import { currentUserId, firstArray, parseOrder } from './parse';
 import { statusReport } from '@/intelligence/delivered';
 import type { BudgetStatus, EraMessage } from './protocol';
+import { isUnlimited } from '@/data/budget-plan';
 
 /** The last diagnostic search that gave comparables on the real account: proof the search works here, and how. */
 export const SEARCH_PROBE_KEY = 'vintedSearchProbe';
@@ -41,7 +42,7 @@ export async function runVintedDiagnostic(onStep: (s: DiagStep) => void, full = 
   try {
     const b = (await browser.runtime.sendMessage({ type: 'era:budget:status' } satisfies EraMessage)) as BudgetStatus | undefined;
     if (!b) throw new Error('le service worker n’a pas répondu');
-    if (!push({ key: 'worker', ok: !b.halted, info: b.halted ? `bloqué (${b.halted}) jusqu’à ${b.haltedUntil ? new Date(b.haltedUntil).toLocaleTimeString() : '?'}` : `${b.remaining} requêtes restantes` }))
+    if (!push({ key: 'worker', ok: !b.halted, info: b.halted ? `bloqué (${b.halted}) jusqu’à ${b.haltedUntil ? new Date(b.haltedUntil).toLocaleTimeString() : '?'}` : (isUnlimited(b.remaining) ? 'mode Direct : aucune limite locale' : `${b.remaining} requêtes restantes`) }))
       return steps;
   } catch (e) {
     return fail('worker', e);

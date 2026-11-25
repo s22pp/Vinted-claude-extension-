@@ -44,7 +44,7 @@ export default defineContentScript({
     button.className = 'btn';
     button.setAttribute('data-era-replies', 'button');
     button.textContent = 'E · Réponses ERA';
-    button.title = 'ERA remplit la zone de message ; vous relisez et envoyez vous-même (expérimental)';
+    button.title = 'ERA remplit la zone de message ; vous relisez et envoyez vous-même';
 
     // Three quick replies right above the box: one click writes, never sends.
     const chips = document.createElement('div');
@@ -151,7 +151,7 @@ export default defineContentScript({
       }
       const foot = document.createElement('div');
       foot.className = 'foot';
-      foot.textContent = 'Expérimental · ERA écrit, n’envoie jamais : relisez, puis envoyez vous-même.';
+      foot.textContent = 'ERA écrit, n’envoie jamais : relisez, puis envoyez vous-même.';
       menu.appendChild(foot);
       menu.style.display = 'block';
       place();

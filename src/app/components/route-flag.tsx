@@ -2,11 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { type AutoLogRow, db } from '@/data/db';
 import { isVerified } from '@/data/journal';
 import { useI18n } from '@/i18n';
-import { Badge, Flag } from '@/ui/components/primitives';
+import { Badge } from '@/ui/components/primitives';
 
 /**
- * EXPERIMENTAL next to a Vinted write until the journal shows each of its routes accepted AND shown back by Vinted
- * on this device; then "Vérifié ici". Simulations and sends Vinted did not show back never count.
+ * « Vérifié ici » next to a Vinted write once the journal shows each of its routes accepted AND shown back by Vinted on
+ * this device; nothing before. Simulations and sends Vinted did not show back never count.
  */
 export function RouteFlag({ kinds }: { kinds: AutoLogRow['kind'][] }) {
   const { t } = useI18n();
@@ -17,7 +17,7 @@ export function RouteFlag({ kinds }: { kinds: AutoLogRow['kind'][] }) {
     },
     [kinds.join()],
   );
-  if (!verified) return <Flag kind="EXPERIMENTAL" />;
+  if (!verified) return null;
   return (
     <Badge tone="emerald" dot title={t('integrations.verifiedHint')}>
       {t('integrations.verifiedShort')}

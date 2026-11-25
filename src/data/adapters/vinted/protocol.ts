@@ -106,7 +106,7 @@ export type EraMessage =
   | { type: 'era:repost:forget'; itemId: string }
   /** `path`/`method`: what the call is for, counted by use (never used to allow or refuse). */
   | { type: 'era:budget:reserve'; path?: string; method?: string }
-  | { type: 'era:budget:report'; status: number }
+  | { type: 'era:budget:report'; status: number; retryAfterMs?: number | null }
   | { type: 'era:challenge'; path: string }
   | { type: 'era:open'; path: string }
   | { type: 'era:budget:status' }
@@ -161,6 +161,8 @@ export interface BudgetStatus {
   uses?: Partial<Record<import('./budget-store').BudgetUse, number>>;
   /** When the session ends by itself (3 h without a call): a full budget again; null when none is running or after a block. */
   resetAt?: number | null;
+  /** The seller's execution mode (Direct: no local cap). */
+  mode?: import('@/data/budget-plan').ExecMode;
 }
 export type PageResult = { item: PageItem | null; isItemPage: boolean };
 

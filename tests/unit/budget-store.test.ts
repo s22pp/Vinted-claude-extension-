@@ -1,10 +1,56 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import * as budget from '@/data/adapters/vinted/budget-store';
+import { HALT_COOLDOWN_MS, haltPauseMs } from '@/data/adapters/marketplace';
+import { RATE_PAUSE_MS, UNLIMITED, isUnlimited } from '@/data/budget-plan';
 
 beforeEach(() => fakeBrowser.reset());
+afterEach(() => vi.useRealTimers());
 
-describe('Vinted call budget, as the service worker keeps it', () => {
+describe('Direct mode (the default): no local cap', () => {
+  it('no quota on calls: the 200th call still goes, and « remaining » reads unlimited', async () => {
+    expect(await budget.execMode()).toBe('DIRECT');
+    for (let i = 0; i < 200; i++) expect((await budget.reserve()).ok).toBe(true);
+    const s = await budget.status();
+    expect(s.mode).toBe('DIRECT');
+    expect(isUnlimited(s.remaining)).toBe(true);
+    expect(s.remaining).toBe(UNLIMITED);
+  });
+
+  it('writes: no quota, no forced wait between two of them', async () => {
+    for (let i = 0; i < 30; i++) await budget.reserveWrite();
+    expect(await budget.writeWait()).toBe(0);
+    expect(await budget.autoWriteWait()).toBe(0);
+  });
+
+  it('a block still stops every call, then lifts by itself once its pause is over (no restart)', async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 25, 10, 0) });
+    await budget.report(429);
+    expect((await budget.reserve()).ok).toBe(false);
+    expect((await budget.status()).halted).toBe('RATE_LIMITED');
+    vi.setSystemTime(Date.now() + RATE_PAUSE_MS + 1000);
+    expect((await budget.status()).halted).toBeNull();
+    expect((await budget.reserve()).ok).toBe(true);
+  });
+
+  it('a 429 pauses as long as Vinted asks; a 403 for hours', () => {
+    expect(haltPauseMs(429, null)).toBe(RATE_PAUSE_MS);
+    expect(haltPauseMs(429, 120_000)).toBe(120_000);
+    expect(haltPauseMs(429, 5)).toBe(60_000);
+    expect(haltPauseMs(403)).toBe(HALT_COOLDOWN_MS);
+  });
+});
+
+describe('Prudent mode: the measured limits, chosen in Réglages', () => {
+  beforeEach(() => budget.setExecMode('PRUDENT'));
+
+  it('15 writes a session at most, 20 s apart', async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 25, 10, 0) });
+    await budget.reserveWrite();
+    await expect(budget.reserveWrite()).rejects.toMatchObject({ code: 'WRITE_COOLDOWN' });
+    expect(await budget.writeWait()).toBeGreaterThan(0);
+  });
+
   it('60 calls a session at most; the 61st is refused', async () => {
     for (let i = 0; i < 60; i++) expect((await budget.reserve()).ok).toBe(true);
     expect(await budget.reserve()).toEqual({ ok: false, code: 'BUDGET_EXHAUSTED' });
@@ -26,7 +72,8 @@ describe('Vinted call budget, as the service worker keeps it', () => {
   });
 });
 
-describe('where the session budget went', () => {
+describe('where the session budget went (Prudent)', () => {
+  beforeEach(() => budget.setExecMode('PRUDENT'));
   it('each call counted by use, from its path; the total is still the one budget', async () => {
     await budget.reserve(budget.useOf('/api/v2/wardrobe/1/items?page=1&per_page=96'));
     await budget.reserve(budget.useOf('/api/v2/catalog/items?search_text=veste&per_page=60'));
@@ -51,7 +98,8 @@ describe('where the session budget went', () => {
   });
 });
 
-describe('scheduled runs stop short of the reserve, call by call', () => {
+describe('scheduled runs stop short of the reserve, call by call (Prudent)', () => {
+  beforeEach(() => budget.setExecMode('PRUDENT'));
   it('21 calls left: a scheduled run gets one, then is refused at 20; the seller’s own click still goes through', async () => {
     for (let i = 0; i < 39; i++) await budget.reserve();
     expect((await budget.status()).remaining).toBe(21);

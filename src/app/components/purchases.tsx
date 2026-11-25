@@ -9,7 +9,6 @@ import { IconTile } from '@/ui/components/icons';
 import { Drawer, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Select } from '@/ui/components/primitives';
 import { useEra } from '../state';
-import { UntilProven, VerifyFlag } from './verify-flag';
 
 function usePending() {
   return useLiveQuery(() => db.purchases.filter((p) => !p.linkedItemId && !p.dismissed).reverse().sortBy('date'), []) ?? [];
@@ -26,7 +25,7 @@ export function PurchasesBanner() {
         <IconTile name="tag" tone="violet" />
         <div className="grow">
           <div className="t-h3 row" style={{ gap: 8 }}>
-            {t('purchases.banner', { n: pending.length })} <VerifyFlag proof="purchases" kind="UNVERIFIED" title={t('flag.purchasesHint')} />
+            {t('purchases.banner', { n: pending.length })}
           </div>
           <div className="t-small t-muted">{t('purchases.bannerHint')}</div>
         </div>
@@ -63,12 +62,6 @@ export function PurchasesDrawer({ open, onClose }: { open: boolean; onClose: () 
     <Drawer open={open} onClose={onClose} title={t('purchases.title')}>
       <div className="stack-3">
         <p className="t-small t-muted">{t('purchases.intro')}</p>
-        <p className="t-small t-faint row" style={{ gap: 8, alignItems: 'flex-start' }}>
-          <VerifyFlag proof="purchases" kind="UNVERIFIED" title={t('flag.purchasesHint')} />
-          <UntilProven proof="purchases">
-            <span>{t('purchases.unverified')}</span>
-          </UntilProven>
-        </p>
         {sure.length > 0 && (
           <Button
             variant="primary"

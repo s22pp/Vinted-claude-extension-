@@ -71,6 +71,17 @@ export async function sendToVinted<T>(msg: EraMessage, kind: 'read' | 'write'): 
   }
 }
 
+/** Pauses before a read is tried again (ms): two more tries, then the error stands. */
+export const READ_RETRY_MS = [2_000, 6_000] as const;
+
+/** How long to wait before trying a failed read again, or null when it must not be retried. */
+export function readRetryMs(res: { code: string; status?: number }, attempt: number): number | null {
+  if (attempt >= READ_RETRY_MS.length || res.code !== 'UNAVAILABLE') return null;
+  // Network failure (no status) or a gateway/overload answer: worth a second try. A 500 is Vinted refusing: it stands.
+  if (res.status !== undefined && res.status !== 502 && res.status !== 503 && res.status !== 504) return null;
+  return READ_RETRY_MS[attempt] ?? null;
+}
+
 export const SEARCH_TEMPLATE_KEY = 'vintedSearchTemplate';
 /** Searches that brought listings, by the way they were read: what proves each route works on this account. */
 export const SEARCH_OK_KEY = 'vintedSearchOk';
@@ -180,10 +191,16 @@ export class VintedTabAdapter implements MarketplaceAdapter {
 
   private async api(path: string): Promise<unknown> {
     try {
-      // One click: if no vinted.fr tab is open, ERA opens one in the background.
-      const res = await sendToVinted<ApiResult>({ type: 'era:api', path } satisfies EraMessage, 'read');
-      if (!res.ok) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
-      return res.json;
+      for (let attempt = 0; ; attempt++) {
+        // One click: if no vinted.fr tab is open, ERA opens one in the background.
+        const res = await sendToVinted<ApiResult>({ type: 'era:api', path } satisfies EraMessage, 'read');
+        if (res.ok) return res.json;
+        // A read that failed on the network or on Vinted's side (5xx) is tried again after a short pause — never a
+        // 403, a 429 or a logged-out answer: those stop.
+        const wait = readRetryMs(res, attempt);
+        if (wait === null) throw new MarketplaceError(res.code, res.detail ?? (res.status ? `HTTP ${res.status}` : res.code));
+        await new Promise((r) => setTimeout(r, wait));
+      }
     } catch (e) {
       if (e instanceof MarketplaceError) await logVintedError(e.code, e.message, path);
       throw e;

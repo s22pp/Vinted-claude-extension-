@@ -17,7 +17,6 @@ import { PageHead } from '../Shell';
 import { DealScanner, ShoppingListView } from '../components/shopping';
 import { vintedLanded } from '@/intelligence/shopping';
 import { go, type Route, useEra } from '../state';
-import { VerifyFlag } from '../components/verify-flag';
 
 type Stage = 'COLLECTING' | 'COMPARING' | 'READY';
 const VERDICT_TONE = { BUY: 'emerald', NEGOTIATE: 'amber', AVOID: 'coral', INSUFFICIENT_DATA: 'neutral' } as const;
@@ -201,7 +200,7 @@ function BuyResult({ r, onAdd, saved }: { r: BuyAnalysis; onAdd: () => void; sav
           <div className="row" style={{ gap: 8 }}>
             <span className="t-caption">{t('buy.dealScore')}</span>
             {r.analysis.source === 'DEMO' && <DemoBadge />}
-            {r.analysis.via && <VerifyFlag proof="search" kind="UNVERIFIED" title={t(r.analysis.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+            
           </div>
           <div className="verdict__title">{t(`buy.verdict.${r.verdict}`)}</div>
           <p className="t-muted" style={{ marginTop: 4 }}>

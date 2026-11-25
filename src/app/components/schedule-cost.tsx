@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import type { BudgetStatus } from '@/data/adapters/vinted/protocol';
 import { budgetStatus } from '@/data/adapters/vinted/vinted-adapter';
-import { AUTO_FLOOR, SESSION_CALLS, scheduleCost } from '@/data/budget-plan';
+import { AUTO_FLOOR, SESSION_CALLS, isUnlimited, scheduleCost } from '@/data/budget-plan';
 import { BUY_ALERTS_KEY } from '@/data/buy-alerts';
 import { REFRESH_DEFAULTS, REFRESH_KEY, type RefreshConfig } from '@/data/refresh';
 import { repo } from '@/data/repo';
@@ -18,7 +18,6 @@ export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfi
   // The calls left this session, followed live (a scheduled pass or a click elsewhere moves them).
   const [left, setLeft] = useState<BudgetStatus | null>(null);
   useEffect(() => {
-    if (!showLeft) return;
     const load = () => void budgetStatus().then(setLeft);
     load();
     const onChange = (changes: Record<string, unknown>, area: string) => {
@@ -26,7 +25,7 @@ export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfi
     };
     browser.storage.onChanged.addListener(onChange);
     return () => browser.storage.onChanged.removeListener(onChange);
-  }, [showLeft]);
+  }, []);
   const saved = useLiveQuery(async () => ({
     auto: withDefaults(await repo.getSetting<Parameters<typeof withDefaults>[0]>('automations', null)),
     refresh: { ...REFRESH_DEFAULTS, ...(await repo.getSetting<Partial<RefreshConfig> | null>(REFRESH_KEY, null)) },
@@ -43,13 +42,20 @@ export function ScheduleCost({ auto, showLeft = false }: { auto?: Pick<AutoConfi
     refreshEveryHours: saved.refresh.enabled ? saved.refresh.everyHours : null,
     alerts: saved.alerts,
   });
+  const direct = left?.mode !== 'PRUDENT' && (!left || isUnlimited(left.remaining) || !!left.halted);
   const leftLine =
-    showLeft && left && !left.halted ? (
+    showLeft && left && !left.halted && !direct ? (
       <p className={`t-small ${left.remaining < AUTO_FLOOR ? 't-warn' : 't-faint'}`} data-testid="budget-left">
         {t(left.remaining < AUTO_FLOOR ? 'budgetPlan.paused' : 'budgetPlan.left', { n: left.remaining, reserve: AUTO_FLOOR })}
       </p>
     ) : null;
   if (cost.hoursToReserve === null) return leftLine;
+  if (direct)
+    return (
+      <p className="t-small t-muted" data-testid="schedule-cost">
+        {t('budgetPlan.costDirect', { perHour: cost.perHour })}
+      </p>
+    );
   return (
     <>
       <p className="t-small t-muted" data-testid="schedule-cost">

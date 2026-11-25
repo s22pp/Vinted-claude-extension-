@@ -8,7 +8,6 @@ import { useI18n } from '@/i18n';
 import { useToast } from '@/ui/components/overlays';
 import { Button, Card, Money } from '@/ui/components/primitives';
 import { go, useEra } from '../state';
-import { VerifyFlag } from './verify-flag';
 
 /** Buy alerts: switch, "check now", and the last listings found under your max. */
 export function BuyAlertsCard() {
@@ -64,7 +63,7 @@ export function BuyAlertsCard() {
           <div className="stack" style={{ gap: 6 }}>
             <span className="t-caption row" style={{ gap: 8 }}>
               {t('alerts.last', { when: relative(last.at, era.now) })}
-              {last.via && <VerifyFlag proof="search" kind="UNVERIFIED" title={t(last.via === 'PAGE' ? 'flag.pageSearch' : 'flag.learnedEndpoint')} />}
+              
             </span>
             {last.deals.map((d) => (
               <div key={d.id} className="row-between t-small" style={{ gap: 10, borderTop: '1px solid var(--border)', paddingTop: 6 }}>

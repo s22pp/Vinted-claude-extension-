@@ -39,10 +39,10 @@ describe('plan de baisse', () => {
     expect(r).toMatchObject({ status: 'DONE', atFloor: true });
   });
 
-  it('unknown cost = unknown floor: the step is shown, never offered to apply', () => {
+  it('unknown cost = no floor (never an invented one): the step is due by the calendar alone', () => {
     const p = markdownPlan({ ...base, floorCents: null, now: T0 + 15 * DAY }, DEFAULT_MARKDOWN);
-    expect(p.status).toBe('NO_COST');
-    if (p.status === 'NO_COST') expect(p.due?.targetCents).toBe(4200);
+    expect(p).toMatchObject({ status: 'DUE', floorCents: null });
+    if (p.status === 'DUE') expect(p.step).toMatchObject({ targetCents: 4200, clamped: false });
   });
 
   it('prices that read well; steps cleaned', () => {
