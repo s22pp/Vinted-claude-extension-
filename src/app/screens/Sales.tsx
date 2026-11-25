@@ -18,6 +18,7 @@ import { RecordsCard } from '../components/records';
 import { ToShipCard } from '../components/to-ship';
 import { ParcelsCard } from '../components/parcels';
 import { SalesTabs } from '../components/section-tabs';
+import { MissingCostsButton, UnknownCost } from '../components/missing-costs';
 import { useEffect } from 'react';
 
 type Period = '30' | '90' | '365' | 'all';
@@ -89,26 +90,22 @@ export function Sales({ route }: { route?: Route }) {
             </div>
             <div className="sales-hero__figure">
               <span className="t-caption">{t('kpi.knownProfit')}</span>
-              <b className="sales-hero__big">
-                <MetricValue metric={s.period.profit} sign />
-              </b>
+              <b className="sales-hero__big">{s.period.profit.status === 'unknown' ? <UnknownCost n={unknownProfit} /> : <MetricValue metric={s.period.profit} sign />}</b>
               <MetricFootPartial metric={s.period.profit} />
             </div>
           </div>
           {unknownProfit > 0 && (
             <div className="sales-hero__fix" data-testid="sales-fix-costs">
               <span className="t-small">{t('sales.fixCosts', { n: unknownProfit })}</span>
-              <Button size="sm" onClick={() => go('stock?filter=nocost')}>
-                {t('sales.fixCostsCta')}
-              </Button>
+              <MissingCostsButton>{t('sales.fixCostsCta')}</MissingCostsButton>
             </div>
           )}
           <div className="item-kpis sales-kpis">
-            <Metric small label={t('kpi.avgMargin')} value={<span className="num">{pct(s.averageMargin)}</span>} foot={unknownProfit ? <QualityTag quality="PARTIAL" /> : null} />
-            <Metric small label={t('kpi.roi')} value={<span className="num">{pct(s.roi)}</span>} />
+            <Metric small label={t('kpi.avgMargin')} value={s.averageMargin === null && unknownProfit > 0 ? <UnknownCost n={unknownProfit} /> : <span className="num">{pct(s.averageMargin)}</span>} foot={unknownProfit && s.averageMargin !== null ? <QualityTag quality="PARTIAL" /> : null} />
+            <Metric small label={t('kpi.roi')} value={s.roi === null && unknownProfit > 0 ? <UnknownCost n={unknownProfit} /> : <span className="num">{pct(s.roi)}</span>} />
             <Metric small label={t('kpi.sellThrough')} value={<span className="num">{pct(s.sellThrough)}</span>} />
             <Metric small label={t('kpi.medianDays')} value={<span className="num">{s.medianDaysToSale === null ? '—' : t('kpi.days', { n: Math.round(s.medianDaysToSale) })}</span>} />
-            <Metric small label={t('kpi.capitalReturned')} value={<MetricValue metric={s.capitalReturned} />} foot={<MetricFootPartial metric={s.capitalReturned} />} />
+            <Metric small label={t('kpi.capitalReturned')} value={s.capitalReturned.status === 'unknown' ? <UnknownCost n={s.capitalReturned.missing} /> : <MetricValue metric={s.capitalReturned} />} foot={<MetricFootPartial metric={s.capitalReturned} />} />
             <Metric small label={t('kpi.refundRate')} value={<span className={`num ${s.refundRate && s.refundRate > 0.1 ? 't-neg' : ''}`}>{pct(s.refundRate, { digits: 1 })}</span>} foot={s.period.refunded ? `${s.period.refunded}` : null} />
             <Metric small label={t('kpi.efficiency')} help={t('kpi.efficiencyHint')} value={<span className="num">{era.capital.efficiency30 === null ? '—' : `×${i.num(era.capital.efficiency30, 1)}`}</span>} />
           </div>
@@ -121,10 +118,11 @@ export function Sales({ route }: { route?: Route }) {
               labels={series.map((m) => month(m.start))}
               series={[
                 { key: 'r', label: t('charts.revenue'), color: 'var(--chart-1)', values: series.map((m) => m.revenue), area: true },
-                { key: 'p', label: t('charts.profit'), color: 'var(--chart-2)', values: series.map((m) => m.profit) },
+                { key: 'p', label: t('charts.profit'), color: 'var(--chart-2)', values: series.map((m) => m.profit), area: true },
               ]}
               format={(v) => money(Math.round(v / 100) * 100)}
               height={250}
+              points
             />
           </Card>
           <Card className="span-5" title={t('sales.scatter')} hint={t('sales.scatterHint')} icon="target" tone="violet">

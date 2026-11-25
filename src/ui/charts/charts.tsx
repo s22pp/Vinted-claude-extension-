@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useLayoutEffect, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactNode, useId, useLayoutEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/i18n';
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -149,6 +149,7 @@ export function LineChart({
   minPoints = 2,
   zeroBased = true,
   step = false,
+  points = false,
 }: {
   labels: string[];
   series: LineSeries[];
@@ -158,8 +159,11 @@ export function LineChart({
   minPoints?: number;
   zeroBased?: boolean;
   step?: boolean;
+  /** A dot on every point with a value other than zero (the months that happened). */
+  points?: boolean;
 }) {
   const { t } = useI18n();
+  const gid = useId().replace(/:/g, '');
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
@@ -220,6 +224,14 @@ export function LineChart({
     <div className="chart" ref={ref}>
       {width > 0 && (
         <svg height={height} role="img" aria-label={title}>
+          <defs>
+            {series.map((s, si) => (
+              <linearGradient key={s.key} id={`${gid}-a${si}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" style={{ stopColor: s.color }} stopOpacity={0.16} />
+                <stop offset="1" style={{ stopColor: s.color }} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
           <g transform={`translate(${pad.l},${pad.t})`}>
             {ticks.map((tk) => (
               <g key={tk}>
@@ -243,7 +255,7 @@ export function LineChart({
               return (
                 <g key={s.key}>
                   {s.area && firstI >= 0 && (
-                    <path className="chart-fade" d={`${d}L${x(lastI)},${h}L${x(firstI)},${h}Z`} fill={s.color} opacity={0.1} />
+                    <path className="chart-fade" d={`${d}L${x(lastI)},${h}L${x(firstI)},${h}Z`} fill={`url(#${gid}-a${si})`} />
                   )}
                   <path
                     className={`chart-line ${s.dashed ? '' : 'chart-draw'}`}
@@ -252,6 +264,8 @@ export function LineChart({
                     strokeDasharray={s.dashed ? '4 5' : undefined}
                     style={{ animationDelay: `${si * 120}ms` }}
                   />
+                  {points &&
+                    s.values.map((v, i) => (v !== null && v !== 0 && i !== lastI ? <circle key={i} className="chart-dot" cx={x(i)} cy={y(v)} r={2} fill={s.color} /> : null))}
                   {lastI >= 0 && s.values[lastI] !== null && (
                     <circle className="chart-dot" cx={x(lastI)} cy={y(s.values[lastI]!)} r={4} fill={s.color} stroke="var(--surface-solid)" strokeWidth={2} />
                   )}
@@ -320,6 +334,7 @@ export function BarChart({
   onSelect?: (index: number) => void;
 }) {
   const { t } = useI18n();
+  const gid = useId().replace(/:/g, '');
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const known = data.filter((d) => d.value !== null) as (BarDatum & { value: number })[];
@@ -392,12 +407,20 @@ export function BarChart({
   const ticks = niceTicks(Math.min(0, min), max, 4);
   const top = ticks[ticks.length - 1]!;
   const band = w / data.length;
-  const bw = Math.min(28, band * 0.62);
+  const bw = Math.min(24, band * 0.56);
   const y = (v: number) => h - (v / (top || 1)) * h;
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
         <svg height={height} role="img" aria-label={title}>
+          <defs>
+            {[...new Set(data.map((d) => d.color ?? color))].map((c, ci) => (
+              <linearGradient key={c} id={`${gid}-b${ci}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" style={{ stopColor: c }} stopOpacity={1} />
+                <stop offset="1" style={{ stopColor: c }} stopOpacity={0.25} />
+              </linearGradient>
+            ))}
+          </defs>
           <g transform={`translate(${pad.l},${pad.t})`}>
             {ticks.map((tk) => (
               <g key={tk}>
@@ -413,19 +436,17 @@ export function BarChart({
               return (
                 <g key={d.label} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onClick={onSelect ? () => onSelect(i) : undefined} style={{ cursor: onSelect ? 'pointer' : undefined }}>
                   <rect x={band * i} y={0} width={band} height={h} fill={hover === i ? 'var(--highlight)' : 'transparent'} rx={6} />
-                  {d.value !== null && (
-                    <path
-                      className="chart-bar chart-bar--v"
-                      style={{ animationDelay: `${i * 50}ms` }}
-                      d={`M${cx - bw / 2},${h} V${y(v) + 4} Q${cx - bw / 2},${y(v)} ${cx - bw / 2 + 4},${y(v)} H${cx + bw / 2 - 4} Q${cx + bw / 2},${y(v)} ${cx + bw / 2},${y(v) + 4} V${h} Z`}
-                      fill={d.color ?? color}
-                    />
+                  {d.value !== null && d.value !== 0 && (
+                    <g className="chart-bar chart-bar--v" style={{ animationDelay: `${i * 50}ms` }}>
+                      <path d={`M${cx - bw / 2},${h} V${y(v) + 2} Q${cx - bw / 2},${y(v)} ${cx - bw / 2 + 2},${y(v)} H${cx + bw / 2 - 2} Q${cx + bw / 2},${y(v)} ${cx + bw / 2},${y(v) + 2} V${h} Z`} fill={`url(#${gid}-b${[...new Set(data.map((x) => x.color ?? color))].indexOf(d.color ?? color)})`} />
+                      {v !== 0 && <line x1={cx - bw / 2 + 1} x2={cx + bw / 2 - 1} y1={y(v) + 0.5} y2={y(v) + 0.5} style={{ stroke: `color-mix(in srgb, ${d.color ?? color} 55%, white)` }} strokeWidth={1} />}
+                    </g>
                   )}
                   <text className="chart-axis" x={cx} y={h + 17} textAnchor="middle">
                     {d.label}
                   </text>
-                  {hover === i && d.value !== null && (
-                    <text x={cx} y={y(v) - 7} textAnchor="middle" fontSize="11.5" fontWeight={600} fill="var(--text)" className="num">
+                  {d.value !== null && d.value !== 0 && (
+                    <text x={cx} y={y(v) - 6} textAnchor="middle" fontSize="10.5" fill={hover === i ? 'var(--text)' : 'var(--text-2)'} className="num chart-value">
                       {format(d.value)}
                     </text>
                   )}

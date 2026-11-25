@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { UnknownCost } from '../components/missing-costs';
 import { useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
@@ -42,10 +43,10 @@ export function Accounting() {
             <Metric small label={t('accounting.revenue')} icon="sales" tone="emerald" value={<span className="num">{money(sum.revenueCents)}</span>} foot={t('accounting.salesN', { n: sum.sales })} />
           </div>
           <div className="kpi">
-            <Metric small label={t('accounting.cogs')} icon="capital" tone="amber" value={<MetricValue metric={sum.cogs} />} foot={<MetricFootPartial metric={sum.cogs} />} />
+            <Metric small label={t('accounting.cogs')} icon="capital" tone="amber" value={sum.cogs.status === 'unknown' ? <UnknownCost n={sum.cogs.missing} /> : <MetricValue metric={sum.cogs} />} foot={<MetricFootPartial metric={sum.cogs} />} />
           </div>
           <div className="kpi">
-            <Metric small label={t('accounting.margin')} icon="trendUp" tone="violet" value={<MetricValue metric={sum.grossMargin} sign />} foot={<MetricFootPartial metric={sum.grossMargin} />} />
+            <Metric small label={t('accounting.margin')} icon="trendUp" tone="violet" value={sum.grossMargin.status === 'unknown' ? <UnknownCost n={sum.grossMargin.missing} /> : <MetricValue metric={sum.grossMargin} sign />} foot={<MetricFootPartial metric={sum.grossMargin} />} />
           </div>
           <div className="kpi">
             <Metric small label={t('accounting.purchases')} icon="buy" tone="cobalt" value={<MetricValue metric={sum.purchases} />} foot={t('accounting.purchasesN', { n: register.rows.length })} />
@@ -56,8 +57,17 @@ export function Accounting() {
         </section>
 
         <div className="grid-12">
-          <Card className="span-5" title={t('accounting.dac7')} hint={t('accounting.dac7Hint')} icon="scale" tone={sum.dac7.reportable ? 'amber' : 'emerald'}>
+          <Card
+            className="span-5 dac7"
+            title={t('accounting.dac7')}
+            hint={t('accounting.dac7Hint')}
+            icon="scale"
+            tone={sum.dac7.reportable ? 'amber' : 'emerald'}
+          >
             <div className="stack-3">
+              <span className="dac7__status" data-reportable={sum.dac7.reportable || undefined} data-testid="dac7-status">
+                {sum.dac7.reportable ? t('accounting.dac7StatusReached') : t('accounting.dac7StatusBelow')}
+              </span>
               <Gauge label={t('accounting.dac7Sales', { n: sum.sales, lim: DAC7.sales })} ratio={sum.dac7.salesRatio} />
               <Gauge label={t('accounting.dac7Revenue', { n: money(sum.revenueCents), lim: money(DAC7.revenueCents) })} ratio={sum.dac7.revenueRatio} />
               <p className={`t-small ${sum.dac7.reportable ? 't-warn' : 't-muted'}`}>{sum.dac7.reportable ? t('accounting.dac7Reached', { year }) : t('accounting.dac7Below', { year })}</p>
@@ -242,6 +252,8 @@ function Gauge({ label, ratio }: { label: string; ratio: number }) {
       </div>
       <span className="gauge__track">
         <span className={`gauge__fill ${ratio >= 1 ? 'is-over' : ratio >= 0.8 ? 'is-near' : ''}`} style={{ width: `${w * 100}%` }} />
+        {/* The early warning, at 80 % of the threshold. */}
+        <span className="gauge__mark" aria-hidden="true" style={{ left: '80%' }} />
       </span>
     </div>
   );
