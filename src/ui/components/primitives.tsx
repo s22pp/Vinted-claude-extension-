@@ -379,10 +379,10 @@ export function Sample({ n }: { n: number }) {
  * UNVERIFIED = relies on a Vinted structure never confirmed on a real account.
  * Fixture tests prove ERA's logic, not the real Vinted integration.
  */
-export function Flag({ kind, title }: { kind: 'EXPERIMENTAL' | 'UNVERIFIED'; title?: string }) {
+export function Flag({ kind, title, leaving }: { kind: 'EXPERIMENTAL' | 'UNVERIFIED'; title?: string; leaving?: boolean }) {
   const { t } = useI18n();
   return (
-    <span className={`flag flag--${kind.toLowerCase()}`} title={title ?? t(`flag.${kind}_hint`)}>
+    <span className={`flag flag--${kind.toLowerCase()}${leaving ? ' flag--leaving' : ''}`} title={title ?? t(`flag.${kind}_hint`)} aria-hidden={leaving || undefined}>
       {t(`flag.${kind}`)}
     </span>
   );

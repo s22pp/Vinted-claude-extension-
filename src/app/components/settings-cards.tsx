@@ -8,7 +8,9 @@ import type { SellerIdentity } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { useToast } from '@/ui/components/overlays';
-import { Badge, Button, Card, Flag } from '@/ui/components/primitives';
+import { Badge, Button, Card } from '@/ui/components/primitives';
+import { useVintedImport } from './vinted-import';
+import { go } from '../state';
 import { type UiError, readUiErrors } from './error-boundary';
 
 /** Checks what ERA can read on Vinted from this browser, and a report to copy when something fails. */
@@ -122,6 +124,19 @@ const PROBES: Record<string, DiagKey[]> = { stock: ['wardrobe'], sold: ['sold'],
 
 const STATE_TONE = { VERIFIED: 'emerald', PARTIAL: 'amber', FAILING: 'coral', UNAVAILABLE: 'neutral' } as const;
 
+/** Where each proof is made: the reads come with an import (run from here), the writes from the screen that sends them. */
+const TEST_AT: Record<string, string | 'import'> = { stock: 'import', sold: 'import', reserved: 'import', purchases: 'import', search: 'market', priceEdit: 'stock', titleEdit: 'tools', description: 'quality', draft: 'workshop', label: 'sales?ship=1', hide: 'stock', repost: 'stock', auto: 'automations' };
+
+/** A status as a System Status line shows it: a tone dot and a word. */
+function StatusPill({ tone, title, children }: { tone: 'emerald' | 'amber' | 'coral' | 'neutral'; title?: string; children: React.ReactNode }) {
+  return (
+    <span className="status-pill" data-tone={tone} title={title}>
+      <i aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
 /**
  * What of the Vinted integration has actually been observed working on THIS device, route by route, and what has
  * not — with the last failure when it is the current state. Fixture tests prove ERA's logic; never the real integration.
@@ -129,6 +144,7 @@ const STATE_TONE = { VERIFIED: 'emerald', PARTIAL: 'amber', FAILING: 'coral', UN
 export function IntegrationsCard() {
   const i18n = useI18n();
   const { t } = i18n;
+  const imp = useVintedImport();
   const [checking, setChecking] = useState(false);
   const rows = useLiveQuery(async () => integrationStatus(await integrationRecords()), [checking]) ?? [];
   const check = useLiveQuery(() => repo.getSetting<AccountCheck | null>(ACCOUNT_CHECK_KEY, null), []);
@@ -140,37 +156,49 @@ export function IntegrationsCard() {
     return { ok: got.every((x) => x.ok), info: got.map((x) => x.info).join(' · ') };
   };
   const when = (at: number | null) => (at === null ? '' : i18n.date(at));
+  const stamp = (at: number) => new Date(at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const verified = rows.filter((r) => r.state === 'VERIFIED').length;
   const failing = rows.filter((r) => r.state === 'FAILING').length;
   const status = (r: IntegStatus) => {
-    const unverifiedFlag = r.write ? 'EXPERIMENTAL' : 'UNVERIFIED';
     switch (r.state) {
       case 'VERIFIED':
         return (
-          <Badge tone="emerald" dot>
-            {t('integrations.verified', { n: r.n })}
-          </Badge>
+          <>
+            <StatusPill tone="emerald" title={t('integrations.verifiedHint')}>
+              {t('integrations.verified', { n: r.n })}
+            </StatusPill>
+            {r.lastOk !== null && <span className="integ__stamp num">{t('integrations.provenAt', { at: stamp(r.lastOk) })}</span>}
+          </>
         );
       case 'PARTIAL':
         return (
-          <>
-            <Badge tone="amber" dot>
-              {r.key === 'reserved' ? t('integrations.fieldRead') : t('integrations.partial', { ok: r.routes.filter((x) => x.ok > 0).length, of: r.routes.length })}
-            </Badge>
-            <Flag kind={unverifiedFlag} title={t('integrations.partialHint')} />
-          </>
+          <StatusPill tone="amber" title={t('integrations.partialHint')}>
+            {r.key === 'reserved' ? t('integrations.fieldRead') : t('integrations.partial', { ok: r.routes.filter((x) => x.ok > 0).length, of: r.routes.length })}
+          </StatusPill>
         );
       case 'FAILING':
-        return (
-          <Badge tone="coral" dot>
-            {r.lastFail?.at ? t('integrations.failedOn', { date: when(r.lastFail.at) }) : t('integrations.failed')}
-          </Badge>
-        );
+        return <StatusPill tone="coral">{r.lastFail?.at ? t('integrations.failedOn', { date: when(r.lastFail.at) }) : t('integrations.failed')}</StatusPill>;
       case 'UNAVAILABLE':
-        return <Badge tone={STATE_TONE.UNAVAILABLE}>{t('integrations.unavailable')}</Badge>;
+        return <StatusPill tone={STATE_TONE.UNAVAILABLE}>{t('integrations.unavailable')}</StatusPill>;
       default:
-        return <Flag kind={unverifiedFlag} title={t(r.write ? 'integrations.untestedWrite' : 'integrations.untestedRead')} />;
+        return (
+          <>
+            <StatusPill tone="amber" title={t(r.write ? 'integrations.untestedWrite' : 'integrations.untestedRead')}>
+              {t('integrations.pending')}
+            </StatusPill>
+            <span className="integ__stamp">{t(`integrations.how.${r.key}`)}</span>
+          </>
+        );
     }
+  };
+  const action = (r: IntegStatus) => {
+    const at = TEST_AT[r.key];
+    if (!at || r.state === 'UNAVAILABLE') return null;
+    return (
+      <Button size="sm" variant="ghost" className="integ__test" loading={at === 'import' && imp.busy} onClick={() => (at === 'import' ? void imp.run() : go(at))} aria-label={`${t('integrations.test')} · ${t(`integrations.${r.key}`)}`}>
+        {t('integrations.test')} <span aria-hidden="true">→</span>
+      </Button>
+    );
   };
   const routeText = (r: IntegStatus['routes'][number]) =>
     r.ok > 0
@@ -211,6 +239,7 @@ export function IntegrationsCard() {
             <div key={r.key} className="integ__row" data-state={r.state}>
               <div className="integ__name">{t(`integrations.${r.key}`)}</div>
               <div className="integ__status">{status(r)}</div>
+              <div className="integ__act">{action(r)}</div>
               <div className="integ__body">
                 <div className="t-small t-faint">{t(`integrations.${r.key}Hint`)}</div>
                 {r.routes.length > 1 && (
@@ -227,9 +256,7 @@ export function IntegrationsCard() {
                   <div className="t-small t-warn" style={{ overflowWrap: 'anywhere' }}>
                     {t('integrations.lastFail', { detail: r.lastFail.detail })}
                   </div>
-                ) : (
-                  r.lastOk !== null && <div className="t-small t-faint">{t('integrations.lastOk', { date: when(r.lastOk) })}</div>
-                )}
+                ) : null}
                 {p && check && (
                   <div className={`t-small ${p.ok ? 't-pos' : 't-warn'}`} title={p.info} style={{ overflowWrap: 'anywhere' }}>
                     {t(p.ok ? 'integrations.checkOk' : 'integrations.checkFail', { date: i18n.date(check.at) })}

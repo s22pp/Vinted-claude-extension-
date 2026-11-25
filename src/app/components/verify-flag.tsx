@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { integrationRecords } from '@/data/integration-records';
 import { type IntegKey, integrationStatus } from '@/data/integrations';
 import { PAGE_PROOF_KEYS, type PageProof } from '@/data/page-proofs';
@@ -43,8 +43,19 @@ export function useProven(proof: Proof): boolean | undefined {
  */
 export function VerifyFlag({ proof, kind = 'EXPERIMENTAL', title }: { proof: Proof; kind?: 'EXPERIMENTAL' | 'UNVERIFIED'; title?: string }) {
   const proven = useProven(proof);
-  if (proven !== false) return null;
-  return <Flag kind={kind} title={title} />;
+  // Proven while on screen: the label fades out (200 ms) instead of vanishing.
+  const was = useRef(proven);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const before = was.current;
+    was.current = proven;
+    if (before !== false || proven !== true) return;
+    setLeaving(true);
+    const id = window.setTimeout(() => setLeaving(false), 220);
+    return () => window.clearTimeout(id);
+  }, [proven]);
+  if (proven === false) return <Flag kind={kind} title={title} />;
+  return leaving ? <Flag kind={kind} title={title} leaving /> : null;
 }
 
 /** Words that only matter while the feature is unproven (a « not yet verified on your account » sentence). */

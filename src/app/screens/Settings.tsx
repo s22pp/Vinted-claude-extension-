@@ -126,7 +126,7 @@ export function Settings() {
               <div>
                 <div className="t-h3">{t('app.fullName')}</div>
                 <p className="t-small t-muted">
-                  {t('app.tagline')} <span className="t-serif">{t('app.taglineItalic')}</span>
+                  {t('app.tagline')} {t('app.taglineItalic')}
                 </p>
                 <p className="t-small t-faint">v{browser.runtime.getManifest().version}</p>
               </div>
@@ -178,8 +178,11 @@ export function Settings() {
               <RepliesSettings />
             </div>
           </Card>
-          <IntegrationsCard />
           <DiagnosticCard />
+        </div>
+        {/* The register at full width: one System Status line per function. */}
+        <div className="span-12">
+          <IntegrationsCard />
         </div>
       </div>
       <Modal open={confirm} onClose={() => setConfirm(false)} title={t('settings.reset')}>

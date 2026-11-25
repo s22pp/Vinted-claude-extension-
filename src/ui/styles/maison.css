@@ -1120,3 +1120,163 @@ input[type='checkbox'][role='switch']:disabled {
   font-size: 12.5px;
   font-weight: 500;
 }
+
+/* ── Welcome: one title, the promise beneath it in plain words ──────────────────────────────────────────────────────── */
+.onb__lede {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* ── Proof labels (EXPÉRIMENTAL / NON VÉRIFIÉ): a fine amber tag, a 5 px dot, a fade once proven ──────────────────── */
+.flag,
+.flag--experimental,
+.flag--unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out, ease);
+}
+.flag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.flag--leaving {
+  opacity: 0;
+}
+
+/* ── System Status pills (Réglages → Intégrations Vinted) ───────────────────────────────────────────────────────────── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+.status-pill > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.status-pill[data-tone='emerald'] > i {
+  background: var(--emerald);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--emerald) 18%, transparent);
+}
+.status-pill[data-tone='amber'] {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 25%, transparent);
+  background: color-mix(in srgb, var(--amber) 6%, transparent);
+}
+.status-pill[data-tone='amber'] > i {
+  background: var(--amber);
+}
+.status-pill[data-tone='coral'] {
+  color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 30%, transparent);
+}
+.status-pill[data-tone='coral'] > i {
+  background: var(--coral);
+}
+
+.integ__row {
+  grid-template-columns: minmax(0, 1fr) minmax(170px, auto) auto;
+  column-gap: 20px;
+  align-items: start;
+  padding: 14px 0;
+}
+.integ__name {
+  grid-column: 1;
+  grid-row: 1;
+}
+.integ__body {
+  grid-column: 1;
+  grid-row: 2;
+}
+.integ__status {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.integ__act {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.integ__act:empty {
+  display: none;
+}
+.integ__stamp {
+  font-size: 11px;
+  color: var(--text-2);
+  text-align: right;
+  max-width: 220px;
+}
+.integ__test {
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .integ__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .integ__status {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    align-items: flex-start;
+  }
+  .integ__act {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* ── The Pilote's standing safety note: an editorial aside, not a badge ─────────────────────────────────────────────── */
+.safety-note {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  border-left: 2px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 4%, transparent);
+  border-radius: 0 3px 3px 0;
+  color: var(--text);
+}
+.safety-note > svg {
+  color: var(--amber);
+  margin-top: 2px;
+}
+.safety-note p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 72ch;
+}
