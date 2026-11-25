@@ -66,7 +66,7 @@ function runImport(auto = false): Promise<ImportResult> {
     .then(async (r): Promise<ImportResult> => {
       // Purchases follow in the background; the stock is already usable.
       importFollowUp = Promise.all([importPurchasesFromVinted().then(async () => afterPurchases(await stagesBefore, auto)), afterImport(await before, auto)]).catch(() => undefined);
-      void log('info', 'import', `${r.items} nouveaux articles, ${r.updated} mis à jour, ${r.sales} vente(s)`);
+      void log('info', 'import', `stock lu sur Vinted : +${r.items} · ${r.updated} m. à j. · ${r.sales} vente(s) enregistrée(s)`);
       // A new sale: a full copy of the data, the 7 latest kept.
       if (r.sales > 0) void runSaleBackup().catch((e: unknown) => recordError('backup:sale', e));
       return { ok: true, ...r };
