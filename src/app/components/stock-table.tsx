@@ -9,6 +9,7 @@ import { Thumb } from '@/ui/components/Thumb';
 import { publishedAgo } from '@/intelligence/repost-now';
 import { go } from '../state';
 import { RecoChip, StatusBadge } from './domain';
+import { InlineCost } from './forms';
 import { useLotItems } from './sale-lot';
 
 export type ColKey = 'brand' | 'size' | 'cost' | 'price' | 'margin' | 'roi' | 'yield' | 'views' | 'favorites' | 'published' | 'age' | 'listings' | 'status' | 'reco';
@@ -200,6 +201,13 @@ export function StockTable({ rows, cols, density, sort, onSort, positions, selec
           </td>
         );
       case 'reco':
+        // « Renseigner le prix d'achat » is not a message to read: the field is right there, in the row.
+        if (v.inStock && r.intel?.recommendation?.action === 'ADD_COST' && !v.item.isDemo)
+          return (
+            <td key={c} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <InlineCost itemId={v.item.id} />
+            </td>
+          );
         return <td key={c}>{v.inStock ? <RecoChip r={r.intel?.recommendation ?? null} /> : null}</td>;
     }
   };

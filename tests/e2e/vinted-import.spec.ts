@@ -1587,7 +1587,7 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await before.close();
   await sw.evaluate(() =>
     chrome.storage.local.set({
-      eraOverlayNiches: [{ brand: 'ralph lauren', category: 'SHIRT', label: 'Ralph Lauren · Chemise', maxVintedPriceCents: 1200, medianSaleCents: 3000, sold: 9, avoid: false }],
+      eraOverlayNiches: [{ brand: 'ralph lauren', category: 'SHIRT', label: 'Ralph Lauren · Chemise', maxVintedPriceCents: 1200, medianSaleCents: 3000, lowSaleCents: 2400, highSaleCents: 3500, sold: 9, avoid: false }],
       eraOwnListings: ['101'],
     }),
   );
@@ -1607,10 +1607,11 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await context.route('https://www.vinted.fr/items/601**', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html><head>${ld('Chemise Oxford Ralph Lauren', '10.00')}</head><body>item</body></html>` }));
   await page.goto('https://www.vinted.fr/items/601-chemise');
   const chip = page.locator('[data-era-mark="PAGE"]');
-  // A 36 px bar now: its label, then what you sold in this niche and your max, and a way into ERA.
-  await expect(chip).toContainText('ERA ✓ marge ~18,80 €');
-  await expect(chip).toContainText('vos ventes ~30 € · 9');
-  await expect(chip).toContainText('max 12 €');
+  // A 36 px bar: « Cote ERA » (your own price range in the niche) and the estimated margin, then your max, your sales,
+  // and a way into ERA.
+  await expect(chip).toContainText('Cote ERA : 24–35 € · Marge est. +18,80 €');
+  await expect(chip).toContainText('✓ sous votre max 12 €');
+  await expect(chip).toContainText('vendu 9× par vous');
   // The bar (in its own shadow root) opens ERA's buy analysis, prefilled with this listing.
   const [analysis] = await Promise.all([context.waitForEvent('page'), chip.getByRole('button', { name: 'Analyser dans ERA' }).click()]);
   await expect.poll(() => analysis.url()).toMatch(/#\/buy\?vinted=1&title=Chemise\+Oxford\+Ralph\+Lauren/);
@@ -1620,8 +1621,9 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
     for (const x of document.querySelectorAll('script[type="application/ld+json"]')) x.remove();
     document.head.insertAdjacentHTML('beforeend', html);
   }, ld('Chemise Ralph Lauren slim', '25.00'));
-  await expect(chip).toContainText('ERA · votre max 12 €');
-  await expect(chip).not.toContainText('ERA ✓');
+  await expect(chip).toContainText('Cote ERA : 24–35 € · Marge est. +3,05 €');
+  await expect(chip).toContainText('au-dessus de votre max 12 €');
+  await expect(chip).not.toContainText('✓');
   await expect(chip).toHaveCount(1);
   // Switched off in ERA: every mark goes.
   await sw.evaluate(() => chrome.storage.local.set({ eraOverlayOn: false }));

@@ -16,6 +16,9 @@ export interface OverlayNiche {
   label: string;
   maxVintedPriceCents: number;
   medianSaleCents: number;
+  /** Your own price range in the niche (25th–75th percentile of what you cashed in); absent from older data. */
+  lowSaleCents?: number;
+  highSaleCents?: number;
   sold: number;
   avoid: boolean;
 }
@@ -25,7 +28,18 @@ export const OVERLAY_ON_KEY = 'eraOverlayOn';
 
 export function overlayNiches(list: { buy: readonly ShoppingLine[]; avoid: readonly ShoppingLine[] }): OverlayNiche[] {
   const pick = (l: ShoppingLine, avoid: boolean): OverlayNiche | null =>
-    l.brand ? { brand: l.brand, category: l.category, label: l.label, maxVintedPriceCents: l.maxVintedPriceCents, medianSaleCents: l.medianSaleCents, sold: l.sold, avoid } : null;
+    l.brand
+      ? {
+          brand: l.brand,
+          category: l.category,
+          label: l.label,
+          maxVintedPriceCents: l.maxVintedPriceCents,
+          medianSaleCents: l.medianSaleCents,
+          ...(l.lowSaleCents != null && l.highSaleCents != null ? { lowSaleCents: l.lowSaleCents, highSaleCents: l.highSaleCents } : {}),
+          sold: l.sold,
+          avoid,
+        }
+      : null;
   return [...list.buy.map((l) => pick(l, false)), ...list.avoid.map((l) => pick(l, true))].filter((x): x is OverlayNiche => x !== null);
 }
 
@@ -38,6 +52,22 @@ export interface Mark {
   /** Your usual sale price minus what it would cost you (shipping excluded). */
   marginCents: number;
   sold: number;
+  /** What you usually sell this niche for: the median, and the middle half when known (« Cote ERA »). */
+  medianSaleCents: number;
+  range: { lo: number; hi: number } | null;
+}
+
+/** « 24–35 € », or « ~30 € » when there is no range (or a single price). */
+export function coteText(m: Pick<Mark, 'medianSaleCents' | 'range'>): string {
+  const e = (c: number) => (c % 100 === 0 ? String(c / 100) : (c / 100).toFixed(2).replace('.', ','));
+  return m.range && m.range.hi > m.range.lo ? `${e(m.range.lo)}–${e(m.range.hi)} €` : `~${e(m.medianSaleCents)} €`;
+}
+
+/** « +18,80 € », « −3,05 € »: an estimated margin always carries its sign. */
+export function signedEur(cents: number): string {
+  const abs = Math.abs(cents);
+  const txt = abs % 100 === 0 ? String(abs / 100) : (abs / 100).toFixed(2).replace('.', ',');
+  return `${cents < 0 ? '−' : '+'}${txt} €`;
 }
 
 /** Price as a page shows it: "45,00 €", "€45.00", "45 €" — the first amount. */
@@ -61,5 +91,6 @@ export function markFor(text: string, priceCents: number | null, niches: readonl
   if (!n) return null;
   const landed = vintedLanded(priceCents);
   const kind: MarkKind = n.avoid ? 'AVOID' : priceCents <= n.maxVintedPriceCents ? 'DEAL' : 'ABOVE_MAX';
-  return { kind, niche: n.label, landedCents: landed, maxVintedPriceCents: n.maxVintedPriceCents, marginCents: n.medianSaleCents - landed, sold: n.sold };
+  const range = typeof n.lowSaleCents === 'number' && typeof n.highSaleCents === 'number' && n.highSaleCents >= n.lowSaleCents ? { lo: n.lowSaleCents, hi: n.highSaleCents } : null;
+  return { kind, niche: n.label, landedCents: landed, maxVintedPriceCents: n.maxVintedPriceCents, marginCents: n.medianSaleCents - landed, sold: n.sold, medianSaleCents: n.medianSaleCents, range };
 }

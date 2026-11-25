@@ -1,6 +1,6 @@
 import { notePageProof } from '@/data/page-proofs';
 import { parseItemJsonLd } from '@/data/adapters/vinted/parse';
-import { type Mark, OVERLAY_KEY, OVERLAY_ON_KEY, type OverlayNiche, markFor, priceFromText } from '@/intelligence/overlay';
+import { type Mark, OVERLAY_KEY, OVERLAY_ON_KEY, type OverlayNiche, coteText, markFor, priceFromText, signedEur } from '@/intelligence/overlay';
 import { eurText } from '@/domain/money';
 import type { EraMessage } from '@/data/adapters/vinted/protocol';
 import { querySelectorResilient } from '@/lib/dom-resilient';
@@ -24,6 +24,9 @@ export default defineContentScript({
 
     const eur = (c: number) => eurText(c);
     const label = (m: Mark) => (m.kind === 'DEAL' ? `ERA ✓ marge ~${eur(m.marginCents)}` : m.kind === 'AVOID' ? 'ERA ⚠ niche à éviter' : `ERA · votre max ${eur(m.maxVintedPriceCents)}`);
+    /** The item page's line: « Cote ERA : 24–35 € · Marge est. +18,80 € » — your price range in the niche, what this one would leave. */
+    const barLabel = (m: Mark) => `Cote ERA : ${coteText(m)} · ${m.kind === 'AVOID' ? 'niche à éviter' : `Marge est. ${signedEur(m.marginCents)}`}`;
+    const maxText = (m: Mark) => (m.kind === 'DEAL' ? `✓ sous votre max ${eur(m.maxVintedPriceCents)}` : m.kind === 'ABOVE_MAX' ? `au-dessus de votre max ${eur(m.maxVintedPriceCents)}` : `max ${eur(m.maxVintedPriceCents)}`);
     const tip = (m: Mark) =>
       `ERA — ${m.niche} : vendu ${m.sold} fois par vous. Coût tout compris ~${eur(m.landedCents)} (protection acheteur incluse, port en plus). Prix max conseillé ${eur(m.maxVintedPriceCents)}.${m.kind === 'AVOID' ? ' Cette niche se vend mal pour vous.' : ''}`;
     // ERA's own marks live in a shadow root: Vinted's styles never reach them, theirs never leak onto the page. The text
@@ -46,7 +49,7 @@ export default defineContentScript({
     const bar = (m: Mark, it: { title: string; brand: string | null; priceCents: number | null }, under: Element | null) => {
       const host = document.createElement('era-bar');
       host.setAttribute('data-era-mark', 'PAGE');
-      host.textContent = label(m);
+      host.textContent = barLabel(m);
       host.title = tip(m);
       const root = host.attachShadow({ mode: 'open' });
       const place = under ? ':host{all:initial;display:block;margin:10px 0}' : ':host{all:initial;position:fixed;left:16px;bottom:16px;z-index:2147483000}';
@@ -61,8 +64,8 @@ export default defineContentScript({
         <div class="bar" role="group" aria-label="ERA">
           <span class="seg e" aria-hidden="true">E</span>
           <span class="seg"><i class="dot" style="background:${DOT[m.kind]}"></i><slot></slot></span>
-          <span class="seg muted">vos ventes ~${eur(m.marginCents + m.landedCents)} · ${m.sold}</span>
-          <span class="seg muted">max ${eur(m.maxVintedPriceCents)}</span>
+          <span class="seg muted">${maxText(m)}</span>
+          <span class="seg muted">vendu ${m.sold}× par vous</span>
           <button type="button">Analyser dans ERA</button>
         </div>`;
       root.querySelector('button')!.addEventListener('click', (e) => {

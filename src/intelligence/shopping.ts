@@ -19,6 +19,9 @@ export interface ShoppingLine {
   confidence: Confidence;
   /** Median price actually cashed in. */
   medianSaleCents: number;
+  /** The middle half of the prices cashed in (25th–75th percentile), when known. */
+  lowSaleCents?: number | null;
+  highSaleCents?: number | null;
   medianDays: number | null;
   /** Average profit per sale, when purchase costs are known. */
   avgProfitCents: number | null;
@@ -72,6 +75,8 @@ function line(s: SegmentStats, o: ShoppingOptions): ShoppingLine | null {
     sold: s.sold,
     confidence: sampleConfidence(s.sold),
     medianSaleCents: s.medianSaleCents,
+    lowSaleCents: s.lowSaleCents ?? null,
+    highSaleCents: s.highSaleCents ?? null,
     medianDays: s.medianDays,
     avgProfitCents: s.avgProfitCents,
     profitPerDayCents: profitPerDay === null ? null : Math.round(profitPerDay),

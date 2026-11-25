@@ -17,6 +17,9 @@ export interface SegmentStats {
   avgSaleCents: Cents | null;
   /** Median REALISED sale price (cash actually received), the seller's real price. */
   medianSaleCents: Cents | null;
+  /** The middle half of the realised prices (25th and 75th percentiles, to the euro): the seller's own price range. */
+  lowSaleCents?: Cents | null;
+  highSaleCents?: Cents | null;
   avgProfitCents: Cents | null;
   /** How many of the sold items had a known profit. */
   profitSample: number;
@@ -102,6 +105,8 @@ function segment(
     avgBuyCents: costs.length ? euro(mean(costs)) : null,
     avgSaleCents: done.length ? euro(mean(done.map((s) => s.sale.salePriceCents))) : null,
     medianSaleCents: done.length ? euro(median(done.map((s) => s.sale.salePriceCents))) : null,
+    lowSaleCents: done.length ? euro(quantile(done.map((s) => s.sale.salePriceCents), 0.25)) : null,
+    highSaleCents: done.length ? euro(quantile(done.map((s) => s.sale.salePriceCents), 0.75)) : null,
     avgProfitCents: withProfit.length ? euro(profitSum / withProfit.length) : null,
     profitSample: withProfit.length,
     medianDays: days.length ? median(days) : null,

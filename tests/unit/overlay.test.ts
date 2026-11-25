@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { markFor, priceFromText } from '@/intelligence/overlay';
+import { coteText, markFor, overlayNiches, priceFromText, signedEur } from '@/intelligence/overlay';
+import type { ShoppingLine } from '@/intelligence/shopping';
 
 const niches = [
   { brand: 'ralph lauren', category: 'SHIRT' as const, label: 'Ralph Lauren · Chemise', maxVintedPriceCents: 1200, medianSaleCents: 3000, sold: 9, avoid: false },
@@ -24,5 +25,28 @@ describe('ERA marks on Vinted pages', () => {
     expect(markFor('Jean Ralph Lauren', 900, niches)).toBeNull();
     expect(markFor('Lot de 3 chemises Ralph Lauren', 900, niches)).toBeNull();
     expect(markFor('Chemise Ralph Lauren 10 ans', 900, niches)).toBeNull();
+  });
+  it('« Cote ERA »: your own price range in the niche, else your median; the margin always carries its sign', () => {
+    const ranged = [{ ...niches[0]!, lowSaleCents: 2400, highSaleCents: 3500 }];
+    const m = markFor('Chemise Oxford Ralph Lauren L', 1000, ranged)!;
+    expect(m.range).toEqual({ lo: 2400, hi: 3500 });
+    expect(coteText(m)).toBe('24–35 €');
+    expect(signedEur(m.marginCents)).toBe('+18,80 €');
+    // Older stored niches have no range: the median alone, marked as approximate.
+    const plain = markFor('Chemise Oxford Ralph Lauren L', 1000, niches)!;
+    expect(plain.range).toBeNull();
+    expect(coteText(plain)).toBe('~30 €');
+    expect(coteText({ medianSaleCents: 2950, range: { lo: 2950, hi: 2950 } })).toBe('~29,50 €');
+    expect(signedEur(-305)).toBe('−3,05 €');
+    expect(signedEur(1200)).toBe('+12 €');
+  });
+  it('the range travels from the shopping list to the vinted.fr pages, and is left out when unknown', () => {
+    const line = (over: Partial<ShoppingLine>): ShoppingLine => ({
+      key: 'k', label: 'Ralph Lauren · Chemise', brand: 'ralph lauren', category: 'SHIRT', sold: 9, confidence: 'MEDIUM', medianSaleCents: 3000, medianDays: 12,
+      avgProfitCents: null, profitPerDayCents: null, inStock: 0, maxLandedCents: 1300, maxVintedPriceCents: 1200, why: { code: 'none', params: {} }, ...over,
+    });
+    const [a, b] = overlayNiches({ buy: [line({ lowSaleCents: 2400, highSaleCents: 3500 }), line({ key: 'k2' })], avoid: [] });
+    expect(a).toMatchObject({ lowSaleCents: 2400, highSaleCents: 3500 });
+    expect(b).not.toHaveProperty('lowSaleCents');
   });
 });
