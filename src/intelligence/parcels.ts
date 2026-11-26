@@ -191,10 +191,21 @@ export function distanceKm(a: Place | { lat: number; lng: number }, b: { lat: nu
 
 /**
  * Before the seller places home: the map shows France, with no home marker, ring or distance. Home itself is only
- * ever the seller's own click, stored on this device (never a place written in the code).
+ * ever the seller's own choice (their town and its coordinates, or a click on the map), stored on this device in
+ * settings.homeLocation — never a place written in the code.
  */
 export const DEFAULT_HOME: Place = { lat: 46.6, lng: 2.4, label: 'France' };
-export const HOME_KEY = 'homePlace';
+export const HOME_KEY = 'homeLocation';
+/** Where earlier versions kept it: read once, then moved to HOME_KEY. */
+export const LEGACY_HOME_KEY = 'homePlace';
+
+/** A home as the seller saves it: their town (« Ville, code postal ») and its coordinates; null when unusable. */
+export function homeOf(raw: unknown): Place | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const p = raw as Partial<Place>;
+  if (typeof p.lat !== 'number' || typeof p.lng !== 'number' || !Number.isFinite(p.lat) || !Number.isFinite(p.lng) || Math.abs(p.lat) > 90 || Math.abs(p.lng) > 180) return null;
+  return { lat: p.lat, lng: p.lng, label: typeof p.label === 'string' && p.label.trim() ? p.label.trim() : 'chez moi' };
+}
 export const PARCEL_INFO_KEY = 'parcelInfo';
 
 /** What "Localiser" found for one order (a conversation), kept locally. */

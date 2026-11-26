@@ -1443,3 +1443,26 @@ kbd,
   align-items: flex-end;
   margin: 12px 0 8px;
 }
+
+/* Colis → « Déplacer chez moi »: the town and its coordinates in one ruled row above the map. */
+.home-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-grid);
+}
+.home-form__hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* The popup and side panel carry the sidebar's identity: no rule underneath, no negative margins. */
+.side-id.side-id--compact {
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+}

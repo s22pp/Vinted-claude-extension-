@@ -4,7 +4,8 @@ import type { EraMessage, LabelResult } from '@/data/adapters/vinted/protocol';
 import { db, uid } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import { HOME_KEY, PARCEL_INFO_KEY, type ParcelInfo, type Place } from '@/intelligence/parcels';
+import { PARCEL_INFO_KEY, type ParcelInfo } from '@/intelligence/parcels';
+import { useHomeLocation } from './home-location';
 import type { SaleView } from '@/intelligence/portfolio';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Button, Field, Input, Segmented, Select } from '@/ui/components/primitives';
@@ -24,7 +25,8 @@ const MODE_KEY = 'dropOffMode';
 export function useDropOffRound() {
   const era = useEra();
   const points = useLiveQuery(() => db.dropOffPoints.toArray(), []) ?? [];
-  const home = useLiveQuery(() => repo.getSetting<Place | null>(HOME_KEY, null), []) ?? null;
+  // Start and end of the round: settings.homeLocation (the seller's town and coordinates, this device only).
+  const home = useHomeLocation() ?? null;
   const info = useLiveQuery(() => repo.getSetting<Record<string, ParcelInfo>>(PARCEL_INFO_KEY, {}), []) ?? {};
   const assigned = useLiveQuery(() => repo.getSetting<Record<string, Carrier>>(CARRIER_KEY, {}), []) ?? {};
   const chosen = useLiveQuery(() => repo.getSetting<Partial<Record<Carrier, string>>>(CHOSEN_KEY, {}), []) ?? {};
@@ -36,7 +38,7 @@ export function useDropOffRound() {
   const parcels = toShip.map((x) => ({ saleId: x.sale.id, title: x.item.title, carrier: carrierFor(x), storageLocation: x.item.storageLocation ?? null }));
   const round: Round = orderStops(home, groupByStop(parcels, points, chosen));
   const waypoints = round.stops.filter((s) => s.point).map((s) => placeParam(s.point!));
-  const url = home && waypoints.length ? mapsDirectionsUrl(placeParam(home), waypoints, mode) : null;
+  const url = home && waypoints.length ? mapsDirectionsUrl(placeParam({ lat: home.lat, lng: home.lng, address: home.label }), waypoints, mode) : null;
   return {
     toShip: toShip.length,
     sales,
@@ -194,7 +196,7 @@ function DropOffPoints({ points }: { points: readonly DropOffPoint[] }) {
           <Input id="dp-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t('drop.addressPh')} />
         </Field>
         <Field label={t('drop.coords')} htmlFor="dp-coords" optional error={bad ? t('drop.coordsBad') : null}>
-          <Input id="dp-coords" value={coords} onChange={(e) => setCoords(e.target.value)} placeholder="45.7578, 4.8320" />
+          <Input id="dp-coords" value={coords} onChange={(e) => setCoords(e.target.value)} placeholder={t('drop.coordsPh')} />
         </Field>
         <Field label={t('drop.hours')} htmlFor="dp-hours" optional>
           <Input id="dp-hours" value={hours} onChange={(e) => setHours(e.target.value)} placeholder={t('drop.hoursPh')} />

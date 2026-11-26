@@ -4,7 +4,7 @@ import type { EraMessage, LocateResult } from '@/data/adapters/vinted/protocol';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import { DEFAULT_HOME, HOME_KEY, PARCEL_INFO_KEY, PARCEL_STEPS, type Parcel, type ParcelInfo, type Place, distanceKm, parcelsInProgress } from '@/intelligence/parcels';
+import { DEFAULT_HOME, PARCEL_INFO_KEY, PARCEL_STEPS, type Parcel, type ParcelInfo, type Place, distanceKm, parcelsInProgress } from '@/intelligence/parcels';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, EmptyState } from '@/ui/components/primitives';
 import { ParcelBoard } from '../components/parcel-board';
@@ -14,6 +14,7 @@ import { useEra } from '../state';
 import { SalesTabs } from '../components/section-tabs';
 import { CashNudges } from '../components/cash-nudge';
 import { DropOffRoute } from '../components/drop-off';
+import { HomeLocationForm, saveHomeLocation, useHomeLocation } from '../components/home-location';
 
 // The map library is loaded with the map only, not with every visit of the dashboard.
 const ParcelMap = lazy(() => import('../components/parcel-map').then((m) => ({ default: m.ParcelMap })));
@@ -30,7 +31,8 @@ export function Parcels() {
   const purchaseRows = useLiveQuery(() => db.purchases.toArray(), []);
   const infoRow = useLiveQuery(() => repo.getSetting<Record<string, ParcelInfo>>(PARCEL_INFO_KEY, {}), []);
   const info = useMemo(() => infoRow ?? {}, [infoRow]);
-  const storedHome = useLiveQuery(() => repo.getSetting<Place | null>(HOME_KEY, null), []);
+  // settings.homeLocation, on this device only (a home from an earlier version is read too).
+  const storedHome = useHomeLocation();
   const home = storedHome ?? DEFAULT_HOME;
   const homeSet = !!storedHome;
   const [placing, setPlacing] = useState(false);
@@ -63,8 +65,9 @@ export function Parcels() {
       setBusy(null);
     }
   };
+  // A click on the map moves home there and keeps its town's name.
   const placeHome = async (at: { lat: number; lng: number }) => {
-    await repo.setSetting(HOME_KEY, { ...at, label: t('parcelmap.homePlaced') } satisfies Place);
+    await saveHomeLocation({ ...at, label: storedHome?.label ?? t('parcelmap.homePlaced') } satisfies Place);
     setPlacing(false);
   };
 
@@ -162,13 +165,14 @@ export function Parcels() {
                   {placing ? t('parcelmap.placing') : t('parcelmap.place')}
                 </Button>
                 {storedHome && (
-                  <Button size="sm" variant="ghost" onClick={() => void repo.setSetting(HOME_KEY, null)}>
+                  <Button size="sm" variant="ghost" onClick={() => void saveHomeLocation(null)}>
                     {t('parcelmap.forgetHome')}
                   </Button>
                 )}
               </div>
             }
           >
+            {placing && <HomeLocationForm home={storedHome ?? null} onDone={() => setPlacing(false)} />}
             <Suspense fallback={<div className="pmap skeleton" aria-hidden="true" />}>
               <ParcelMap home={home} homeSet={homeSet} pins={pins} placing={placing} onPlace={(at) => void placeHome(at)} />
             </Suspense>

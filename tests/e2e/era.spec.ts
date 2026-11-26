@@ -1013,21 +1013,26 @@ test('Colis → drop-off round: carriers chosen, favourite points saved, stops b
   test.setTimeout(120_000);
   const page = await context.newPage();
   await loadDemo(page, base);
-  // Test fixture: a home set in « Autour de chez vous » (a public place in Lyon, not the seller's).
-  await page.evaluate(
+  // Home, in one click from the Colis map (« Déplacer chez moi »): a made-up town and coordinates (test data only).
+  await page.goto(`${base}#/parcels`);
+  await page.getByRole('button', { name: 'Déplacer chez moi' }).click();
+  const homeForm = page.getByTestId('home-form');
+  await homeForm.getByLabel('Ville').fill('Ville test, 00000');
+  await homeForm.getByLabel('Coordonnées').fill('45.764, 4.8357');
+  await homeForm.getByRole('button', { name: 'Enregistrer chez moi' }).click();
+  await expect(page.getByText('Autour de chez vous — Ville test, 00000')).toBeVisible();
+  // Kept in settings.homeLocation, on this device.
+  const stored = await page.evaluate(
     () =>
-      new Promise<void>((resolve, reject) => {
+      new Promise<unknown>((resolve) => {
         const req = indexedDB.open('era-intelligence');
         req.onsuccess = () => {
-          const tx = req.result.transaction('settings', 'readwrite');
-          tx.objectStore('settings').put({ key: 'homePlace', value: { lat: 45.764, lng: 4.8357, label: 'Lyon' } });
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
+          const g = req.result.transaction('settings').objectStore('settings').get('homeLocation');
+          g.onsuccess = () => resolve(g.result?.value);
         };
       }),
   );
-  await page.goto(`${base}#/parcels`);
-  await page.reload();
+  expect(stored).toEqual({ lat: 45.764, lng: 4.8357, label: 'Ville test, 00000' });
   const drop = page.getByTestId('drop-off');
   await expect(drop).toContainText('Tournée de dépôt · 2 colis · 1 arrêts');
   await expect(drop).toContainText('TRANSPORTEUR À CHOISIR');
@@ -1045,16 +1050,16 @@ test('Colis → drop-off round: carriers chosen, favourite points saved, stops b
   const addPoint = async (carrier: string, name: string, coords: string) => {
     await drop.locator('#dp-carrier').selectOption(carrier);
     await drop.locator('#dp-name').fill(name);
-    await drop.locator('#dp-address').fill(`${name}, Lyon`);
+    await drop.locator('#dp-address').fill(`Adresse ${name.slice(-1)}, Ville test`);
     await drop.locator('#dp-coords').fill(coords);
     await drop.getByRole('button', { name: 'Enregistrer le point' }).click();
   };
-  await addPoint('Vinted Go', 'Locker Part-Dieu', '45.7606, 4.8594');
-  await addPoint('Mondial Relay', 'Tabac Bellecour', '45.7578, 4.832');
-  // Nearest first: Bellecour (0,7 km) then Part-Dieu; the loop's distance said.
+  await addPoint('Vinted Go', 'Point B', '45.7606, 4.8594');
+  await addPoint('Mondial Relay', 'Point A', '45.7578, 4.832');
+  // Nearest first: point A (0,7 km from home) then point B; the loop's distance said.
   const stops = drop.getByTestId('drop-stop');
-  await expect(stops.nth(0)).toContainText('01MONDIAL RELAY— Tabac Bellecour1 colis');
-  await expect(stops.nth(1)).toContainText('02VINTED GO— Locker Part-Dieu1 colis');
+  await expect(stops.nth(0)).toContainText('01MONDIAL RELAY— Point A1 colis');
+  await expect(stops.nth(1)).toContainText('02VINTED GO— Point B1 colis');
   await expect(drop).toContainText(/· ≈ \d+,\d KM/);
   const maps = drop.getByTestId('drop-maps');
   const url = new URL((await maps.getAttribute('href'))!);

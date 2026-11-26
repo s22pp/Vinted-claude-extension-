@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AccountIdentity } from '../components/account-identity';
 import type { PageItem } from '@/data/adapters/vinted/parse';
 import { readPageContext } from '@/data/adapters/vinted/vinted-adapter';
 import { db } from '@/data/db';
@@ -129,17 +130,8 @@ export function Companion({ mode }: { mode: 'popup' | 'panel' }) {
   return (
     <div className={`compact-app ${mode === 'popup' ? 'popup' : ''}`}>
       <header className="row-between">
-        <span className="row" style={{ gap: 10 }}>
-          <LogoMark size={28} />
-          <span style={{ lineHeight: 1.1 }}>
-            <span className="sidebar__brand-name" style={{ display: 'block' }}>
-              ERA
-            </span>
-            <span className="t-faint" style={{ fontSize: 11 }}>
-              {era.mode === 'empty' ? t('data.stateEmpty') : t('data.stateLocal', { n: era.views.filter((v) => v.inStock).length })}
-            </span>
-          </span>
-        </span>
+        {/* The same identity as the dashboard's sidebar: avatar and login, or ERA before the first import (no pill). */}
+        <AccountIdentity className="side-id--compact" href="#" onClick={(e) => { e.preventDefault(); openDashboard(); }} />
         <span className="row" style={{ gap: 6 }}>
           {era.mode === 'demo' && <DemoBadge />}
           {era.mode === 'real' && <VintedImportButton size="sm" label="short" />}

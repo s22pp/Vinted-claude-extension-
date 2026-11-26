@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { type DropOffPoint, carrierOf, groupByStop, haversineKm, mapsDirectionsUrl, mapsSearchUrl, orderStops, parseLatLng, placeParam } from '@/utils/routeOptimizer';
 
-// Test fixtures: public places in Lyon, never the seller's.
+// Test fixtures: made-up points (any coordinates), never the seller's places.
 const home = { lat: 45.764, lng: 4.8357 };
-const near = { id: 'p1', carrier: 'Mondial Relay' as const, name: 'Tabac Bellecour', address: 'Place Bellecour, Lyon', lat: 45.7578, lng: 4.832 };
-const far = { id: 'p2', carrier: 'Vinted Go' as const, name: 'Locker Part-Dieu', address: 'Part-Dieu, Lyon', lat: 45.7606, lng: 4.8594 };
-const farther = { id: 'p3', carrier: 'Colissimo' as const, name: 'Poste Vaise', address: 'Vaise, Lyon', lat: 45.7745, lng: 4.8055 };
-const noCoords: DropOffPoint = { id: 'p4', carrier: 'Chronopost', name: 'Relais Croix-Rousse', address: 'Croix-Rousse, Lyon' };
+const near = { id: 'p1', carrier: 'Mondial Relay' as const, name: 'Point A', address: 'Adresse A, Ville test', lat: 45.7578, lng: 4.832 };
+const far = { id: 'p2', carrier: 'Vinted Go' as const, name: 'Point B', address: 'Adresse B, Ville test', lat: 45.7606, lng: 4.8594 };
+const farther = { id: 'p3', carrier: 'Colissimo' as const, name: 'Point C', address: 'Adresse C, Ville test', lat: 45.7745, lng: 4.8055 };
+const noCoords: DropOffPoint = { id: 'p4', carrier: 'Chronopost', name: 'Point D', address: 'Adresse D, Ville test' };
 
 describe('drop-off round', () => {
   it('reads the carrier in Vinted’s words', () => {
@@ -44,8 +44,8 @@ describe('drop-off round', () => {
 
   it('Haversine: the distance between two places, in km', () => {
     expect(haversineKm(home, home)).toBe(0);
-    // Paris → Lyon: 391,5 km as the crow flies.
-    expect(haversineKm({ lat: 48.8566, lng: 2.3522 }, { lat: 45.764, lng: 4.8357 })).toBeCloseTo(391.5, 1);
+    // One degree of latitude: 111,2 km.
+    expect(haversineKm({ lat: 45, lng: 4 }, { lat: 46, lng: 4 })).toBeCloseTo(111.2, 1);
   });
 
   it('nearest neighbour from home, the loop back home counted; stops without coordinates last', () => {
@@ -68,10 +68,10 @@ describe('drop-off round', () => {
 
   it('the official Google Maps Directions URL: home → stops → home, encoded, « | » between waypoints, by car or on foot', () => {
     const url = mapsDirectionsUrl(placeParam(home), [placeParam(near), placeParam(noCoords)], 'walking');
-    expect(url).toBe('https://www.google.com/maps/dir/?api=1&origin=45.764%2C4.8357&destination=45.764%2C4.8357&waypoints=45.7578%2C4.832%7CCroix-Rousse%2C%20Lyon&travelmode=walking');
+    expect(url).toBe('https://www.google.com/maps/dir/?api=1&origin=45.764%2C4.8357&destination=45.764%2C4.8357&waypoints=45.7578%2C4.832%7CAdresse%20D%2C%20Ville%20test&travelmode=walking');
     const u = new URL(url);
     expect(u.searchParams.get('api')).toBe('1');
-    expect(u.searchParams.get('waypoints')).toBe('45.7578,4.832|Croix-Rousse, Lyon');
+    expect(u.searchParams.get('waypoints')).toBe('45.7578,4.832|Adresse D, Ville test');
     expect(new URL(mapsDirectionsUrl('A', [], 'driving')).searchParams.has('waypoints')).toBe(false);
     // Google Maps takes at most 9 waypoints.
     const many = Array.from({ length: 12 }, (_, i) => `Stop ${i}`);
@@ -89,4 +89,12 @@ describe('drop-off round', () => {
     expect(parseLatLng('Place Bellecour')).toBeNull();
     expect(parseLatLng('95, 4')).toBeNull();
   });
+
+  it('home: always the seller’s saved place (settings.homeLocation) — its coordinates, else its town — at both ends', () => {
+    const url = new URL(mapsDirectionsUrl(placeParam({ address: 'Ville test, 00000' }), ['Adresse A'], 'driving'));
+    expect(url.searchParams.get('origin')).toBe('Ville test, 00000');
+    expect(url.searchParams.get('destination')).toBe('Ville test, 00000');
+    expect(placeParam({ lat: 46.5, lng: 4.25, address: 'Ville test, 00000' })).toBe('46.5,4.25');
+  });
 });
+

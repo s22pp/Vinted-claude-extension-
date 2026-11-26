@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arrivedAtPickup, distanceKm, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
+import { arrivedAtPickup, distanceKm, homeOf, parcelStage, parcelsInProgress, pointsIn, trackingIn } from '@/intelligence/parcels';
 
 const NOW = Date.UTC(2026, 8, 29, 12);
 const DAY = 86_400_000;
@@ -92,3 +92,14 @@ describe('a parcel that just reached its pickup point', () => {
     expect(arrivedAtPickup(new Map(), [row('a', 'Disponible au point relais')])).toEqual([]);
   });
 });
+
+describe('home (settings.homeLocation)', () => {
+  it('the seller’s town and coordinates, kept as saved; anything unusable is no home (never a default town)', () => {
+    expect(homeOf({ lat: 45.5, lng: 4.25, label: ' Ville test, 00000 ' })).toEqual({ lat: 45.5, lng: 4.25, label: 'Ville test, 00000' });
+    expect(homeOf({ lat: 45.5, lng: 4.25 })).toEqual({ lat: 45.5, lng: 4.25, label: 'chez moi' });
+    expect(homeOf(null)).toBeNull();
+    expect(homeOf({ label: 'Ville test' })).toBeNull();
+    expect(homeOf({ lat: 95, lng: 4 })).toBeNull();
+  });
+});
+

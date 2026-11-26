@@ -4,7 +4,7 @@ import { ACTIVATION_STEPS } from './components/domain';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
 import { PILOT_KEY, type PilotConfig, pilotConfig } from '@/intelligence/pilot';
-import { PROFILE_KEY, identity, validProfile } from '@/intelligence/profile';
+import { AccountIdentity } from './components/account-identity';
 import { Icon, type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { LogoMark } from '@/ui/components/Logo';
 import { useToast } from '@/ui/components/overlays';
@@ -27,25 +27,9 @@ const NAV: { name: RouteName; icon: IconName; tone: TileTone }[] = [
 import { CommandPalette } from './components/palette';
 import { UpdateBanner } from './components/update-banner';
 
-/**
- * The sidebar's head (56 px, ruled underneath): the seller's Vinted avatar and login once synced (read on « Actualiser »
- * or on a Vinted page, kept on this device only), else ERA's serif E and « en attente d'import ».
- */
+/** The sidebar's head (56 px, ruled underneath): the account's identity. */
 function SidebarIdentity() {
-  const { t } = useI18n();
-  const stored = useLiveQuery(async () => validProfile(await repo.getSetting<unknown>(PROFILE_KEY, null)), []);
-  const id = identity(stored ?? null);
-  return (
-    <a className="sidebar__brand side-id" href="#/today" aria-label={t('app.fullName')} data-testid="side-id" data-synced={id.synced}>
-      {id.avatar ? <img className="side-id__avatar" src={id.avatar} alt="" width={32} height={32} /> : <span className="side-id__avatar side-id__avatar--mark" aria-hidden="true">E</span>}
-      <span className="side-id__text">
-        <span className="side-id__name">{id.name}</span>
-        <span className={`side-id__status ${id.synced ? 'is-synced' : 'is-waiting'}`}>
-          <span aria-hidden="true">●</span> {t(id.synced ? 'side.synced' : 'side.waiting')}
-        </span>
-      </span>
-    </a>
-  );
+  return <AccountIdentity className="sidebar__brand" />;
 }
 
 /** The sidebar's foot: ERA's version, the Pilote's state, the palette's shortcut. */
