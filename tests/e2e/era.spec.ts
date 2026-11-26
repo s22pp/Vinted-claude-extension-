@@ -1008,3 +1008,72 @@ test('Comptabilité: a recurring expense in one click (its last amount comes bac
   expect(lines.filter((l) => l.includes(';Dépense;Emballage · Lot de cartons;'))).toHaveLength(2);
   expect(lines.at(-1)).toMatch(/^Total \d{4};/);
 });
+
+test('Colis → drop-off round: carriers chosen, favourite points saved, stops by distance from home, the Google Maps route by car or on foot; the shortcut on Aujourd’hui', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  // Test fixture: a home set in « Autour de chez vous » (a public place in Lyon, not the seller's).
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('era-intelligence');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('settings', 'readwrite');
+          tx.objectStore('settings').put({ key: 'homePlace', value: { lat: 45.764, lng: 4.8357, label: 'Lyon' } });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.goto(`${base}#/parcels`);
+  await page.reload();
+  const drop = page.getByTestId('drop-off');
+  await expect(drop).toContainText('Tournée de dépôt · 2 colis · 1 arrêts');
+  await expect(drop).toContainText('TRANSPORTEUR À CHOISIR');
+  await expect(drop).toContainText('Enregistrez au moins un point de dépôt');
+  await expect(drop.getByTestId('drop-maps')).toHaveCount(0);
+  // The carrier of each parcel, chosen by the seller.
+  const assign = drop.getByLabel(/^Transporteur de /);
+  await assign.first().selectOption('Mondial Relay');
+  await expect(drop.getByLabel(/^Transporteur de /)).toHaveCount(1);
+  await drop.getByLabel(/^Transporteur de /).selectOption('Vinted Go');
+  await expect(drop).toContainText('Tournée de dépôt · 2 colis · 2 arrêts');
+  // No favourite point yet: Google Maps searched around home.
+  await expect(drop.getByTestId('drop-find').first()).toHaveAttribute('href', 'https://www.google.com/maps/search/Mondial+Relay+point+relais+ouvert/@45.764,4.8357,14z');
+  // The seller's points, coordinates pasted from Google Maps.
+  const addPoint = async (carrier: string, name: string, coords: string) => {
+    await drop.locator('#dp-carrier').selectOption(carrier);
+    await drop.locator('#dp-name').fill(name);
+    await drop.locator('#dp-address').fill(`${name}, Lyon`);
+    await drop.locator('#dp-coords').fill(coords);
+    await drop.getByRole('button', { name: 'Enregistrer le point' }).click();
+  };
+  await addPoint('Vinted Go', 'Locker Part-Dieu', '45.7606, 4.8594');
+  await addPoint('Mondial Relay', 'Tabac Bellecour', '45.7578, 4.832');
+  // Nearest first: Bellecour (0,7 km) then Part-Dieu; the loop's distance said.
+  const stops = drop.getByTestId('drop-stop');
+  await expect(stops.nth(0)).toContainText('01MONDIAL RELAY— Tabac Bellecour1 colis');
+  await expect(stops.nth(1)).toContainText('02VINTED GO— Locker Part-Dieu1 colis');
+  await expect(drop).toContainText(/· ≈ \d+,\d KM/);
+  const maps = drop.getByTestId('drop-maps');
+  const url = new URL((await maps.getAttribute('href'))!);
+  expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/');
+  expect(url.searchParams.get('api')).toBe('1');
+  expect(url.searchParams.get('origin')).toBe('45.764,4.8357');
+  expect(url.searchParams.get('destination')).toBe('45.764,4.8357');
+  expect(url.searchParams.get('waypoints')).toBe('45.7578,4.832|45.7606,4.8594');
+  expect(url.searchParams.get('travelmode')).toBe('driving');
+  await expect(maps).toHaveAttribute('target', '_blank');
+  await drop.getByRole('button', { name: 'À pied' }).click();
+  await expect.poll(async () => new URL((await maps.getAttribute('href'))!).searchParams.get('travelmode')).toBe('walking');
+  // Aujourd'hui: « Itinéraire dépôt ↗ » on the parcels to ship (and next to « Voir les colis » on the real account's card).
+  await page.goto(`${base}#/today`);
+  const shortcut = page.getByTestId('today-to-ship').getByTestId('today-route');
+  await expect(shortcut).toHaveText('Itinéraire dépôt ↗');
+  await expect(shortcut).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&.*travelmode=walking$/);
+  // Kept: the points and choices are in the backups and survive a reload.
+  await page.goto(`${base}#/parcels`);
+  await page.reload();
+  await expect(page.getByTestId('drop-stop')).toHaveCount(2);
+});

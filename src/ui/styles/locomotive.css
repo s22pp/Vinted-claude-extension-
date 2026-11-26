@@ -1320,3 +1320,126 @@ kbd,
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* 2.2 · Colis → Tournée de dépôt: the stops in the 1 px grid, numbered in mono, each carrier in mono capitals. */
+.drop {
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.drop__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-grid);
+}
+.drop__title {
+  flex: 1 1 280px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.drop__km {
+  color: var(--text-3);
+}
+.drop__why {
+  margin: 0;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border-grid);
+}
+.drop__stops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.drop__stop {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-grid);
+}
+.drop__stop-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.drop__n,
+.drop__carrier {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+.drop__n {
+  color: var(--text-3);
+}
+.drop__point {
+  font-weight: 600;
+}
+.drop__count {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--border-grid);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--text-2);
+}
+.drop__meta {
+  margin: 4px 0 0 28px;
+}
+.drop__parcels {
+  margin: 8px 0 0 28px;
+  padding: 0;
+  list-style: none;
+}
+.drop__parcel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-height: 32px;
+}
+.drop__parcel-title {
+  flex: 1 1 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drop__book {
+  padding: 12px 18px 16px;
+}
+.drop__book-head {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.drop__book-list {
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.drop__book-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-grid);
+}
+.drop__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 12px 0 8px;
+}

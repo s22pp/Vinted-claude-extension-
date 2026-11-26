@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DropOffShortcut } from './drop-off';
 import { db } from '@/data/db';
 import { REPLIES_PENDING_KEY } from '@/data/reply-agent';
 import { repo } from '@/data/repo';
@@ -41,10 +42,11 @@ export function ForYou() {
               <span className="num">{top.n}</span> {t(`day.task.${top.key}`, { n: top.n })}
             </p>
             <p className="for-you__hint">{t(`forYou.hint.${top.key}`, { n: top.n })}</p>
-            <div>
+            <div className="row wrap" style={{ gap: 8 }}>
               <Button variant="primary" onClick={() => go(ROUTE[top.key])}>
                 {t(`forYou.cta.${top.key}`)}
               </Button>
+              {top.key === 'ship' && <DropOffShortcut />}
             </div>
             {rest.length > 0 && (
               <ul className="for-you__rest">

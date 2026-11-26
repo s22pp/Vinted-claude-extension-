@@ -1,4 +1,5 @@
 import type { ContactRow } from '@/intelligence/outcomes';
+import type { DropOffPoint } from '@/utils/routeOptimizer';
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   ActivationEvent,
@@ -104,6 +105,8 @@ export class EraDatabase extends Dexie {
   expenses!: EntityTable<ExpenseRow, 'id'>;
   /** Every contact ERA made for the seller, and what followed (answer, sale): see intelligence/outcomes. */
   contacts!: EntityTable<ContactRow, 'id'>;
+  /** The seller's usual drop-off points (relay, locker, post office), by carrier: the stops of the drop-off round. */
+  dropOffPoints!: EntityTable<DropOffPoint, 'id'>;
 
   constructor(name = 'era-intelligence') {
     super(name);
@@ -125,6 +128,7 @@ export class EraDatabase extends Dexie {
     this.version(5).stores({ autoLog: 'id, at, kind' });
     this.version(6).stores({ expenses: 'id, date, category' });
     this.version(7).stores({ contacts: 'id, at, kind, conversationId, itemId' });
+    this.version(8).stores({ dropOffPoints: 'id, carrier' });
   }
 }
 

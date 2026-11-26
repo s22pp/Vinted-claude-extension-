@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DropOffShortcut } from './drop-off';
 import { InlineLocation } from './storage-location';
 import { useState } from 'react';
 import type { EraMessage, LabelBatchResult, LabelResult } from '@/data/adapters/vinted/protocol';
@@ -205,9 +206,12 @@ export function ToShipStrip() {
         <h2 className="t-caption" id="ship-h">
           {t('today.toShip', { n: orders.length })}
         </h2>
-        <a className="t-small t-muted" href="#/sales?ship=1">
-          {t('today.toShipOpen')} →
-        </a>
+        <span className="row" style={{ gap: 12 }}>
+          <a className="t-small t-muted" href="#/sales?ship=1">
+            {t('today.toShipOpen')} →
+          </a>
+          <DropOffShortcut />
+        </span>
       </div>
       <ul className="ship-strip">
         {orders.map((x) => (
