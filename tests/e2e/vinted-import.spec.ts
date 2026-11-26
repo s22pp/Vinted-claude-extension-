@@ -2480,3 +2480,56 @@ test('the shop: ERA opens on it, the camera walks from room to room and stops dr
   await expect(scene).toHaveAttribute('data-room', 'today');
   await expect(scene).toHaveAttribute('data-state', 'static');
 });
+
+test('« Relance déblocage trésorerie »: a parcel delivered 30 h ago, the order not validated — one courteous message on the seller’s click, read back, never twice', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+  const calls = await fakeVinted(context, {
+    loggedIn: true,
+    orders: [
+      { title: 'Jean Levi’s 501 W32', price: { amount: '30.0' }, date: day(3), status: 'Colis livré', conversation_id: 9401, transaction_id: 7401 },
+      { title: 'Chemise Oxford Ralph Lauren L', price: { amount: '25.0' }, date: day(2), status: 'En cours de livraison', conversation_id: 9402, transaction_id: 7402 },
+    ],
+  });
+  const page = await context.newPage();
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('button', { name: /Importer mon stock Vinted|Actualiser/ }).first().click();
+  await expect(page.getByText(/nouveaux articles/)).toBeVisible({ timeout: 40_000 });
+  await page.goto(`${base}#/parcels`);
+  const card = page.getByTestId('cash-nudges');
+  // Delivered just now (as ERA saw it at the import): not yet 24 h.
+  await expect(card).toContainText('Aucun colis livré depuis plus de 24 h');
+  // Test fixture: the delivery seen 30 h ago.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('era-intelligence');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('sales', 'readwrite');
+          const store = tx.objectStore('sales');
+          store.openCursor().onsuccess = (e) => {
+            const c = (e.target as IDBRequest<IDBCursorWithValue | null>).result;
+            if (!c) return;
+            if (c.value.vintedConversationId === '9401') c.update({ ...c.value, vintedStatusSince: Date.now() - 30 * 3_600_000 });
+            c.continue();
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.reload();
+  const row = page.getByTestId('cash-nudges').locator('.nudge-row');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Jean Levi’s 501 W32');
+  await expect(row).toContainText('livré il y a 30 h');
+  const writes = () => calls.filter((c) => c.method !== 'GET');
+  const before = writes().length;
+  await row.getByRole('button', { name: 'Envoyer' }).click();
+  await expect(page.getByText('Relance envoyée')).toBeVisible({ timeout: 40_000 });
+  const sent = writes().slice(before);
+  expect(sent.map((w) => `${w.method} ${w.path}`)).toEqual(['POST /api/v2/conversations/9401/replies']);
+  expect(JSON.parse(sent[0]!.body!).reply.body).toContain('valider la commande sur Vinted');
+  // Once per sale: it leaves the list.
+  await expect(page.getByTestId('cash-nudges').locator('.nudge-row')).toHaveCount(0);
+});

@@ -352,3 +352,15 @@ Maquette interactive (mêmes jetons, données de démonstration) : https://claud
   - La marge porte toujours son signe (« −3,05 € »).
 - **Atelier → Réécrire avec Gemini** (clé Gemini du vendeur) : la description générée reformulée à partir des mêmes faits. Les hashtags ne partent pas chez Google, ERA les remet dessous. Un chiffre, une matière ou une affirmation absents des faits est signalé et doit être coché avant « Utiliser ce texte ». Tant qu'il reste un « __ », le bouton attend.
 
+## 2.0 : la suite d'outils
+
+- **Outils** : quatre outils dans la grille de 1 px, chacun sous son numéro en mono capitales et son titre en serif (01 Générateur, 02 Calculateur sourcing, 03 Studio photo, 04 Messagerie & négociation). Les outils d'avant restent dessous, en tuiles.
+- **Calculateur** : trois chiffres en JetBrains Mono (profit, ROI, multiple), le verdict en point de couleur.
+  - ● ACHETER : émeraude #34D399.
+  - ● NÉGOCIER : ambre #FBBF24, avec le prix maximum à proposer.
+  - ● PASSER : corail #F87171.
+- **Générateur** : l'annonce lue ligne par ligne dans une grille (titre et compte /60, description, hashtags, prix conseillé).
+- **Studio** : chaque photo sous son cadre 3:4, le reste assombri ; recadrage et compression seulement, jamais de retouche.
+- **Radar** : une ligne par annonce (photo, titre, prix, coût tout compris, badge « Marge est. », Ouvrir sur Vinted, Ajouter aux achats).
+- **Lot** : cinq chiffres sur deux lignes réglées (prix cumulés, prix du lot, coûts, profit net, capital libéré).
+

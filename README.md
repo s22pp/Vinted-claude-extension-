@@ -180,6 +180,41 @@ Fiche article → **« Remettre en vente un similaire »** : vous avez racheté 
 
 Stock (ou Atelier) → **« Ajouter un lot »** : une ligne par article, comme vous le diriez (« Chemise Pierre Cardin L très bon état »). ERA lit la marque, le type d'article, la taille et l'état dans la ligne (ce qui n'y est pas reste à compléter, une marque non lue reste « Inconnue ») et crée une fiche par ligne dans l'Atelier. Le prix payé est réparti **au centime près** : selon ce que ce genre d'article vous rapporte (vos ventes), ou à parts égales. Chaque part est marquée « déduite ».
 
+## Outils du vendeur (2.0)
+
+**Outils** réunit quatre outils dans une même grille :
+
+- **Générateur d'annonces** : un article du stock (ou une saisie libre), son accroche, son style ou son époque, sa coupe.
+  - Il donne d'un coup le titre « [emoji] [accroche] [marque] [modèle] – [style] ([taille] [coupe]) », tenu à 60 caractères (la coupe saute d'abord).
+  - Il donne aussi une description structurée : état, coupe, bloc de mesures à remplir (« Longueur : __ cm | Aisselle à aisselle : __ cm ») et expédition sous 24 h.
+  - Puis 10 à 15 hashtags, et le prix conseillé (médiane du marché + 10 %, seulement après une analyse).
+  - **Copier tout**, ou **Injecter sur Vinted** : une annonce en ligne voit son titre et sa description remplacés puis relus ; un article pas encore en ligne part dans sa fiche de l'Atelier, où se crée le brouillon.
+- **Calculateur sourcing** : prix d'achat, frais, prix de revente (ou la médiane d'une analyse).
+  - Profit net après 10 % de négociation, ROI, multiple de mise.
+  - Le verdict : **ACHETER** (ROI ≥ 80 % et profit ≥ 20 €), **NÉGOCIER** avec le prix maximum à proposer, **PASSER** (profit < 12 € ou ROI < 40 %).
+  - Une case « acheté sur Vinted » ajoute la protection acheteur.
+- **Studio photo**, chargé à la demande :
+  - recadrage 3:4 (le cadre se déplace à la souris ou au clavier) ;
+  - réduction à 1 600 px, JPEG ou WebP ;
+  - fichiers nommés d'après l'article, téléchargés dans « ERA Studio ».
+  - **Aucune retouche** de lumière, de contraste, de netteté ou de couleur : Vinted veut l'article tel qu'il est, et ERA dit plutôt quelle photo refaire.
+- **Messagerie & négociation** :
+  - les réponses types, modifiables, avec `{marque}`, `{prix}`, `{prix_cible}`, `{prix_plancher}` ;
+  - la **relance déblocage trésorerie** : pour un colis livré depuis plus de 24 h et une commande pas encore validée, un message courtois, copié ou envoyé dans la conversation (une fois par vente, relu sur Vinted). Elle est aussi dans Ventes → Colis.
+
+Ailleurs :
+
+- **Marché → Radar de sourcing** : des recherches sauvegardées (marque, catégorie, taille, prix max, état minimum), scannées sur votre clic, une recherche Vinted chacune.
+  - Les imitations (« façon »), les lots, les pièces enfant, les articles abîmés et les autres marques sont écartés.
+  - Chaque annonce porte sa marge estimée face à la médiane locale : vos ventes, sinon les prix du scan, dit comme tel.
+  - **Ouvrir sur Vinted** ou **Ajouter aux achats** (coût protection comprise).
+- **Stock** :
+  - le filtre **Articles stagnants** (30 jours en ligne ou plus) ;
+  - **Créer un lot** de 2 à 5 articles : votre remise (−15 % par défaut), le profit net du lot, le capital libéré, puis l'annonce du lot avec ses hashtags.
+- **Comptabilité** :
+  - les dépenses récurrentes **en 1 clic** (cartons, scotch, trajet de sourcing, pressing, boost) : le dernier montant saisi revient, et la première fois rien n'est inventé ;
+  - **Export CSV comptable** (UTF-8 avec BOM, pour Excel et Numbers) : date, référence archive #001, article, marque, coût d'achat, frais annexes, prix de vente, profit net, cumul annuel et seuil DAC7, puis les dépenses et les totaux.
+
 ## Coûts manquants en un clic
 
 Dans le Stock, un article sans coût d'achat n'affiche pas un conseil à lire : **« + Saisir le coût d'achat »** ouvre le champ dans la ligne même, Entrée enregistre, la marge suit aussitôt.

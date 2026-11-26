@@ -820,3 +820,191 @@ test('the Pilote’s control room: rules applied at once, what comes next with i
   await expect(page.getByTestId('ctrl-health')).toContainText('requêtes cette session');
   await expect(page.getByTestId('ctrl-halt')).toHaveCount(0);
 });
+
+test('Outils → Calculateur sourcing: the verdict as the amounts are typed — GO, NÉGOCIER with the most to pay, PASSER', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/tools`);
+  const sim = page.getByTestId('sourcing-sim');
+  await expect(sim).toContainText('Saisissez le prix d’achat et le prix de revente');
+  await sim.locator('#sim-buy').fill('12');
+  await sim.locator('#sim-resale').fill('60');
+  // 60 € less 10 % of haggling = 54 €, for 12 €: +42 €, ROI 350 %, x4,5.
+  await expect(sim.getByTestId('sim-verdict')).toHaveText('● ACHETER (GO)');
+  await expect(sim.getByTestId('sim-profit')).toHaveText('+42 €');
+  await expect(sim.getByTestId('sim-roi')).toHaveText('350 %');
+  await expect(sim.getByTestId('sim-multiple')).toHaveText('x4,5');
+  await expect(sim.getByTestId('sim-verdict')).toHaveClass(/is-go/);
+  await sim.locator('#sim-buy').fill('35');
+  await expect(sim.getByTestId('sim-verdict')).toHaveText('● NÉGOCIER');
+  await expect(sim).toContainText('Proposez au plus 30 €');
+  await sim.locator('#sim-buy').fill('50');
+  await expect(sim.getByTestId('sim-verdict')).toHaveText('● PASSER');
+  await expect(sim.getByTestId('sim-verdict')).toHaveClass(/is-pass/);
+  // Bought on Vinted: the buyer protection is in the cost (12 € → 13,30 €).
+  await sim.locator('#sim-buy').fill('12');
+  await sim.getByLabel(/Acheté sur Vinted/).check();
+  await expect(sim.getByTestId('sim-profit')).toHaveText('+40,70 €');
+});
+
+test('Outils → Générateur d’annonces: the house title, measures to fill, shipping within 24 h, 10 to 15 hashtags; nothing sent from the demo', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/tools`);
+  const gen = page.getByTestId('listing-gen');
+  await gen.locator('#gen-cat').selectOption('JACKET');
+  await gen.locator('#gen-brand').fill('Ecko');
+  await gen.locator('#gen-model').fill('Zip Jacket');
+  await gen.locator('#gen-size').fill('L');
+  await gen.locator('#gen-hook').fill('Unique');
+  await gen.locator('#gen-vibe').fill('Y2K Streetwear');
+  await gen.locator('#gen-fit').fill('Oversize');
+  await expect(gen.getByTestId('gen-title')).toHaveText('🧥 Unique Ecko Zip Jacket – Y2K Streetwear (L Oversize)');
+  const desc = gen.getByTestId('gen-description');
+  await expect(desc).toContainText('• Coupe : Oversize');
+  await expect(desc).toContainText('Longueur : __ cm | Aisselle à aisselle : __ cm');
+  await expect(desc).toContainText('Expédition rapide sous 24 h');
+  const tags = (await gen.getByTestId('gen-hashtags').innerText()).split(' ');
+  expect(tags.length).toBeGreaterThanOrEqual(10);
+  expect(tags.length).toBeLessThanOrEqual(15);
+  expect(tags.every((x) => /^#[a-z0-9]+$/.test(x))).toBe(true);
+  expect(tags).toEqual(expect.arrayContaining(['#ecko', '#y2k', '#streetwear', '#oversize']));
+  // No analysis behind a typed article: no price made up.
+  await expect(gen.getByTestId('gen-price')).toHaveText('—');
+  await expect(gen.getByRole('button', { name: 'Copier tout' })).toBeVisible();
+  await expect(gen.getByTestId('gen-inject')).toBeDisabled();
+  // An article of the stock: its facts prefilled.
+  await gen.locator('#gen-item').selectOption({ index: 1 });
+  await expect(gen.locator('#gen-brand')).not.toHaveValue('Ecko');
+});
+
+test('Outils → Studio photo (loaded on demand): each photo cut to 3:4, the frame moved by keyboard, exported smaller, as JPEG; no retouching', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/tools`);
+  const studio = page.getByTestId('photo-studio');
+  await expect(studio).toContainText('aucune retouche de lumière, de contraste, de netteté ni de couleur');
+  // Test fixture: a 1200 × 900 landscape photo drawn here.
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 1200;
+    c.height = 900;
+    const x = c.getContext('2d')!;
+    x.fillStyle = '#7a8b99';
+    x.fillRect(0, 0, 1200, 900);
+    x.fillStyle = '#20303f';
+    x.fillRect(450, 150, 300, 600);
+    return c.toDataURL('image/png').split(',')[1]!;
+  });
+  const { mkdtempSync, writeFileSync, readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const file = join(mkdtempSync(join(tmpdir(), 'era-studio-')), 'veste.png');
+  writeFileSync(file, Buffer.from(png, 'base64'));
+  await studio.getByTestId('studio-input').setInputFiles([file, file]);
+  const frames = studio.getByTestId('studio-frame');
+  await expect(frames).toHaveCount(2);
+  await expect(frames.first()).toHaveAttribute('aria-valuenow', '0');
+  await frames.first().focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(frames.first()).toHaveAttribute('aria-valuenow', '10');
+  await expect(studio).toContainText('Exemple : photo-01.jpg');
+  await studio.getByTestId('studio-export').click();
+  await expect(page.getByText('2 photos enregistrées')).toBeVisible({ timeout: 20_000 });
+  // The files themselves: JPEG, 675 × 900 (the 3:4 frame of a 1200 × 900 photo, never enlarged).
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const saved = await sw.evaluate(async () => (await chrome.downloads.search({ state: 'complete' })).filter((d) => d.mime === 'image/jpeg').map((d) => d.filename));
+  expect(saved).toHaveLength(2);
+  const size = (buf: Buffer) => {
+    for (let i = 2; i < buf.length; ) {
+      const marker = buf[i + 1]!;
+      const len = buf.readUInt16BE(i + 2);
+      if (marker >= 0xc0 && marker <= 0xc2) return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+      i += 2 + len;
+    }
+    return null;
+  };
+  for (const f of saved) expect(size(readFileSync(f))).toEqual({ width: 675, height: 900 });
+});
+
+test('Marché → Radar: a saved search scanned, imitations, lots, kids’ and damaged pieces set aside, the margin on each deal, one added to purchases', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/market`);
+  const radar = page.getByTestId('radar');
+  await expect(radar).toContainText('Démo : annonces fictives');
+  await radar.locator('#rd-brand').fill('Ralph Lauren');
+  await radar.getByRole('button', { name: 'Enregistrer la recherche' }).click();
+  const search = radar.getByTestId('radar-search');
+  await expect(search).toHaveCount(1);
+  await search.getByRole('button', { name: 'Scanner maintenant' }).click();
+  const deals = search.getByTestId('radar-deal');
+  await expect(deals.first()).toBeVisible({ timeout: 20_000 });
+  await expect(search).toContainText(/annonces retenues sur \d+/);
+  await expect(search).toContainText('Médiane locale');
+  for (const word of ['façon', 'troué', 'enfant', 'Lot de']) await expect(deals.filter({ hasText: word })).toHaveCount(0);
+  await expect(deals.first().getByTestId('margin-badge')).toContainText('Marge est.');
+  await expect(deals.first().getByRole('link', { name: 'Ouvrir sur Vinted' })).toHaveAttribute('href', /^https:\/\/www\.vinted\.fr\/items\//);
+  await deals.first().getByRole('button', { name: 'Ajouter aux achats' }).click();
+  await expect(page.getByText(/Ajouté à vos achats : coût/)).toBeVisible();
+  await expect(deals.first().getByRole('button', { name: 'Dans vos achats' })).toBeDisabled();
+  // Kept: the search and its last scan are there after a reload.
+  await page.reload();
+  await expect(page.getByTestId('radar-search')).toContainText('Ralph Lauren');
+  await expect(page.getByTestId('radar-deal').first()).toBeVisible();
+});
+
+test('Stock → lot from the sleeping articles: « Articles stagnants », the seller’s discount, net profit and capital freed, the lot’s listing with hashtags', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/stock`);
+  await page.getByRole('button', { name: /^Articles stagnants/ }).click();
+  const rows = page.locator('tbody tr[aria-rowindex]');
+  await expect(rows.first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Articles stagnants/ })).toHaveAttribute('aria-pressed', 'true');
+  await rows.nth(0).locator('input[type=checkbox]').check();
+  await rows.nth(1).locator('input[type=checkbox]').check();
+  await page.getByTestId('sale-lot').click();
+  const dialog = page.getByTestId('sale-lot-dialog');
+  const price = dialog.getByTestId('sale-lot-price');
+  const at15 = await price.innerText();
+  await expect(dialog).toContainText('Prix du lot (−15 %)');
+  await dialog.getByLabel('Remise lot (%)').fill('30');
+  await expect(dialog).toContainText('Prix du lot (−30 %)');
+  await expect(price).not.toHaveText(at15);
+  await expect(dialog.getByTestId('sale-lot-capital')).toContainText('€');
+  await expect(dialog).toContainText('Profit net du lot');
+  await dialog.getByText('Annonce du lot : titre, description et hashtags').click();
+  await expect(dialog.getByTestId('sale-lot-listing')).toContainText('#lot');
+  await expect(dialog.getByTestId('sale-lot-listing')).toContainText('(−30 %)');
+  await dialog.getByRole('button', { name: 'Créer le lot' }).click();
+  await expect(page.getByText(/Lot de 2 articles créé à/)).toBeVisible();
+});
+
+test('Comptabilité: a recurring expense in one click (its last amount comes back), the accountant’s CSV in UTF-8 with BOM', async ({ context, base }) => {
+  const page = await context.newPage();
+  await loadDemo(page, base);
+  await page.goto(`${base}#/accounting`);
+  const presets = page.getByTestId('expense-presets');
+  // The first time: no amount made up, the form is filled for the seller to type it.
+  await presets.getByRole('button', { name: 'Lot de cartons', exact: true }).click();
+  await expect(page.locator('#ex-note')).toHaveValue('Lot de cartons');
+  await expect(page.locator('#ex-amount')).toBeFocused();
+  await page.locator('#ex-amount').fill('4,50');
+  await page.getByTestId('expenses').getByRole('button', { name: 'Ajouter', exact: true }).click();
+  // Then one click: the same amount, today.
+  await presets.getByRole('button', { name: 'Lot de cartons · 4,50 €' }).click();
+  await expect(page.getByText('Lot de cartons : 4,50 € ajouté aux dépenses')).toBeVisible();
+  await expect(page.getByTestId('expenses')).toContainText('9 €');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('accounting-export').click()]);
+  expect(download.suggestedFilename()).toMatch(/^era-comptabilite-\d{4}\.csv$/);
+  const { readFileSync } = await import('node:fs');
+  const csv = readFileSync((await download.path())!, 'utf8');
+  expect(csv.startsWith('﻿')).toBe(true);
+  const lines = csv.slice(1).trimEnd().split('\r\n');
+  expect(lines[0]).toBe('Date;Référence Archive;Article;Marque;Coût d’achat (€);Frais annexes (€);Prix de vente (€);Profit net (€);Cumul annuel (€);Seuil DAC7 (30 ventes ou 2000 €)');
+  expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2};#\d{3};/);
+  expect(lines.filter((l) => l.includes(';Dépense;Emballage · Lot de cartons;'))).toHaveLength(2);
+  expect(lines.at(-1)).toMatch(/^Total \d{4};/);
+});
