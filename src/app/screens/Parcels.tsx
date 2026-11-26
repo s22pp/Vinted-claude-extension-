@@ -12,6 +12,7 @@ import type { MapPin } from '../components/parcel-map';
 import { PageHead } from '../Shell';
 import { useEra } from '../state';
 import { SalesTabs } from '../components/section-tabs';
+import { CashNudges } from '../components/cash-nudge';
 
 // The map library is loaded with the map only, not with every visit of the dashboard.
 const ParcelMap = lazy(() => import('../components/parcel-map').then((m) => ({ default: m.ParcelMap })));
@@ -141,6 +142,9 @@ export function Parcels() {
             <ParcelBoard parcels={parcels} />
           </Card>
         )}
+        <Card className="span-12" title={t('nudge.title')} hint={t('nudge.hint')} icon="sales" tone="emerald">
+          <CashNudges compact />
+        </Card>
         <div className="span-7 stack-4">
           <Card
             title={homeSet ? t('parcelmap.mapTitle', { home: home.label }) : t('parcelmap.mapTitleNoHome')}

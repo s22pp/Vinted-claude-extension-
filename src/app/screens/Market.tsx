@@ -4,6 +4,7 @@ import { IllustrationAnalysis } from '@/ui/components/illustrations';
 import { useErrorToast } from '@/ui/components/overlays';
 import { Button, Card, EmptyState, ErrorState, Select, Stages } from '@/ui/components/primitives';
 import { AnalysisView } from '../components/analysis-view';
+import { RadarCard } from '../components/radar';
 import { analyzeItem } from '../market-run';
 import { useBulkAnalyze } from '../components/tools';
 import { PageHead } from '../Shell';
@@ -48,6 +49,9 @@ export function Market({ route }: { route: Route }) {
           ) : null
         }
       />
+      <div style={{ marginBottom: 16 }}>
+        <RadarCard />
+      </div>
       <Card style={{ marginBottom: 16 }}>
         <div className="row wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
           <div className="field grow" style={{ minWidth: 260 }}>

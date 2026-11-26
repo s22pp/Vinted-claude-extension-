@@ -122,6 +122,12 @@ describe('reply templates', () => {
     expect(c).toContain('37 €');
     expect(hasBlanks(c)).toBe(false);
   });
+  it('the French variables: {marque}, {prix_cible}, {prix_plancher}; the floor unknown stays blank', () => {
+    const ctx = { title: 'x', size: null, condition: null, defects: null, measures: null, price: '40 €', counter: '37 €', brand: 'Nike', floor: '30 €' };
+    expect(fillReply('Pour ce {marque} : {prix_cible}, pas sous {prix_plancher} (affiché {prix}).', ctx)).toBe('Pour ce Nike : 37 €, pas sous 30 € (affiché 40 €).');
+    expect(hasBlanks(fillReply('{prix_plancher}', { ...ctx, floor: null }))).toBe(true);
+    expect(DEFAULT_REPLIES.SHIPPING).toContain('sous 24 h');
+  });
 });
 
 describe('goal plan', () => {

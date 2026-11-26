@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { useI18n } from '@/i18n';
 import { type IconName, IconTile, type TileTone } from '@/ui/components/icons';
 import { Modal } from '@/ui/components/overlays';
@@ -7,8 +7,14 @@ import { ListingAssistant, OfferCalculator, ShieldChecker, useBulkAnalyze } from
 import { PhotoCheck } from '../components/photo-check';
 import { Replies } from '../components/replies';
 import { TextSeries } from '../components/text-series';
+import { CashNudges } from '../components/cash-nudge';
+import { ListingGenerator } from '../components/listing-gen';
+import { SourcingSimulator } from '../components/sourcing-sim';
 import { go, useEra } from '../state';
 import { PageHead } from '../Shell';
+
+// The photo studio (canvas, image decoding) is its own chunk, loaded when the Outils page asks for it.
+const PhotoStudio = lazy(() => import('../components/photo-studio').then((m) => ({ default: m.PhotoStudio })));
 
 type ToolKey = 'today' | 'bulk' | 'offer' | 'replies' | 'automations' | 'listing' | 'series' | 'shield' | 'photo' | 'buy' | 'market' | 'capital' | 'learning' | 'niches' | 'timing' | 'import';
 
@@ -57,6 +63,35 @@ export function Tools() {
           </Button>
         }
       />
+      <section className="hub" aria-label={t('hub.label')}>
+        <HubPanel n="01" id="hub-generator" title={t('hub.gen.title')} sub={t('hub.gen.sub')}>
+          <ListingGenerator />
+        </HubPanel>
+        <HubPanel n="02" id="hub-sourcing" title={t('hub.sim.title')} sub={t('hub.sim.sub')}>
+          <SourcingSimulator />
+        </HubPanel>
+        <HubPanel n="03" id="hub-studio" title={t('hub.studio.title')} sub={t('hub.studio.sub')}>
+          <Suspense fallback={<div className="skeleton" style={{ height: 160 }} aria-label={t('common.loading')} />}>
+            <PhotoStudio />
+          </Suspense>
+        </HubPanel>
+        <HubPanel n="04" id="hub-replies" title={t('hub.replies.title')} sub={t('hub.replies.sub')}>
+          {listed.length > 0 ? (
+            <>
+              <Field label={t('offer.pick')} htmlFor="hub-reply-item">
+                <Select id="hub-reply-item" value={itemId} onChange={(e) => setItemId(e.target.value)} options={listed.map((i) => ({ value: i.view.item.id, label: i.view.item.title }))} />
+              </Field>
+              {intel && <Replies key={`hub-${itemId}`} intel={intel} />}
+            </>
+          ) : (
+            <p className="t-small t-faint">{t('hub.replies.none')}</p>
+          )}
+          <h3 className="hub__sub-head">{t('nudge.title')}</h3>
+          <CashNudges />
+        </HubPanel>
+      </section>
+
+      <h2 className="hub__all">{t('hub.all')}</h2>
       <div className="tools-grid">
         {TOOLS.map((tool, k) => (
           <button
@@ -113,5 +148,19 @@ export function Tools() {
         <ShieldChecker />
       </Modal>
     </>
+  );
+}
+
+/** One tool of the hub: its number and name in the Locomotive way (mono caps over a serif title), then the tool itself. */
+function HubPanel({ n, id, title, sub, children }: { n: string; id: string; title: string; sub: string; children: React.ReactNode }) {
+  return (
+    <section className="hub__panel" id={id} aria-labelledby={`${id}-h`}>
+      <p className="hub__num">{n}</p>
+      <h2 className="hub__title" id={`${id}-h`}>
+        {title}
+      </h2>
+      <p className="hub__lede">{sub}</p>
+      <div className="hub__body">{children}</div>
+    </section>
   );
 }

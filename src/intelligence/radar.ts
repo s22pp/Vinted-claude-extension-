@@ -1,5 +1,5 @@
 import { CONDITIONS, type Category, type Condition, type MarketCandidate } from '@/domain/entities';
-import { brandKey } from './normalize';
+import { EXCLUDED_TERMS, brandKey, categoriesInTitle, categoryAffinity, isUnknownBrand, normalizeText, titleHasBrand } from './normalize';
 import type { SellerModel } from './seller-model';
 import { vintedLanded } from './shopping';
 import { median } from './stats';
@@ -53,6 +53,29 @@ export interface RadarScan {
   deals: RadarDeal[];
   /** Listings Vinted returned before the search's own filters. */
   seen: number;
+  /** Set aside before any filter: another brand, an imitation (« façon »), a lot, a kids' piece, a damaged one, a price too low to be real. */
+  excluded?: number;
+}
+
+/** Below this, a price is not a real one (a « 1 € » bait, a mistake): left out, as in the market analyses. */
+export const RADAR_FLOOR_CENTS = 300;
+/** A damaged piece: its margin against the median of intact ones would be a false promise. */
+const DAMAGED = /\b(troue|trouee|trous?|tache|tachee|taches|dechire|dechiree|abime|abimee|hs|defectueux|a reparer)\b/;
+
+/**
+ * The listing is what the search asks for: the brand (its field, else its title), not an imitation, a lot or a kids'
+ * piece (the market analyses' own exclusions), not damaged, the kind of article when the search names one, a real price.
+ */
+export function isRelevant(c: Pick<MarketCandidate, 'title' | 'brand' | 'category' | 'priceCents'>, s: Pick<SavedSearch, 'brand' | 'category'>): boolean {
+  const key = isUnknownBrand(s.brand) ? null : brandKey(s.brand);
+  if (key !== null && !((c.brand && brandKey(c.brand) === key) || titleHasBrand(c.title, key))) return false;
+  const nt = normalizeText(c.title);
+  if (EXCLUDED_TERMS.test(nt) || DAMAGED.test(nt)) return false;
+  if (s.category) {
+    const cats = c.category ? [c.category] : categoriesInTitle(nt);
+    if (cats.length > 0 && cats.every((k) => categoryAffinity(s.category!, k) === 0)) return false;
+  }
+  return c.priceCents >= RADAR_FLOOR_CENTS;
 }
 
 /** NEW_WITH_TAGS is the best: a lower index is a better condition. */
@@ -80,15 +103,17 @@ export function localMedian(s: Pick<SavedSearch, 'brand' | 'category'>, model: P
 /** The scan's listings that pass the search's filters, scored, the best margin first; the seller's own never. */
 export function scoreScan(s: SavedSearch, candidates: readonly MarketCandidate[], model: Pick<SellerModel, 'byNiche' | 'byBrand'> | null, own: ReadonlySet<string>, now: number): RadarScan {
   const others = candidates.filter((c) => !own.has(c.id));
-  const med = localMedian(s, model, others.map((c) => c.priceCents));
-  const deals = others
+  const relevant = others.filter((c) => isRelevant(c, s));
+  // The scan's median from the relevant listings only: an imitation or a damaged piece never pulls it down.
+  const med = localMedian(s, model, relevant.map((c) => c.priceCents));
+  const deals = relevant
     .filter((c) => matchesSearch(c, s))
     .map((c): RadarDeal => {
       const landedCents = vintedLanded(c.priceCents);
       return { id: c.id, title: c.title, priceCents: c.priceCents, landedCents, marginCents: med ? med.cents - landedCents : null, size: c.size, condition: c.condition, url: c.url ?? `https://www.vinted.fr/items/${c.id}`, photoUrl: c.photoUrl };
     })
     .sort((a, b) => (b.marginCents ?? -Infinity) - (a.marginCents ?? -Infinity) || a.priceCents - b.priceCents);
-  return { at: now, median: med, deals, seen: candidates.length };
+  return { at: now, median: med, deals, seen: candidates.length, excluded: others.length - relevant.length };
 }
 
 /** A saved search from the seller's form: a brand is required, the rest optional. */

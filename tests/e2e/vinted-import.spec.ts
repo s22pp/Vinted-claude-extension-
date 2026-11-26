@@ -1775,7 +1775,7 @@ test('replies in Vinted messaging: your templates filled for the conversation’
   // A second reply is added after the first, never replacing what is typed.
   await open.click();
   await menu.locator('[data-era-reply="SHIPPING"]').click();
-  await expect(box).toHaveValue(/meilleur prix\. Bonjour, j’envoie sous 1 à 2 jours/);
+  await expect(box).toHaveValue(/meilleur prix\. Bonjour, j’envoie sous 24 h/);
   // The quick replies above the box (isolated from Vinted's page in a shadow root): one click writes, never sends.
   await box.fill('');
   await inbox.locator('[data-era-chip="OFFER_COUNTER"]').click();

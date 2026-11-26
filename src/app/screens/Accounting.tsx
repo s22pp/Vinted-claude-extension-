@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { repo } from '@/data/repo';
 import { useI18n } from '@/i18n';
-import { DAC7, ledgerYears, purchasesCsv, purchasesRegister, salesCsv, salesLedger, yearSummary } from '@/intelligence/accounting';
+import { DAC7, accountingCsv, ledgerYears, purchasesCsv, purchasesRegister, salesCsv, salesLedger, yearSummary } from '@/intelligence/accounting';
 import { downloadText } from '@/lib/download';
 import { BarChart } from '@/ui/charts/charts';
 import { Badge, Button, Card, Metric, MetricFootPartial, MetricValue, Money, QualityTag, Segmented } from '@/ui/components/primitives';
@@ -26,6 +26,9 @@ export function Accounting() {
   const register = useMemo(() => purchasesRegister(era.views, year), [era.views, year]);
   const identity = useLiveQuery(() => repo.getSetting<{ name: string } | null>('sellerIdentity', null), []);
   const [showAll, setShowAll] = useState(false);
+  const expenses = useLiveQuery(() => db.expenses.toArray(), []) ?? [];
+  // The accountant's file: every sale of the year, the expenses, the totals and DAC7 — UTF-8 with BOM for Excel and Numbers.
+  const exportAll = () => downloadText(`era-comptabilite-${year}.csv`, accountingCsv(era.sales, year, expenses, (c) => t(`expenses.c.${c}`)));
 
   return (
     <>
@@ -34,7 +37,12 @@ export function Accounting() {
         sub={t('accounting.subtitle')}
         tabs={<SalesTabs active="accounting" />}
         actions={
-          <Segmented label={t('accounting.year')} value={String(year)} onChange={(y) => setYear(Number(y))} options={years.slice(0, 5).map((y) => ({ value: String(y), label: String(y) }))} />
+          <div className="row" style={{ gap: 10 }}>
+            <Segmented label={t('accounting.year')} value={String(year)} onChange={(y) => setYear(Number(y))} options={years.slice(0, 5).map((y) => ({ value: String(y), label: String(y) }))} />
+            <Button icon="upload" variant="primary" onClick={exportAll} data-testid="accounting-export">
+              {t('accounting.exportAll')}
+            </Button>
+          </div>
         }
       />
       <div className="stack-4">

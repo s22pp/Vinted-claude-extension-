@@ -85,6 +85,7 @@ export type EraMessage =
   | { type: 'era:update:status' }
   | { type: 'era:reply:send'; key: string; text: string }
   | { type: 'era:reply:dismiss'; key: string }
+  | { type: 'era:nudge:send'; saleId: string; conversationId: string; text: string; title: string }
   | { type: 'era:update:now' }
   | { type: 'era:update:auto'; on: boolean }
   | { type: 'era:badge:update' }

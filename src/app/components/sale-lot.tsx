@@ -5,7 +5,8 @@ import { useI18n } from '@/i18n';
 import type { ItemView } from '@/intelligence/portfolio';
 import { type LotCandidate, LOT_DISCOUNT_PCT, LOT_MAX, LOT_MIN, lotListing, lotProblem, planSaleLot } from '@/intelligence/sale-lot';
 import { Modal, useToast } from '@/ui/components/overlays';
-import { Button } from '@/ui/components/primitives';
+import { Button, Field, Input } from '@/ui/components/primitives';
+import { CopyButton } from './tools';
 
 /** The lots made, kept on this device: which articles went together, at what price, when. */
 export const SALE_LOTS_KEY = 'saleLots';
@@ -28,7 +29,7 @@ export function useLotItems(): ReadonlySet<string> {
 }
 const EMPTY: ReadonlySet<string> = new Set();
 
-const candidate = (v: ItemView): LotCandidate => ({ itemId: v.item.id, title: v.current?.title ?? v.item.title, askCents: v.askPrice, costCents: v.cost, daysListed: v.daysListed, inStock: v.inStock });
+const candidate = (v: ItemView): LotCandidate => ({ itemId: v.item.id, title: v.current?.title ?? v.item.title, askCents: v.askPrice, costCents: v.cost, daysListed: v.daysListed, inStock: v.inStock, brand: v.item.brand, size: v.item.size, category: v.item.category });
 
 /**
  * « Créer un lot » for 2 to 5 ticked articles: the sum of their prices −15 %, the sum of their costs beside it; once
@@ -39,10 +40,14 @@ export function SaleLotButton({ views, onDone }: { views: readonly ItemView[]; o
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The −15 % is a default: the seller types their own (0 to 60 %).
+  const [discount, setDiscount] = useState(String(LOT_DISCOUNT_PCT));
   if (views.length < LOT_MIN || views.length > LOT_MAX) return null;
   const items = views.map(candidate);
   const problem = lotProblem(items);
-  const plan = planSaleLot(items);
+  const pct = Number(discount.replace(',', '.'));
+  const plan = planSaleLot(items, discount.trim() === '' || !Number.isFinite(pct) ? LOT_DISCOUNT_PCT : pct);
+  const text = plan ? lotListing(items, plan, (c) => money(c)) : null;
   const create = async () => {
     if (!plan) return;
     setBusy(true);
@@ -51,8 +56,7 @@ export function SaleLotButton({ views, onDone }: { views: readonly ItemView[]; o
       for (const id of plan.itemIds) await repo.setReserved(id, true, now);
       const lots = (await repo.getSetting<SaleLotRecord[]>(SALE_LOTS_KEY, [])) ?? [];
       await repo.setSetting(SALE_LOTS_KEY, [...lots, { id: `lot_${now.toString(36)}`, itemIds: plan.itemIds, lotCents: plan.lotCents, totalAskCents: plan.totalAskCents, createdAt: now } satisfies SaleLotRecord]);
-      const text = lotListing(items, plan, (c) => money(c));
-      await navigator.clipboard.writeText(`${text.title}\n\n${text.description}`).catch(() => undefined);
+      if (text) await navigator.clipboard.writeText(`${text.title}\n\n${text.description}`).catch(() => undefined);
       toast('success', t('saleLot.done', { n: plan.itemIds.length, price: money(plan.lotCents) }), t('saleLot.doneHint'));
       setOpen(false);
       onDone();
@@ -82,23 +86,49 @@ export function SaleLotButton({ views, onDone }: { views: readonly ItemView[]; o
           {problem ? (
             <p className="t-small t-warn">{t(`saleLot.problem.${problem}`)}</p>
           ) : plan ? (
-            <div className="offer-tiers" data-testid="sale-lot-plan">
+            <div className="offer-tiers offer-tiers--lot" data-testid="sale-lot-plan">
               <div className="offer-tiers__cell">
                 <span className="t-caption">{t('saleLot.total')}</span>
                 <b className="num">{money(plan.totalAskCents)}</b>
               </div>
               <div className="offer-tiers__cell">
-                <span className="t-caption">{t('saleLot.price', { pct: LOT_DISCOUNT_PCT })}</span>
-                <b className="num">{money(plan.lotCents)}</b>
+                <span className="t-caption">{t('saleLot.price', { pct: plan.discountPct })}</span>
+                <b className="num" data-testid="sale-lot-price">{money(plan.lotCents)}</b>
               </div>
               <div className="offer-tiers__cell">
                 <span className="t-caption">{t('saleLot.costs')}</span>
                 <b className="num">{plan.costComplete ? money(plan.costCents) : `≥ ${money(plan.costCents)}`}</b>
-                <span className="t-small t-muted">{plan.profitCents !== null ? t('saleLot.profit', { profit: money(plan.profitCents, { sign: true }) }) : t('saleLot.profitUnknown')}</span>
+              </div>
+              <div className="offer-tiers__cell">
+                <span className="t-caption">{t('saleLot.netProfit')}</span>
+                <b className="num" data-testid="sale-lot-profit">{plan.profitCents !== null ? money(plan.profitCents, { sign: true }) : '—'}</b>
+                {plan.profitCents === null && <span className="t-small t-muted">{t('saleLot.profitUnknown')}</span>}
+              </div>
+              <div className="offer-tiers__cell">
+                <span className="t-caption">{t('saleLot.capital')}</span>
+                <b className="num" data-testid="sale-lot-capital">{plan.costComplete ? money(plan.costCents) : `≥ ${money(plan.costCents)}`}</b>
+                <span className="t-small t-muted">{t('saleLot.capitalHint')}</span>
               </div>
             </div>
           ) : null}
+          <Field label={t('saleLot.discount')} htmlFor="lot-discount">
+            <Input id="lot-discount" inputMode="numeric" value={discount} onChange={(e) => setDiscount(e.target.value)} style={{ width: 80 }} />
+          </Field>
           {plan?.atCost && <p className="t-small t-muted">{t('saleLot.atCost')}</p>}
+          {text && (
+            <details className="stack" style={{ gap: 6 }} data-testid="sale-lot-listing">
+              <summary className="t-small" style={{ cursor: 'pointer', fontWeight: 600 }}>
+                {t('saleLot.listing')}
+              </summary>
+              <p className="t-small">
+                <b>{text.title}</b>
+              </p>
+              <pre className="wdesc">{text.description}</pre>
+              <div>
+                <CopyButton text={`${text.title}\n\n${text.description}`} />
+              </div>
+            </details>
+          )}
           <p className="t-small t-faint">{t('saleLot.how')}</p>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>

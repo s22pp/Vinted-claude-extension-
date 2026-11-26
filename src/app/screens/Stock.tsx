@@ -3,6 +3,7 @@ import { ChooseRepostsModal } from '../components/repost-list';
 import { RepostNowButton, RepostNowManyButton, canRepostNow } from '../components/repost-now';
 import { PhotosForChatGpt } from '../components/photo-export';
 import { SaleLotButton } from '../components/sale-lot';
+import { DORMANT_DAYS } from '@/intelligence/sale-lot';
 import { rotation } from '@/intelligence/pro-figures';
 import { StockVitrine } from '../components/stock-vitrine';
 import { useI18n } from '@/i18n';
@@ -27,7 +28,10 @@ import { IconTile } from '@/ui/components/icons';
 import { PRIO, usePriorityTitle } from '../components/priorities';
 import { StockTabs } from '../components/section-tabs';
 
-type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost' | 'markdown';
+type Filter = 'all' | 'listed' | 'reserved' | 'hidden' | 'draft' | 'sold' | 'attention' | 'nocost' | 'markdown' | 'stagnant';
+
+/** Asleep in the stock: in stock, priced, online 30 days or more (the lots' first candidates). */
+const isStagnant = (v: { inStock: boolean; askPrice: number | null; daysListed: number | null }) => v.inStock && v.askPrice !== null && (v.daysListed ?? 0) >= DORMANT_DAYS;
 
 function loadPref<T>(key: string, fallback: T): T {
   try {
@@ -126,6 +130,7 @@ export function Stock({ route }: { route: Route }) {
       attention: rows.filter((r) => r.intel?.recommendation && r.intel.recommendation.tone !== 'info').length,
       nocost: rows.filter((r) => r.v.inStock && r.v.cost === null).length,
       markdown: rows.filter((r) => era.markdown.get(r.v.item.id)?.status === 'DUE').length,
+      stagnant: rows.filter((r) => isStagnant(r.v)).length,
     }),
     [rows, era.markdown],
   );
@@ -143,6 +148,7 @@ export function Stock({ route }: { route: Route }) {
       if (filter === 'attention' && !(r.intel?.recommendation && r.intel.recommendation.tone !== 'info')) return false;
       if (filter === 'nocost' && !(r.v.inStock && r.v.cost === null)) return false;
       if (filter === 'markdown' && era.markdown.get(r.v.item.id)?.status !== 'DUE') return false;
+      if (filter === 'stagnant' && !isStagnant(r.v)) return false;
       if (needle && !`${r.v.item.title} ${r.v.item.brand} ${r.v.item.model ?? ''}`.toLowerCase().includes(needle)) return false;
       return true;
     });
@@ -189,6 +195,7 @@ export function Stock({ route }: { route: Route }) {
     ...(counts.hidden > 0 || filter === 'hidden' ? [{ value: 'hidden' as Filter, label: t('stock.filterHidden') }] : []),
     { value: 'attention', label: t('stock.filterAttention') },
     { value: 'nocost', label: t('stock.filterNoCost') },
+    { value: 'stagnant', label: t('stock.filterStagnant') },
     ...(counts.markdown > 0 || filter === 'markdown' ? [{ value: 'markdown' as Filter, label: t('markdown.filter') }] : []),
   ];
 

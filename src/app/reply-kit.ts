@@ -34,6 +34,8 @@ export function replyContextOf(intel: ItemIntel, preps: Map<string, Prep>, model
     measures,
     price: v.askPrice !== null ? money(v.askPrice) : null,
     counter: ladder ? money(ladder.acceptFrom) : null,
+    brand: v.item.brand && !/^(inconnue?|sans marque)$/i.test(v.item.brand.trim()) ? v.item.brand : null,
+    floor: ladder ? money(ladder.floor) : null,
   };
 }
 

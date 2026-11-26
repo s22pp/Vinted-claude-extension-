@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { type ExpenseRow, db, uid } from '@/data/db';
 import { useI18n } from '@/i18n';
-import { EXPENSE_CATEGORIES, type ExpenseCategory, expenseSummary, yearOf } from '@/intelligence/accounting';
+import { EXPENSE_CATEGORIES, EXPENSE_PRESETS, type ExpenseCategory, type ExpensePreset, expenseSummary, presetAmount, yearOf } from '@/intelligence/accounting';
+import { useToast } from '@/ui/components/overlays';
 import { type MoneyMetric, eurNumber } from '@/domain/money';
 import { downloadText } from '@/lib/download';
 import { Button, Card, Field, Input, MetricValue, Money, Select } from '@/ui/components/primitives';
@@ -18,6 +19,21 @@ export function ExpensesCard({ year, grossMargin }: { year: number; grossMargin:
   const [category, setCategory] = useState<ExpenseCategory>('PACKAGING');
   const [note, setNote] = useState('');
   const amount = useMoneyField(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+
+  /** One click: the last amount entered for it comes back, today; the first time, the form is filled to type it. */
+  const quick = async (p: ExpensePreset) => {
+    const cents = presetAmount(all, p);
+    if (cents === null) {
+      setCategory(p.category);
+      setNote(p.label);
+      amountRef.current?.focus();
+      return;
+    }
+    await db.expenses.put({ id: uid('exp'), date: Date.now(), amountCents: cents, category: p.category, note: p.label } satisfies ExpenseRow);
+    toast('success', t('expenses.quickAdded', { what: p.label, amount: money(cents) }));
+  };
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +67,19 @@ export function ExpensesCard({ year, grossMargin }: { year: number; grossMargin:
           </span>
           {sum.byCategory.length > 0 && <span className="t-small t-muted">{sum.byCategory.map((c) => `${t(`expenses.c.${c.category}`)} ${money(c.cents)}`).join(' · ')}</span>}
         </div>
+        <div className="row wrap" style={{ gap: 6 }} data-testid="expense-presets">
+          <span className="t-caption" style={{ alignSelf: 'center' }}>
+            {t('expenses.quick')}
+          </span>
+          {EXPENSE_PRESETS.map((p) => {
+            const cents = presetAmount(all, p);
+            return (
+              <Button key={p.key} size="sm" icon="plus" onClick={() => void quick(p)}>
+                {cents === null ? p.label : `${p.label} · ${money(cents)}`}
+              </Button>
+            );
+          })}
+        </div>
         <form className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }} onSubmit={add}>
           <Field label={t('expenses.date')} htmlFor="ex-date">
             <Input id="ex-date" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
@@ -59,7 +88,7 @@ export function ExpensesCard({ year, grossMargin }: { year: number; grossMargin:
             <Select id="ex-cat" value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)} options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: t(`expenses.c.${c}`) }))} />
           </Field>
           <Field label={t('expenses.amount')} htmlFor="ex-amount" error={amount.invalid ? t('add.invalidAmount') : null}>
-            <Input id="ex-amount" money value={amount.raw} onChange={(e) => amount.setRaw(e.target.value)} style={{ width: 100 }} />
+            <Input id="ex-amount" ref={amountRef} money value={amount.raw} onChange={(e) => amount.setRaw(e.target.value)} style={{ width: 100 }} />
           </Field>
           <Field label={t('expenses.note')} htmlFor="ex-note" optional>
             <Input id="ex-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('expenses.notePh')} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MarketCandidate } from '@/domain/entities';
-import { localMedian, matchesSearch, newSearch, scoreScan } from '@/intelligence/radar';
+import { isRelevant, localMedian, matchesSearch, newSearch, scoreScan } from '@/intelligence/radar';
 
 const search = newSearch({ brand: 'Ralph Lauren', category: 'JACKET', size: 'M', maxPriceCents: 3000, minCondition: 'VERY_GOOD' }, 1_000)!;
 const cand = (id: string, price: number, over: Partial<MarketCandidate> = {}): MarketCandidate => ({
@@ -49,7 +49,7 @@ describe('Radar: saved searches scored against the local median', () => {
   it('a scan: the seller’s own listings left out, the filters applied, each deal’s margin over its all-in cost, best first', () => {
     const model = { byNiche: [seg('Ralph Lauren', 'JACKET', 4, 5500)], byBrand: [] };
     const r = scoreScan(search, [cand('1', 2500), cand('2', 1000), cand('3', 4000), cand('mine', 500)], model, new Set(['mine']), 42);
-    expect(r).toMatchObject({ at: 42, seen: 4, median: { cents: 5500, basis: 'SALES' } });
+    expect(r).toMatchObject({ at: 42, seen: 4, excluded: 0, median: { cents: 5500, basis: 'SALES' } });
     expect(r.deals.map((d) => d.id)).toEqual(['2', '1']);
     // 10 € listed → 11,20 € with the buyer protection → 55 − 11,20 = 43,80 €.
     expect(r.deals[0]).toMatchObject({ landedCents: 1120, marginCents: 4380, url: 'https://www.vinted.fr/items/2' });
@@ -60,5 +60,20 @@ describe('Radar: saved searches scored against the local median', () => {
     expect(r.median).toBeNull();
     expect(r.deals.every((d) => d.marginCents === null)).toBe(true);
     expect(r.deals.map((d) => d.id)).toEqual(['2', '1']);
+  });
+
+  it('set aside before anything: another brand, an imitation, a lot, a kids’ piece, a damaged one, another kind, a bait price', () => {
+    expect(isRelevant(cand('a', 2000), search)).toBe(true);
+    expect(isRelevant(cand('a', 2000, { brand: null, title: 'Veste Ralph Lauren Harrington' }), search)).toBe(true);
+    expect(isRelevant(cand('a', 2000, { brand: 'Tommy Hilfiger', title: 'Veste Tommy Hilfiger' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 2000, { title: 'Veste façon Ralph Lauren' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 2000, { title: 'Lot de 3 vestes Ralph Lauren' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 2000, { title: 'Veste Ralph Lauren enfant 12 ans' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 2000, { title: 'Veste Ralph Lauren trouée' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 2000, { category: 'JEANS', title: 'Jean Ralph Lauren' }), search)).toBe(false);
+    expect(isRelevant(cand('a', 100), search)).toBe(false);
+    // Excluded listings never pull the scan's median down, and are counted.
+    const r = scoreScan({ ...search, maxPriceCents: null }, ['1', '2', '3', '4', '5'].map((id) => cand(id, 4000)).concat([cand('x', 300, { title: 'Veste façon Ralph Lauren' })]), null, new Set(), 1);
+    expect(r).toMatchObject({ excluded: 1, median: { cents: 4000, basis: 'SCAN', n: 5 } });
   });
 });

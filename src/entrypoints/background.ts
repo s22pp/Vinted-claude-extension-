@@ -11,6 +11,7 @@ import { REPOST_ALARM, isActive } from '@/intelligence/repost-now';
 import { importFromVinted, importPurchasesFromVinted } from '@/data/vinted-import';
 import { loadAutoConfig, refreshContacts, runDelivered, runFavorites, runFollowUps, runOffers, vintedTabOpen } from '@/data/automation-runner';
 import { type RepliesResult, dismissPendingReply, runReplies, sendPendingReply } from '@/data/reply-agent';
+import { sendCashNudge } from '@/data/cash-nudge';
 import { createVintedDraft, publishDraft } from '@/data/vinted-draft';
 import { getAllLabels, getShippingLabel, readListingDetails, setListingHidden, locateParcel } from '@/data/vinted-actions';
 import { type SalesSnapshot, loadRefreshConfig, purchaseStages, salesSnapshot, whatIsNew } from '@/data/refresh';
@@ -841,6 +842,9 @@ export default defineBackground(() => {
       case 'era:reply:send':
         if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
         return answer(afterImportReads(() => sendPendingReply(msg.key, msg.text)), unavailable);
+      case 'era:nudge:send':
+        if (vintedBusy()) return answer(Promise.resolve({ ok: false, detail: 'une autre opération Vinted est en cours : réessayez dans une minute' }), unavailable);
+        return answer(afterImportReads(() => sendCashNudge(msg.saleId, msg.conversationId, msg.text, msg.title)), unavailable);
       case 'era:reply:dismiss':
         return answer(dismissPendingReply(msg.key).then(() => ({ ok: true })), unavailable);
       case 'era:update:status':

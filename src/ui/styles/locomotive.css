@@ -923,3 +923,322 @@ kbd,
 .ctrl__switch {
   position: relative;
 }
+
+/* ── 2.0 · Outils: the hub — four tools in the 1 px grid, mono numbers over serif titles ─────────────────────────── */
+.hub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 40px;
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.hub__panel {
+  min-width: 0;
+  padding: 22px 24px 26px;
+  border-top: 1px solid var(--border-grid);
+  border-left: 1px solid var(--border-grid);
+}
+.hub__panel:nth-child(-n + 2) {
+  border-top: 0;
+}
+.hub__panel:nth-child(odd) {
+  border-left: 0;
+}
+.hub__num {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+.hub__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.hub__lede {
+  margin: 6px 0 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.hub__sub-head {
+  margin: 22px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-grid);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.hub__all {
+  margin: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+@media (max-width: 1100px) {
+  .hub {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hub__panel,
+  .hub__panel:nth-child(-n + 2) {
+    border-left: 0;
+    border-top: 1px solid var(--border-grid);
+  }
+  .hub__panel:first-child {
+    border-top: 0;
+  }
+}
+
+/* Calculateur sourcing: three amounts, three figures in mono, the verdict as a coloured dot. */
+.sim__inputs,
+.gen__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.sim__cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+}
+.sim__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--border-grid);
+}
+.sim__cell:first-child {
+  border-left: 0;
+}
+.sim__cell b {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.sim__verdict {
+  margin: 14px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.sim__verdict.is-go {
+  color: #34d399;
+}
+.sim__verdict.is-nego {
+  color: #fbbf24;
+}
+.sim__verdict.is-pass {
+  color: #f87171;
+}
+:root[data-theme='light'] .sim__verdict.is-go {
+  color: #047857;
+}
+:root[data-theme='light'] .sim__verdict.is-nego {
+  color: #92400e;
+}
+:root[data-theme='light'] .sim__verdict.is-pass {
+  color: #b91c1c;
+}
+
+/* Générateur: the listing as it will read, line by line in the grid. */
+.gen__out {
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+}
+.gen__line {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-grid);
+}
+.gen__line:first-child {
+  border-top: 0;
+}
+.gen__line .wdesc {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+.gen__title {
+  font-weight: 600;
+}
+.gen__tags {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Studio photo: each photo with its 3:4 frame, the rest dimmed; the bar to export them together. */
+.studio__drop {
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  padding: 22px;
+  border-style: dashed;
+}
+.studio__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border-grid);
+  background: var(--border-grid);
+}
+.studio__shot {
+  margin: 0;
+  padding: 4px;
+  background: var(--surface);
+}
+.studio__frame-wrap {
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+}
+.studio__frame-wrap img {
+  display: block;
+  user-select: none;
+}
+.studio__frame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid #f8fafc;
+  box-shadow: 0 0 0 999px rgba(7, 10, 15, 0.62);
+  cursor: grab;
+  touch-action: none;
+}
+.studio__frame:focus-visible {
+  outline: 2px solid var(--glacier);
+  outline-offset: -2px;
+}
+.studio__cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 2px;
+}
+.studio__remove {
+  all: unset;
+  margin-left: auto;
+  padding: 0 6px;
+  font-size: 16px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.studio__remove:hover {
+  color: var(--text);
+}
+.studio__issues {
+  margin: 0 2px 2px;
+}
+.studio__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* Relance déblocage trésorerie: one ruled line per sale. */
+.nudge-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+}
+.nudge-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-grid);
+}
+.nudge-row:first-child {
+  border-top: 0;
+}
+.nudge-row__title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Radar de sourcing: the form in one ruled row, each saved search a block, each listing a line of the grid. */
+.radar__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.radar__search {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-grid);
+}
+.radar__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.radar__deals {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+}
+.radar__deal {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-grid);
+}
+.radar__deal:first-child {
+  border-top: 0;
+}
+.radar__deal-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.radar__deal .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+  .radar__deal {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+/* Créer un lot: the five figures on two ruled rows (total, lot price, costs · net profit, capital freed). */
+.offer-tiers--lot {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.offer-tiers--lot .offer-tiers__cell:nth-child(n + 4) {
+  border-top: 1px solid var(--border-grid);
+}
+.offer-tiers--lot .offer-tiers__cell:nth-child(4) {
+  border-left: 0;
+}
+.offer-tiers--lot .offer-tiers__cell b {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
