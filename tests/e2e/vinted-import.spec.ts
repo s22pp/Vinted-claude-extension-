@@ -1630,7 +1630,7 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   // An item page: the chip comes from the page's product data; moving to another item inside Vinted's app
   // (no reload) replaces it — never the previous item's chip left on the new page.
   const ld = (name: string, price: string) => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name, brand: { name: 'Ralph Lauren' }, offers: { price } })}</script>`;
-  await context.route('https://www.vinted.fr/items/601**', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html><head>${ld('Chemise Oxford Ralph Lauren', '10.00')}</head><body>item</body></html>` }));
+  await context.route('https://www.vinted.fr/items/601**', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html><head>${ld('Chemise Oxford Ralph Lauren', '10.00')}</head><body><div style="width:360px"><div data-testid="item-price">10,00 €</div></div></body></html>` }));
   await page.goto('https://www.vinted.fr/items/601-chemise');
   const chip = page.locator('[data-era-mark="PAGE"]');
   // A 36 px bar: « Cote ERA » (your own price range in the niche) and the estimated margin, then your max, your sales,
@@ -1638,6 +1638,14 @@ test('marks on Vinted pages: your niche under your max, above it, not yours — 
   await expect(chip).toContainText('Cote ERA : 24–35 € · Marge est. +18,80 €');
   await expect(chip).toContainText('✓ sous votre max 12 €');
   await expect(chip).toContainText('vendu 9× par vous');
+  // Under the price, in a column as narrow as Vinted's: nothing spills out of the bar, the button included.
+  const fits = () =>
+    chip.evaluate((h) => {
+      const bar = h.shadowRoot!.querySelector<HTMLElement>('.bar')!.getBoundingClientRect();
+      const btn = h.shadowRoot!.querySelector('button')!.getBoundingClientRect();
+      return bar.width <= 361 && btn.right <= bar.right && btn.bottom <= bar.bottom;
+    });
+  expect(await fits()).toBe(true);
   // The bar (in its own shadow root) opens ERA's buy analysis, prefilled with this listing.
   const [analysis] = await Promise.all([context.waitForEvent('page'), chip.getByRole('button', { name: 'Analyser dans ERA' }).click()]);
   await expect.poll(() => analysis.url()).toMatch(/#\/buy\?vinted=1&title=Chemise\+Oxford\+Ralph\+Lauren/);

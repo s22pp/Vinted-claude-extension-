@@ -45,7 +45,7 @@ export default defineContentScript({
       root.innerHTML = `<style>${CHIP_CSS}</style><span class="chip"><i class="dot" style="background:${DOT[m.kind]}"></i><slot></slot></span>`;
       return host;
     };
-    /** The item page's bar: 36 px under Vinted's price (or in the corner when the price is not found). */
+    /** The item page's bar, under Vinted's price (or in the corner when the price is not found). */
     const bar = (m: Mark, it: { title: string; brand: string | null; priceCents: number | null }, under: Element | null) => {
       const host = document.createElement('era-bar');
       host.setAttribute('data-era-mark', 'PAGE');
@@ -53,20 +53,28 @@ export default defineContentScript({
       host.title = tip(m);
       const root = host.attachShadow({ mode: 'open' });
       const place = under ? ':host{all:initial;display:block;margin:10px 0}' : ':host{all:initial;position:fixed;left:16px;bottom:16px;z-index:2147483000}';
+      // Two rows, so nothing ever spills out of the bar in Vinted's narrow price column: the Cote and the margin, then
+      // your max, your sales and the way into ERA (these wrap when the column is narrower still).
       root.innerHTML = `<style>${place}
-        .bar{display:flex;align-items:center;gap:0;height:36px;padding:0 4px 0 0;border-radius:4px;background:#080C12;border:1px solid rgba(255,255,255,.14);color:#F8FAFC;font:500 12px/1 ${MONO};box-sizing:border-box;width:max-content;max-width:100%}
-        .seg{display:inline-flex;align-items:center;gap:6px;height:100%;padding:0 12px;border-left:1px solid rgba(255,255,255,.09);white-space:nowrap}
-        .e{font:500 18px/1 'Bodoni Moda', 'Bodoni 72', Didot, serif;padding:0 12px;border-left:0}
-        .dot{width:6px;height:6px;border-radius:50%}
-        .muted{color:#94A3B8}
-        button{all:unset;margin-left:8px;height:26px;padding:0 10px;border-radius:3px;background:#E2E8F0;color:#080C12;font:600 11.5px/26px system-ui,sans-serif;cursor:pointer}
+        .bar{display:inline-flex;flex-direction:column;max-width:100%;border-radius:4px;background:#080C12;border:1px solid rgba(255,255,255,.14);color:#F8FAFC;font:500 12px/1.35 ${MONO};box-sizing:border-box;overflow:hidden}
+        .top{display:flex;align-items:stretch;min-height:36px}
+        .e{display:flex;align-items:center;padding:0 12px;border-right:1px solid rgba(255,255,255,.09);font:500 18px/1 'Bodoni Moda', 'Bodoni 72', Didot, serif}
+        .main{display:flex;align-items:center;gap:8px;padding:8px 14px 8px 12px}
+        .dot{width:6px;height:6px;border-radius:50%;flex:none}
+        .sub{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:7px 7px 7px 12px;border-top:1px solid rgba(255,255,255,.09);font-size:11px;color:#94A3B8}
+        .sub span{white-space:nowrap}
+        button{all:unset;margin-left:auto;height:26px;padding:0 10px;border-radius:3px;background:#E2E8F0;color:#080C12;font:600 11.5px/26px system-ui,sans-serif;cursor:pointer;white-space:nowrap}
         button:hover{background:#fff}</style>
         <div class="bar" role="group" aria-label="ERA">
-          <span class="seg e" aria-hidden="true">E</span>
-          <span class="seg"><i class="dot" style="background:${DOT[m.kind]}"></i><slot></slot></span>
-          <span class="seg muted">${maxText(m)}</span>
-          <span class="seg muted">vendu ${m.sold}× par vous</span>
-          <button type="button">Analyser dans ERA</button>
+          <div class="top">
+            <span class="e" aria-hidden="true">E</span>
+            <span class="main"><i class="dot" style="background:${DOT[m.kind]}"></i><span><slot></slot></span></span>
+          </div>
+          <div class="sub">
+            <span>${maxText(m)}</span>
+            <span>vendu ${m.sold}× par vous</span>
+            <button type="button">Analyser dans ERA</button>
+          </div>
         </div>`;
       root.querySelector('button')!.addEventListener('click', (e) => {
         e.preventDefault();
