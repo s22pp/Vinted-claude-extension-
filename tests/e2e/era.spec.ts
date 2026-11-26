@@ -191,6 +191,51 @@ test('stock as a Vitrine: the same filtered rows, photo first; the keyboard open
   await expect(page.getByRole('heading', { name: 'Timeline' })).toBeVisible();
 });
 
+test('v4: Aujourd’hui bento telemetry, the gallery’s HUD and action bar, the item page split, the Réglages gauges', async ({ context, base }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loadDemo(page, base);
+  await page.goto(`${base}#/today`);
+  // Telemetry: net profit with its curve, the stock in fresh / to watch / stalling blocks, the two DAC7 thresholds.
+  const bento = page.getByTestId('today-bento');
+  await expect(bento.getByTestId('bento-ship')).toContainText('2 colis à envoyer');
+  await expect(bento.getByTestId('bento-profit').locator('svg.spark')).toBeVisible();
+  await expect(bento.getByTestId('bento-velocity').locator('.segbar i')).toHaveCount(24);
+  await expect(bento.getByTestId('bento-dac7')).toContainText(/Ventes \d+ \/ 30/);
+  await expect(bento.getByTestId('bento-dac7')).toContainText(/Montant [\d\s ]+ € \/ 2[\s ]000 €/);
+  await expect(bento.getByTestId('day-timeline')).toBeVisible();
+  // Readable without scrolling at 1440 × 900: once the page has settled, the bento ends inside the window.
+  await expect.poll(async () => { const b = await bento.boundingBox(); return b ? b.y + b.height : Infinity; }, { timeout: 10_000 }).toBeLessThanOrEqual(900);
+
+  // The gallery: index and state over the photo, the action bar on keyboard focus; no Vinted listing → no price cut.
+  await page.goto(`${base}#/stock?view=vitrine`);
+  const look = page.getByTestId('stock-vitrine').locator('li').first();
+  await expect(look.locator('.look__hud--ref')).toHaveText('#001');
+  const analyze = look.getByRole('button', { name: 'Analyser' });
+  await analyze.focus();
+  await expect(look.locator('.look__actions')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+  await expect(look.getByRole('button', { name: '−5 %' })).toBeDisabled();
+  await expect(look.getByRole('button', { name: 'Vinted ↗' })).toBeDisabled();
+  await analyze.click();
+  await expect(page.getByText(/^Marché analysé/).first()).toBeVisible({ timeout: 10_000 });
+
+  // The item page: the large photo and its place on the left, sticky; the title, figures and actions on the right.
+  await look.locator('a').click();
+  await expect(page.getByTestId('item-photo')).toBeVisible();
+  await expect(page.locator('.item-split__media')).toHaveCSS('position', 'sticky');
+  const media = (await page.locator('.item-split__media').boundingBox())!;
+  const body = (await page.locator('.item-split__body').boundingBox())!;
+  expect(media.width / (media.width + body.width)).toBeGreaterThan(0.36);
+  expect(media.width / (media.width + body.width)).toBeLessThan(0.44);
+
+  // Réglages: the backup's age as a segmented gauge, ERA's readings of Vinted over 14 days as a curve.
+  await page.goto(`${base}#/settings`);
+  await expect(page.getByTestId('backup-gauge')).toContainText('aucune copie');
+  await expect(page.getByTestId('backup-gauge').locator('.segbar i.is-over')).toHaveCount(24);
+  await expect(page.getByTestId('source-activity')).toContainText('0 relevé');
+  await expect(page.getByTestId('source-activity').locator('svg.spark')).toBeVisible();
+});
+
 test('market: filtered comparables and three strategies', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);
@@ -1072,9 +1117,9 @@ test('Colis → drop-off round: carriers chosen, favourite points saved, stops b
   await expect(maps).toHaveAttribute('target', '_blank');
   await drop.getByRole('button', { name: 'À pied' }).click();
   await expect.poll(async () => new URL((await maps.getAttribute('href'))!).searchParams.get('travelmode')).toBe('walking');
-  // Aujourd'hui: « Itinéraire dépôt ↗ » on the parcels to ship (and next to « Voir les colis » on the real account's card).
+  // Aujourd'hui: « Itinéraire dépôt ↗ » next to « Voir les colis », in the bento's parcels cell.
   await page.goto(`${base}#/today`);
-  const shortcut = page.getByTestId('today-to-ship').getByTestId('today-route');
+  const shortcut = page.getByTestId('bento-ship').getByTestId('today-route');
   await expect(shortcut).toHaveText('Itinéraire dépôt ↗');
   await expect(shortcut).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&.*travelmode=walking$/);
   // Kept: the points and choices are in the backups and survive a reload.

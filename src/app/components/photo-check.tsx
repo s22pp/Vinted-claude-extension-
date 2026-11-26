@@ -42,7 +42,7 @@ export function PhotoCheck() {
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
           {results.map((r) => (
             <figure key={r.url} className="strategy" style={{ margin: 0, padding: 8 }}>
-              <img src={r.url} alt={r.name} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              <img src={r.url} alt={r.name} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 2, display: 'block' }} />
               <figcaption className="stack" style={{ gap: 4, marginTop: 6 }}>
                 <span className="row-between">
                   <Badge tone={r.report.verdict === 'OK' ? 'emerald' : r.report.verdict === 'IMPROVE' ? 'amber' : 'coral'}>{t(`photo.verdict.${r.report.verdict}`)}</Badge>

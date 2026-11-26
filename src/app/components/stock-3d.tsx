@@ -463,7 +463,7 @@ export default function Stock3D() {
         role="application"
         aria-label={t('stock3d.label', { n: hung.length })}
         onKeyDown={onKey}
-        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 4, overflow: 'hidden', background: '#080C12', border: '1px solid rgba(255,255,255,0.09)', outline: 'none' }}
+        style={{ position: 'relative', height: 'min(70vh, 620px)', borderRadius: 2, overflow: 'hidden', background: '#080C12', border: '1px solid rgba(255,255,255,0.09)', outline: 'none' }}
       >
         {hover && !s && (
           <div className="card stock3d-hover" style={{ position: 'absolute', left: hover.x + 14, top: hover.y + 14, padding: '8px 10px', pointerEvents: 'none', maxWidth: 260 }}>
@@ -477,7 +477,7 @@ export default function Stock3D() {
         {s && (
           <div className="card stack" data-testid="stock-3d-ticket" style={{ position: 'absolute', right: 14, top: 14, width: 'min(320px, 80%)', padding: 14, gap: 8 }}>
             <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-              {s.photoUrl && <img src={s.photoUrl} alt="" width={72} height={96} style={{ objectFit: 'cover', borderRadius: 8 }} onError={(e) => (e.currentTarget.style.display = 'none')} />}
+              {s.photoUrl && <img src={s.photoUrl} alt="" width={72} height={96} style={{ objectFit: 'cover', borderRadius: 2 }} onError={(e) => (e.currentTarget.style.display = 'none')} />}
               <div className="stack" style={{ gap: 4 }}>
                 <strong>{s.title}</strong>
                 <span className="t-small t-muted">{t('stock3d.hanger', { rack: rackName(racks[s.rack]!), slot: s.slot })}</span>

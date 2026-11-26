@@ -76,7 +76,7 @@ export function PhotoAuditCard() {
                 <div className="row wrap" style={{ gap: 8 }}>
                   {[...s.retake.map((p) => ({ ...p, v: 'RETAKE' as const })), ...s.improve.map((p) => ({ ...p, v: 'IMPROVE' as const }))].map((p) => (
                     <figure key={p.url} style={{ margin: 0, width: 96 }} title={p.issues.map((i) => t(`photo.issue.${i}`)).join('\n')}>
-                      <img src={p.url} alt="" loading="lazy" style={{ width: 96, height: 128, objectFit: 'cover', borderRadius: 8, display: 'block', outline: `2px solid ${p.v === 'RETAKE' ? 'var(--coral)' : 'var(--amber)'}` }} />
+                      <img src={p.url} alt="" loading="lazy" style={{ width: 96, height: 128, objectFit: 'cover', borderRadius: 2, display: 'block', outline: `2px solid ${p.v === 'RETAKE' ? 'var(--coral)' : 'var(--amber)'}` }} />
                       <figcaption className="t-small t-muted" style={{ marginTop: 4 }}>
                         {p.issues.map((i) => t(`paudit.short.${i}`)).join(' · ')}
                       </figcaption>

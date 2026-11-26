@@ -1,5 +1,4 @@
 import { addMonths, startOfMonth } from '@/domain/time';
-import { ToShipStrip } from '../components/to-ship';
 import { useI18n } from '@/i18n';
 import { AGE_BUCKETS } from '@/intelligence/capital';
 import { monthlySeries, periodSales } from '@/intelligence/portfolio';
@@ -11,8 +10,7 @@ import { ActivationProgress, ACTIVATION_STEPS, RecommendationCard } from '../com
 import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
 import { DailyRun } from '../components/daily-run';
-import { DayTimeline } from '../components/day-timeline';
-import { ForYou } from '../components/for-you';
+import { TodayBento } from '../components/today-bento';
 import { useBulkAnalyze } from '../components/tools';
 import { VintedImportButton } from '../components/vinted-import';
 import { PageHead } from '../Shell';
@@ -85,9 +83,8 @@ export function Today() {
       />
 
       <div className="stack-4">
-        {/* What is left for the seller, then what ERA did today (real data only: a demo has no rounds). */}
-        {era.mode === 'real' && <ForYou />}
-        {era.mode === 'real' && <DayTimeline />}
+        {/* v4.0 bento: what to do (the parcels, the day's rail) on columns 1–8, the live telemetry on 9–12. */}
+        <TodayBento />
         {!activationDone && <ActivationProgress done={era.activation} />}
 
         <section className="cockpit" aria-label={t('today.overview')}>
@@ -213,8 +210,6 @@ export function Today() {
             <PriorityList priorities={era.priorities} />
           )}
         </section>
-
-        <ToShipStrip />
 
         {/* The one advice worth doing first, explained (why, confidence, impact): the others are one click away. */}
         {top?.recommendation && (

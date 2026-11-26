@@ -7,6 +7,7 @@ import '@/ui/styles/scene.css';
 import '@/ui/styles/midnight.css';
 import '@/ui/styles/maison.css';
 import '@/ui/styles/locomotive.css';
+import '@/ui/styles/telemetry.css';
 import { repo } from '@/data/repo';
 import { I18nContext, type Locale, createI18n } from '@/i18n';
 import { ToastProvider } from '@/ui/components/overlays';

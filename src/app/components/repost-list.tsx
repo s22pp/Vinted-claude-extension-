@@ -73,7 +73,7 @@ export function ChooseRepostsModal({ views, open, onClose, onDone }: { views: re
         {skipped > 0 && <p className="t-small t-faint">{t('repostList.skipped', { n: skipped })}</p>}
         {ok.length > 0 &&
           (mustAccept ? (
-            <div className="stack" style={{ gap: 8, padding: 12, borderRadius: 12, border: '1px solid var(--amber)', background: 'var(--amber-soft)' }} data-testid="repost-loss">
+            <div className="stack" style={{ gap: 8, padding: 12, borderRadius: 2, border: '1px solid var(--amber)', background: 'var(--amber-soft)' }} data-testid="repost-loss">
               <p className="t-small" style={{ margin: 0 }}>
                 {t('repostList.loss', { favs: loss.favourites, n: loss.withFavourites, views: loss.views })}
               </p>

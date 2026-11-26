@@ -57,7 +57,7 @@ export function RepostButton({ v }: { v: ItemView }) {
       <Modal open={open} onClose={() => !busy && setOpen(false)} title={t('repost.title')}>
         <p className="t-small t-muted">{v.item.title}</p>
         {hasFavs && (
-          <div className="stack" style={{ gap: 8, padding: 12, borderRadius: 12, border: '1px solid var(--amber)', background: 'var(--amber-soft)' }} data-testid="repost-loss">
+          <div className="stack" style={{ gap: 8, padding: 12, borderRadius: 2, border: '1px solid var(--amber)', background: 'var(--amber-soft)' }} data-testid="repost-loss">
             <p className="t-small" style={{ margin: 0 }}>
               {t('repost.loss', { favs: favs ?? 0, views: v.current?.views ?? 0 })}
             </p>

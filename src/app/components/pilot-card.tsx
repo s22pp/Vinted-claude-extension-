@@ -155,7 +155,7 @@ export function PilotCard({ auto, onAll, onAgent }: { auto: AutoConfig; onAll: (
         {/* One tile per agent: on/off at a glance, its own switch, its details on demand. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }} aria-label={t('pilot.tasks')}>
           {agents.map((a) => (
-            <div key={a.key} data-agent={a.key} className="stack" style={{ gap: 8, padding: 12, borderRadius: 12, border: `1px solid ${a.on ? 'var(--emerald)' : 'var(--border)'}`, background: a.on ? 'var(--surface)' : 'var(--surface-sunken)', transition: 'border-color var(--t-normal) var(--ease), background var(--t-normal) var(--ease)' }}>
+            <div key={a.key} data-agent={a.key} className="stack" style={{ gap: 8, padding: 12, borderRadius: 2, border: `1px solid ${a.on ? 'var(--emerald)' : 'var(--border)'}`, background: a.on ? 'var(--surface)' : 'var(--surface-sunken)', transition: 'border-color var(--t-normal) var(--ease), background var(--t-normal) var(--ease)' }}>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
                 <IconTile name={a.icon} tone={a.tone} size="sm" />
                 <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>

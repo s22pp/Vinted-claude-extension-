@@ -20,6 +20,9 @@ import { go, useEra } from '../state';
 import { ExecModeSwitch } from '../components/exec-mode';
 import { RepostWaitSetting } from '../components/repost-now';
 import { isUnlimited } from '@/data/budget-plan';
+import { db } from '@/data/db';
+import { perDay } from '@/intelligence/telemetry';
+import { Sparkline } from '@/ui/charts/telemetry';
 
 export function Settings() {
   const demoLeft = useLiveQuery(() => repo.demoCount(), []) ?? 0;
@@ -33,6 +36,12 @@ export function Settings() {
   const lastImport = useLiveQuery(() => repo.getSetting<number | null>('lastVintedImport', null), []);
   const wardrobeKeys = useLiveQuery(() => repo.getSetting<string[] | null>('vintedWardrobeKeys', null), []);
   const purchasesError = useLiveQuery(() => repo.getSetting<string | null>('purchasesError', null), []);
+  // What ERA read of the seller's listings on Vinted, day by day over 14 days (demo pieces left out).
+  const since = new Date(era.now).setHours(0, 0, 0, 0) - 13 * 86_400_000;
+  const readTimes = useLiveQuery(() => db.observations.where('at').aboveOrEqual(since).toArray(), [since]);
+  const demoIds = new Set(era.views.filter((v) => v.item.isDemo).map((v) => v.item.id));
+  const readings = perDay((readTimes ?? []).filter((o) => !demoIds.has(o.inventoryItemId)).map((o) => o.at), era.now, 14);
+  const readTotal = readings.reduce((a, b) => a + b, 0);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [budget, setBudget] = useState<BudgetStatus | null>(null);
@@ -60,9 +69,9 @@ export function Settings() {
   return (
     <>
       <PageHead title={t('settings.title')} />
-      <div className="grid-12">
+      <div className="settings-grid">
         {/* Yours: look, language, your data and identity, the app itself. */}
-        <div className="span-6 stack-4">
+        <div className="settings-grid__col">
           <Card title={t('settings.theme')} icon="sun" tone="violet">
             <Segmented
               label={t('settings.theme')}
@@ -140,10 +149,17 @@ export function Settings() {
           </Card>
         </div>
         {/* Vinted's side: the source, what is verified on it, the connection test. */}
-        <div className="span-6 stack-4">
+        <div className="settings-grid__col">
           <Card title={t('settings.marketplace')} icon="repost" tone="cobalt">
             <div className="stack-3">
               <p className="t-small t-muted">{t('vinted.importHint')}</p>
+              <div className="gauge-row" data-testid="source-activity">
+                <div className="gauge-row__head">
+                  <span className="hud-label">{t('settings.sourceActivity')}</span>
+                  <span className="gauge-row__value">{t('settings.sourceActivityN', { n: readTotal })}</span>
+                </div>
+                <Sparkline data={readings} color="var(--glacier)" height={24} label={t('settings.sourceActivityAria', { n: readTotal })} />
+              </div>
               <ExecModeSwitch />
               <RepostWaitSetting />
               {budget && (
@@ -190,7 +206,7 @@ export function Settings() {
           <DiagnosticCard />
         </div>
         {/* The register at full width: one System Status line per function. */}
-        <div className="span-12">
+        <div className="settings-grid__full">
           <IntegrationsCard />
         </div>
       </div>

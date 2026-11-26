@@ -10,7 +10,7 @@ import { realizedFor } from '@/intelligence/seller-model';
 import { IconTile } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
 import { Badge, Button, Card, ConfidenceMeter, DemoBadge, EmptyState, ErrorState, Metric, Money, QualityTag, Skeleton, Stages } from '@/ui/components/primitives';
-import { Thumb } from '@/ui/components/Thumb';
+import { ItemPhoto } from '../components/item-photo';
 import { RecommendationCard, StagnationBadge, StatusBadge, StrategyCards, Timeline } from '../components/domain';
 import { repo } from '@/data/repo';
 import { CostEditor, InlineCost, SaleModal } from '../components/forms';
@@ -86,16 +86,23 @@ export function ItemDetail({ id }: { id: string }) {
         <BackLink href="#/stock" label={t('item.back')} />
       </div>
 
+      <div className="item-split">
+      <aside className="item-split__media">
+        <ItemPhoto photoUrl={item.photoUrl} category={item.category} title={item.title} />
+        <div className="item-split__loc">
+          <span className="hud-label">{t('storage.label')}</span>
+          <InlineLocation itemId={item.id} value={item.storageLocation} />
+        </div>
+      </aside>
+      <div className="item-split__body">
       <header className="card item-hero">
-        <Thumb photoUrl={item.photoUrl} category={item.category} alt={item.title} size="lg" />
         <div className="stack-3" style={{ minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 8 }}>
             <StatusBadge status={item.status} />
             {st && <StagnationBadge d={st} />}
             {item.isDemo && <DemoBadge />}
-            <InlineLocation itemId={item.id} value={item.storageLocation} />
           </div>
-          <h1 className="t-h1" style={{ overflowWrap: 'anywhere' }}>
+          <h1 className="t-h1 item-title" style={{ overflowWrap: 'anywhere' }}>
             {item.title}
           </h1>
           <p className="t-muted" data-testid="item-facts">
@@ -244,8 +251,6 @@ export function ItemDetail({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="grid-12">
-        <div className="span-8 stack-4">
           {intel?.recommendation && <RecommendationCard r={intel.recommendation} onAddCost={() => setEditCost(true)} onAnalyze={runAnalysis} />}
 
           <Card
@@ -325,7 +330,11 @@ export function ItemDetail({ id }: { id: string }) {
               </>
             )}
           </Card>
+      </div>
+      </div>
 
+      <div className="grid-12 item-rest">
+        <div className="span-8 stack-4">
           <Card title={t('precision.itemTitle')} hint={t('precision.itemHint')} icon="target" tone="violet">
             {preds.length === 0 ? (
               <p className="t-muted">{t('precision.itemEmpty')}</p>

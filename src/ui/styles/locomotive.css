@@ -1295,32 +1295,6 @@ kbd,
   gap: 4px;
 }
 
-/* Aujourd'hui → À envoyer: one ruled line per parcel to make, its storage place at the end. */
-.ship-strip {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--border-grid);
-  border-radius: 2px;
-  background: var(--surface);
-}
-.ship-strip__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 14px;
-  align-items: center;
-  padding: 9px 14px;
-  border-top: 1px solid var(--border-grid);
-}
-.ship-strip__row:first-child {
-  border-top: 0;
-}
-.ship-strip__title {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 /* 2.2 · Colis → Tournée de dépôt: the stops in the 1 px grid, numbered in mono, each carrier in mono capitals. */
 .drop {
   border: 1px solid var(--border-grid);

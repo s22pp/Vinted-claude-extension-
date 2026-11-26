@@ -12,6 +12,8 @@ import type { EraMessage } from '@/data/adapters/vinted/protocol';
 import { type CsvLabels, allSalesCsv, itemsCsv } from '@/intelligence/accounting';
 import { useEra } from '../state';
 import { PhotoExport } from './photo-export';
+import { backupAgeDays } from '@/intelligence/telemetry';
+import { SegmentedBar } from '@/ui/charts/telemetry';
 
 export { LAST_BACKUP_KEY } from '@/data/auto-backup';
 import { LAST_BACKUP_KEY } from '@/data/auto-backup';
@@ -60,6 +62,21 @@ export function BackupCard() {
     <Card title={t('backup.title')} hint={t('backup.hint')} icon="download" tone="emerald">
       <div className="stack-3" data-testid="backup">
         <p className={`t-small ${last && era.now - last < BACKUP_REMIND_DAYS * 86_400_000 ? 't-muted' : 't-warn'}`}>{last ? t('backup.last', { when: relative(last, era.now) }) : t('backup.never')}</p>
+        {(() => {
+          // The copy's age against the reminder: emerald while recent, amber from 80 %, coral once it is due.
+          const age = backupAgeDays(last ?? null, era.now);
+          const known = Number.isFinite(age);
+          const days = known ? Math.floor(age) : 0;
+          return (
+            <div className="gauge-row" data-testid="backup-gauge">
+              <div className="gauge-row__head">
+                <span className="hud-label">{t('backup.gauge')}</span>
+                <span className="gauge-row__value">{known ? t('backup.gaugeValue', { n: days, lim: BACKUP_REMIND_DAYS }) : t('backup.gaugeNever')}</span>
+              </div>
+              <SegmentedBar value={known ? age : BACKUP_REMIND_DAYS} max={BACKUP_REMIND_DAYS} label={known ? t('backup.gaugeAria', { n: days, lim: BACKUP_REMIND_DAYS }) : t('backup.gaugeAriaNever', { lim: BACKUP_REMIND_DAYS })} />
+            </div>
+          );
+        })()}
         <div className="row wrap" style={{ gap: 8 }}>
           <Button variant="primary" icon="download" onClick={save}>
             {t('backup.download')}
