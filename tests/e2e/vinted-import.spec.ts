@@ -2,6 +2,13 @@ import type { BrowserContext } from '@playwright/test';
 import { expect, fakeGemini, fakeLabelServer, setGeminiKey, test } from './fixtures';
 import { DEFAULT_FAV_NO_OFFER } from '../../src/intelligence/fav-messages';
 
+/** Yesterday at this time (seconds): always the calendar's yesterday, whatever the hour the suite runs (not now − 26 h). */
+function sameTimeYesterday(): number {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return Math.floor(d.getTime() / 1000);
+}
+
 /** Fake vinted.fr: an HTML page for the tab ERA opens, and JSON with the verified field names only. */
 async function fakeVinted(context: BrowserContext, opts: { loggedIn: boolean; bundleFavs?: boolean; shirtDeals?: boolean; extra?: object[]; orders?: object[]; purchases?: object[]; searchMoved?: boolean; sortRefused?: boolean; searchDead?: boolean; searchSamePath?: boolean; searchPageCards?: boolean | 'altOnly'; soldStatusRefused?: boolean; soldPage2Down?: boolean; wardrobePage2Down?: boolean; labelRateLimited?: boolean; labelNeverReady?: boolean; replyFails?: boolean; editForm?: 'ok' | 'ambiguous' | 'twoDescriptions'; lockPrice?: boolean; lockTitle?: boolean; titleMax?: number; draftPriceLocked?: boolean; replyHidden?: boolean; replyStoredButFails?: boolean; readBackDown?: boolean; buyerMessages?: boolean; publishPage?: boolean; offerRateLimited?: boolean; shirtFavourites?: number; item110Title?: string; purchasesSlowMs?: number; onPurchasesRead?: () => void; extraUploads?: boolean }) {
   const calls: { method: string; path: string; csrf: string | null; body?: string | null; at?: number }[] = [];
@@ -2310,7 +2317,7 @@ test('the seller’s « À republier » list: any article, its favourites accept
 test('« Republier maintenant »: a jacket published yesterday with 9 favourites, the Pilote off — copied, deleted, then put back online, in the seller’s order', async ({ context, base }) => {
   test.setTimeout(300_000);
   // Test fixture only: a jacket put online yesterday, 57 views and 9 favourites — the seller's own choice to repost it.
-  const yesterday = Math.floor((Date.now() - 26 * 3_600_000) / 1000);
+  const yesterday = sameTimeYesterday();
   const jacket = { id: 110, title: 'Veste Baracuta G9 M', price: '65.0', view_count: 57, favourite_count: 9, brand_title: 'Baracuta', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
   const calls = await fakeVinted(context, { loggedIn: true, publishPage: true, extra: [jacket], shirtFavourites: 9, item110Title: 'Veste Baracuta G9 M' });
   const page = await context.newPage();
@@ -2363,7 +2370,7 @@ test('« Republier maintenant »: a jacket published yesterday with 9 favourites
 
 test('« Republier maintenant » for two articles: one after the other, each copied, deleted, waited for, put back online — the wait taken up by an alarm', async ({ context, base }) => {
   test.setTimeout(360_000);
-  const yesterday = Math.floor((Date.now() - 26 * 3_600_000) / 1000);
+  const yesterday = sameTimeYesterday();
   // Test fixture only: two of the seller's listings, chosen together in the stock.
   const jacket = { id: 110, title: 'Veste Baracuta G9 M', price: '65.0', view_count: 57, favourite_count: 0, brand_title: 'Baracuta', size_title: 'M', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/110/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
   const oxford = { id: 111, title: 'Chemise Oxford Pierre Cardin L', price: '30.0', view_count: 12, favourite_count: 0, brand_title: 'Pierre Cardin', size_title: 'L', status: 'Très bon état', is_draft: false, is_closed: false, is_hidden: false, photos: [{ url: 'https://images1.vinted.net/t/111/1.jpeg', is_main: true, high_resolution: { timestamp: yesterday } }] };
