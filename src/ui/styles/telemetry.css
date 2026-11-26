@@ -547,3 +547,18 @@ fieldset.repost-now__wait,
 .look[data-state='stale'] .look__hud .look__status {
   color: #fbbf24;
 }
+
+/* ── Bible v3.0 · no CSS gradient on a page, a card or a button: the Capital block and the demo glyph's backdrop flat ── */
+.cockpit__capital {
+  background: var(--surface);
+  border-color: var(--border-grid);
+}
+.cockpit__capital::after {
+  content: none;
+}
+.look__glyph {
+  background: var(--surface-sunken);
+}
+.look__glyph::after {
+  content: none;
+}

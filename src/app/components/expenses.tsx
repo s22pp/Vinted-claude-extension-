@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { MetricOrFill } from './missing-costs';
 import { useRef, useState } from 'react';
 import { type ExpenseRow, db, uid } from '@/data/db';
 import { useI18n } from '@/i18n';
@@ -6,7 +7,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_PRESETS, type ExpenseCategory, type Expense
 import { useToast } from '@/ui/components/overlays';
 import { type MoneyMetric, eurNumber } from '@/domain/money';
 import { downloadText } from '@/lib/download';
-import { Button, Card, Field, Input, MetricValue, Money, Select } from '@/ui/components/primitives';
+import { Button, Card, Field, Input, Money, Select } from '@/ui/components/primitives';
 import { useMoneyField } from './forms';
 
 /** Expenses of the year (packaging, boosts, trips…): entered by hand, removed from the margin for a real net profit. */
@@ -62,7 +63,7 @@ export function ExpensesCard({ year, grossMargin }: { year: number; grossMargin:
             <span className="t-small t-muted">{t('expenses.net')}</span>
             <br />
             <b className="num" data-testid="net-profit">
-              <MetricValue metric={sum.net} sign />
+              <MetricOrFill metric={sum.net} sign />
             </b>
           </span>
           {sum.byCategory.length > 0 && <span className="t-small t-muted">{sum.byCategory.map((c) => `${t(`expenses.c.${c.category}`)} ${money(c.cents)}`).join(' · ')}</span>}

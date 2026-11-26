@@ -171,7 +171,7 @@ export default function Stock3D() {
       return;
     }
     let alive = true;
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
     const size = () => [el.clientWidth || 800, el.clientHeight || 520] as const;
     renderer.setSize(...size());
     renderer.domElement.setAttribute('aria-hidden', 'true');

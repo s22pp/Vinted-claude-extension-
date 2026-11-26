@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { MetricOrFill } from '../components/missing-costs';
 import type { Prep } from '@/domain/entities';
 import { sumMetric } from '@/domain/money';
 import { useI18n } from '@/i18n';
@@ -8,7 +9,7 @@ import type { RefundGuard } from '@/intelligence/refunds';
 import { draftTitle, prepStats, readiness, suggestPrice } from '@/intelligence/workshop';
 import { IconTile } from '@/ui/components/icons';
 import { IllustrationDone } from '@/ui/components/illustrations';
-import { Button, Card, EmptyState, Metric, MetricValue, Money } from '@/ui/components/primitives';
+import { Button, Card, EmptyState, Metric, Money } from '@/ui/components/primitives';
 import { Thumb } from '@/ui/components/Thumb';
 import { StockTabs } from '../components/section-tabs';
 import { VintedImportButton } from '../components/vinted-import';
@@ -47,7 +48,7 @@ export function Workshop({ route }: { route: Route }) {
             <Metric small label={t('workshop.kToList')} icon="upload" tone="violet" value={<span className="num">{toList.length}</span>} foot={awaitingImport.length ? t('workshop.awaitingN', { n: awaitingImport.length }) : null} />
           </div>
           <div className="kpi">
-            <Metric small label={t('workshop.kIdle')} icon="capital" tone="amber" value={<MetricValue metric={idle} />} foot={t('workshop.kIdleHint')} />
+            <Metric small label={t('workshop.kIdle')} icon="capital" tone="amber" value={<MetricOrFill metric={idle} />} foot={t('workshop.kIdleHint')} />
           </div>
           <div className="kpi">
             <Metric

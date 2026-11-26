@@ -112,7 +112,7 @@ export function EraTrainScene({ name, status, onDone }: { name: string; status: 
     let alive = true;
     const W = () => el.clientWidth || window.innerWidth;
     const H = () => el.clientHeight || window.innerHeight;
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
     renderer.setSize(W(), H());
     renderer.setClearColor(0x080c12, 1);
     renderer.domElement.setAttribute('aria-hidden', 'true');

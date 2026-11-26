@@ -1,11 +1,12 @@
 import { addMonths, startOfMonth } from '@/domain/time';
+import { MetricOrFill } from '../components/missing-costs';
 import { useI18n } from '@/i18n';
 import { AGE_BUCKETS } from '@/intelligence/capital';
 import { monthlySeries, periodSales } from '@/intelligence/portfolio';
 import { BarChart, Legend, LineChart, Sparkline } from '@/ui/charts/charts';
 import { IconTile } from '@/ui/components/icons';
 import { IllustrationStock } from '@/ui/components/illustrations';
-import { Button, Card, Delta, EmptyState, MetricFootPartial, MetricValue, QualityTag } from '@/ui/components/primitives';
+import { Button, Card, Delta, EmptyState, MetricFootPartial, QualityTag } from '@/ui/components/primitives';
 import { ActivationProgress, ACTIVATION_STEPS, RecommendationCard } from '../components/domain';
 import { PriorityList } from '../components/priorities';
 import { GoalCard } from '../components/goal';
@@ -93,7 +94,7 @@ export function Today() {
               <IconTile name="capital" tone="violet" size="sm" /> {t('kpi.invested')}
             </div>
             <div className="cockpit__hero num">
-              <MetricValue metric={cap.invested} />
+              <MetricOrFill metric={cap.invested} />
             </div>
             <div className="row wrap" style={{ gap: 8, minHeight: 22 }}>
               <MetricFootPartial metric={cap.invested} />
@@ -103,14 +104,14 @@ export function Today() {
               <button type="button" className="cockpit__cell" onClick={() => go('stock?filter=listed')}>
                 <span className="cockpit__k">{t('kpi.stockValue')}</span>
                 <span className="cockpit__v num">
-                  <MetricValue metric={cap.stockValue} />
+                  <MetricOrFill metric={cap.stockValue} />
                 </span>
                 <MetricFootPartial metric={cap.stockValue} />
               </button>
               <button type="button" className="cockpit__cell" onClick={() => go('capital')}>
                 <span className="cockpit__k">{t('kpi.potentialProfitKnown')}</span>
                 <span className="cockpit__v num t-pos">
-                  <MetricValue metric={cap.potentialProfit} sign />
+                  <MetricOrFill metric={cap.potentialProfit} sign />
                 </span>
                 <MetricFootPartial metric={cap.potentialProfit} />
               </button>
@@ -131,7 +132,7 @@ export function Today() {
                 <button key={o.d} type="button" className={`aged aged--${o.d}`} onClick={() => go(`stock?focus=${o.focus}`)} disabled={agedCount(o.d) === 0}>
                   <span className="aged__k">{t('capital.over', { n: o.d })}</span>
                   <span className="aged__v num">
-                    <MetricValue metric={o.m} />
+                    <MetricOrFill metric={o.m} />
                   </span>
                   <span className="aged__n">
                     {t('capital.items', { n: agedCount(o.d) })}
@@ -157,14 +158,14 @@ export function Today() {
             <button type="button" className="cockpit__cell cockpit__cell--wide" onClick={() => go('sales')}>
               <span className="cockpit__k">{t('kpi.monthProfit')}</span>
               <span className="cockpit__v num">
-                <MetricValue metric={cur.profit} sign />
+                <MetricOrFill metric={cur.profit} sign />
               </span>
               <MetricFootPartial metric={cur.profit} />
             </button>
             <button type="button" className="cockpit__cell cockpit__cell--wide" onClick={() => go('capital')}>
               <span className="cockpit__k">{t('today.returned90')}</span>
               <span className="cockpit__v num">
-                <MetricValue metric={cap.returned90} />
+                <MetricOrFill metric={cap.returned90} />
               </span>
               <span className="t-small t-faint">{cap.turnover !== null ? t('capital.turnoverLine', { x: i.num(cap.turnover, 1) }) : t('today.returned90Hint')}</span>
             </button>

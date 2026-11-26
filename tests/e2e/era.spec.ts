@@ -236,6 +236,45 @@ test('v4: Aujourd’hui bento telemetry, the gallery’s HUD and action bar, the
   await expect(page.getByTestId('source-activity').locator('svg.spark')).toBeVisible();
 });
 
+test('Bible v3.0 guard, dark and light: nothing rounded past 2 px, no horizontal overflow, the 56 px header line, a 220 px sidebar, no gradient on a card', async ({ context, base }) => {
+  test.setTimeout(120_000);
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loadDemo(page, base);
+  for (const theme of ['Sombre', 'Clair']) {
+    await page.goto(`${base}#/settings`);
+    await page.getByRole('button', { name: theme, exact: true }).click();
+    for (const r of ['today', 'stock?view=vitrine', 'sales', 'automations', 'settings']) {
+      await page.goto(`${base}#/${r}`);
+      await expect(page.locator('main#main')).toBeVisible();
+      await page.waitForTimeout(600);
+      const res = await page.evaluate(() => {
+        const bad: string[] = [];
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+          const b = el.getBoundingClientRect();
+          if (!b.width || !b.height) continue;
+          const cs = getComputedStyle(el);
+          const rad = parseFloat(cs.borderTopLeftRadius) || 0;
+          // A dot or a disc (radius at half its size) is a shape, not a rounded box.
+          if (rad > 2 && rad < Math.min(b.width, b.height) / 2 - 0.5 && (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.borderTopWidth !== '0px')) bad.push(`radius ${el.className}`);
+          if (cs.backgroundImage.includes('gradient') && (el.classList.contains('card') || el.tagName === 'BUTTON' || el.classList.contains('btn'))) bad.push(`gradient ${el.className}`);
+        }
+        const h = (s: string) => Math.round(document.querySelector(s)?.getBoundingClientRect().height ?? -1);
+        return {
+          bad: [...new Set(bad)],
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          sidebar: Math.round(document.querySelector('.sidebar')!.getBoundingClientRect().width),
+          top: h('.topbar'),
+        };
+      });
+      expect(res.bad, `${theme} ${r}`).toEqual([]);
+      expect(res.overflow, `${theme} ${r}`).toBe(0);
+      expect(res.sidebar).toBe(220);
+      expect(res.top).toBe(56);
+    }
+  }
+});
+
 test('market: filtered comparables and three strategies', async ({ context, base }) => {
   const page = await context.newPage();
   await loadDemo(page, base);

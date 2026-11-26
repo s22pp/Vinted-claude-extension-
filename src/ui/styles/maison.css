@@ -113,7 +113,7 @@
 
 /* ── Shell ─────────────────────────────────────────────────────────────────────────────────────────────────── */
 .app {
-  grid-template-columns: 244px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 .sidebar {
   padding: 26px 16px 22px;
@@ -126,7 +126,7 @@
 .sidebar__brand-name {
   font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.04em;
   line-height: 1;
 }

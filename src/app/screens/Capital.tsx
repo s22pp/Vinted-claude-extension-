@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
+import { MetricOrFill } from '../components/missing-costs';
 import { useI18n } from '@/i18n';
 import { AGE_BUCKETS, type CapitalPosition, type TrapReason } from '@/intelligence/capital';
 import { BarChart, Legend, ScatterChart } from '@/ui/charts/charts';
 import { IllustrationStock } from '@/ui/components/illustrations';
-import { Badge, type BadgeTone, Card, EmptyState, Metric, MetricFootPartial, MetricValue, Money, QualityTag, Segmented } from '@/ui/components/primitives';
+import { Badge, type BadgeTone, Card, EmptyState, Metric, MetricFootPartial, Money, QualityTag, Segmented } from '@/ui/components/primitives';
 import { ItemCell } from '../components/domain';
 import { PageHead } from '../Shell';
 import { go, useEra } from '../state';
@@ -85,19 +86,19 @@ export function Capital() {
               label={t('kpi.invested')}
               icon="capital"
               tone="violet"
-              value={<MetricValue metric={cap.invested} />}
+              value={<MetricOrFill metric={cap.invested} />}
               foot={cap.costsExcludingShipping > 0 ? <QualityTag quality="PARTIAL" text={t('capital.excludingShipping', { n: cap.costsExcludingShipping })} /> : <MetricFootPartial metric={cap.invested} />}
               small
             />
           </div>
           <div className="kpi">
-            <Metric label={t('capital.over', { n: 30 })} icon="clock" tone="cobalt" value={<MetricValue metric={cap.over30} />} foot={investedV && cap.over30.status !== 'unknown' ? pct(cap.over30.value / investedV) : null} small />
+            <Metric label={t('capital.over', { n: 30 })} icon="clock" tone="cobalt" value={<MetricOrFill metric={cap.over30} />} foot={investedV && cap.over30.status !== 'unknown' ? pct(cap.over30.value / investedV) : null} small />
           </div>
           <div className="kpi">
-            <Metric label={t('capital.over', { n: 60 })} icon="hourglass" tone="amber" value={<MetricValue metric={cap.over60} />} foot={investedV && cap.over60.status !== 'unknown' ? pct(cap.over60.value / investedV) : null} small />
+            <Metric label={t('capital.over', { n: 60 })} icon="hourglass" tone="amber" value={<MetricOrFill metric={cap.over60} />} foot={investedV && cap.over60.status !== 'unknown' ? pct(cap.over60.value / investedV) : null} small />
           </div>
           <div className="kpi">
-            <Metric label={t('capital.over', { n: 90 })} icon="alert" tone="coral" value={<MetricValue metric={cap.over90} />} foot={investedV && cap.over90.status !== 'unknown' ? pct(cap.over90.value / investedV) : null} small />
+            <Metric label={t('capital.over', { n: 90 })} icon="alert" tone="coral" value={<MetricOrFill metric={cap.over90} />} foot={investedV && cap.over90.status !== 'unknown' ? pct(cap.over90.value / investedV) : null} small />
           </div>
           <div className="kpi">
             <Metric

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { InlineCost } from '../components/forms';
 import { DAY } from '@/domain/time';
 import { useI18n } from '@/i18n';
 import { monthlySeries, salesSummary } from '@/intelligence/portfolio';
@@ -176,10 +177,11 @@ export function Sales({ route }: { route?: Route }) {
                     <td className="is-num">
                       <Money cents={x.sale.salePriceCents} />
                     </td>
-                    <td className="is-num">
-                      <Money cents={x.cost} unknownLabel={t('data.notProvided')} />
+                    {/* An unknown cost is an action on the spot (« + Ajouter le coût »), never a static « Non renseigné ». */}
+                    <td className="is-num" onClick={x.cost === null && !x.item.isDemo ? (e) => e.stopPropagation() : undefined}>
+                      {x.cost === null && !x.item.isDemo ? <InlineCost itemId={x.item.id} /> : <Money cents={x.cost} unknownLabel={t('data.notProvided')} compact />}
                     </td>
-                    <td className="is-num">{x.sale.status === 'REFUNDED' ? <span className="t-faint">—</span> : <Money cents={x.profit} sign />}</td>
+                    <td className="is-num">{x.sale.status === 'REFUNDED' ? <span className="t-faint">—</span> : <Money cents={x.profit} sign compact />}</td>
                     <td className="is-num num">{x.daysToSale === null ? '—' : t('kpi.days', { n: x.daysToSale })}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {x.sale.status !== 'REFUNDED' &&

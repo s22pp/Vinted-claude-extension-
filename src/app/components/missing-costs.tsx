@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
-import { Button } from '@/ui/components/primitives';
+import type { MoneyMetric } from '@/domain/money';
+import { Button, MetricValue } from '@/ui/components/primitives';
 import { CostsDrawer } from './costs';
 
 /**
@@ -41,4 +42,9 @@ export function MissingCostsButton({ children }: { children: React.ReactNode }) 
       <CostsDrawer open={open} onClose={() => setOpen(false)} />
     </>
   );
+}
+
+/** A figure that may be unknown for want of purchase prices: the figure, or the dash and the way to fill them in. */
+export function MetricOrFill({ metric, sign }: { metric: MoneyMetric; sign?: boolean }) {
+  return metric.status === 'unknown' ? <UnknownCost n={metric.missing} /> : <MetricValue metric={metric} sign={sign} />;
 }

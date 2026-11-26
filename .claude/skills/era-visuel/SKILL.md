@@ -50,7 +50,7 @@ mieux. »
   `aria-label` sur le canvas, région `aria-live` pour l'article survolé ; contraste des cartes en clair et en sombre.
 - **Sobre en calcul** : une `InstancedMesh` par forme répétée (cintres, étiquettes) ; un mesh par article seulement
   quand il porte sa propre photo (quelques dizaines à centaines, textures réduites à ~256 px) ; rendu à la demande (pas
-  de boucle quand rien ne bouge), `devicePixelRatio` plafonné à 2, nettoyage (`dispose`) au démontage.
+  de boucle quand rien ne bouge), `devicePixelRatio` plafonné à 1,5 (Bible v3.0), nettoyage (`dispose`) au démontage.
 - **Photos** : celles de Vinted, lues par l'extension (permission `*.vinted.net`, jamais un CDN tiers), réduites pour la
   texture ; sans photo, une silhouette neutre de la catégorie avec le titre — jamais une image inventée de l'article.
 - **Repli** : WebGL indisponible → message clair et lien vers la liste, jamais un écran vide.

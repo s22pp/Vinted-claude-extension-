@@ -8,6 +8,7 @@ import { go, useEra } from '../state';
 import { DayTimeline } from './day-timeline';
 import { DropOffShortcut, useDropOffRound } from './drop-off';
 import { ForYou } from './for-you';
+import { FillCostsLink } from './missing-costs';
 import { InlineLocation } from './storage-location';
 
 /**
@@ -67,6 +68,11 @@ export function TodayBento() {
           <p className={`bento__value num ${profit.knownCents > 0 ? 'is-pos' : profit.knownCents < 0 ? 'is-neg' : ''}`}>{money(profit.knownCents, { sign: true })}</p>
           <Sparkline data={profit.cumulative} color="var(--emerald)" height={28} label={t('bento.profitCurve')} />
           <p className="bento__foot num">{profit.unknown ? t('bento.profitPartial', { n: profit.sales, unknown: profit.unknown }) : t('bento.profitSales', { n: profit.sales })}</p>
+          {profit.unknown > 0 && (
+            <span>
+              <FillCostsLink n={profit.unknown} />
+            </span>
+          )}
         </div>
         <div className="bento__cell bento__metric" data-testid="bento-velocity">
           <p className="bento__head">{t('bento.velocity')}</p>
