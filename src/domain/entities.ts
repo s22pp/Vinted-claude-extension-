@@ -147,6 +147,10 @@ export interface Prep {
   descriptionOverride: string | null;
   /** The seller's description template for this sheet: absent/null = the best match, 'ERA' = ERA's standard one. */
   descTemplateId?: string | null;
+  /** The listing generator's words, typed by the seller: the hook (« Unique »), the style or era (« Y2K Streetwear »), the cut. */
+  hook?: string;
+  vibe?: string;
+  fit?: string;
   priceCents: number | null;
   startedAt: number;
   /** Seconds with the sheet open and the window visible (measured, idle capped). */

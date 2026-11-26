@@ -1,7 +1,7 @@
 import { EraDatabase } from '@/data/db';
 import { EraRepository } from '@/data/repo';
 import type { InventoryItem, Listing, Sale } from '@/domain/entities';
-import { DAC7, allSalesCsv, expenseSummary, itemsCsv, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
+import { DAC7, EXPENSE_PRESETS, accountingCsv, allSalesCsv, archiveRefs, expenseSummary, itemsCsv, presetAmount, purchasesRegister, salesCsv, salesLedger, toCsv, yearSummary } from '@/intelligence/accounting';
 import { buildItemViews, buildSaleViews } from '@/intelligence/portfolio';
 
 const Y = 2026;
@@ -149,3 +149,49 @@ describe('accounting', () => {
     expect(expenseSummary(ex, Y, { status: 'unknown', missing: 2 }).net).toEqual({ status: 'unknown', missing: 2 });
   });
 });
+
+describe('the accountant’s CSV and the 1-click expenses', () => {
+  const lines = (csv: string) => csv.replace(/^\uFEFF/, '').trimEnd().split('\r\n').map((l) => l.split(';'));
+
+  it('archive numbers: every completed sale from the first one ever, refunds left out, stable over the years', () => {
+    const { sv } = world([
+      { id: 'b', soldAt: at(3, 2), cents: 4000 },
+      { id: 'old', soldAt: Date.UTC(Y - 1, 5, 1), cents: 1500 },
+      { id: 'r', soldAt: at(2, 1), cents: 9900, status: 'REFUNDED' },
+      { id: 'a', soldAt: at(1, 9), cents: 2500 },
+    ]);
+    expect([...archiveRefs(sv)]).toEqual([['sold', '#001'], ['sa', '#002'], ['sb', '#003']]);
+  });
+
+  it('one line per sale (cost, fees, price, net profit, running total, DAC7), the expenses, then the totals; UTF-8 BOM', () => {
+    const { sv } = world([
+      { id: 'a', soldAt: at(1, 9), cents: 2500, item: { purchasePriceCents: 1225, costDetail: { itemCents: 1000, protectionCents: 125, shippingCents: 100 } } },
+      { id: 'b', soldAt: at(3, 2), cents: 4000, item: { purchasePriceCents: null } },
+    ]);
+    const csv = accountingCsv(sv, Y, [{ date: at(2, 3), amountCents: 450, category: 'PACKAGING', note: 'Lot de cartons' }], (c) => (c === 'PACKAGING' ? 'Emballage' : c));
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    const [head, a, b, ex, total] = lines(csv);
+    expect(head).toEqual(['Date', 'Référence Archive', 'Article', 'Marque', 'Coût d’achat (€)', 'Frais annexes (€)', 'Prix de vente (€)', 'Profit net (€)', 'Cumul annuel (€)', 'Seuil DAC7 (30 ventes ou 2000 €)']);
+    expect(a).toEqual([`${Y}-02-09`, '#001', 'Article a', 'Nike', '10,00', '2,25', '25,00', '12,75', '25,00', '1/30 ventes · 25/2000 €']);
+    // A cost unknown: its cells empty, never 0.
+    expect(b).toEqual([`${Y}-04-02`, '#002', 'Article b', 'Nike', '', '', '40,00', '', '65,00', '2/30 ventes · 65/2000 €']);
+    expect(ex).toEqual([`${Y}-03-03`, 'Dépense', 'Emballage · Lot de cartons', '', '', '4,50', '', '-4,50', '65,00', '']);
+    expect(total).toEqual([`Total ${Y}`, '', '2 ventes · 1 dépenses', '', '10,00', '6,75', '65,00', '8,25 (partiel : coûts inconnus)', '65,00', 'sous le seuil DAC7']);
+  });
+
+  it('the DAC7 column says when the threshold is reached in the year', () => {
+    const { sv } = world(Array.from({ length: 30 }, (_, i) => ({ id: `t${i}`, soldAt: at(5, 1 + (i % 27)), cents: 500 })));
+    const rows = lines(accountingCsv(sv, Y, [], (c) => c));
+    expect(rows[29]![9]).toBe('29/30 ventes · 145/2000 €');
+    expect(rows[30]![9]).toBe('atteint (30 ventes · 150 €)');
+    expect(rows.at(-1)![9]).toBe('seuil DAC7 atteint');
+  });
+
+  it('1-click expenses: the last amount the seller entered for it comes back; the first time, none is made up', () => {
+    const boxes = EXPENSE_PRESETS.find((p) => p.key === 'BOXES')!;
+    expect(presetAmount([], boxes)).toBeNull();
+    expect(presetAmount([{ date: 1, amountCents: 900, note: 'Lot de cartons' }, { date: 5, amountCents: 1200, note: 'Lot de cartons' }, { date: 9, amountCents: 300, note: 'Scotch' }], boxes)).toBe(1200);
+    expect(EXPENSE_PRESETS.map((p) => p.category)).toEqual(['PACKAGING', 'PACKAGING', 'TRAVEL', 'CLEANING', 'BOOST']);
+  });
+});
+

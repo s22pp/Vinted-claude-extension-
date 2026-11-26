@@ -69,7 +69,7 @@ export interface ExpenseRow {
   id: string;
   date: number;
   amountCents: number;
-  category: 'PACKAGING' | 'BOOST' | 'TRAVEL' | 'SUBSCRIPTION' | 'SHIPPING' | 'OTHER';
+  category: 'PACKAGING' | 'BOOST' | 'TRAVEL' | 'SUBSCRIPTION' | 'SHIPPING' | 'CLEANING' | 'OTHER';
   note: string;
 }
 

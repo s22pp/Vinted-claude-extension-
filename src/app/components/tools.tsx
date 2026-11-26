@@ -118,7 +118,7 @@ export function OfferCalculator({ intel, compact }: { intel: ItemIntel; compact?
 
 /* ── Listing assistant ────────────────────────────────────── */
 
-export function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
   return (
@@ -135,7 +135,7 @@ export function CopyButton({ text }: { text: string }) {
         }
       }}
     >
-      {done ? t('listing.copied') : t('listing.copy')}
+      {done ? t('listing.copied') : (label ?? t('listing.copy'))}
     </Button>
   );
 }

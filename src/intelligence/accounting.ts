@@ -172,7 +172,7 @@ export function stockCsv(views: readonly ItemView[]): string {
 
 /* ── Expenses ───────────────────────────────────────────── */
 
-export const EXPENSE_CATEGORIES = ['PACKAGING', 'SHIPPING', 'BOOST', 'TRAVEL', 'SUBSCRIPTION', 'OTHER'] as const;
+export const EXPENSE_CATEGORIES = ['PACKAGING', 'SHIPPING', 'BOOST', 'TRAVEL', 'SUBSCRIPTION', 'CLEANING', 'OTHER'] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
 export interface ExpenseSummary {
@@ -193,6 +193,91 @@ export function expenseSummary(expenses: readonly { date: number; amountCents: n
   const byMonth = Array.from({ length: 12 }, (_, m) => inYear.filter((e) => new Date(e.date).getMonth() === m).reduce((a, e) => a + e.amountCents, 0));
   const net: MoneyMetric = grossMargin.status === 'unknown' ? grossMargin : { ...grossMargin, value: grossMargin.value - total };
   return { totalCents: total, count: inYear.length, byCategory, byMonth, net };
+}
+
+/**
+ * The recurring costs, one click each: the seller's last amount for it comes back (a box of cartons costs what it cost
+ * last time); the first time, the form is filled for the seller to type the amount — never an amount made up.
+ */
+export const EXPENSE_PRESETS = [
+  { key: 'BOXES', label: 'Lot de cartons', category: 'PACKAGING' },
+  { key: 'TAPE', label: 'Scotch', category: 'PACKAGING' },
+  { key: 'FUEL', label: 'Essence / trajet sourcing', category: 'TRAVEL' },
+  { key: 'CLEANING', label: 'Pressing', category: 'CLEANING' },
+  { key: 'BOOST', label: 'Boost Vinted', category: 'BOOST' },
+] as const satisfies readonly { key: string; label: string; category: ExpenseCategory }[];
+export type ExpensePreset = (typeof EXPENSE_PRESETS)[number];
+
+/** The amount the seller last entered for this preset (its note is the preset's name), or null the first time. */
+export function presetAmount(rows: readonly { date: number; amountCents: number; note: string }[], p: Pick<ExpensePreset, 'label'>): number | null {
+  const last = rows.filter((r) => r.note.trim() === p.label).sort((a, b) => b.date - a.date)[0];
+  return last ? last.amountCents : null;
+}
+
+/* ── The accountant's export: every sale of the year, the year's expenses, the DAC7 threshold ─────────────────── */
+
+/** « #001 »: the sale's number in the archive, every completed sale counted from the first one ever (stable). */
+export function archiveRefs(sales: readonly SaleView[]): Map<string, string> {
+  const done = sales.filter((s) => s.sale.status !== 'REFUNDED').sort((a, b) => a.sale.soldAt - b.sale.soldAt || a.sale.id.localeCompare(b.sale.id));
+  return new Map(done.map((s, i) => [s.sale.id, `#${String(i + 1).padStart(3, '0')}`]));
+}
+
+/** What a sale's article cost: its price, and the fees around it (buyer protection, shipping) when the breakdown is known. */
+function costParts(s: SaleView): { itemCents: number | null; feesCents: number | null } {
+  const d = s.item.costDetail;
+  if (d) return { itemCents: d.itemCents, feesCents: d.protectionCents === null && d.shippingCents === null ? null : (d.protectionCents ?? 0) + (d.shippingCents ?? 0) };
+  return { itemCents: s.cost, feesCents: null };
+}
+
+/**
+ * The full accounting CSV of a year (UTF-8 with BOM, « ; », decimal comma: opens as is in Excel and Numbers): one line
+ * per completed sale (date, archive number, article, brand, purchase cost, fees, sale price, net profit, the year's
+ * running total and where it stands against DAC7), then one line per expense (taken off the profit), then the totals.
+ * An unknown cost leaves its cells empty and the totals say « partiel » — never counted as 0.
+ */
+export function accountingCsv(sales: readonly SaleView[], year: number, expenses: readonly { date: number; amountCents: number; category: ExpenseCategory; note: string }[], categoryLabel: (c: ExpenseCategory) => string): string {
+  const refs = archiveRefs(sales);
+  const rows: Cell[][] = [];
+  let cumul = 0;
+  let count = 0;
+  let costSum = 0;
+  let feesSum = 0;
+  let saleSum = 0;
+  let profitSum = 0;
+  let partial = false;
+  const yearSales = sales.filter((s) => s.sale.status !== 'REFUNDED' && yearOf(s.sale.soldAt) === year).sort((a, b) => a.sale.soldAt - b.sale.soldAt || a.sale.id.localeCompare(b.sale.id));
+  for (const s of yearSales) {
+    const { itemCents, feesCents } = costParts(s);
+    cumul += s.sale.salePriceCents;
+    count++;
+    saleSum += s.sale.salePriceCents;
+    if (itemCents !== null) costSum += itemCents;
+    if (feesCents !== null) feesSum += feesCents;
+    if (s.profit === null) partial = true;
+    else profitSum += s.profit;
+    // The same rule as the DAC7 gauge: reported from 30 sales, or over 2 000 €.
+    const reached = count >= DAC7.sales || cumul > DAC7.revenueCents;
+    rows.push([
+      day(s.sale.soldAt),
+      refs.get(s.sale.id) ?? null,
+      s.item.title,
+      s.item.brand,
+      euros(itemCents),
+      euros(feesCents),
+      euros(s.sale.salePriceCents),
+      euros(s.profit),
+      euros(cumul),
+      reached ? `atteint (${count} ventes · ${eurNumber(cumul, 0)} €)` : `${count}/${DAC7.sales} ventes · ${eurNumber(cumul, 0)}/${eurNumber(DAC7.revenueCents, 0)} €`,
+    ]);
+  }
+  const yearExpenses = expenses.filter((e) => yearOf(e.date) === year).sort((a, b) => a.date - b.date);
+  for (const e of yearExpenses) {
+    feesSum += e.amountCents;
+    profitSum -= e.amountCents;
+    rows.push([day(e.date), 'Dépense', [categoryLabel(e.category), e.note.trim()].filter(Boolean).join(' · '), null, null, euros(e.amountCents), null, euros(-e.amountCents), euros(cumul), null]);
+  }
+  rows.push([`Total ${year}`, null, `${count} ventes${yearExpenses.length ? ` · ${yearExpenses.length} dépenses` : ''}`, null, euros(costSum), euros(feesSum), euros(saleSum), `${eurNumber(profitSum)}${partial ? ' (partiel : coûts inconnus)' : ''}`, euros(cumul), count >= DAC7.sales || cumul > DAC7.revenueCents ? 'seuil DAC7 atteint' : 'sous le seuil DAC7']);
+  return toCsv(['Date', 'Référence Archive', 'Article', 'Marque', 'Coût d’achat (€)', 'Frais annexes (€)', 'Prix de vente (€)', 'Profit net (€)', 'Cumul annuel (€)', `Seuil DAC7 (${DAC7.sales} ventes ou ${eurNumber(DAC7.revenueCents, 0)} €)`], rows);
 }
 
 /* ── Full exports: every sale, every article ─────────────── */

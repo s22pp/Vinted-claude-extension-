@@ -11,7 +11,7 @@ import { skuOf, titleIssues } from '@/intelligence/listing';
 import type { ItemView } from '@/intelligence/portfolio';
 import { withWord } from '@/intelligence/title-words';
 import { type CheckKey, type PackageSize, brandWarning, draftDescription, draftTitle, measureFields, readiness, suggestPrice, suggestedPackage } from '@/intelligence/workshop';
-import { generatedDescription, generatedPrice, generatedTitle } from '@/intelligence/listing-generator';
+import { type GenFacts, generatedDescription, generatedPrice, generatedTitle, listingBundle } from '@/intelligence/listing-generator';
 import { Ring } from '@/ui/charts/ring';
 import { Icon } from '@/ui/components/icons';
 import { useErrorToast, useToast } from '@/ui/components/overlays';
@@ -157,7 +157,22 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
     price: chosen !== null ? i18n.money(chosen) : null,
   };
   const generate = async () => {
-    const facts = { category: item.category, brand: item.brand, model: item.model, size: item.size, era: item.era, condition: item.condition, colors: prep.colors || null, material: prep.material || item.material || null, defects: prep.defects || null, measures: measures || null };
+    const facts: GenFacts = {
+      category: item.category,
+      brand: item.brand,
+      model: item.model,
+      size: item.size,
+      era: item.era,
+      condition: item.condition,
+      gender: item.gender,
+      hook: prep.hook || null,
+      vibe: prep.vibe || null,
+      fit: prep.fit || null,
+      colors: prep.colors || null,
+      material: prep.material || item.material || null,
+      defects: prep.defects || null,
+      measureValues: prep.measures,
+    };
     const genPrice = generatedPrice(intel && !intel.analysisStale ? intel.analysis : null);
     await save({ titleOverride: generatedTitle(facts), descriptionOverride: generatedDescription(facts), ...(genPrice !== null ? { priceCents: genPrice } : {}) });
     if (genPrice !== null) price.setRaw(String(genPrice / 100).replace('.', ','));
@@ -322,9 +337,15 @@ export function WorkshopSheet({ v, guards }: { v: ItemView; guards: readonly Ref
 
         <Step n={8} title={t('workshop.s.title')} hint={t('workshop.h.title')} done={done('title')}>
           <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
+            <FactInput value={prep.hook ?? ''} label={t('workshop.hook')} placeholder={t('workshop.hookPh')} onSave={(x) => save({ hook: x })} width={130} />
+            <FactInput value={prep.vibe ?? ''} label={t('workshop.vibe')} placeholder={t('workshop.vibePh')} onSave={(x) => save({ vibe: x })} width={200} />
+            <FactInput value={prep.fit ?? ''} label={t('workshop.fit')} placeholder={t('workshop.fitPh')} onSave={(x) => save({ fit: x })} width={120} />
+          </div>
+          <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
             <Button size="sm" variant="primary" icon="edit" onClick={() => void generate()} data-testid="generate-listing">
               {t('workshop.generate')}
             </Button>
+            <CopyButton text={listingBundle(title, description, chosen !== null ? i18n.money(chosen) : null)} label={t('workshop.copyAll')} />
             <span className="t-small t-faint">{t('workshop.generateHint')}</span>
           </div>
           <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
