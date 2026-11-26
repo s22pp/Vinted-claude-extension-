@@ -22,12 +22,14 @@ export interface Backup {
   tables: Partial<Record<TableName, unknown[]>>;
 }
 
-export async function exportBackup(db: EraDatabase, appVersion: string, now = Date.now()): Promise<Backup> {
+/** `realOnly`: the automatic copies — a record marked as demo is never written to the seller's backups. */
+export async function exportBackup(db: EraDatabase, appVersion: string, now = Date.now(), { realOnly = false } = {}): Promise<Backup> {
   const tables: Backup['tables'] = {};
   const counts: Backup['counts'] = {};
   await db.transaction('r', BACKUP_TABLES.map((t) => db.table(t)), async () => {
     for (const t of BACKUP_TABLES) {
-      const rows = await db.table(t).toArray();
+      const all = await db.table(t).toArray();
+      const rows = realOnly ? all.filter((r: { isDemo?: unknown }) => r?.isDemo !== true) : all;
       tables[t] = rows;
       counts[t] = rows.length;
     }

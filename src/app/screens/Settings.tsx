@@ -22,6 +22,7 @@ import { RepostWaitSetting } from '../components/repost-now';
 import { isUnlimited } from '@/data/budget-plan';
 
 export function Settings() {
+  const demoLeft = useLiveQuery(() => repo.demoCount(), []) ?? 0;
   const i = useI18n();
   const { t } = i;
   const era = useEra();
@@ -106,12 +107,14 @@ export function Settings() {
               {t('settings.dataLocal')}
             </p>
             <div className="row wrap">
-              {era.mode !== 'demo' ? (
+              {era.mode !== 'demo' && (
                 <Button icon="layers" loading={busy === 'demo'} disabled={era.mode === 'real'} onClick={() => run('demo', async () => { await repo.loadDemo(); toast('success', t('onboarding.loaded')); })}>
                   {t('settings.loadDemo')} <DemoBadge />
                 </Button>
-              ) : (
-                <Button icon="x" loading={busy === 'clear'} onClick={() => run('clear', async () => { await repo.clearDemo(); toast('info', t('settings.clearDemo')); })}>
+              )}
+              {/* Whenever demo records are still there (whatever the mode): one discreet click, the seller's own data untouched. */}
+              {demoLeft > 0 && (
+                <Button variant="ghost" icon="x" loading={busy === 'clear'} onClick={() => run('clear', async () => { await repo.clearDemo(); toast('info', t('settings.demoCleared'), t('settings.demoClearedHint')); })} data-testid="clear-demo">
                   {t('settings.clearDemo')}
                 </Button>
               )}

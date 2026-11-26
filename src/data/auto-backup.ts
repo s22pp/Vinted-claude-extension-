@@ -48,7 +48,7 @@ export async function runAutoBackup(now = Date.now(), force = false): Promise<Au
   if (!cfg.enabled && !force) return { ok: false, reason: 'OFF' };
   if ((await repo.getSetting('dataMode', 'empty')) !== 'real') return { ok: false, reason: 'NOT_REAL' };
   if (!force && !backupDue(await repo.getSetting<number | null>(LAST_BACKUP_KEY, null), cfg.everyDays, now)) return { ok: false, reason: 'NOT_DUE' };
-  const backup = await exportBackup(db, browser.runtime.getManifest().version, now);
+  const backup = await exportBackup(db, browser.runtime.getManifest().version, now, { realOnly: true });
   const saved = await saveFile(jsonDataUrl(JSON.stringify(backup)), backupFileName(now), 30_000, 'overwrite');
   if (!saved.ok) return { ok: false, reason: 'FAILED', detail: saved.detail };
   await repo.setSetting(LAST_BACKUP_KEY, now);
@@ -87,7 +87,7 @@ export function saleBackupName(now: number): string {
  */
 export async function runSaleBackup(now = Date.now()): Promise<AutoBackupResult> {
   if ((await repo.getSetting('dataMode', 'empty')) !== 'real') return { ok: false, reason: 'NOT_REAL' };
-  const backup = await exportBackup(db, browser.runtime.getManifest().version, now);
+  const backup = await exportBackup(db, browser.runtime.getManifest().version, now, { realOnly: true });
   const saved = await saveFile(jsonDataUrl(JSON.stringify(backup)), saleBackupName(now), 30_000, 'uniquify');
   if (!saved.ok) return { ok: false, reason: 'FAILED', detail: saved.detail };
   // (Not counted as the periodic copy: that one keeps its own schedule.)

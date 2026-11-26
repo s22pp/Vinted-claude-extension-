@@ -44,8 +44,9 @@ export async function importFromVinted(
   }
   if (openedTab) await browser.tabs.remove(tabId).catch(() => undefined);
   onStage('MATCHING');
-  // Real data is never silently mixed with demo fixtures.
-  if ((await repo.getSetting('dataMode', 'empty')) === 'demo') await repo.clearDemo();
+  // Real data is never mixed with demo fixtures: the account was read, so every demo record goes before anything is
+  // written — whatever the mode says (a demo left behind by an older version, a demo loaded after a real import).
+  if ((await repo.getSetting('dataMode', 'empty')) === 'demo' || (await repo.demoCount()) > 0) await repo.clearDemo();
   const existing = await db.listings.filter((l) => l.platform === 'vinted' && !l.isDemo).toArray();
   const byPlatformId = new Map(existing.filter((l) => l.platformListingId).map((l) => [l.platformListingId!, l]));
   let created = 0;

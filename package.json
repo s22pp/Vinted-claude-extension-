@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "e2e": "wxt build && playwright test",
     "icons": "node scripts/build-icons.mjs",
+    "check:build": "node scripts/check-build.mjs",
     "release": "wxt build && rm -rf extension && cp -r .output/chrome-mv3 extension && wxt zip",
     "perf": "vitest run --config vitest.perf.config.ts",
     "analyze": "ERA_ANALYZE=1 wxt build && node scripts/bundle-report.mjs",

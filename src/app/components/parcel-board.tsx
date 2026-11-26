@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
+import { LocationBadge } from './storage-location';
 import { useI18n } from '@/i18n';
 import { boxInitials, parcelBoard } from '@/intelligence/parcel-board';
 import type { Parcel } from '@/intelligence/parcels';
@@ -31,7 +32,8 @@ function useSlide(container: React.RefObject<HTMLDivElement | null>, keys: strin
  * « Le tapis des colis »: two lanes (my sales, my purchases), five stations, every parcel a box at its station — the
  * late ones in coral. A click on a box goes to its line below. From the statuses Vinted gave at the last import.
  */
-export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
+/** `locations`: where each sold piece waits at home, by sale id — shown under its box while it is « À envoyer ». */
+export function ParcelBoard({ parcels, locations }: { parcels: readonly Parcel[]; locations?: ReadonlyMap<string, string> }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const lanes = parcelBoard(parcels).filter((l) => l.count > 0);
@@ -60,8 +62,8 @@ export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
                 </span>
                 <div className="row wrap pbelt__boxes" style={{ gap: 6, justifyContent: 'center', position: 'relative' }}>
                   {st.parcels.map((p) => (
+                    <span key={p.key} className="pbelt__slot">
                     <button
-                      key={p.key}
                       type="button"
                       data-box={p.key}
                       onClick={() => goTo(p)}
@@ -76,6 +78,8 @@ export function ParcelBoard({ parcels }: { parcels: readonly Parcel[] }) {
                         {p.days !== null && <span className="pbelt__age"> · {p.days}j</span>}
                       </span>
                     </button>
+                    {p.direction === 'OUT' && p.stage === 'TO_SHIP' && <LocationBadge value={locations?.get(p.refId)} />}
+                    </span>
                   ))}
                 </div>
               </div>

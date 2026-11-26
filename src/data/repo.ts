@@ -13,6 +13,7 @@ import {
   type Sale,
   newPrep,
   validItem,
+  cleanStorage,
 } from '@/domain/entities';
 import { type Cents, eurText } from '@/domain/money';
 import { DAY } from '@/domain/time';
@@ -93,6 +94,16 @@ export class EraRepository {
     await this.setSetting('dataMode', 'demo');
   }
 
+  /** Demo records still in the database (articles and sales marked isDemo), whatever the mode says. */
+  async demoCount(): Promise<number> {
+    return (await this.db.items.filter((i) => !!i.isDemo).count()) + (await this.db.sales.filter((x) => !!x.isDemo).count());
+  }
+
+  /**
+   * Every demo record goes: articles, listings, sales (and so their parcels), events, forecasts, observations, sheets,
+   * analyses, invoices — and what the seller made from them in the demo: lots of demo articles, Radar scans of the demo
+   * market. The seller's own records and settings stay.
+   */
   async clearDemo(): Promise<void> {
     const tables = [this.db.items, this.db.listings, this.db.sales, this.db.events, this.db.predictions] as const;
     await this.db.transaction('rw', [...tables, this.db.observations, this.db.analyses, this.db.preps, this.db.invoices], async () => {
@@ -104,8 +115,23 @@ export class EraRepository {
       await this.db.preps.where('itemId').anyOf(demoItemIds).delete();
       await this.db.analyses.filter((a) => a.isDemo).delete();
     });
+    const lots = await this.getSetting<{ itemIds: string[] }[]>('saleLots', []);
+    if (lots.length) {
+      const ids = new Set((await this.db.items.toCollection().primaryKeys()) as string[]);
+      await this.setSetting('saleLots', lots.filter((l) => l.itemIds.every((id) => ids.has(id))));
+    }
+    const scans = await this.getSetting<Record<string, { demo?: boolean }>>('radarLast', {});
+    if (Object.values(scans).some((x) => x?.demo)) await this.setSetting('radarLast', Object.fromEntries(Object.entries(scans).filter(([, x]) => !x?.demo)));
     const count = await this.db.items.count();
     await this.setSetting('dataMode', count > 0 ? 'real' : 'empty');
+  }
+
+  /** Where the piece is stored at home; empty = none. Saved at once (the item page's inline field, the stock). */
+  async setStorageLocation(itemId: string, raw: string | null, now = Date.now()): Promise<void> {
+    const item = await this.db.items.get(itemId);
+    if (!item) return;
+    const storageLocation = cleanStorage(raw);
+    await this.db.items.put(validItem({ ...item, storageLocation, updatedAt: now }));
   }
 
   async addItem(input: {
@@ -125,6 +151,7 @@ export class EraRepository {
     favorites: number | null;
     url: string | null;
     status?: ItemStatus | null;
+    storageLocation?: string | null;
   }, now = Date.now()): Promise<string> {
     const id = uid('item');
     const status: ItemStatus = input.status ?? (input.priceCents !== null ? 'LISTED' : 'DRAFT');
@@ -148,6 +175,7 @@ export class EraRepository {
       createdAt: now,
       updatedAt: now,
       meta: input.purchasePriceCents !== null ? { purchasePriceCents: { p: 'USER_PROVIDED', at: now } } : {},
+      ...(cleanStorage(input.storageLocation) ? { storageLocation: cleanStorage(input.storageLocation) } : {}),
       isDemo: false,
     });
     await this.db.transaction('rw', [this.db.items, this.db.listings, this.db.events, this.db.settings], async () => {

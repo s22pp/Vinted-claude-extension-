@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { InlineLocation } from './storage-location';
 import { useState } from 'react';
 import type { EraMessage, LabelBatchResult, LabelResult } from '@/data/adapters/vinted/protocol';
 import { repo } from '@/data/repo';
@@ -124,7 +125,10 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
             <div key={x.sale.id} className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
               <div className="row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{x.item.title}</div>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600 }}>{x.item.title}</span>
+                    <InlineLocation itemId={x.item.id} value={x.item.storageLocation} disabled={x.item.isDemo} />
+                  </div>
                   <div className="t-small t-muted">
                     <Money cents={x.sale.salePriceCents} /> · {date(x.sale.soldAt)}
                     {x.sale.vintedStatus ? ` · ${x.sale.vintedStatus}` : ''}
@@ -183,5 +187,37 @@ export function ToShipCard({ highlight }: { highlight: boolean }) {
         </div>
       </Modal>
     </Card>
+  );
+}
+
+/**
+ * Aujourd'hui → « À envoyer »: each sale waiting for its parcel with where the piece is stored (« [ BAC A ] »), so the
+ * seller goes straight to it; nothing shown when no parcel waits.
+ */
+export function ToShipStrip() {
+  const { t, date } = useI18n();
+  const era = useEra();
+  const orders = era.sales.filter((x) => x.sale.needsAction && x.sale.status !== 'REFUNDED');
+  if (!orders.length) return null;
+  return (
+    <section aria-labelledby="ship-h" className="stack-3" data-testid="today-to-ship">
+      <div className="row-between wrap" style={{ gap: 8 }}>
+        <h2 className="t-caption" id="ship-h">
+          {t('today.toShip', { n: orders.length })}
+        </h2>
+        <a className="t-small t-muted" href="#/sales?ship=1">
+          {t('today.toShipOpen')} →
+        </a>
+      </div>
+      <ul className="ship-strip">
+        {orders.map((x) => (
+          <li key={x.sale.id} className="ship-strip__row">
+            <span className="ship-strip__title">{x.item.title}</span>
+            <span className="num t-small t-muted">{date(x.sale.soldAt)}</span>
+            <InlineLocation itemId={x.item.id} value={x.item.storageLocation} disabled={x.item.isDemo} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

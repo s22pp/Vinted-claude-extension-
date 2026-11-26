@@ -63,7 +63,7 @@ export function RadarCard() {
         setScanning(s.id);
         try {
           const r = await adapter.searchComparables({ text: [s.brand, s.category ? TITLE_WORD[s.category] : ''].filter(Boolean).join(' '), brand: s.brand, category: s.category, gender: null, size: s.size, condition: null });
-          next[s.id] = scoreScan(s, r.candidates, era.model, own, Date.now());
+          next[s.id] = { ...scoreScan(s, r.candidates, era.model, own, Date.now()), ...(adapter.isDemo ? { demo: true } : {}) };
           await repo.setSetting(RADAR_LAST_KEY, next);
         } catch (e) {
           errorToast(e);

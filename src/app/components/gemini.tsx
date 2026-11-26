@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { GEMINI_STORE, type GeminiConfig, clearGemini, geminiConfig, geminiWrite, keyHint, saveGemini, testGeminiKey } from '@/data/gemini';
 import { useI18n } from '@/i18n';
 import { type DraftFacts, type DraftIssue, type ReplyDecision, checkDecision, checkDraft, cleanDraft, factLines, offerInMessage, replyRequest, rewriteRequest, splitHashtags } from '@/intelligence/ai-draft';
@@ -147,6 +147,8 @@ export function factsOf(intel: ItemIntel, ctx: ReturnType<typeof replyContextOf>
  * (accept, counter at which price, decline), Gemini only words it. Checked against the facts; copied by the seller.
  */
 export function AiReply({ intel }: { intel: ItemIntel }) {
+  // Unique ids: the replies can be on the page twice (the Outils hub and the « Réponses types » window).
+  const uid = useId();
   const { t, money } = useI18n();
   const era = useEra();
   const toast = useToast();
@@ -188,12 +190,12 @@ export function AiReply({ intel }: { intel: ItemIntel }) {
   };
   return (
     <div className="stack-3" data-testid="ai-reply">
-      <Field label={t('gemini.buyer')} htmlFor="ai-buyer">
-        <textarea id="ai-buyer" className="input" rows={3} value={buyer} onChange={(e) => setBuyer(e.target.value)} />
+      <Field label={t('gemini.buyer')} htmlFor={`${uid}-buyer`}>
+        <textarea id={`${uid}-buyer`} className="input" rows={3} value={buyer} onChange={(e) => setBuyer(e.target.value)} />
       </Field>
       <div className="row wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
-        <Field label={t('gemini.offer')} htmlFor="ai-offer" error={offer.invalid ? t('add.invalidAmount') : null}>
-          <Input id="ai-offer" money value={offer.raw} onChange={(e) => offer.setRaw(e.target.value)} placeholder={detected !== null ? String(detected / 100).replace('.', ',') : ''} style={{ width: 120 }} />
+        <Field label={t('gemini.offer')} htmlFor={`${uid}-offer`} error={offer.invalid ? t('add.invalidAmount') : null}>
+          <Input id={`${uid}-offer`} money value={offer.raw} onChange={(e) => offer.setRaw(e.target.value)} placeholder={detected !== null ? String(detected / 100).replace('.', ',') : ''} style={{ width: 120 }} />
         </Field>
         <p className="t-small t-muted grow" data-testid="ai-decision">
           {t(`gemini.decision.${decision.verdict}`, decision.verdict === 'NONE' ? {} : { offer: decision.offer, counter: decision.verdict === 'COUNTER' ? decision.counter : '', ask: decision.verdict === 'DECLINE' ? decision.ask : '' })}

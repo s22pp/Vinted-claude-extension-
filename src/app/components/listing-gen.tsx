@@ -134,11 +134,11 @@ export function ListingGenerator() {
         </div>
         <div className="gen__line">
           <span className="t-caption">{t('gen.description')}</span>
-          <pre className="wdesc" data-testid="gen-description">{description}</pre>
+          <pre className="wdesc" tabIndex={0} aria-label={t('gen.description')} data-testid="gen-description">{description}</pre>
         </div>
         <div className="gen__line">
           <span className="t-caption">{t('gen.hashtags', { n: tags.length })}</span>
-          <pre className="wdesc gen__tags" data-testid="gen-hashtags">{tags.join(' ')}</pre>
+          <pre className="wdesc gen__tags" tabIndex={0} aria-label={t('gen.hashtags', { n: tags.length })} data-testid="gen-hashtags">{tags.join(' ')}</pre>
         </div>
         <div className="gen__line">
           <span className="t-caption">{t('gen.price')}</span>

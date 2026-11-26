@@ -44,6 +44,7 @@ export function AddItemDrawer({ open, onClose }: { open: boolean; onClose: () =>
   const cost = useMoneyField(null);
   const price = useMoneyField(null);
   const [date, setDate] = useState('');
+  const [storage, setStorage] = useState('');
   const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [touched, setTouched] = useState(false);
   const valid = title.trim() && brand.trim() && !cost.invalid && !price.invalid;
@@ -69,6 +70,7 @@ export function AddItemDrawer({ open, onClose }: { open: boolean; onClose: () =>
       views: null,
       favorites: null,
       url: null,
+      storageLocation: storage,
     });
     setState('saved');
     toast('success', t('add.saved'), title);
@@ -79,6 +81,7 @@ export function AddItemDrawer({ open, onClose }: { open: boolean; onClose: () =>
       setSize('');
       cost.setRaw('');
       price.setRaw('');
+      setStorage('');
       setTouched(false);
       onClose();
     }, 450);
@@ -128,6 +131,9 @@ export function AddItemDrawer({ open, onClose }: { open: boolean; onClose: () =>
           </Field>
           <Field label={t('add.listedPrice')} optional htmlFor="f-price" error={price.invalid ? t('add.invalidAmount') : null}>
             <Input id="f-price" money value={price.raw} onChange={(e) => price.setRaw(e.target.value)} placeholder="—" aria-invalid={price.invalid} />
+          </Field>
+          <Field label={t('storage.label')} optional htmlFor="f-storage">
+            <Input id="f-storage" value={storage} maxLength={40} onChange={(e) => setStorage(e.target.value)} placeholder={t('storage.ph')} />
           </Field>
         </div>
         <p className="t-small t-faint">{t('onboarding.s3Body')}</p>

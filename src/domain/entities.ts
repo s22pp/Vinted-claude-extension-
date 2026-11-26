@@ -45,7 +45,16 @@ export interface InventoryItem {
   meta: Record<string, FieldMeta>;
   /** DEMO data is never mixed silently with real data. */
   isDemo: boolean;
+  /** Where the piece is stored at home (« Bac A », « Penderie 2 »): found at once when it sells. Absent = not said. */
+  storageLocation?: string | null;
 }
+
+/** A storage place as typed: spaces tidied, at most this long; empty = none. */
+export const STORAGE_MAX = 40;
+export const cleanStorage = (raw: string | null | undefined): string | null => {
+  const s = (raw ?? '').replace(/\s+/g, ' ').trim().slice(0, STORAGE_MAX);
+  return s || null;
+};
 
 export type ListingStatus = 'ACTIVE' | 'RESERVED' | 'HIDDEN' | 'REMOVED' | 'SOLD';
 
@@ -332,5 +341,6 @@ export function validItem(it: InventoryItem): InventoryItem {
     bad('détail du coût hors centimes');
   if (it.purchaseDate !== null && !isTime(it.purchaseDate)) bad('date d’achat invalide');
   if (!isTime(it.createdAt) || !isTime(it.updatedAt)) bad('dates invalides');
+  if (it.storageLocation != null && (typeof it.storageLocation !== 'string' || it.storageLocation.length > STORAGE_MAX)) bad('emplacement invalide');
   return it;
 }

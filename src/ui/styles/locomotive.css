@@ -1242,3 +1242,81 @@ kbd,
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+
+/* 2.1 · Emplacement physique: « [ BAC A ] » in the machine voice; edited in place, a 300 ms emerald flash once saved. */
+.loc-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--text);
+}
+.loc-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 300ms var(--ease-locomotive);
+}
+.loc-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.loc-btn.is-saved .loc-badge {
+  border-color: var(--emerald);
+  color: var(--emerald);
+  background: color-mix(in srgb, var(--emerald) 10%, transparent);
+}
+.loc-edit__input {
+  width: 150px;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--accent);
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  outline: none;
+}
+.pbelt__slot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Aujourd'hui → À envoyer: one ruled line per parcel to make, its storage place at the end. */
+.ship-strip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-grid);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.ship-strip__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border-grid);
+}
+.ship-strip__row:first-child {
+  border-top: 0;
+}
+.ship-strip__title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

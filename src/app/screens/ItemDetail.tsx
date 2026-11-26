@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { InlineLocation } from '../components/storage-location';
 import { useState } from 'react';
 import { db } from '@/data/db';
 import { qualityOf } from '@/domain/provenance';
@@ -92,6 +93,7 @@ export function ItemDetail({ id }: { id: string }) {
             <StatusBadge status={item.status} />
             {st && <StagnationBadge d={st} />}
             {item.isDemo && <DemoBadge />}
+            <InlineLocation itemId={item.id} value={item.storageLocation} />
           </div>
           <h1 className="t-h1" style={{ overflowWrap: 'anywhere' }}>
             {item.title}

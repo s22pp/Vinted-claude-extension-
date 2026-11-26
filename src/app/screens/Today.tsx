@@ -1,4 +1,5 @@
 import { addMonths, startOfMonth } from '@/domain/time';
+import { ToShipStrip } from '../components/to-ship';
 import { useI18n } from '@/i18n';
 import { AGE_BUCKETS } from '@/intelligence/capital';
 import { monthlySeries, periodSales } from '@/intelligence/portfolio';
@@ -212,6 +213,8 @@ export function Today() {
             <PriorityList priorities={era.priorities} />
           )}
         </section>
+
+        <ToShipStrip />
 
         {/* The one advice worth doing first, explained (why, confidence, impact): the others are one click away. */}
         {top?.recommendation && (

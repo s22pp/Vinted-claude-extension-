@@ -143,7 +143,7 @@ function DemoBannerBar() {
         variant="ghost"
         onClick={async () => {
           await repo.clearDemo();
-          toast('info', t('settings.clearDemo'));
+          toast('info', t('settings.demoCleared'));
           go('onboarding');
         }}
       >

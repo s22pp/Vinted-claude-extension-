@@ -53,6 +53,8 @@ export interface RadarScan {
   deals: RadarDeal[];
   /** Listings Vinted returned before the search's own filters. */
   seen: number;
+  /** Scanned on the demo market (fictitious listings): removed with the demo. */
+  demo?: boolean;
   /** Set aside before any filter: another brand, an imitation (« façon »), a lot, a kids' piece, a damaged one, a price too low to be real. */
   excluded?: number;
 }

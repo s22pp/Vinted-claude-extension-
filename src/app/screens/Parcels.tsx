@@ -35,6 +35,8 @@ export function Parcels() {
   const [placing, setPlacing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
+  // Where each sold piece waits at home, for the « À envoyer » boxes.
+  const locations = useMemo(() => new Map(era.sales.filter((x) => x.item.storageLocation).map((x) => [x.sale.id, x.item.storageLocation!])), [era.sales]);
   const parcels = useMemo(
     () =>
       parcelsInProgress(
@@ -139,7 +141,7 @@ export function Parcels() {
       <div className="grid-12">
         {parcels.length > 0 && (
           <Card className="span-12" title={t('parcelboard.title')} hint={t('parcelboard.hint')} icon="repost" tone="cobalt">
-            <ParcelBoard parcels={parcels} />
+            <ParcelBoard parcels={parcels} locations={locations} />
           </Card>
         )}
         <Card className="span-12" title={t('nudge.title')} hint={t('nudge.hint')} icon="sales" tone="emerald">
